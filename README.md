@@ -113,10 +113,19 @@ com `<.nl>`. Linhas em branco e só de comentário ficam dentro do `<.nl>`.
 `lib/XC/Actions.rakumod` transforma o casamento em árvore: o arquivo, as
 funções com parâmetros e anotações, e todos os comandos — `if`/`elseif`/`else`,
 `do case`, `while`, `for`, `begin sequence`, atribuição, chamada, `return`,
-`exit`, `loop`, declaração. Dentro de uma expressão, o que ainda não tem nó
-próprio (`o:x(1)[2]`, um code block) fica como texto; nenhum comando fica sem
-nó, e um que ficasse faria a ação morrer dizendo qual. `percorre` em
-`lib/XC/AST.rakumod` desce em todos os corpos, em ordem de leitura.
+`exit`, `loop`, declaração — e as expressões inteiras: índice, membro,
+método, campo de área (`SA1->A1_NOME`, `(cAlias)->A1_NOME`), macro, passagem
+por referência, argumento omitido, code block, e os literais com as suas
+partes. Nada fica como texto: um nome lido dentro de `aTitulos[nX]:nSaldo` é
+um nó. Uma forma sem nó faz a ação morrer dizendo qual, em vez de sumir.
+
+`percorre` desce nos corpos dos comandos e `percorre-expr` nas expressões,
+os dois em ordem de leitura; `exprs-de` dá as expressões de um comando.
+
+A estrutura mostrou um defeito que o texto escondia: `{ "a": nX }` casava
+como um **array**, cujo item era o membro `nX` da string `"a"` — o `:` do par
+virava o de um membro. Com `{ "a": 1 }` não acontecia, porque um número não é
+nome de membro. Agora um literal não leva trailer.
 
 A ação precisa do texto, para saber a linha de cada nó:
 
@@ -124,7 +133,8 @@ A ação precisa do texto, para saber a linha de cada nó:
 my $arvore = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src)).made;
 ```
 
-`t/08-arvore.raku` confere a forma que sai e o que tem de ser recusado.
+`t/08-arvore.raku` e `t/09-expressoes.raku` conferem a forma que sai e o que
+tem de ser recusado.
 
 `lib/XC/Tipos.rakumod` confere que o inicializador bate com o tipo declarado:
 
