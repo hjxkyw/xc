@@ -1,17 +1,28 @@
-# xc — um compilador de TL++ escrito em Raku
+# xc — o compilador do xtpl, escrito em Raku
 
-Experimento. Uma gramática Raku para TL++, com o xtpl crescendo dela em vez de
-ser aplicado por cima com expressões regulares.
+Experimento. Uma gramática Raku para o xtpl — o TL++ com extensões —, para o
+xtpl crescer dela em vez de ser aplicado por cima com expressões regulares.
 
 > **Sem qualquer vínculo com a TOTVS.** Projeto pessoal, experimental,
 > escrito por uma IA, nunca usado em produção.
 
-## O alvo é TL++, não AdvPL
+## xtpl entra, TL++ sai
 
-A diferença importa. TL++ tem `namespace`, tem anotações, e tem tipos
-declarados. Uma gramática que tentasse cobrir os dois teria de aceitar tudo
-que o AdvPL aceita e mais, e não poderia recusar nada — que é como se chega de
-volta à expressão regular.
+Como TypeScript e JavaScript. A gramática é a do TL++ aumentada com as
+extensões do xtpl, e o compilador baixa um fonte xtpl para TL++ puro: o que já
+é TL++ passa como está, e só as extensões são reescritas.
+
+Duas consequências:
+
+- **Todo TL++ válido é xtpl válido.** Um `.tlpp` que não casa é defeito da
+  gramática.
+- **A régua para recusar é a do xtpl**, não a do TL++. O tipo antes do
+  inicializador — `local nX as Numeric := 1` — o TL++ recusa e o xtpl aceita;
+  aqui entra, e baixar é trocar as duas partes de lugar.
+
+AdvPL não é alvo. TL++ tem `namespace`, anotações e tipos declarados; uma
+gramática que cobrisse os dois teria de aceitar tudo que o AdvPL aceita e mais,
+e não poderia recusar nada — que é como se chega de volta à expressão regular.
 
 ## Por que
 
@@ -39,20 +50,26 @@ antes de a quebra de linha passar a terminar o comando (abaixo), e não
 medido de novo desde então.
 
 Esse número mede menos do que parece. Quase todos são `.prw` — AdvPL, não
-TL++ —, e a gramática mira só TL++. Parte do que não casa não deveria casar.
-Um lote de `.tlpp` de verdade daria um número mais honesto, e ainda não há
-um.
+TL++ —, e parte do que não casa não deveria casar. Um lote de `.tlpp` de
+verdade daria um número mais honesto: ali, tudo tem de casar.
 
-`exemplos/saldo.tlpp` é o arquivo de referência: pequeno, escrito para
+`exemplos/saldo.xtpl` é o fonte de referência: pequeno, escrito para
 exercitar o que a gramática cobre, e os testes usam ele em vez de depender de
-arquivos de fora.
+arquivos de fora. É xtpl, não TL++ puro — o `{ => }` do hash é do xtpl.
+
+Das extensões do xtpl, a gramática só conhece duas: o hash `{ => }` e o tipo
+antes do inicializador. O resto está por fazer — `let`, `?=`, `?:`, `?.`,
+`h{"k"}` e `has`, `for x in`, `for n times`, `do case with`, `with object`,
+`using alias`, `defer`, modificadores posfixados, `in`, `%%`, `lo..hi`, `|>`,
+interpolação, `fallback`, `queue` (ver `docs/language.md` do xtpl).
 
 O que já entra:
 
 | | |
 |---|---|
-| declarações com tipo | `local aLista := {} as Array`, e abreviado (`as A`). O tipo vem **depois** do inicializador: `local nX as Numeric := 1` é recusado |
-| literais próprios | `{ : }` para JSON e `{ => }` para hash, que precisam vir antes de `{}` |
+| declarações com tipo | `local aLista := {} as Array`, e abreviado (`as A`). O tipo antes do inicializador — `local nX as Numeric := 1` — é do xtpl; o tipo duas vezes é recusado |
+| cabeçalhos | `user`, `static` e `main function`, e o `function` solto, que o TL++ aceita quando o nome começa com `u_` (o xtpl, hoje, ainda o recusa) |
+| literais próprios | `{ : }` para JSON, e `{ => }` para hash (do xtpl), que precisam vir antes de `{}` |
 | namespaces | `namespace minha.app`, `using namespace tlpp.regex` |
 | anotações | `@Get("/saldo/:id")`, com ou sem argumentos |
 | expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro |
