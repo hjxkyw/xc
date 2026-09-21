@@ -31,10 +31,12 @@ Então: parse de verdade primeiro.
 
 ## Estado
 
-**Uma gramática que parseia, e nada mais.** Não há ações, nem árvore, nem
-análise, nem geração de código.
+**Uma gramática e a árvore que ela produz.** Da análise, só a conferência de
+tipos das declarações; não há geração de código.
 
-Contra 59 arquivos de repositórios públicos: **4 casam por inteiro.**
+Contra 59 arquivos de repositórios públicos: **4 casam por inteiro.** Medido
+antes de a quebra de linha passar a terminar o comando (abaixo), e não
+medido de novo desde então.
 
 Esse número mede menos do que parece. Quase todos são `.prw` — AdvPL, não
 TL++ —, e a gramática mira só TL++. Parte do que não casa não deveria casar.
@@ -88,11 +90,43 @@ Diretivas de pré-processador — `#include`, `#define`, `#command`,
 continuam em várias linhas com `;`. Nada aqui olha o que há dentro: a
 definição de um `#command` é uma linguagem própria, e não é a nossa.
 
+### Um comando por linha
+
+Em AdvPL a quebra de linha termina o comando, a não ser que a linha acabe em
+`;`. A gramática tratava a quebra como um espaço qualquer, e um comando podia
+continuar na linha de baixo:
+
+```
+return          o valor do return virava 'endif',
+endif           e o arquivo inteiro deixava de casar
+
+return          o valor virava 'user', e a função seguinte passava
+                a ser um 'function g()' sem 'user' -- esta, calada
+user function g()
+```
+
+Agora `<.ws>` não atravessa linha, e cada lugar onde uma pode acabar diz isso
+com `<.nl>`. Linhas em branco e só de comentário ficam dentro do `<.nl>`.
+
 ### A árvore, e a primeira coisa construída sobre ela
 
-`lib/XC/Actions.rakumod` transforma o casamento em árvore — por enquanto só
-declarações e expressões. `lib/XC/Tipos.rakumod` confere que o inicializador
-bate com o tipo declarado:
+`lib/XC/Actions.rakumod` transforma o casamento em árvore: o arquivo, as
+funções com parâmetros e anotações, e todos os comandos — `if`/`elseif`/`else`,
+`do case`, `while`, `for`, `begin sequence`, atribuição, chamada, `return`,
+`exit`, `loop`, declaração. Dentro de uma expressão, o que ainda não tem nó
+próprio (`o:x(1)[2]`, um code block) fica como texto; nenhum comando fica sem
+nó, e um que ficasse faria a ação morrer dizendo qual. `percorre` em
+`lib/XC/AST.rakumod` desce em todos os corpos, em ordem de leitura.
+
+A ação precisa do texto, para saber a linha de cada nó:
+
+```raku
+my $arvore = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src)).made;
+```
+
+`t/08-arvore.raku` confere a forma que sai e o que tem de ser recusado.
+
+`lib/XC/Tipos.rakumod` confere que o inicializador bate com o tipo declarado:
 
 ```
 local nX := "texto" as Numeric     recusado: o valor inicial é Character
@@ -115,7 +149,7 @@ testado só pelo que aceita, pode estar aceitando tudo. O segundo aconteceu:
 por um tempo `!=`, `<` e `>=` caíam em "não sei", e nada percebeu até entrar
 um caso de cada.
 
-## Dois comportamentos do rakupp 4.0.1
+## O que o rakupp 4.0.1 faz diferente
 
 Achados escrevendo isto, com o menor caso de cada. `rakupp_issue.md`, fora do
 repositório, é o relato para mandar ao projeto.
@@ -138,7 +172,13 @@ dois. Pode ser só o jeito como `%` combina com espaço significativo; sem um
 Rakudo aqui para comparar, não dá para dizer. A gramática usa a forma escrita à
 mão.
 
-**E um que não é.** Um `enum` com chaves `Array` ou `Numeric` parecia sair
+**Uma diferença do Rakudo.** Numa ação, `$/.from` é a posição no texto
+inteiro, mas `$/.orig` é só o texto casado — no Rakudo é o alvo inteiro — e
+nenhum outro método do casamento devolve o alvo. Por isso `XC::Actions` recebe
+o texto de fora. A versão anterior contava as linhas de `.orig` e dava uma
+posição relativa; ninguém viu porque todo teste tinha uma linha só.
+
+**E um que não é defeito.** Um `enum` com chaves `Array` ou `Numeric` parecia sair
 vazio. Não é defeito do rakupp: o nome continua sendo o tipo do próprio Raku,
 e um objeto de tipo dentro de uma string sai vazio. O erro era meu — a árvore
 usa strings para os tipos por isso.
