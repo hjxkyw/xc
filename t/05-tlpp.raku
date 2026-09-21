@@ -38,4 +38,6 @@ FIM
 my $m = XC::Grammar.parse($fonte);
 $ok++ if $m;
 say(($m ?? '  ok    ' !! '  FALHA '), 'arquivo TL++ inteiro');
-say "\n  $ok de {@casos.elems + 1}";
+my $total = @casos.elems + 1;
+say "\n  $ok de $total";
+exit($ok == $total ?? 0 !! 1);

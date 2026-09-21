@@ -26,3 +26,4 @@ my @arquivos = @*ARGS || 'exemplos/saldo.tlpp';
 my $ok = 0;
 $ok++ for @arquivos.grep({ testa($_) });
 say "\n  $ok de {@arquivos.elems}";
+exit($ok == @arquivos.elems ?? 0 !! 1);

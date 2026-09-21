@@ -33,5 +33,6 @@ for $dir.IO.dir.grep({ .extension.lc eq 'tlpp' | 'prw' }).sort -> $f
   }
 }
 
-say "  casaram: $ok    nao casaram: $no";
 say "  primeiras falhas: ", @falhas.head(5).join(', ') if @falhas;
+say "\n  $ok de {$ok + $no}";
+exit($no == 0 ?? 0 !! 1);

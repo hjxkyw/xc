@@ -19,3 +19,4 @@ for @casos -> $c
       $c.key.subst("\n", ' | ', :g));
 }
 say "\n  $ok de {@casos.elems}";
+exit($ok == @casos.elems ?? 0 !! 1);

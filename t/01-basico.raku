@@ -9,8 +9,12 @@ my @casos =
   "user function f()\n  if n > 0\n    n := 1\n  endif\n  return"  => 'if',
   ;
 
+my $ok = 0;
 for @casos -> $c
 {
   my $m = XC::Grammar.parse($c.key);
+  $ok++ if $m;
   say ($m ?? "  ok    " !! "  FALHA "), $c.value;
 }
+say "\n  $ok de {@casos.elems}";
+exit($ok == @casos.elems ?? 0 !! 1);

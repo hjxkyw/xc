@@ -27,7 +27,6 @@ for @casos -> $c
   $ok++ if $m;
   say(($m ?? '  ok    ' !! '  FALHA '), $c.value.fmt('%-26s'), $c.key);
 }
-say "\n  $ok de {@casos.elems}";
 
 # E o que tem de ser RECUSADO.
 my @recusar =
@@ -35,11 +34,13 @@ my @recusar =
   'local cS as C := ""'        => 'idem, abreviado',
   ;
 
-my $bom = 0;
 for @recusar -> $c
 {
   my $m = XC::Grammar.parse($c.key, rule => 'declaration');
-  $bom++ unless $m;
+  $ok++ unless $m;
   say(($m ?? '  ACEITOU ' !! '  recusa  '), $c.value.fmt('%-30s'), $c.key);
 }
-say "  $bom de {@recusar.elems} recusados como devem";
+
+my $total = @casos + @recusar;
+say "\n  $ok de $total";
+exit($ok == $total ?? 0 !! 1);

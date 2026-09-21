@@ -67,3 +67,4 @@ for @recusa -> $src
 }
 
 say "\n  $ok de $total";
+exit($ok == $total ?? 0 !! 1);
