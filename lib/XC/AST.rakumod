@@ -4,10 +4,11 @@
 # e nada da sintaxe que o escreveu. 'local nX := 1 as N' e
 # 'local nX := 1 as Numeric' viram o mesmo no: a abreviacao e grafia.
 #
-# Expressoes, comandos, funcoes e o arquivo. Dentro de uma expressao, o que
-# ainda nao tem no proprio -- 'o:x(1)[2]', um code block -- fica como texto
-# (Opaca, ou o texto de um Literal), mas nenhum COMANDO fica sem no: um corpo
-# e a lista inteira dos comandos que ele tem, em ordem.
+# Expressoes, comandos, funcoes e o arquivo. Nada fica como texto: todo nome
+# que uma expressao le e um no, ate dentro de 'o:x(n)[i]', de um code block ou
+# de uma macro. Uma analise que procura quem le uma variavel pode confiar que
+# nao ha leitura escondida numa string -- a nao ser a que a propria macro faz
+# em tempo de execucao, que nenhuma arvore enxerga.
 
 unit module XC::AST;
 
@@ -71,10 +72,82 @@ class Binaria is Expr is export
   has Expr $.dir;
 }
 
-# O que ainda nao vira no: fica o texto, para nao se perder.
-class Opaca is Expr is export
+# ---- o que vem depois de uma expressao ----------------------------------------
+class Indice is Expr is export           # a[i, j]
 {
-  has Str $.texto;
+  has Expr $.base;
+  has Expr @.indices;
+}
+
+class Membro is Expr is export           # o:nX
+{
+  has Expr $.base;
+  has Str  $.nome;
+}
+
+class Metodo is Expr is export           # o:Soma(1, 2)
+{
+  has Expr $.base;
+  has Str  $.nome;
+  has Expr @.args;
+}
+
+# Um campo de area. 'SA1->A1_NOME' tem a area pelo nome ('alias', e 'base'
+# indefinida); '(cAlias)->A1_NOME' tem a area numa expressao ('base').
+class CampoAlias is Expr is export
+{
+  has Expr $.base;
+  has Str  $.alias;
+  has Str  $.campo;
+}
+
+# Uma expressao avaliada numa area: 'SA1->( DbGoTop() )'. Area como acima.
+class EmAlias is Expr is export
+{
+  has Expr $.base;
+  has Str  $.alias;
+  has Expr $.expr;
+}
+
+# ---- o resto ------------------------------------------------------------------
+# '&cVar' e '&(cA + cB)'. O 'alvo' e o que da a string -- o Nome 'cVar' e LIDO.
+# O que a string faz em tempo de execucao, nada aqui sabe.
+class Macro is Expr is export
+{
+  has Expr $.alvo;
+}
+
+class Ref is Expr is export              # '@aX' num argumento: le e escreve
+{
+  has Expr $.alvo;
+}
+
+class Omitido is Expr is export { }      # a posicao vazia de 'f( , 1)'
+
+# Uma atribuicao onde vale uma expressao: 'If(c, a, cA := u)', '{|| n := 1}'.
+class AtribExpr is Expr is export
+{
+  has Expr $.alvo;
+  has Str  $.op;
+  has Expr $.valor;
+}
+
+# Literais com partes. Continuam sendo Literal -- com o tipo e o texto --, para
+# quem so quer saber o tipo nao ter de conhecer cada um.
+class Par is export
+{
+  has Expr $.chave;
+  has Expr $.valor;
+}
+
+class ArrayLit is Literal is export { has Expr @.itens; }
+class JsonLit  is Literal is export { has Par  @.pares; }
+class HashLit  is Literal is export { has Par  @.pares; }
+
+class Bloco is Literal is export
+{
+  has Str  @.params;
+  has Expr @.corpo;
 }
 
 # ---- comandos -------------------------------------------------------------------
@@ -100,8 +173,8 @@ class Declaracao is Cmd is export
   has Declarador @.nomes;
 }
 
-# 'n := 1', 'n += 1', 'o:x := 2'. O alvo e um Nome, ou Opaca quando tem
-# trailer.
+# 'n := 1', 'n += 1', 'o:x := 2'. O alvo e um Nome, ou a cadeia que termina
+# no que se escreve: um Indice, um Membro, um CampoAlias.
 class Atribuicao is Cmd is export
 {
   has Expr $.alvo;
@@ -195,6 +268,57 @@ class Programa is export
 }
 
 # ---- percorrer -------------------------------------------------------------------
+
+# As expressoes logo abaixo de uma, em ordem de leitura. As partes que faltam
+# (o lado vazio de um '!', a base de um 'SA1->') nao aparecem.
+sub subexprs(Expr $e --> List) is export
+{
+  my @s = do given $e
+  {
+    when Binaria    { .esq, .dir }
+    when Chamada    { |.args }
+    when Indice     { .base, |.indices }
+    when Membro     { .base }
+    when Metodo     { .base, |.args }
+    when CampoAlias { .base }
+    when EmAlias    { .base, .expr }
+    when Macro      { .alvo }
+    when Ref        { .alvo }
+    when AtribExpr  { .alvo, .valor }
+    when ArrayLit   { |.itens }
+    when JsonLit | HashLit { |.pares.map({ .chave, .valor }).flat }
+    when Bloco      { |.corpo }
+    default         { () }
+  };
+  @s.grep(*.defined).List
+}
+
+# Chama &f numa expressao e em todas as de dentro, em ordem de leitura.
+sub percorre-expr(Expr $e, &f) is export
+{
+  return without $e;
+  f($e);
+  percorre-expr($_, &f) for subexprs($e);
+}
+
+# As expressoes que um comando tem, sem descer nos corpos -- 'percorre' e que
+# desce. A variavel de um 'for' e um nome, nao uma expressao, e fica de fora.
+sub exprs-de(Cmd $c --> List) is export
+{
+  my @s = do given $c
+  {
+    when Declaracao { |.nomes.map(*.inicial) }
+    when Atribuicao { .alvo, .valor }
+    when ChamadaCmd { .chamada }
+    when Retorno    { .valor }
+    when Anotacao   { |.args }
+    when Se | Caso  { |.ramos.map(*.cond) }
+    when Enquanto   { .cond }
+    when Para       { .de, .ate, .passo }
+    default         { () }
+  };
+  @s.grep(*.defined).List
+}
 #
 # Os corpos que um comando tem dentro, em ordem de leitura. E o que qualquer
 # analise precisa para descer na arvore sem saber de cada tipo de comando.

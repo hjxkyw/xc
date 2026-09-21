@@ -113,7 +113,7 @@ method annotation($/)
 {
   make Anotacao.new(
     nome  => ~$<name>,
-    args  => $<arglist> ?? $<arglist><arg>.map(*.made).list !! (),
+    args  => $<arglist> ?? $<arglist>.made !! (),
     linha => self!linha($/),
   );
 }
@@ -154,15 +154,14 @@ method assignment($/)
 
 method lvalue($/)
 {
-  make $<trailer>.elems ?? Opaca.new(texto => (~$/).trim)
-                        !! Nome.new(nome => ~$<name>);
+  make aplica(Nome.new(nome => ~$<name>), $<trailer>);
 }
 
 method callst($/)
 {
+  my $base = $<call> ?? $<call>.made !! Nome.new(nome => ~$<name>);
   make ChamadaCmd.new(
-    chamada => ($<call> && !$<trailer>.elems) ?? $<call>.made
-                                               !! Opaca.new(texto => (~$/).trim),
+    chamada => aplica($base, $<trailer>),
     linha   => self!linha($/),
   );
 }
@@ -263,37 +262,128 @@ method unary($/)
     !! $<postfix>.made;
 }
 
-# Por enquanto, um 'postfix' com trailers vira texto opaco: 'o:x(1)[2]' e
-# uma cadeia que ainda nao tem no. Sem trailer, e so o primario.
+# Um primario e os trailers dele, de dentro para fora: 'o:x(1)[2]' e o
+# Indice de um Metodo de um Nome.
 method postfix($/)
 {
-  make $<trailer>.elems ?? Opaca.new(texto => ~$/.trim) !! $<primary>.made;
+  make $<literal> ?? $<literal>.made !! aplica($<primary>.made, $<trailer>);
 }
 
+# Cada trailer faz uma funcao que recebe o que esta a esquerda dele.
+method trailer($/) { make $/.hash.values[0].made }
+
+method tmetodo($/)
+{
+  my $nome = ~$<member>;
+  my @args = $<arglist>.made.list;
+  make -> $base { Metodo.new(base => $base, nome => $nome, args => @args) }
+}
+
+method tmembro($/)
+{
+  my $nome = ~$<member>;
+  make -> $base { Membro.new(base => $base, nome => $nome) }
+}
+
+method tindice($/)
+{
+  my @i = $<expr>.map(*.made);
+  make -> $base { Indice.new(base => $base, indices => @i) }
+}
+
+method temalias($/)
+{
+  my $e = $<expr>.made;
+  make -> $base { EmAlias.new(base => $base, expr => $e) }
+}
+
+method tcampo($/)
+{
+  my $nome = ~$<member>;
+  make -> $base { CampoAlias.new(base => $base, campo => $nome) }
+}
+
+# Sem um else que devolva texto: uma forma nova de primario sem no tem de
+# aparecer aqui, e nao virar string calada.
 method primary($/)
 {
   make   $<literal>      ?? $<literal>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Nome.new(nome => ~$<name>)
-      !! $<jsonliteral>  ?? Literal.new(tipo => 'JSON',  texto => ~$/.trim)
-      !! $<hashliteral>  ?? Literal.new(tipo => 'Object', texto => ~$/.trim)
-      !! $<arrayliteral> ?? Literal.new(tipo => 'Array', texto => ~$/.trim)
-      !! $<codeblock>    ?? Literal.new(tipo => 'Block', texto => ~$/.trim)
       !! $<expr>         ?? $<expr>.made
-      !!                    Opaca.new(texto => ~$/.trim);
+      !! $<macro>        ?? $<macro>.made
+      !! $<aliasfield>   ?? $<aliasfield>.made
+      !! $<jsonliteral>  ?? $<jsonliteral>.made
+      !! $<hashliteral>  ?? $<hashliteral>.made
+      !! $<arrayliteral> ?? $<arrayliteral>.made
+      !! $<codeblock>    ?? $<codeblock>.made
+      !! die "primario sem no: {(~$/).trim}";
+}
+
+method macro($/)
+{
+  make Macro.new(alvo => $<expr> ?? $<expr>.made !! Nome.new(nome => ~$<name>));
+}
+
+method aliasfield($/)
+{
+  make $<expr>
+    ?? EmAlias.new(alias => ~$<alias>, expr => $<expr>.made)
+    !! CampoAlias.new(alias => ~$<alias>, campo => ~$<campo>);
+}
+
+method jsonliteral($/)
+{
+  make JsonLit.new(tipo => 'JSON', texto => (~$/).trim,
+                   pares => $<pair>.map(*.made).list);
+}
+
+method hashliteral($/)
+{
+  make HashLit.new(tipo => 'Object', texto => (~$/).trim,
+                   pares => $<hashpair>.map(*.made).list);
+}
+
+method pair($/)     { make Par.new(chave => $<expr>[0].made, valor => $<expr>[1].made) }
+method hashpair($/) { make Par.new(chave => $<expr>[0].made, valor => $<expr>[1].made) }
+
+method arrayliteral($/)
+{
+  make ArrayLit.new(tipo => 'Array', texto => (~$/).trim,
+                    itens => $<expr>.map(*.made).list);
+}
+
+method codeblock($/)
+{
+  make Bloco.new(tipo => 'Block', texto => (~$/).trim,
+                 params => $<name>.map(~*).list,
+                 corpo  => $<blockexpr>.map(*.made).list);
+}
+
+# Dentro de um bloco e num argumento, a atribuicao e uma expressao.
+method blockexpr($/)
+{
+  make $<assignment> ?? atrib-expr($<assignment>.made) !! $<expr>.made;
 }
 
 method call($/)
 {
-  make Chamada.new(
-    nome => ~$<name>,
-    args => $<arglist><arg>.map({ .made // Opaca.new(texto => ~$_) }).list,
-  );
+  make Chamada.new(nome => ~$<name>, args => $<arglist>.made.list);
+}
+
+# 'f()' tem uma posicao vazia so e nenhum argumento; 'f( , 1)' tem duas, e a
+# primeira e Omitido.
+method arglist($/)
+{
+  my @s = $<slot>.map({ .<arg> ?? .<arg>.made !! Omitido.new });
+  make (@s == 1 && @s[0] ~~ Omitido) ?? () !! @s.List;
 }
 
 method arg($/)
 {
-  make $<expr> ?? $<expr>.made !! Opaca.new(texto => ~$/.trim);
+  make   $<byref>      ?? Ref.new(alvo => Nome.new(nome => ~$<byref><name>))
+      !! $<assignment> ?? atrib-expr($<assignment>.made)
+      !!                  $<expr>.made;
 }
 
 method literal($/)
@@ -309,6 +399,19 @@ method literal($/)
 }
 
 # ---- auxiliares ---------------------------------------------------------------
+
+# Os trailers, em ordem, sobre uma base.
+sub aplica(Expr $base, $trailers)
+{
+  my $e = $base;
+  $e = .made()($e) for $trailers.list;
+  $e
+}
+
+sub atrib-expr(Atribuicao $a)
+{
+  AtribExpr.new(alvo => $a.alvo, op => $a.op, valor => $a.valor)
+}
 
 # Condicoes e corpos voltam como duas listas do mesmo tamanho; um ramo e um de
 # cada.

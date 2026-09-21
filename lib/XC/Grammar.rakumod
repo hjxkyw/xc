@@ -98,6 +98,10 @@ rule function
   <body>
 }
 
+# O 'function' solto e aceito de proposito. O AdvPL o recusa ("Regular
+# functions are not allowed in code"), mas o TL++ aceita quando o nome comeca
+# com 'u_' -- e talvez com outros prefixos, que nao estao levantados. Recusar
+# aqui seria recusar TL++ valido.
 token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
 
 rule params
@@ -307,21 +311,32 @@ token mulop    { '*' || '/' || '%' }
 rule unary     { <sign>? <postfix> }
 token sign     { '-' || '+' }
 
+# Um literal nao leva trailer: string e numero nao tem membro nem indice. Sem
+# isso '{ "a": nX }' casava como um ARRAY cujo item era o membro 'nX' da
+# string "a" -- o ':' do par virava o de um membro, e o JSON caia para array.
 rule postfix
 {
-  <primary> <trailer>*
+     <literal>
+  || [ <primary> <trailer>* ]
 }
 
+# Uma regra por forma, para a arvore saber qual casou.
 rule trailer
 {
-     # ':' seguido de um metodo COM argumentos: 'MSDialog():New(...)'.
-     # Primeiro esta forma, senao a de um membro simples casaria o nome e
-     # deixaria os parenteses para tras.
-     [ ':' <member> '(' ~ ')' <arglist> ]
-  || [ ':' <member> ]
-  || [ '[' ~ ']' <expr>+ % ',' ]
-  || [ '->' <member> ]
+     <tmetodo>
+  || <tmembro>
+  || <tindice>
+  || <temalias>
+  || <tcampo>
 }
+
+# ':' seguido de um metodo COM argumentos: 'MSDialog():New(...)'. Antes do
+# membro simples, senao ele casaria o nome e deixaria os parenteses para tras.
+rule tmetodo  { ':' <member> '(' ~ ')' <arglist> }
+rule tmembro  { ':' <member> }
+rule tindice  { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
+rule temalias { '->' '(' ~ ')' <expr> }
+rule tcampo   { '->' <member> }
 
 # Depois de ':' ou '->' vem um MEMBRO, e um membro pode chamar-se 'End' ou
 # 'Next'. A lista de reservadas vale onde um comando comeca, nao aqui.
@@ -350,14 +365,21 @@ rule macro
 
 rule call        { <name> '(' ~ ')' <arglist> }
 
-# Escrito a mao em vez de '[ <arg>? ]* % ","': um item que pode casar vazio
-# dentro de um '*' para na primeira volta, e ai ',1' nao casa.
-rule arglist     { <arg>? [ ',' <arg>? ]* }
+# Uma posicao por virgula, vazia ou nao: 'f( , 1, , )' tem quatro, e a arvore
+# precisa saber em qual o '1' esta. Escrito a mao em vez de com '%': um item
+# que pode casar vazio dentro de um '*' para na primeira volta, e ai ',1' nao
+# casa.
+rule arglist     { <slot> [ ',' <slot> ]* }
+rule slot        { <arg>? }
 
 # Uma atribuicao tambem e um argumento valido: 'If( c, a, cA := u )'.
-rule arg         { [ '@' <name> ] || <assignment> || <expr> }
+rule arg         { <byref> || <assignment> || <expr> }
+rule byref       { '@' <name> }
 
-rule aliasfield  { <name> '->' [ [ '(' ~ ')' <expr> ] || <member> ] }
+# 'SA1->A1_NOME' e 'SA1->( DbGoTop() )'. O 'SA1' e o NOME de uma area, nao uma
+# variavel: com variavel se escreve '(cAlias)->A1_NOME', que e um primario
+# entre parenteses seguido de um trailer.
+rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <campo=member> ] }
 
 # '{ : }' e o JSON vazio e '{ => }' o hash vazio. Precisam de grafia propria
 # porque '{}' ja quer dizer array vazio -- e tem de vir ANTES de
