@@ -30,22 +30,33 @@
 
 unit grammar XC::Grammar;
 
-# O '<.ws>' explicito no comeco: um 'rule' nao poe espaco antes do primeiro
-# atomo, entao um comentario na primeira linha do arquivo -- o cabecalho que
-# quase todo fonte tem -- nao tinha quem o consumisse.
+# UM COMANDO POR LINHA
+#
+# Em AdvPL a quebra de linha termina o comando, a nao ser que a linha acabe
+# em ';'. Aqui ja foi so espaco, e isso deixava um comando continuar na linha
+# de baixo:
+#
+#     return                    o valor do return virava 'endif', e o
+#   endif                       arquivo inteiro deixava de casar
+#
+#     return                    o valor virava 'user', e a funcao seguinte
+#                               passava a ser um 'function g()' sem 'user'
+#   user function g()           -- esta calada
+#
+# Entao '<.ws>' nao atravessa linha, e cada lugar onde uma linha pode acabar
+# diz isso com '<.nl>'. Linhas em branco e so de comentario ficam dentro do
+# '<.nl>', e nao sao comandos.
 rule TOP
 {
-  ^ <.ws> <toplevel>* $
+  ^ <.gap> [ <toplevel> <.gap> ]* $
 }
 
+# A funcao primeiro: ela comeca pelas suas anotacoes, e so se o que segue nao
+# for uma funcao a anotacao fica sozinha.
 rule toplevel
 {
-     <preproc>
-  || <namespacest>
-  || <docblock>
-  || <blockcomment>
-  || <annotation>
-  || <function>
+     <function>
+  || [ [ <preproc> || <namespacest> || <annotation> ] <.eol> ]
 }
 
 # ---- o que o pre-processador leva inteiro ---------------------------------
@@ -59,9 +70,8 @@ token preproc
 {
   # O '\N*?' e frugal de proposito: o guloso come o proprio ';' e depois nao
   # tem o que casar.
-  ^^ \h* '#' [ \N*? ';' \h* \n ]* \N*
+  '#' [ \N*? ';' \h* \n ]* \N*
 }
-token docblock { '/*/' .*? '/*/' }
 
 # ---- TL++: namespace -------------------------------------------------------
 rule namespacest
@@ -77,14 +87,14 @@ token dottedname { <[A..Za..z_]> \w* [ '.' <[A..Za..z_]> \w* ]* }
 # parenteses, e vem antes do que anota.
 rule annotation
 {
-  ^^ \h* '@' <name> [ '(' ~ ')' <arglist> ]?
+  '@' <name> [ '(' ~ ')' <arglist> ]?
 }
 
 # ---- funcoes ---------------------------------------------------------------
 rule function
 {
-  <annotation>*
-  <funckind> <name> '(' ~ ')' <params>
+  [ <annotation> <.nl> ]*
+  <funckind> <name> '(' ~ ')' <params> <.nl>
   <body>
 }
 
@@ -112,9 +122,11 @@ rule returnst
 rule exitst { :i 'exit' }
 rule loopst { :i 'loop' }
 
+# Cada comando termina a sua linha. O corpo para no primeiro que nao casa --
+# 'endif', 'next', a proxima 'function' -- e quem o chamou decide o que e.
 rule body
 {
-  <statement>*
+  [ <statement> <.nl> ]*
 }
 
 # ---- tipos ------------------------------------------------------------------
@@ -149,8 +161,7 @@ token typename
 # ---- comandos ---------------------------------------------------------------
 rule statement
 {
-     <comment>
-  || <annotation>
+     <annotation>
   || <returnst>
   || <exitst>
   || <loopst>
@@ -164,7 +175,6 @@ rule statement
   || <callst>
 }
 
-token comment { <linecomment> || <blockcomment> }
 token blockcomment { '/*' .*? '*/' }
 
 rule declaration
@@ -191,43 +201,47 @@ rule declarator
   || <name>
 }
 
+# As partes levam nome -- '<cond=expr>', '<corpo=body>' -- porque as
+# repetidas voltam como lista, e sem nome o corpo do 'else' seria so o ultimo
+# de uma lista que as vezes tem um a mais.
 rule ifst
 {
-  :i 'if' <expr>
-     <body>
-  [ :i 'elseif' <expr> <body> ]*
-  [ :i 'else' <body> ]?
+  :i 'if' <cond=expr> <.nl>
+     <corpo=body>
+  [ :i 'elseif' <cond=expr> <.nl> <corpo=body> ]*
+  [ :i 'else' <.nl> <senao=body> ]?
   :i 'endif'
 }
 
 rule whilest
 {
-  :i 'while' <expr>
-     <body>
+  :i 'while' <cond=expr> <.nl>
+     <corpo=body>
   :i [ 'enddo' || 'end' ]
 }
 
 rule forst
 {
-  :i 'for' <name> ':=' <expr> :i 'to' <expr> [ :i 'step' <expr> ]?
-     <body>
-  :i 'next' <name>?
+  :i 'for' <var=name> ':=' <de=expr> :i 'to' <ate=expr>
+     [ :i 'step' <passo=expr> ]? <.nl>
+     <corpo=body>
+  :i 'next' <fim=name>?
 }
 
 rule docasest
 {
-  :i 'do' 'case'
-  [ :i 'case' <expr> <body> ]+
-  [ :i 'otherwise' <body> ]?
+  :i 'do' 'case' <.nl>
+  [ :i 'case' <cond=expr> <.nl> <corpo=body> ]+
+  [ :i 'otherwise' <.nl> <senao=body> ]?
   :i 'endcase'
 }
 
 # BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- o tratamento de erro.
 rule seqst
 {
-  :i 'begin' 'sequence'
-     <body>
-  [ :i 'recover' [ :i 'using' <name> ]? <body> ]?
+  :i 'begin' 'sequence' <.nl>
+     <corpo=body>
+  [ :i 'recover' [ :i 'using' <erro=name> ]? <.nl> <recupera=body> ]?
   :i 'end' [ :i 'sequence' ]?
 }
 
@@ -376,7 +390,14 @@ token logical  { :i '.t.' || '.f.' }
 token nildef   { :i 'nil' >> }
 token name     { <[A..Za..z_]> \w* }
 
-# Espaco: brancos, comentarios de linha e a continuacao ';'
-token ws { <!ww> [ \h || <.linecont> || <.linecomment> || \v ]* }
+# Espaco DENTRO de uma linha: brancos, comentarios, e a continuacao ';' --
+# que e o unico jeito de um comando seguir na linha de baixo.
+token ws { <!ww> [ \h || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 token linecont    { ';' \h* \v }
 token linecomment { '//' \N* }
+
+# O fim de uma linha (ou do arquivo), e o que vier ate o proximo comando:
+# linhas em branco, linhas so de comentario, e o recuo.
+token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ] }
+token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
+token nl  { <.eol> <.gap> }

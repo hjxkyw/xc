@@ -36,7 +36,7 @@ my ($ok, $total) = 0, @passa + @recusa;
 
 for @passa -> $src
 {
-  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new);
+  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(fonte => $src));
   my @p = $m ?? confere($m.made) !! ('nao parseou',);
   if @p
   {
@@ -52,7 +52,7 @@ for @passa -> $src
 
 for @recusa -> $src
 {
-  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new);
+  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(fonte => $src));
   my @p = $m ?? confere($m.made) !! ();
   if @p
   {
