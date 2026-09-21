@@ -7,6 +7,9 @@ use XC::Grammar;
 #
 # Sem argumento, usa exemplos/. O numero que interessa e o de codigo de
 # verdade: contra 59 arquivos publicos, 3 casavam quando isto foi escrito.
+#
+# Le .xtpl e tambem .tlpp e .prw: o xtpl e o TL++ com extensoes, entao todo
+# TL++ valido tem de casar aqui.
 my $dir = @*ARGS[0] // 'exemplos';
 
 unless $dir.IO.d
@@ -18,7 +21,7 @@ unless $dir.IO.d
 my ($ok, $no) = 0, 0;
 my @falhas;
 
-for $dir.IO.dir.grep({ .extension.lc eq 'tlpp' | 'prw' }).sort -> $f
+for $dir.IO.dir.grep({ .extension.lc eq 'xtpl' | 'tlpp' | 'prw' }).sort -> $f
 {
   my $src = try slurp($f.Str);
   next unless $src;

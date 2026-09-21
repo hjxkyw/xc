@@ -18,6 +18,9 @@ my @casos =
   'local jJ as JSON'                  => 'json explicito',
   'local hH := { => }'                => 'hash vazio',
   'local nA := 1, cB := "x", oC as O' => 'varios num comando',
+  # A ordem do xtpl: o TL++ recusa, o xtpl aceita e emite o tipo depois.
+  'local nA as Numeric := 1'          => 'tipo antes, ordem do xtpl',
+  'local cS as C := ""'               => 'idem, abreviado',
   ;
 
 my $ok = 0;
@@ -30,8 +33,8 @@ for @casos -> $c
 
 # E o que tem de ser RECUSADO.
 my @recusar =
-  'local nA as Numeric := 1'   => 'tipo antes do inicializador',
-  'local cS as C := ""'        => 'idem, abreviado',
+  'local nA as Numeric := 1 as Numeric' => 'tipo duas vezes',
+  'local nA := as Numeric'               => 'inicializador vazio',
   ;
 
 for @recusar -> $c

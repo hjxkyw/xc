@@ -15,6 +15,8 @@ my @passa =
   'local oO := Nil as Object',
   'local nX := f() as Numeric',
   'local xV := "qualquer" as Variant',
+  # A ordem do xtpl, conferida igual.
+  'local nX as Numeric := 1',
   ;
 
 my @recusa =
@@ -32,6 +34,7 @@ my @recusa =
   'local cS := a * b as Character',
   # Casava como array: o ':' do par era lido como o de um membro de "a".
   'local jJ := { "a": nX } as Array',
+  'local cS as Character := 42',
   ;
 
 my ($ok, $total) = 0, @passa + @recusa;

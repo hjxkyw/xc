@@ -1,8 +1,9 @@
-// saldo.tlpp -- um arquivo TL++ pequeno, para os testes terem o que ler.
+// saldo.xtpl -- um fonte xtpl pequeno, para os testes terem o que ler.
 //
 // Nao faz nada util. Existe para exercitar a gramatica: namespace, anotacao,
-// parametros tipados, declaracoes nas tres formas, os literais proprios do
-// TL++, e os comandos.
+// parametros tipados, declaracoes nas tres formas, os literais, e os
+// comandos. E xtpl, nao TL++ puro: o '{ => }' do hash, por exemplo, e do
+// xtpl, e o compilador o baixa para THashMap.
 
 #include "totvs.ch"
 

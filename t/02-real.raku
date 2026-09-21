@@ -22,7 +22,7 @@ sub testa($caminho)
   return False;
 }
 
-my @arquivos = @*ARGS || 'exemplos/saldo.tlpp';
+my @arquivos = @*ARGS || 'exemplos/saldo.xtpl';
 my $ok = 0;
 $ok++ for @arquivos.grep({ testa($_) });
 say "\n  $ok de {@arquivos.elems}";

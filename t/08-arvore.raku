@@ -33,34 +33,34 @@ sub confere(Str $o-que, &teste)
 }
 
 # ---- o arquivo de referencia --------------------------------------------------
-my $p = arvore(slurp('exemplos/saldo.tlpp'));
+my $p = arvore(slurp('exemplos/saldo.xtpl'));
 
-confere 'saldo.tlpp: namespace, using, include',
+confere 'saldo.xtpl: namespace, using, include',
 {
   $p.namespace eq 'exemplo.saldo' && $p.usings eqv ['tlpp.regex']
     && $p.diretivas eqv ['#include "totvs.ch"']
 };
-confere 'saldo.tlpp: uma user function, na linha 19',
+confere 'saldo.xtpl: uma user function, na linha 20',
 {
   $p.funcoes == 1 && $p.funcoes[0].tipo eq 'user'
-    && $p.funcoes[0].nome eq 'saldo' && $p.funcoes[0].linha == 19
+    && $p.funcoes[0].nome eq 'saldo' && $p.funcoes[0].linha == 20
 };
-confere 'saldo.tlpp: a anotacao fica na funcao, nao solta',
+confere 'saldo.xtpl: a anotacao fica na funcao, nao solta',
 {
   $p.funcoes[0].anotacoes.map(*.nome).List eqv ('Get',) && !$p.anotacoes
 };
-confere 'saldo.tlpp: parametros tipados, abreviacao expandida',
+confere 'saldo.xtpl: parametros tipados, abreviacao expandida',
 {
   $p.funcoes[0].params.map({ .nome ~ ':' ~ .declarado }).join(' ')
     eq 'cCliente:Character nLimite:Numeric'
 };
-confere 'saldo.tlpp: os comandos do corpo, em ordem',
+confere 'saldo.xtpl: os comandos do corpo, em ordem',
 {
   tipos($p.funcoes[0].corpo) eq
     'Declaracao Declaracao Declaracao Declaracao Declaracao Se Atribuicao '
     ~ 'Para Caso Sequencia Retorno'
 };
-confere 'saldo.tlpp: percorre desce em tudo, em ordem de leitura',
+confere 'saldo.xtpl: percorre desce em tudo, em ordem de leitura',
 {
   my @vistos;
   percorre($p.funcoes[0].corpo, { @vistos.push($_) });
@@ -68,10 +68,10 @@ confere 'saldo.tlpp: percorre desce em tudo, em ordem de leitura',
     'Se Retorno Atribuicao Para Se Continua Atribuicao Se Sai Caso '
     ~ 'ChamadaCmd ChamadaCmd ChamadaCmd Sequencia Atribuicao Atribuicao Retorno'
 };
-confere 'saldo.tlpp: o ultimo return esta na linha 62 e devolve nTotal',
+confere 'saldo.xtpl: o ultimo return esta na linha 63 e devolve nTotal',
 {
   my $r = $p.funcoes[0].corpo[*-1];
-  $r ~~ Retorno && $r.linha == 62 && $r.valor ~~ Nome && $r.valor.nome eq 'nTotal'
+  $r ~~ Retorno && $r.linha == 63 && $r.valor ~~ Nome && $r.valor.nome eq 'nTotal'
 };
 
 # ---- a forma de cada comando ---------------------------------------------------
@@ -183,7 +183,7 @@ my @recusar =
   "  n := 1\n  -1"                     => 'expressao continuando sem ;',
   "  if x\n    y()"                    => 'if sem endif',
   "  for i := 1 to 3\n    y()"         => 'for sem next',
-  "  local nX as Numeric := 1"         => 'tipo antes do inicializador, no corpo',
+  "  local nX as Numeric := 1 as N"    => 'tipo duas vezes, no corpo',
   ;
 
 for @recusar -> $c

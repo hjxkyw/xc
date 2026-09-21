@@ -143,11 +143,11 @@ confere '{ : }, { => } e {}: vazios de cada tipo',
 };
 
 # ---- o arquivo de referencia --------------------------------------------------------
-# Todo nome lido ou escrito em saldo.tlpp, pelas expressoes dos comandos. Antes
+# Todo nome lido ou escrito em saldo.xtpl, pelas expressoes dos comandos. Antes
 # 'nX' so aparecia dentro de 'aTitulos[nX]:nSaldo', que era texto.
-confere 'saldo.tlpp: todo nome aparece na arvore, nX inclusive',
+confere 'saldo.xtpl: todo nome aparece na arvore, nX inclusive',
 {
-  my $src = slurp('exemplos/saldo.tlpp');
+  my $src = slurp('exemplos/saldo.xtpl');
   my $p = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src)).made;
   my %vistos;
   percorre($p.funcoes[0].corpo, -> $c

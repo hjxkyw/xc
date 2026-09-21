@@ -188,19 +188,21 @@ rule declaration
 
 rule declkind { :i [ 'local' || 'private' || 'public' || 'static' ] }
 
-# O tipo vem DEPOIS do inicializador, e so:
+# O tipo, antes ou depois do inicializador:
 #
-#     local nX := 1 as Numeric        certo
-#     local nX as Numeric             certo, sem inicializador
-#     local nX as Numeric := 1        RECUSADO
+#     local nX := 1 as Numeric        TL++
+#     local nX as Numeric             TL++, sem inicializador
+#     local nX as Numeric := 1        xtpl -- o TL++ recusa
 #
-# A segunda ordem chegou a estar aqui, com um comentario dizendo que o TL++
-# aceitava as duas. Ninguem tinha conferido. Uma gramatica que aceita mais do
-# que a linguagem nao pode recusar nada, que e o defeito que ela existe para
-# corrigir.
+# O TL++ so aceita o tipo depois. O xtpl aceita as duas ordens e emite a do
+# TL++ (docs/language.md, "Tipos do TLPP"). Esta e a gramatica do xtpl, entao
+# a ordem do xtpl entra, e baixar para TL++ e trocar as duas partes de lugar.
+#
+# O tipo uma vez so: 'local nX as Numeric := 1 as Numeric' e recusado.
 rule declarator
 {
      [ <name> ':=' <expr> <typespec>? ]
+  || [ <name> <typespec> ':=' <expr> ]
   || [ <name> <typespec> ]
   || <name>
 }
