@@ -26,8 +26,6 @@ e isso tem um teto:
   abaixo" não é "nada lê depois": dentro de um laço, a leitura pode estar
   acima da escrita. Isso precisa das arestas — um grafo de fluxo —, e um grafo
   precisa da estrutura que as linhas não têm.
-- **Gerador (`yield`) precisa do mesmo.** Está desenhado no xtpl e não
-  construído, e o custo não é o recurso: é o parser.
 
 Então: parse de verdade primeiro.
 
