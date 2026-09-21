@@ -1,9 +1,16 @@
 use lib 'lib';
 use XC::Grammar;
 
+# Um arquivo inteiro, do comeco ao fim. Por padrao o exemplo que vem junto;
+# passe caminhos na linha de comando para testar os seus.
 sub testa($caminho)
 {
-  my $src = slurp($caminho);
+  my $src = try slurp($caminho);
+  unless $src
+  {
+    say "  ?     {$caminho} -- nao consegui ler";
+    return False;
+  }
   my $m = XC::Grammar.parse($src);
   if $m
   {
@@ -15,7 +22,7 @@ sub testa($caminho)
   return False;
 }
 
-my @arquivos = @*ARGS || '/tmp/exec.prw';
+my @arquivos = @*ARGS || 'exemplos/saldo.tlpp';
 my $ok = 0;
 $ok++ for @arquivos.grep({ testa($_) });
 say "\n  $ok de {@arquivos.elems}";

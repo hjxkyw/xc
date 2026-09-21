@@ -1,0 +1,62 @@
+// saldo.tlpp -- um arquivo TL++ pequeno, para os testes terem o que ler.
+//
+// Nao faz nada util. Existe para exercitar a gramatica: namespace, anotacao,
+// parametros tipados, declaracoes nas tres formas, os literais proprios do
+// TL++, e os comandos.
+
+#include "totvs.ch"
+
+namespace exemplo.saldo
+
+using namespace tlpp.regex
+
+/*/{Protheus.doc} saldo
+Soma o saldo em aberto de um cliente.
+@author ninguem
+/*/
+
+@Get("/saldo/:id")
+user function saldo(cCliente as Character, nLimite as N)
+
+  local aTitulos := {} as Array
+  local jResposta as JSON
+  local hCache := { => }
+  local nTotal := 0
+  local nX
+
+  if empty(cCliente)
+    return 0
+  endif
+
+  aTitulos := buscaTitulos(cCliente)
+
+  for nX := 1 to len(aTitulos)
+
+    if aTitulos[nX]:nSaldo <= 0
+      loop
+    endif
+
+    nTotal += aTitulos[nX]:nSaldo
+
+    if nTotal > nLimite
+      exit
+    endif
+
+  next nX
+
+  do case
+    case nTotal == 0
+      conout("sem saldo")
+    case nTotal > nLimite
+      conout("acima do limite")
+    otherwise
+      conout("ok")
+  endcase
+
+  begin sequence
+    jResposta := monta(nTotal)
+  recover
+    jResposta := { : }
+  end sequence
+
+  return nTotal

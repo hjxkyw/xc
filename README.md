@@ -36,8 +36,16 @@ Então: parse de verdade primeiro.
 **Uma gramática que parseia, e nada mais.** Não há ações, nem árvore, nem
 análise, nem geração de código.
 
-Contra 59 arquivos `.prw`/`.tlpp` de repositórios públicos: **3 casam por
-inteiro.** Esse é o número honesto, e é o que torna o exercício útil.
+Contra 59 arquivos de repositórios públicos: **4 casam por inteiro.**
+
+Esse número mede menos do que parece. Quase todos são `.prw` — AdvPL, não
+TL++ —, e a gramática mira só TL++. Parte do que não casa não deveria casar.
+Um lote de `.tlpp` de verdade daria um número mais honesto, e ainda não há
+um.
+
+`exemplos/saldo.tlpp` é o arquivo de referência: pequeno, escrito para
+exercitar o que a gramática cobre, e os testes usam ele em vez de depender de
+arquivos de fora.
 
 O que já entra:
 
@@ -82,11 +90,44 @@ Diretivas de pré-processador — `#include`, `#define`, `#command`,
 continuam em várias linhas com `;`. Nada aqui olha o que há dentro: a
 definição de um `#command` é uma linguagem própria, e não é a nossa.
 
-### Tipos: parseados, não conferidos
+### A árvore, e a primeira coisa construída sobre ela
 
-A gramática aceita `local nX := "texto" as Numeric` sem reclamar. Conferir que
-o inicializador bate com o tipo declarado é análise, não parse — precisa da
-árvore, que ainda não existe.
+`lib/XC/Actions.rakumod` transforma o casamento em árvore — por enquanto só
+declarações e expressões. `lib/XC/Tipos.rakumod` confere que o inicializador
+bate com o tipo declarado:
+
+```
+local nX := "texto" as Numeric     recusado: o valor inicial é Character
+local lB := 1 + 1 as Logical       recusado: o valor inicial é Numeric
+local nX := a != b as Numeric      recusado: o valor inicial é Logical
+local nX := f() as Numeric         aceito: não há como saber daqui
+```
+
+É a primeira coisa que uma expressão regular não conseguiria fazer: saber o
+tipo de `1 + 1` exige saber que é uma soma de dois números, e não só como a
+linha se parece.
+
+**Onde não há como saber, não se reclama.** Uma chamada devolve o que a função
+devolver, e isso não está na linha. Um verificador que recusa o que não
+entende é um verificador que ninguém usa.
+
+`t/07-conferencia.raku` testa as duas direções — o que passa e o que é
+recusado. Um verificador testado só pelo que recusa pode estar recusando tudo;
+testado só pelo que aceita, pode estar aceitando tudo. O segundo aconteceu:
+por um tempo `!=`, `<` e `>=` caíam em "não sei", e nada percebeu até entrar
+um caso de cada.
+
+## Três defeitos do rakupp 4.0.1
+
+Achados escrevendo isto, com o menor caso de cada:
+
+| | contorno |
+|---|---|
+| `\|` falha quando a primeira alternativa tem `<x>* % ','` | `\|\|` |
+| `<n>+ % <op>` com sub-regra de separador não casa nem captura | `<n> [ <op> <n> ]*` |
+| um `enum` com `Array`, `Numeric`, `Date` esconde os tipos do Raku, e o valor sai vazio | strings |
+
+Os dois primeiros são do `%`. Vale reportar.
 
 ### E o que ainda não começou
 

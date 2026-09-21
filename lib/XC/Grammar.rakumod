@@ -30,9 +30,12 @@
 
 unit grammar XC::Grammar;
 
+# O '<.ws>' explicito no comeco: um 'rule' nao poe espaco antes do primeiro
+# atomo, entao um comentario na primeira linha do arquivo -- o cabecalho que
+# quase todo fonte tem -- nao tinha quem o consumisse.
 rule TOP
 {
-  <toplevel>*
+  ^ <.ws> <toplevel>* $
 }
 
 rule toplevel
@@ -83,7 +86,6 @@ rule function
   <annotation>*
   <funckind> <name> '(' ~ ')' <params>
   <body>
-  <returnst>
 }
 
 token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
@@ -99,10 +101,16 @@ rule param
   <name> <typespec>?
 }
 
+# 'return' e um COMANDO, nao so o fim da funcao. Um return antecipado dentro
+# de um 'if' e corrente, e se o 'return' final fosse parte da regra da funcao,
+# o corpo engoliria os de dentro e sobraria nada para fechar.
 rule returnst
 {
   :i 'return' <expr>?
 }
+
+rule exitst { :i 'exit' }
+rule loopst { :i 'loop' }
 
 rule body
 {
@@ -143,6 +151,9 @@ rule statement
 {
      <comment>
   || <annotation>
+  || <returnst>
+  || <exitst>
+  || <loopst>
   || <seqst>
   || <declaration>
   || <ifst>
@@ -254,16 +265,27 @@ token stmtword
 }
 
 # ---- expressoes, por precedencia --------------------------------------------
+#
+# Cada nivel escrito como 'a [ op a ]*', e nao como 'a+ % op'. O modificador
+# '%' do rakupp 4.0.1, com uma sub-regra como separador, nem casa nem captura:
+#
+#     rule TOP { <n>+ % <op> }          # nao casa '1 + 2 - 3'
+#     rule TOP { <n> [ <op> <n> ]* }     # casa, e captura os dois <op>
+#
+# Sem o operador capturado, 'a + b' virava um no de soma com operador vazio,
+# e o verificador de tipos nao sabia que era uma soma.
 rule expr      { <orexpr> }
-rule orexpr    { <andexpr>+   % [ :i '.or.' ] }
-rule andexpr   { <notexpr>+   % [ :i '.and.' ] }
+rule orexpr    { <andexpr> [ <orop> <andexpr> ]* }
+token orop     { :i '.or.' }
+rule andexpr   { <notexpr> [ <andop> <notexpr> ]* }
+token andop    { :i '.and.' }
 rule notexpr   { <negate>? <cmpexpr> }
 token negate   { '!' || [ :i '.not.' ] }
-rule cmpexpr   { <addexpr>+   % <cmpop> }
+rule cmpexpr   { <addexpr> [ <cmpop> <addexpr> ]* }
 token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$' }
-rule addexpr   { <mulexpr>+   % <addop> }
+rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
-rule mulexpr   { <unary>+     % <mulop> }
+rule mulexpr   { <unary> [ <mulop> <unary> ]* }
 token mulop    { '*' || '/' || '%' }
 rule unary     { <sign>? <postfix> }
 token sign     { '-' || '+' }
@@ -323,7 +345,10 @@ rule aliasfield  { <name> '->' [ [ '(' ~ ')' <expr> ] || <member> ] }
 # '{ : }' e o JSON vazio e '{ => }' o hash vazio. Precisam de grafia propria
 # porque '{}' ja quer dizer array vazio -- e tem de vir ANTES de
 # <arrayliteral>, que casaria as chaves e deixaria o ':' para tras.
-rule jsonliteral { '{' ~ '}' [ ':' || [ <pair>* % ',' ] ] }
+# Pelo menos um par, ou o ':' do vazio. Com '<pair>*' um '{}' sem nada
+# dentro casava aqui -- e esta regra vem antes de <arrayliteral>, entao todo
+# array vazio virava JSON.
+rule jsonliteral { '{' ~ '}' [ ':' || [ <pair>+ % ',' ] ] }
 rule hashliteral { '{' ~ '}' [ '=>' || [ <hashpair>+ % ',' ] ] }
 rule pair        { <expr> ':' <expr> }
 rule hashpair    { <expr> '=>' <expr> }
