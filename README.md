@@ -161,8 +161,12 @@ curl -sfL -O https://github.com/ash/rakupp/releases/download/v4.0.1/rakupp-linux
 tar xzf rakupp-linux-x86_64.tar.gz
 export PATH=$PWD/rakupp/bin:$PATH
 
-rakupp t/01-basico.raku
+rakupp testes.raku
 ```
+
+Roda tudo em `t/`, soma os placares `N de M` e sai com 1 se algum teste
+falhar, morrer no meio ou não imprimir placar. Um teste avulso ainda roda
+sozinho: `rakupp t/04-tipos.raku`.
 
 ## Alternância ordenada em todo lugar
 
