@@ -117,23 +117,38 @@ testado só pelo que aceita, pode estar aceitando tudo. O segundo aconteceu:
 por um tempo `!=`, `<` e `>=` caíam em "não sei", e nada percebeu até entrar
 um caso de cada.
 
-## Três defeitos do rakupp 4.0.1
+## Dois comportamentos do rakupp 4.0.1
 
-Achados escrevendo isto, com o menor caso de cada:
+Achados escrevendo isto, com o menor caso de cada. `rakupp_issue.md`, fora do
+repositório, é o relato para mandar ao projeto.
 
-| | contorno |
-|---|---|
-| `\|` falha quando a primeira alternativa tem `<x>* % ','` | `\|\|` |
-| `<n>+ % <op>` com sub-regra de separador não casa nem captura | `<n> [ <op> <n> ]*` |
-| um `enum` com `Array`, `Numeric`, `Date` esconde os tipos do Raku, e o valor sai vazio | strings |
+**Um defeito, com certeza.** `|` não casa quando uma alternativa tem um
+quantificador com `%`, mesmo casando sozinha. Só com `token`, sem espaço
+nenhum envolvido:
 
-Os dois primeiros são do `%`. Vale reportar.
+```raku
+token call { 'f(' <e>* % ',' ')' }
+token alt  { <call> | <asg> }       # não casa 'f(1,2)'
+token alt2 { <call> || <asg> }      # casa
+```
 
-### E o que ainda não começou
+Contorno: `||`, que a gramática usa em todo lugar de qualquer jeito.
 
-O xtpl. A gramática é de TL++ puro; nada de `|>`, `using alias`, `defer`, `?.`
-ou escopo de bloco foi acrescentado. A ideia é que cresçam daqui, mas primeiro
-o TL++ tem de entrar inteiro.
+**Um que talvez seja defeito.** Num `rule`, `<n>+ % <op>` não casa
+`1 + 2 - 3` — e casa `1+2-3`. Escrito à mão, `<n> [ <op> <n> ]*`, casa os
+dois. Pode ser só o jeito como `%` combina com espaço significativo; sem um
+Rakudo aqui para comparar, não dá para dizer. A gramática usa a forma escrita à
+mão.
+
+**E um que não é.** Um `enum` com chaves `Array` ou `Numeric` parecia sair
+vazio. Não é defeito do rakupp: o nome continua sendo o tipo do próprio Raku,
+e um objeto de tipo dentro de uma string sai vazio. O erro era meu — a árvore
+usa strings para os tipos por isso.
+
+Os dois primeiros chegaram a estar descritos aqui de um jeito mais forte do
+que a evidência dava: o segundo como "não casa nem captura", que é falso com
+`token`, e o terceiro como defeito. Refazendo o menor caso de cada um antes de
+escrever o relato é que apareceu.
 
 ## Como rodar
 
