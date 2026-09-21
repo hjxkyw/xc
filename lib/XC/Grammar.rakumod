@@ -266,11 +266,14 @@ token stmtword
 
 # ---- expressoes, por precedencia --------------------------------------------
 #
-# Cada nivel escrito como 'a [ op a ]*', e nao como 'a+ % op'. O modificador
-# '%' do rakupp 4.0.1, com uma sub-regra como separador, nem casa nem captura:
+# Cada nivel escrito como 'a [ op a ]*', e nao como 'a+ % op'. Num 'rule',
+# o rakupp 4.0.1 nao casa '<n>+ % <op>' quando a entrada tem espacos:
 #
-#     rule TOP { <n>+ % <op> }          # nao casa '1 + 2 - 3'
-#     rule TOP { <n> [ <op> <n> ]* }     # casa, e captura os dois <op>
+#     rule TOP { <n>+ % <op> }          # nao casa '1 + 2 - 3', casa '1+2-3'
+#     rule TOP { <n> [ <op> <n> ]* }     # casa os dois
+#
+# Pode ser defeito ou so o jeito como '%' combina com espaco significativo --
+# sem um Rakudo para comparar, nao da para dizer. Com 'token' funciona.
 #
 # Sem o operador capturado, 'a + b' virava um no de soma com operador vazio,
 # e o verificador de tipos nao sabia que era uma soma.

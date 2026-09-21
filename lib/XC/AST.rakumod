@@ -13,9 +13,10 @@ unit module XC::AST;
 # arvore guarda sempre o nome, para quem ler nao ter de saber que 'N' e
 # 'Numeric'.
 #
-# Strings, e nao um 'enum'. Um enum com 'Array', 'Numeric', 'Date' e 'Block'
-# esconde os tipos que o proprio Raku tem com esses nomes -- e o valor sai
-# vazio quando impresso, sem erro nenhum. Foi o que aconteceu.
+# Strings, e nao um 'enum'. 'Array', 'Numeric', 'Date' e 'Block' ja sao
+# tipos do proprio Raku, e um enum com essas chaves nao ganha deles: o nome
+# continua sendo o tipo do Raku, que dentro de uma string sai vazio. O erro
+# foi meu, nao do rakupp.
 constant @TIPOS is export =
   <Array Numeric Character Logical Date Object Block JSON Variant>;
 
