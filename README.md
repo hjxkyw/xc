@@ -75,7 +75,7 @@ O que já entra:
 | literais próprios | `{ : }` para JSON, e `{ => }` para hash (do xtpl), que precisam vir antes de `{}` |
 | namespaces | `namespace minha.app`, `using namespace tlpp.regex` |
 | anotações | `@Get("/saldo/:id")`, com ou sem argumentos |
-| expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro |
+| expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro, e chamadas qualificadas (`totvs.tools.X():New()`) |
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
 

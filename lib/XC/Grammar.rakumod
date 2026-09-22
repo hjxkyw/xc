@@ -375,11 +375,29 @@ rule primary
   || <jsonliteral>
   || <hashliteral>
   || <arrayliteral>
+  || <nscall>
   || <call>
   || <aliasfield>
   || <name>
   || [ '(' ~ ')' <expr> ]
 }
+
+# Uma chamada qualificada por um caminho pontuado do TL++:
+#
+#     totvs.tools.Alguma.Coisa():New()
+#
+# O que distingue isso de 'nA.And.nB' -- lexicamente igual -- e terminar em
+# chamada: 'qname' exige o '(' logo depois. E os segmentos nao podem ser as
+# palavras dos operadores '.and.'/'.or.'/'.not.', senao esta regra roubaria
+# 'nA.And.nB' do operador. Fora isso, e TL++ puro e sai como entrou, entao o
+# no e uma Chamada comum cujo nome ja traz os pontos.
+rule nscall { <qname> '(' ~ ')' <arglist> }
+
+token qname
+{
+  <[A..Za..z_]> \w* [ '.' <!logword> <[A..Za..z_]> \w* ]+
+}
+token logword { :i [ 'and' || 'or' || 'not' ] <![\w]> }
 
 # O operador macro: '&(expressao)' ou '&nome'. Compila e roda a string em
 # tempo de execucao -- nada aqui enxerga o que ha dentro.

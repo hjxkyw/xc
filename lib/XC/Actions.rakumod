@@ -322,6 +322,7 @@ method tcampo($/)
 method primary($/)
 {
   make   $<literal>      ?? $<literal>.made
+      !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Nome.new(nome => ~$<name>)
       !! $<expr>         ?? $<expr>.made
@@ -383,6 +384,13 @@ method blockexpr($/)
 method call($/)
 {
   make Chamada.new(nome => ~$<name>, args => $<arglist>.made.list);
+}
+
+# O caminho inteiro e o nome; os pontos ficam nele, e nenhum segmento e uma
+# variavel lida (sao partes de namespace), entao percorre-expr nao desce neles.
+method nscall($/)
+{
+  make Chamada.new(nome => ~$<qname>, args => $<arglist>.made.list);
 }
 
 # 'f()' tem uma posicao vazia so e nenhum argumento; 'f( , 1)' tem duas, e a

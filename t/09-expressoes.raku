@@ -157,6 +157,40 @@ confere 'saldo.xtpl: todo nome aparece na arvore, nX inclusive',
   %vistos.keys.sort.join(' ') eq 'aTitulos cCliente jResposta nLimite nTotal nX'
 };
 
+# ---- caminho pontuado do TL++ ----------------------------------------------------
+confere 'totvs.tools.Alguma.Coisa(): o caminho inteiro e o nome, sem leituras',
+{
+  my $e = expr('totvs.tools.Alguma.Coisa()');
+  $e ~~ Chamada && $e.nome eq 'totvs.tools.Alguma.Coisa' && nomes($e) eq ''
+};
+confere 'com trailer: :New() e um metodo sobre a chamada qualificada',
+{
+  my $e = expr('totvs.tools.X():New()');
+  $e ~~ Metodo && $e.nome eq 'New' && $e.base ~~ Chamada
+    && $e.base.nome eq 'totvs.tools.X'
+};
+confere 'os argumentos de uma chamada qualificada sao lidos',
+{
+  nomes(expr('pacote.Classe():Novo(nA, cB)')) eq 'nA cB'
+    || nomes(expr('pacote.Classe():Novo(nA, cB)')) eq 'cB nA'
+};
+confere 'a.b() com dois segmentos ja e um caminho',
+{
+  my $e = expr('a.b()');
+  $e ~~ Chamada && $e.nome eq 'a.b'
+};
+# A outra ponta da ambiguidade: sem terminar em chamada, e o operador.
+confere 'nA.And.nB continua sendo o operador .and., nao um caminho',
+{
+  my $e = expr('nA.And.nB');
+  $e ~~ Binaria && nomes($e) eq 'nA nB'
+};
+confere 'nA .and. foo(): o operador vence, com a chamada de um lado',
+{
+  my $e = expr('nA .and. foo()');
+  $e ~~ Binaria && $e.dir ~~ Chamada && $e.dir.nome eq 'foo'
+};
+
 # ---- o que tem de ser recusado -------------------------------------------------------
 my @recusar =
   'a[]'       => 'indice vazio',
@@ -168,6 +202,7 @@ my @recusar =
   '{|a b| a}' => 'parametros de bloco sem virgula',
   '"a":x'     => 'membro de uma string',
   '1[2]'      => 'indice de um numero',
+  'a.b'       => 'caminho pontuado que nao termina em chamada',
   ;
 
 for @recusar -> $c
