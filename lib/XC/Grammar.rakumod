@@ -16,17 +16,16 @@
 # que pode ser as duas coisas e uma declaracao. O '|' do Raku escolhe a mais
 # longa, que e uma regra sobre o texto e nao sobre a linguagem.
 #
-# A segunda e que o '|' do rakupp 4.0.1 tem um defeito: uma alternativa que
-# contem uma sub-regra quantificada com separador -- '<expr>* % ","' -- falha
-# dentro de uma alternancia, e casa sozinha. Menor caso:
+# A segunda e que, num 'rule', o '|' do rakupp 4.0.1 recusa uma alternativa
+# com sub-regra quantificada e separador que o Rakudo aceita:
 #
 #     rule  call { <name> "(" <expr>* % "," ")" }
 #     rule  asg  { <name> ":=" \d+ }
-#     rule  alt  { <call> | <asg> }       # nao casa 'f("a")'
-#     rule  alt2 { <call> || <asg> }      # casa
+#     rule  alt  { <call> | <asg> }       # 'f("a")': Rakudo casa, rakupp nao
+#     rule  alt2 { <call> || <asg> }      # os dois casam
 #
-# Com '||' funciona. Como '||' e o que se quer de qualquer jeito, isto nao e
-# uma concessao.
+# (Com 'token', os dois recusam o '|' -- o que e o Raku, nao o rakupp.) Como
+# '||' e o que se quer de qualquer jeito, isto nao e uma concessao.
 
 unit grammar XC::Grammar;
 
@@ -425,13 +424,12 @@ token stmtword
 # ---- expressoes, por precedencia --------------------------------------------
 #
 # Cada nivel escrito como 'a [ op a ]*', e nao como 'a+ % op'. Num 'rule',
-# o rakupp 4.0.1 nao casa '<n>+ % <op>' quando a entrada tem espacos:
+# '<n>+ % <op>' nao casa quando a entrada tem espacos:
 #
 #     rule TOP { <n>+ % <op> }          # nao casa '1 + 2 - 3', casa '1+2-3'
 #     rule TOP { <n> [ <op> <n> ]* }     # casa os dois
 #
-# Pode ser defeito ou so o jeito como '%' combina com espaco significativo --
-# sem um Rakudo para comparar, nao da para dizer. Com 'token' funciona.
+# E o Raku, nao o rakupp: o Rakudo 2026.08 faz igual.
 #
 # Sem o operador capturado, 'a + b' virava um no de soma com operador vazio,
 # e o verificador de tipos nao sabia que era uma soma.
@@ -500,8 +498,9 @@ token inop     { :i 'in' >> }
 # So em dois lugares: a direita de um 'in', e como fonte de uma cadeia
 # ('1..999 |> filter(...)'). Em qualquer outro ponto nao ha o que um
 # intervalo seja, entao fora de um 'in' ele so casa seguido de '|>'.
-# As duas pontas levam nome: dois <addexpr> no mesmo nivel viriam juntos numa
-# lista em $<addexpr> (rakupp 4.0.1).
+# As duas pontas levam nome: uma captura com apelido tambem entra no nome
+# original (e o Raku), entao dois <addexpr> no mesmo nivel viriam juntos numa
+# lista em $<addexpr>.
 rule rangeexpr { <de=addexpr> [ '..' <ate=addexpr> <?before <.ws> '|>'> ]? }
 rule inrhs     { <de=addexpr> [ '..' <ate=addexpr> ]? }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }

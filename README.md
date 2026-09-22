@@ -194,49 +194,51 @@ um caso de cada.
 
 ## O que o rakupp 4.0.1 faz diferente
 
-Achados escrevendo isto, com o menor caso de cada. `rakupp_issue.md`, fora do
-repositório, é o relato para mandar ao projeto.
+Achados escrevendo isto, e conferidos contra o Rakudo 2026.08. Mais de um que
+estava aqui como defeito do rakupp era o próprio Raku — o Rakudo faz igual.
 
-**Um defeito, com certeza.** `|` não casa quando uma alternativa tem um
-quantificador com `%`, mesmo casando sozinha. Só com `token`, sem espaço
-nenhum envolvido:
+**Dois defeitos, relatados ao projeto.**
+
+Numa alternância `||`, uma captura quantificada (`<x>?`, `<x>*`) feita numa
+alternativa que depois **falha** não é descartada: ela se junta à da
+alternativa que casou. Com `<marcas>?` nas quatro alternativas do declarador,
+`local x <contained>` voltava com a marca quatro vezes. Uma captura sem
+quantificador não vaza, e `|` também não. O remédio é capturar o que é comum
+uma vez, antes das alternativas.
+
+Num submatch — sub-regra, captura nomeada, ou captura posicional numa
+gramática —, `.orig` e `.target` devolvem só o texto casado, e não o alvo
+inteiro; `.prematch` e `.postmatch` saem errados junto. `.from` e `.to` estão
+certos. Por isso `XC::Actions` recebe o texto de fora. A versão anterior
+contava as linhas de `.orig` e dava uma posição relativa; ninguém viu porque
+todo teste tinha uma linha só.
+
+**Uma diferença ainda não reduzida.** Com `<expr>* % ","` dentro de uma das
+alternativas de um `|`, num `rule`, o Rakudo casa e o rakupp não:
 
 ```raku
-token call { 'f(' <e>* % ',' ')' }
-token alt  { <call> | <asg> }       # não casa 'f(1,2)'
-token alt2 { <call> || <asg> }      # casa
+rule alt  { <call> | <asg> }
+rule call { <name> "(" <expr>* % "," ")" }
+rule asg  { <name> ":=" \d+ }
+# 'f("a")': o Rakudo casa, o rakupp não. Sem o '% ","', os dois casam.
 ```
 
-Contorno: `||`, que a gramática usa em todo lugar de qualquer jeito.
+Com `token` em vez de `rule`, os **dois** recusam — então o caso com `token`
+que estava aqui como "menor caso" não reproduzia defeito nenhum. A gramática
+usa `||` de qualquer jeito, pela razão de projeto que está no cabeçalho dela.
 
-**Um que talvez seja defeito.** Num `rule`, `<n>+ % <op>` não casa
-`1 + 2 - 3` — e casa `1+2-3`. Escrito à mão, `<n> [ <op> <n> ]*`, casa os
-dois. Pode ser só o jeito como `%` combina com espaço significativo; sem um
-Rakudo aqui para comparar, não dá para dizer. A gramática usa a forma escrita à
-mão.
+**E os que são o Raku, não o rakupp.** O Rakudo 2026.08 faz igual:
 
-**Um defeito que muda a árvore.** Numa alternância `||`, uma captura
-quantificada (`<x>?`, `<x>*`) feita numa alternativa que depois **falha** não é
-descartada: ela se junta à da alternativa que casou. Com `<marcas>?` nas quatro
-alternativas do declarador, `local x <contained>` voltava com a marca quatro
-vezes. Uma captura sem quantificador não vaza. O remédio é capturar o que é
-comum uma vez, antes das alternativas.
-
-**Uma diferença do Rakudo.** Numa ação, `$/.from` é a posição no texto
-inteiro, mas `$/.orig` é só o texto casado — no Rakudo é o alvo inteiro — e
-nenhum outro método do casamento devolve o alvo. Por isso `XC::Actions` recebe
-o texto de fora. A versão anterior contava as linhas de `.orig` e dava uma
-posição relativa; ninguém viu porque todo teste tinha uma linha só.
-
-**E um que não é defeito.** Um `enum` com chaves `Array` ou `Numeric` parecia sair
-vazio. Não é defeito do rakupp: o nome continua sendo o tipo do próprio Raku,
-e um objeto de tipo dentro de uma string sai vazio. O erro era meu — a árvore
-usa strings para os tipos por isso.
-
-Os dois primeiros chegaram a estar descritos aqui de um jeito mais forte do
-que a evidência dava: o segundo como "não casa nem captura", que é falso com
-`token`, e o terceiro como defeito. Refazendo o menor caso de cada um antes de
-escrever o relato é que apareceu.
+- Num `rule`, `<n>+ % <op>` não casa `1 + 2 - 3` e casa `1+2-3`. A gramática
+  escreve cada nível como `<n> [ <op> <n> ]*`.
+- Uma captura com apelido, `<ate=addexpr>`, também entra no nome original:
+  dois `<addexpr>` no mesmo nível viram uma lista em `$<addexpr>`. Por isso as
+  partes levam nome próprio.
+- `$<kw>=[ 'if' || 'while' ]` dentro de um `rule` captura o espaço que vem
+  depois da palavra.
+- Um `enum` com chaves `Array` ou `Numeric` parecia sair vazio: o nome continua
+  sendo o tipo do próprio Raku, e um objeto de tipo dentro de uma string sai
+  vazio. A árvore usa strings para os tipos por isso.
 
 ## Como rodar
 
