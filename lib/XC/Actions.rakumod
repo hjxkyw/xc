@@ -360,7 +360,27 @@ method hdrdecl($/)    { make self!mkdecl($/) }
 #
 # Cada nivel com um so filho passa o filho adiante. Um 'orexpr' que e so um
 # 'andexpr' nao e um 'ou' de nada, e nao deve virar um no de 'ou'.
-method expr($/)    { make $<orexpr>.made }
+method expr($/)
+{
+  make cadeia($<orexpr>.made, $<alimentacao>);
+}
+
+method etapa($/)
+{
+  make $<nscall> ?? $<nscall>.made
+    !! $<call>   ?? $<call>.made
+    !!              Chamada.new(nome => ~$<name>, args => ());
+}
+
+# Uma cadeia como comando, pelos efeitos. Fica numa ChamadaCmd como qualquer
+# expressao que vira comando.
+method pipest($/)
+{
+  make ChamadaCmd.new(
+    chamada => cadeia($<orexpr>.made, $<alimentacao>),
+    linha   => self!linha($/),
+  );
+}
 method orexpr($/)  { make dobra-com-ops($/, 'andexpr', 'orop') }
 method andexpr($/) { make dobra-com-ops($/, 'notexpr', 'andop') }
 
@@ -542,6 +562,14 @@ sub aplica(Expr $base, $trailers)
   my $e = $base;
   $e = .made()($e) for $trailers.list;
   $e
+}
+
+# A fonte, e as etapas se houver. Sem nenhuma, e so a fonte -- a maioria das
+# expressoes nao tem '|>' e nao deve ganhar no nenhum.
+sub cadeia(Expr $fonte, $alimentacoes)
+{
+  my @e = $alimentacoes.list.map(*<etapa>.made);
+  @e ?? Cadeia.new(fonte => $fonte, etapas => @e) !! $fonte
 }
 
 sub atrib-expr(Atribuicao $a)

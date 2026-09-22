@@ -230,8 +230,14 @@ rule simples
   || <exitst>
   || <loopst>
   || <assignment>
+  || <pipest>
   || <callst>
 }
+
+# Uma cadeia pelos efeitos, sem atribuicao na frente: 'aPedidos |> valida()
+# |> grava()'. Antes de 'callst', que casaria 'valida()' sozinho numa linha
+# que comeca com 'f(x) |> ...' e deixaria o resto sem dono.
+rule pipest { <!stmtword> <orexpr> <alimentacao>+ }
 
 # ---- xtpl: modificadores posfixados ----------------------------------------
 #
@@ -391,7 +397,22 @@ token stmtword
 #
 # Sem o operador capturado, 'a + b' virava um no de soma com operador vazio,
 # e o verificador de tipos nao sabia que era uma soma.
-rule expr      { <orexpr> }
+# ---- xtpl: '|>' ------------------------------------------------------------
+#
+#     aCodigos := aPedidos |> filter([o] o:nValor > 1000) |> map([o] o:cCodigo)
+#     nTotal   := len(aNums |> distinct)
+#
+# O valor da esquerda vira o PRIMEIRO argumento da etapa da direita. O '|>' e
+# o nivel mais frouxo: a fonte vai ate a virgula, o parenteses ou o comeco da
+# expressao que a contem. Uma etapa e uma chamada ou um nome solto
+# ('|> asum' e 'asum(x)').
+#
+# Nao dentro de um lambda nem de um code block: o corpo roda depois, e icar
+# uma etapa para fora dele a faria rodar antes. O lambda e o code block ligam
+# '$*BLOCO', e com ele ligado nenhuma expressao de dentro aceita '|>'.
+rule expr        { <orexpr> <alimentacao>* }
+rule alimentacao { <!{ $*BLOCO // False }> '|>' <etapa> }
+rule etapa       { <nscall> || <call> || <name> }
 rule orexpr    { <andexpr> [ <orop> <andexpr> ]* }
 token orop     { :i '.or.' }
 rule andexpr   { <notexpr> [ <andop> <notexpr> ]* }
@@ -512,6 +533,7 @@ rule arrayliteral { '{' ~ '}' [ <expr>* % ',' ] }
 # '{ || ... }' e um bloco sem parametros, e os dois pipes ficam colados.
 rule codeblock
 {
+  :my $*BLOCO = True;
   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] <blockexpr>* % ',' '}'
 }
 
@@ -528,9 +550,15 @@ rule blockexpr   { <assignment> || <expr> }
 # e para na virgula ou no parenteses de quem o contem -- o 'reduce' acima tem
 # o lambda e a semente como argumentos separados. O '[' so abre um lambda no
 # comeco de um primario; depois de um valor ele e indice ('a[i]').
+#
+# Um '|>' logo depois do corpo e recusado, e nao deixado para quem esta de
+# fora: sem isso 'map(a, [x] x |> f)' viraria 'f([x] x)' -- outro programa,
+# calado. E o erro que o xtpl da: uma cadeia nao aninha num bloco.
 rule lambda
 {
+  :my $*BLOCO = True;
   '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <corpo=blockexpr>
+  <!before \h* '|>'>
 }
 
 # '::x' abrevia o acesso a um membro do proprio objeto -- o 'Self:x' do AdvPL.

@@ -160,6 +160,17 @@ class Bloco is Literal is export
 # para TL++ e escrever '{|o| o:nValor}'.
 class Lambda is Bloco is export { }
 
+# 'aPedidos |> filter([o] ...) |> map([o] ...)' -- a fonte e as etapas, em
+# ordem. Cada etapa e a chamada como foi escrita, SEM o primeiro argumento: o
+# '|>' e que o poe. '|> asum' e uma Chamada sem argumentos. Baixar e encadear
+# as chamadas ('map(filter(aPedidos, ...), ...)', ou um temporario por etapa, ou
+# o laco fundido) -- e isso e a geracao de codigo, nao a arvore.
+class Cadeia is Expr is export
+{
+  has Expr    $.fonte;
+  has Chamada @.etapas;
+}
+
 # ---- comandos -------------------------------------------------------------------
 #
 # Um corpo e um array de Cmd. As partes opcionais que faltam ficam com o objeto
@@ -356,6 +367,7 @@ sub subexprs(Expr $e --> List) is export
     when ArrayLit   { |.itens }
     when JsonLit | HashLit { |.pares.map({ .chave, .valor }).flat }
     when Bloco      { |.corpo }
+    when Cadeia     { .fonte, |.etapas }
     default         { () }
   };
   @s.grep(*.defined).List

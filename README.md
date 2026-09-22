@@ -63,9 +63,9 @@ inicializador, e as declarações de bloco no cabeçalho: `for local i := …`,
 x := …`. Uma declaração no corpo de um bloco já era um comando como outro
 qualquer. E os modificadores posfixados: `x := 1 if c`, `return n if c`,
 `f() while c`, `exec f() if c`. E o lambda `[o] o:nValor`, de um a seis
-nomes. O resto está por fazer — `?=`, `?:`, `?.`,
+nomes, e as cadeias `|>`. O resto está por fazer — `?=`, `?:`, `?.`,
 `h{"k"}` e `has`, `for x in`, `for n times`, `with object`, `using alias`,
-`defer`, `in`, `%%`, `lo..hi`, `|>`, interpolação, `fallback`, `queue` (ver
+`defer`, `in`, `%%`, `lo..hi`, interpolação, `fallback`, `queue` (ver
 `docs/language.md` do xtpl).
 
 O que já entra:
@@ -80,6 +80,7 @@ O que já entra:
 | expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro, e chamadas qualificadas (`totvs.tools.X():New()`) |
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
 | lambdas | `[o] o:nValor`, `[acc, x] acc + x` — de um a seis nomes, um corpo (expressão ou atribuição) que para na vírgula de quem o contém |
+| cadeias | `aP \|> filter([o] …) \|> map([o] …)`: o valor da esquerda vira o primeiro argumento da etapa; o `\|>` é o nível mais frouxo; como comando, como argumento, com modificador. Não dentro de um lambda ou code block |
 | modificadores | `if` e `while` no fim de um comando simples (`return`, `exit`, `loop`, atribuição, chamada, `exec`) — não de um bloco nem de uma declaração |
 | classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
