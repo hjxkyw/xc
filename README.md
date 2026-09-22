@@ -57,11 +57,14 @@ verdade daria um número mais honesto: ali, tudo tem de casar.
 exercitar o que a gramática cobre, e os testes usam ele em vez de depender de
 arquivos de fora. É xtpl, não TL++ puro — o `{ => }` do hash é do xtpl.
 
-Das extensões do xtpl, a gramática só conhece duas: o hash `{ => }` e o tipo
-antes do inicializador. O resto está por fazer — `let`, `?=`, `?:`, `?.`,
-`h{"k"}` e `has`, `for x in`, `for n times`, `do case with`, `with object`,
-`using alias`, `defer`, modificadores posfixados, `in`, `%%`, `lo..hi`, `|>`,
-interpolação, `fallback`, `queue` (ver `docs/language.md` do xtpl).
+Das extensões do xtpl, a gramática conhece o hash `{ => }`, o tipo antes do
+inicializador, e as declarações de bloco no cabeçalho: `for local i := …`,
+`if local x := …, cond`, `while local x := …, cond`, e `do case with [local]
+x := …`. Uma declaração no corpo de um bloco já era um comando como outro
+qualquer. O resto está por fazer — `?=`, `?:`, `?.`, `h{"k"}` e `has`,
+`for x in`, `for n times`, `with object`, `using alias`, `defer`,
+modificadores posfixados, `in`, `%%`, `lo..hi`, `|>`, interpolação,
+`fallback`, `queue` (ver `docs/language.md` do xtpl).
 
 O que já entra:
 
@@ -74,6 +77,7 @@ O que já entra:
 | anotações | `@Get("/saldo/:id")`, com ou sem argumentos |
 | expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro |
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
+| locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
 
 O primeiro arquivo real levou umas quinze correções para passar — cada uma
 achada porque a gramática **recusou uma linha e disse qual**:

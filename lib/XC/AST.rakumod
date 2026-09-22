@@ -208,25 +208,32 @@ class Ramo is export
 
 class Se is Cmd is export
 {
-  has Ramo @.ramos;            # o 'if' e cada 'elseif'
-  has Cmd  @.senao;
+  has Ramo       @.ramos;      # o 'if' e cada 'elseif'
+  has Cmd        @.senao;
+  has Declarador $.hdrdecl;    # 'if local x := ..., cond', indefinido se nao
 }
 
 class Caso is Cmd is export
 {
-  has Ramo @.ramos;            # cada 'case'
-  has Cmd  @.senao;            # 'otherwise'
+  has Ramo       @.ramos;      # cada 'case'
+  has Cmd        @.senao;      # 'otherwise'
+  # 'do case with <sujeito>': avaliado uma vez. Com 'local' e um declarador (um
+  # local novo); sem, uma atribuicao a uma variavel ja declarada. So um dos dois.
+  has Declarador $.sujdecl;
+  has Atribuicao $.sujatrib;
 }
 
 class Enquanto is Cmd is export
 {
-  has Expr $.cond;
-  has Cmd  @.corpo;
+  has Expr       $.cond;
+  has Cmd        @.corpo;
+  has Declarador $.hdrdecl;    # 'while local x := ..., cond', indefinido se nao
 }
 
 class Para is Cmd is export
 {
   has Str  $.var;
+  has Bool $.var-local = False;  # 'for local i := ...': 'i' e um local novo
   has Expr $.de;
   has Expr $.ate;
   has Expr $.passo;            # indefinido: passo 1
@@ -312,8 +319,11 @@ sub exprs-de(Cmd $c --> List) is export
     when ChamadaCmd { .chamada }
     when Retorno    { .valor }
     when Anotacao   { |.args }
-    when Se | Caso  { |.ramos.map(*.cond) }
-    when Enquanto   { .cond }
+    when Se         { .hdrdecl.defined ?? (.hdrdecl.inicial, |.ramos.map(*.cond)) !! |.ramos.map(*.cond) }
+    when Caso       { (.sujdecl.defined  ?? .sujdecl.inicial !! Expr),
+                      (.sujatrib.defined ?? .sujatrib.valor  !! Expr),
+                      |.ramos.map(*.cond) }
+    when Enquanto   { .hdrdecl.defined ?? (.hdrdecl.inicial, .cond) !! .cond }
     when Para       { .de, .ate, .passo }
     default         { () }
   };

@@ -188,6 +188,9 @@ rule declaration
 
 rule declkind { :i [ 'local' || 'private' || 'public' || 'static' ] }
 
+# 'local' isolado, para os cabecalhos de bloco que declaram.
+token kwlocal { :i 'local' }
+
 # O tipo, antes ou depois do inicializador:
 #
 #     local nX := 1 as Numeric        TL++
@@ -210,9 +213,13 @@ rule declarator
 # As partes levam nome -- '<cond=expr>', '<corpo=body>' -- porque as
 # repetidas voltam como lista, e sem nome o corpo do 'else' seria so o ultimo
 # de uma lista que as vezes tem um a mais.
+# 'if local x := f(), <cond>' declara um local do bloco no proprio cabecalho e
+# so entao a condicao. O 'local' e uma palavra reservada, entao a virgula
+# separa o declarador da condicao sem ambiguidade: 'f()' para na virgula, e o
+# que vem depois e a condicao. So o 'if' de abertura declara; 'elseif' nao.
 rule ifst
 {
-  :i 'if' <cond=expr> <.nl>
+  :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
      <corpo=body>
   [ :i 'elseif' <cond=expr> <.nl> <corpo=body> ]*
   [ :i 'else' <.nl> <senao=body> ]?
@@ -221,26 +228,42 @@ rule ifst
 
 rule whilest
 {
-  :i 'while' <cond=expr> <.nl>
+  :i 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
      <corpo=body>
   :i [ 'enddo' || 'end' ]
 }
 
+# 'for local i := ...' faz de 'i' um local novo do laco. Sem 'local', 'i' e
+# uma variavel ja declarada antes.
 rule forst
 {
-  :i 'for' <var=name> ':=' <de=expr> :i 'to' <ate=expr>
-     [ :i 'step' <passo=expr> ]? <.nl>
+  :i 'for' [ :i <varlocal=kwlocal> ]? <var=name> ':=' <de=expr>
+     :i 'to' <ate=expr> [ :i 'step' <passo=expr> ]? <.nl>
      <corpo=body>
   :i 'next' <fim=name>?
 }
 
+# 'do case with <sujeito>' avalia o sujeito uma vez e lhe da um nome, em vez
+# de repetir a expressao em cada 'case'. Com 'local' o sujeito e um local novo
+# do bloco; sem, atribui a uma variavel ja declarada.
 rule docasest
 {
-  :i 'do' 'case' <.nl>
+  :i 'do' 'case' [ :i 'with' <sujeito> ]? <.nl>
   [ :i 'case' <cond=expr> <.nl> <corpo=body> ]+
   [ :i 'otherwise' <.nl> <senao=body> ]?
   :i 'endcase'
 }
+
+rule sujeito
+{
+     [ :i <sujlocal=kwlocal> <hdrdecl> ]
+  || <assignment>
+}
+
+# A declaracao de um cabecalho de bloco precisa de inicializador: e o valor que
+# ela liga para a condicao ou para os 'case'. 'local x' sozinho iria para o
+# prologo.
+rule hdrdecl { <name> ':=' <expr> <typespec>? }
 
 # BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- o tratamento de erro.
 rule seqst

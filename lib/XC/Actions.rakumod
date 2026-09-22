@@ -169,39 +169,50 @@ method callst($/)
 method ifst($/)
 {
   make Se.new(
-    ramos => ramos($<cond>, $<corpo>),
-    senao => $<senao> ?? $<senao>.made !! (),
-    linha => self!linha($/),
+    ramos   => ramos($<cond>, $<corpo>),
+    senao   => $<senao> ?? $<senao>.made !! (),
+    hdrdecl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarador,
+    linha   => self!linha($/),
   );
 }
 
 method docasest($/)
 {
+  my ($decl, $atrib);
+  with $<sujeito>
+  {
+    if .<sujlocal> { $decl  = .<hdrdecl>.made }
+    else           { $atrib = .<assignment>.made }
+  }
   make Caso.new(
-    ramos => ramos($<cond>, $<corpo>),
-    senao => $<senao> ?? $<senao>.made !! (),
-    linha => self!linha($/),
+    ramos    => ramos($<cond>, $<corpo>),
+    senao    => $<senao> ?? $<senao>.made !! (),
+    sujdecl  => $decl  // Declarador,
+    sujatrib => $atrib // Atribuicao,
+    linha    => self!linha($/),
   );
 }
 
 method whilest($/)
 {
   make Enquanto.new(
-    cond  => $<cond>.made,
-    corpo => $<corpo>.made,
-    linha => self!linha($/),
+    cond    => $<cond>.made,
+    corpo   => $<corpo>.made,
+    hdrdecl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarador,
+    linha   => self!linha($/),
   );
 }
 
 method forst($/)
 {
   make Para.new(
-    var   => ~$<var>,
-    de    => $<de>.made,
-    ate   => $<ate>.made,
-    passo => $<passo> ?? $<passo>.made !! Expr,
-    corpo => $<corpo>.made,
-    linha => self!linha($/),
+    var       => ~$<var>,
+    var-local => ?$<varlocal>,
+    de        => $<de>.made,
+    ate       => $<ate>.made,
+    passo     => $<passo> ?? $<passo>.made !! Expr,
+    corpo     => $<corpo>.made,
+    linha     => self!linha($/),
   );
 }
 
@@ -226,16 +237,19 @@ method declaration($/)
   );
 }
 
-method declarator($/)
+method !mkdecl($/)
 {
-  make Declarador.new(
+  Declarador.new(
     nome      => ~$<name>,
     inicial   => $<expr> ?? $<expr>.made !! Expr,
     declarado => $<typespec> ?? tipo-de-nome(~$<typespec><typename>)
                              !! DESCONHECIDO,
     linha     => self!linha($/),
-  );
+  )
 }
+
+method declarator($/) { make self!mkdecl($/) }
+method hdrdecl($/)    { make self!mkdecl($/) }
 
 # ---- expressoes: descendo a precedencia ------------------------------------
 #

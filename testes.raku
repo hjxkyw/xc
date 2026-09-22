@@ -30,7 +30,7 @@ for @testes -> $t
   my $conta = $m.defined ?? "$n de $m" !! 'sem placar';
   $conta ~= " (saiu com $codigo)" if $codigo != 0;
 
-  say(($passou ?? '  ok    ' !! '  FALHA '), $t.basename.fmt('%-22s'), $conta);
+  say(($passou ?? '  ok    ' !! '  FALHA '), $t.basename.fmt('%-24s'), $conta);
 
   if $m.defined
   {
