@@ -79,7 +79,11 @@ class Indice is Expr is export           # a[i, j]
   has Expr @.indices;
 }
 
-class Membro is Expr is export           # o:nX
+# O '::' de '::x' -- o proprio objeto, como base implicita de um Membro ou
+# Metodo. Nao le variavel nenhuma.
+class AutoSelf is Expr is export { }
+
+class Membro is Expr is export           # o:nX  (e ::nX, com base AutoSelf)
 {
   has Expr $.base;
   has Str  $.nome;
@@ -265,13 +269,53 @@ class Funcao is export
   has Int       $.linha;
 }
 
+# ---- TLPP: classes ------------------------------------------------------------
+class Atributo is export             # 'Data nome as tipo'
+{
+  has Str $.nome;
+  has Str $.tipo;              # indefinido se nao tem
+  has Str $.visib;            # public/protected/private, indefinido se nao tem
+}
+
+class AssinaturaMetodo is export     # 'Method nome(params) [Constructor] [as tipo]'
+{
+  has Str        $.nome;
+  has Parametro  @.params;
+  has Str        $.visib;
+  has Bool       $.construtor = False;
+  has Str        $.retorno;         # indefinido se nao tem
+}
+
+class Classe is export
+{
+  has Str              $.nome;
+  has Str              @.supers;     # 'From A, B'
+  has Atributo         @.atributos;
+  has AssinaturaMetodo @.metodos;    # as assinaturas do bloco
+  has Int              $.linha;
+}
+
+# 'Method nome(params) [as tipo] Class Nome' + corpo. Como uma Funcao, mas
+# ligada a uma classe.
+class MetodoImpl is export
+{
+  has Str        $.classe;
+  has Str        $.nome;
+  has Parametro  @.params;
+  has Str        $.retorno;         # indefinido se nao tem
+  has Cmd        @.corpo;
+  has Int        $.linha;
+}
+
 class Programa is export
 {
-  has Str      $.namespace;    # indefinido se nao tem
-  has Str      @.usings;
-  has Str      @.diretivas;    # '#include ...' inteiro, como veio
-  has Anotacao @.anotacoes;    # as que nao estao antes de uma funcao
-  has Funcao   @.funcoes;
+  has Str        $.namespace;  # indefinido se nao tem
+  has Str        @.usings;
+  has Str        @.diretivas;  # '#include ...' inteiro, como veio
+  has Anotacao   @.anotacoes;  # as que nao estao antes de uma funcao
+  has Funcao     @.funcoes;
+  has Classe     @.classes;
+  has MetodoImpl @.metodos;    # as implementacoes soltas
 }
 
 # ---- percorrer -------------------------------------------------------------------

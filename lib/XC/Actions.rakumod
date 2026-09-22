@@ -50,12 +50,20 @@ method !linha($m --> Int)
 # ---- o arquivo ------------------------------------------------------------------
 method TOP($/)
 {
-  my ($ns, @usings, @diretivas, @anotacoes, @funcoes);
+  my ($ns, @usings, @diretivas, @anotacoes, @funcoes, @classes, @metodos);
   for $<toplevel> -> $t
   {
     if $t<function>
     {
       @funcoes.push($t<function>.made);
+    }
+    elsif $t<classdecl>
+    {
+      @classes.push($t<classdecl>.made);
+    }
+    elsif $t<methodimpl>
+    {
+      @metodos.push($t<methodimpl>.made);
     }
     elsif $t<preproc>
     {
@@ -84,6 +92,8 @@ method TOP($/)
     diretivas => @diretivas,
     anotacoes => @anotacoes,
     funcoes   => @funcoes,
+    classes   => @classes,
+    metodos   => @metodos,
   );
 }
 
@@ -107,6 +117,74 @@ method param($/)
     declarado => $<typespec> ?? tipo-de-nome(~$<typespec><typename>)
                              !! DESCONHECIDO,
   );
+}
+
+# ---- TLPP: classes ------------------------------------------------------------
+method classdecl($/)
+{
+  my (@atributos, @metodos);
+  for $<classmember> -> $m
+  {
+    if $m<datadecl> { @atributos.append($m<datadecl>.made.list) }
+    else            { @metodos.push($m<methdecl>.made) }
+  }
+  make Classe.new(
+    nome      => ~$<nome>,
+    supers    => $<supers> ?? $<supers>.map(~*).list !! (),
+    atributos => @atributos,
+    metodos   => @metodos,
+    linha     => self!linha($/),
+  );
+}
+
+method datadecl($/)
+{
+  my $vis = $<visib> ?? ~$<visib>.trim.lc !! Str;
+  make $<datavar>.map(-> $d
+  {
+    Atributo.new(
+      nome  => ~$d<nome>,
+      tipo  => $d<tipo> ?? ~$d<tipo> !! Str,
+      visib => $vis,
+    )
+  }).list;
+}
+
+method methdecl($/)
+{
+  my ($construtor, $retorno) = False, Str;
+  for $<methtag> -> $t
+  {
+    if $t<ret> { $retorno = ~$t<ret> } else { $construtor = True }
+  }
+  make AssinaturaMetodo.new(
+    nome       => ~$<nome>,
+    params     => $<params><param>.map(*.made).list,
+    visib      => $<visib> ?? ~$<visib>.trim.lc !! Str,
+    construtor => $construtor,
+    retorno    => $retorno,
+  );
+}
+
+method methodimpl($/)
+{
+  make MetodoImpl.new(
+    classe  => ~$<classe>,
+    nome    => ~$<nome>,
+    params  => $<params><param>.map(*.made).list,
+    retorno => $<ret> ?? ~$<ret> !! Str,
+    corpo   => $<body>.made,
+    linha   => self!linha($/),
+  );
+}
+
+# '::x': o proprio objeto como base. Membro ('::aBuf') ou metodo ('::Grow()').
+method selfacc($/)
+{
+  my $base = AutoSelf.new;
+  make $<arglist>
+    ?? Metodo.new(base => $base, nome => ~$<member>, args => $<arglist>.made.list)
+    !! Membro.new(base => $base, nome => ~$<member>);
 }
 
 method annotation($/)
@@ -154,7 +232,8 @@ method assignment($/)
 
 method lvalue($/)
 {
-  make aplica(Nome.new(nome => ~$<name>), $<trailer>);
+  my $base = $<selfacc> ?? $<selfacc>.made !! Nome.new(nome => ~$<name>);
+  make aplica($base, $<trailer>);
 }
 
 method callst($/)
@@ -321,7 +400,8 @@ method tcampo($/)
 # aparecer aqui, e nao virar string calada.
 method primary($/)
 {
-  make   $<literal>      ?? $<literal>.made
+  make   $<selfacc>      ?? $<selfacc>.made
+      !! $<literal>      ?? $<literal>.made
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Nome.new(nome => ~$<name>)

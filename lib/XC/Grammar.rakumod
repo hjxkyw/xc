@@ -56,6 +56,8 @@ rule TOP
 rule toplevel
 {
      <function>
+  || <classdecl>
+  || <methodimpl>
   || [ [ <preproc> || <namespacest> || <annotation> ] <.eol> ]
 }
 
@@ -103,6 +105,45 @@ rule function
 # com 'u_' -- e talvez com outros prefixos, que nao estao levantados. Recusar
 # aqui seria recusar TL++ valido.
 token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
+
+# ---- TLPP: classes ----------------------------------------------------------
+# Nativo do TLPP, nao extensao do xtpl. Duas partes: o bloco 'Class ... EndClass'
+# com os membros 'Data' e as assinaturas 'Method', e as implementacoes
+# 'Method nome(...) Class Nome' soltas no arquivo, cada uma com o seu corpo.
+rule classdecl
+{
+  :i 'class' <nome=name> [ :i [ 'from' || 'inherit' ] <supers=name>+ % ',' ]? <.nl>
+  [ <classmember> <.nl> ]*
+  :i 'endclass'
+}
+
+rule classmember
+{
+     <datadecl>
+  || <methdecl>
+}
+
+rule visib { :i [ 'public' || 'protected' || 'private' || 'exported' || 'hidden' ] }
+
+# 'Data nome [as tipo]', um ou mais por linha. O tipo aqui e um nome qualquer
+# (uma classe, inclusive), nao a lista fechada de 'as' das declaracoes.
+rule datadecl { <visib>? :i 'data' <datavar>+ % ',' }
+rule datavar  { <nome=name> [ :i 'as' <tipo=name> ]? }
+
+# A assinatura: 'Constructor' e o tipo de retorno sao opcionais e vem em
+# qualquer ordem.
+rule methdecl { <visib>? :i 'method' <nome=name> '(' ~ ')' <params> <methtag>* }
+rule methtag  { :i 'constructor' || [ :i 'as' <ret=name> ] }
+
+# A implementacao, no nivel do arquivo. O 'as tipo' vem antes do 'class Nome'.
+rule methodimpl
+{
+  [ <annotation> <.nl> ]*
+  :i 'method' <nome=name> '(' ~ ')' <params>
+     [ :i 'as' <ret=name> ]?
+     :i 'class' <classe=name> <.nl>
+  <body>
+}
 
 rule params
 {
@@ -369,7 +410,8 @@ token member { <[A..Za..z_]> \w* }
 
 rule primary
 {
-     <macro>
+     <selfacc>
+  || <macro>
   || <literal>
   || <codeblock>
   || <jsonliteral>
@@ -445,7 +487,11 @@ rule codeblock
 # Dentro de um code block a atribuicao E uma expressao.
 rule blockexpr   { <assignment> || <expr> }
 
-rule lvalue      { <name> <trailer>* }
+# '::x' abrevia o acesso a um membro do proprio objeto -- o 'Self:x' do AdvPL.
+# Vale como valor ('::aBuf'), chamada ('::Grow()') e alvo ('::nHead := 1').
+rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
+
+rule lvalue      { [ <selfacc> || <name> ] <trailer>* }
 
 # ---- terminais ---------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
