@@ -182,6 +182,15 @@ class Bloco is Literal is export
 # para TL++ e escrever '{|o| o:nValor}'.
 class Lambda is Bloco is export { }
 
+# 'chamaServico(cUrl) fallback ""': se a expressao levantar erro, vale a
+# alternativa. So aparece no valor de uma atribuicao, declaracao ou 'return',
+# ou entre parenteses. Baixar e 'u_xtpl_safe_pipe({|| expr}, {|| alt})'.
+class Guarda is Expr is export
+{
+  has Expr $.expr;
+  has Expr $.alternativa;
+}
+
 # 'aPedidos |> filter([o] ...) |> map([o] ...)' -- a fonte e as etapas, em
 # ordem. Cada etapa e a chamada como foi escrita, SEM o primeiro argumento: o
 # '|>' e que o poe. '|> asum' e uma Chamada sem argumentos. Baixar e encadear
@@ -295,6 +304,14 @@ class Modificado is Cmd is export
   has Expr $.cond;
 }
 
+# 'defer f()': o comando roda antes de toda saida da funcao, na ordem inversa
+# do registro. Baixar e emiti-lo antes de cada 'return' e no fim do corpo. Um
+# nome lido so por um defer conta como lido -- 'percorre' desce nele.
+class Adiado is Cmd is export
+{
+  has Cmd $.cmd;
+}
+
 class Sequencia is Cmd is export
 {
   has Cmd  @.corpo;
@@ -391,6 +408,7 @@ sub subexprs(Expr $e --> List) is export
     when JsonLit | HashLit { |.pares.map({ .chave, .valor }).flat }
     when Bloco      { |.corpo }
     when Cadeia     { .fonte, |.etapas }
+    when Guarda     { .expr, .alternativa }
     when IndiceHash { .base, .chave }
     when Intervalo  { .de, .ate }
     default         { () }
@@ -440,6 +458,7 @@ sub corpos-de(Cmd $c --> List) is export
     when Para       { (.corpo.List,).List }
     when Sequencia  { (.corpo.List, .recupera.List).List }
     when Modificado { ((.cmd,).List,).List }
+    when Adiado     { ((.cmd,).List,).List }
     default         { ().List }
   }
 }

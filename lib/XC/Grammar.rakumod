@@ -164,7 +164,7 @@ rule param
 # o 'if' virava um nome e a linha deixava de casar.
 rule returnst
 {
-  :i 'return' [ <!modkw> <expr> ]?
+  :i 'return' [ <!modkw> <expr=guardexpr> ]?
 }
 
 rule exitst { :i 'exit' }
@@ -221,8 +221,24 @@ rule statement
   || <forst>
   || <docasest>
   || <execst>
+  || <deferst>
   || [ <simples> <modifier>? ]
 }
+
+# ---- xtpl: 'defer' ----------------------------------------------------------
+#
+#     defer fechaCursor()
+#     defer aLinhas |> valida() |> grava()
+#     defer nTotal := nTotal + 1
+#
+# Registra um comando para rodar antes de toda saida da funcao, na ordem
+# inversa do registro. O corpo e um comando comum -- atribuicao, cadeia ou
+# chamada --, e o 'defer' pode estar dentro de um bloco. Nao leva modificador:
+# em 'defer f() if c' nao haveria como dizer de quem e o 'if'.
+# Sem '>>' depois do 'defer': num 'rule', o espaco antes dele poe um <.ws>
+# que come o espaco, e o '>>' passa a exigir fim de palavra no comeco da
+# seguinte. O <.ws> ja recusa partir uma palavra, entao 'deferred' nao casa.
+rule deferst { :i 'defer' [ <assignment> || <pipest> || <callst> ] }
 
 rule simples
 {
@@ -299,8 +315,8 @@ token kwlocal { :i 'local' }
 rule declarator
 {
   <name> <marcas>?
-  [    [ ':=' <expr> <typespec>? ]
-    || [ <typespec> ':=' <expr> ]
+  [    [ ':=' <expr=guardexpr> <typespec>? ]
+    || [ <typespec> ':=' <expr=guardexpr> ]
     || [ <typespec> ]
     || <?> ]
   <!{ $<marcas> && (~$<marcas>).lc.contains('const') && !$<expr> }>
@@ -375,7 +391,7 @@ rule seqst
 
 rule assignment
 {
-  <!stmtword> <lvalue> <assignop> <expr>
+  <!stmtword> <lvalue> <assignop> <expr=guardexpr>
 }
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
@@ -433,6 +449,24 @@ token stmtword
 # uma etapa para fora dele a faria rodar antes. O lambda e o code block ligam
 # '$*BLOCO', e com ele ligado nenhuma expressao de dentro aceita '|>'.
 rule expr        { <elvis> <alimentacao>* }
+
+# ---- xtpl: 'fallback' --------------------------------------------------------
+#
+#     cResposta := chamaServico(cUrl) fallback ""
+#     n := aNums |> filter([x] x > 1) |> asum fallback 0
+#     aL := (arriscada(2) fallback {}) |> map([x] x * 2)
+#
+# Protege uma expressao: se ela levantar erro, vale a alternativa. O xtpl tira
+# o 'fallback' da cauda da linha, entao ele nao e um operador que caiba em
+# qualquer lugar: so no valor de uma atribuicao, de uma declaracao ou de um
+# 'return', e entre parenteses -- os parenteses sao o jeito de proteger so um
+# pedaco. Mais frouxo que o '|>': protege a cadeia inteira. Nao dentro de um
+# lambda ou code block, como o '|>'.
+#
+# As duas partes levam nome: um <expr> e um <alt=expr> no mesmo nivel viriam
+# juntos numa lista em $<expr>.
+rule guardexpr { <prot=expr> [ <!{ $*BLOCO // False }> <fbkw> <alt=expr> ]? }
+token fbkw     { :i 'fallback' >> }
 
 # ---- xtpl: '?:' -- elvis -----------------------------------------------------
 # O valor da esquerda, a menos que seja Nil. Entre o '.or.' e o '|>', e
@@ -537,7 +571,7 @@ rule primary
   || <call>
   || <aliasfield>
   || <name>
-  || [ '(' ~ ')' <expr> ]
+  || [ '(' ~ ')' <expr=guardexpr> ]
 }
 
 # Uma chamada qualificada por um caminho pontuado do TL++:

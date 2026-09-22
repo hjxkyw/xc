@@ -226,6 +226,14 @@ method statement($/)
 # Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
 method simples($/) { make $/.hash.values[0].made }
 
+method deferst($/)
+{
+  my $cmd = $<assignment> ?? $<assignment>.made
+         !! $<pipest>     ?? $<pipest>.made
+         !!                  $<callst>.made;
+  make Adiado.new(cmd => $cmd, linha => self!linha($/));
+}
+
 # 'exec f() if c': a expressao vira um comando, dentro do modificador.
 method execst($/)
 {
@@ -384,6 +392,14 @@ method elvis($/)
   my $acc = @p.pop;
   $acc = Binaria.new(op => '?:', esq => $_, dir => $acc) for @p.reverse;
   make $acc;
+}
+
+# Sem 'fallback' e so a expressao; a maioria nao tem, e nao deve ganhar no.
+method guardexpr($/)
+{
+  make $<alt>
+    ?? Guarda.new(expr => $<prot>.made, alternativa => $<alt>.made)
+    !! $<prot>.made;
 }
 
 method etapa($/)
