@@ -77,6 +77,7 @@ O que já entra:
 | anotações | `@Get("/saldo/:id")`, com ou sem argumentos |
 | expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro, e chamadas qualificadas (`totvs.tools.X():New()`) |
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
+| classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
 
 O primeiro arquivo real levou umas quinze correções para passar — cada uma
@@ -103,8 +104,9 @@ depois.
 
 ### O que falta
 
-Classes (`Class` / `Method` / `EndClass`), `WSRESTFUL`, `@ ... SAY ... GET`,
-e o que só aparecer quando esses entrarem.
+`WSRESTFUL`, `@ ... SAY ... GET`, e o que só aparecer quando esses entrarem.
+Classes (`Class` / `Method` / `EndClass`) já entram — nativas do TL++, como os
+caminhos pontuados.
 
 Diretivas de pré-processador — `#include`, `#define`, `#command`,
 `#xtranslate` — vão inteiras para o pré-processador do TL++, inclusive quando
