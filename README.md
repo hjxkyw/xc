@@ -61,10 +61,11 @@ Das extensões do xtpl, a gramática conhece o hash `{ => }`, o tipo antes do
 inicializador, e as declarações de bloco no cabeçalho: `for local i := …`,
 `if local x := …, cond`, `while local x := …, cond`, e `do case with [local]
 x := …`. Uma declaração no corpo de um bloco já era um comando como outro
-qualquer. O resto está por fazer — `?=`, `?:`, `?.`, `h{"k"}` e `has`,
-`for x in`, `for n times`, `with object`, `using alias`, `defer`,
-modificadores posfixados, `in`, `%%`, `lo..hi`, `|>`, interpolação,
-`fallback`, `queue` (ver `docs/language.md` do xtpl).
+qualquer. E os modificadores posfixados: `x := 1 if c`, `return n if c`,
+`f() while c`, `exec f() if c`. O resto está por fazer — `?=`, `?:`, `?.`,
+`h{"k"}` e `has`, `for x in`, `for n times`, `with object`, `using alias`,
+`defer`, `in`, `%%`, `lo..hi`, `|>`, interpolação, `fallback`, `queue` (ver
+`docs/language.md` do xtpl).
 
 O que já entra:
 
@@ -77,6 +78,7 @@ O que já entra:
 | anotações | `@Get("/saldo/:id")`, com ou sem argumentos |
 | expressões | precedência de `.or.` até unário, `&(macro)`, code blocks com atribuição dentro, e chamadas qualificadas (`totvs.tools.X():New()`) |
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
+| modificadores | `if` e `while` no fim de um comando simples (`return`, `exit`, `loop`, atribuição, chamada, `exec`) — não de um bloco nem de uma declaração |
 | classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
 
