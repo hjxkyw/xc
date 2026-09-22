@@ -154,6 +154,12 @@ class Bloco is Literal is export
   has Expr @.corpo;
 }
 
+# '[o] o:nValor' -- o lambda do xtpl. E um code block de um corpo so, entao e
+# um Bloco (tipo 'Block', params, corpo), e quem so quer o tipo ou descer nas
+# expressoes nao precisa distinguir. A classe propria marca a extensao: baixar
+# para TL++ e escrever '{|o| o:nValor}'.
+class Lambda is Bloco is export { }
+
 # ---- comandos -------------------------------------------------------------------
 #
 # Um corpo e um array de Cmd. As partes opcionais que faltam ficam com o objeto

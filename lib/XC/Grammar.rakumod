@@ -441,6 +441,7 @@ token member { <[A..Za..z_]> \w* }
 rule primary
 {
      <selfacc>
+  || <lambda>
   || <macro>
   || <literal>
   || <codeblock>
@@ -516,6 +517,21 @@ rule codeblock
 
 # Dentro de um code block a atribuicao E uma expressao.
 rule blockexpr   { <assignment> || <expr> }
+
+# ---- xtpl: lambda -------------------------------------------------------------
+#
+#     map(aPedidos, [o] o:nValor)                     {|o| o:nValor}
+#     reduce(aNums, [acc, x] acc + x, 0)              {|acc, x| acc + x}
+#     tap([cLinha] nLidas += 1)                       uma atribuicao tambem
+#
+# De um a seis nomes, e um corpo so: o corpo e uma expressao (ou atribuicao)
+# e para na virgula ou no parenteses de quem o contem -- o 'reduce' acima tem
+# o lambda e a semente como argumentos separados. O '[' so abre um lambda no
+# comeco de um primario; depois de um valor ele e indice ('a[i]').
+rule lambda
+{
+  '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <corpo=blockexpr>
+}
 
 # '::x' abrevia o acesso a um membro do proprio objeto -- o 'Self:x' do AdvPL.
 # Vale como valor ('::aBuf'), chamada ('::Grow()') e alvo ('::nHead := 1').

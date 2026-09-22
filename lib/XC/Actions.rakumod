@@ -438,6 +438,7 @@ method primary($/)
       !! $<hashliteral>  ?? $<hashliteral>.made
       !! $<arrayliteral> ?? $<arrayliteral>.made
       !! $<codeblock>    ?? $<codeblock>.made
+      !! $<lambda>       ?? $<lambda>.made
       !! die "primario sem no: {(~$/).trim}";
 }
 
@@ -472,6 +473,13 @@ method arrayliteral($/)
 {
   make ArrayLit.new(tipo => 'Array', texto => (~$/).trim,
                     itens => $<expr>.map(*.made).list);
+}
+
+method lambda($/)
+{
+  make Lambda.new(tipo => 'Block', texto => (~$/).trim,
+                  params => $<lparam>.map(~*).list,
+                  corpo  => ($<corpo>.made,));
 }
 
 method codeblock($/)
