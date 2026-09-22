@@ -89,6 +89,28 @@ class Membro is Expr is export           # o:nX  (e ::nX, com base AutoSelf)
   has Str  $.nome;
 }
 
+# ---- xtpl: operadores que viram no proprio --------------------------------------
+# Os que sao um operador binario comum -- 'in', 'has', '%%', '?:' -- ficam numa
+# Binaria com o proprio 'op'; e o 'op' que diz a extensao. Estes tres tem
+# forma propria.
+
+# 'oUsuario?.cCidade': um Membro que devolve Nil se a base for Nil.
+class MembroSeguro is Membro is export { }
+
+# 'hCfg{"taxa"}': chaves indexam hash, colchetes indexam array.
+class IndiceHash is Expr is export
+{
+  has Expr $.base;
+  has Expr $.chave;
+}
+
+# '1..100', so a direita de um 'in' ou como fonte de uma cadeia.
+class Intervalo is Expr is export
+{
+  has Expr $.de;
+  has Expr $.ate;
+}
+
 class Metodo is Expr is export           # o:Soma(1, 2)
 {
   has Expr $.base;
@@ -185,6 +207,7 @@ class Declarador is export
   has Str   $.nome;
   has Expr  $.inicial;         # indefinido se nao tem
   has Str   $.declarado;       # o 'as ...', ou '?' se nao tem
+  has Str   @.marcas;          # 'const', 'contained' -- do xtpl
   has Int   $.linha;
 }
 
@@ -368,6 +391,8 @@ sub subexprs(Expr $e --> List) is export
     when JsonLit | HashLit { |.pares.map({ .chave, .valor }).flat }
     when Bloco      { |.corpo }
     when Cadeia     { .fonte, |.etapas }
+    when IndiceHash { .base, .chave }
+    when Intervalo  { .de, .ate }
     default         { () }
   };
   @s.grep(*.defined).List

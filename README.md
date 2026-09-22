@@ -63,10 +63,11 @@ inicializador, e as declarações de bloco no cabeçalho: `for local i := …`,
 x := …`. Uma declaração no corpo de um bloco já era um comando como outro
 qualquer. E os modificadores posfixados: `x := 1 if c`, `return n if c`,
 `f() while c`, `exec f() if c`. E o lambda `[o] o:nValor`, de um a seis
-nomes, e as cadeias `|>`. O resto está por fazer — `?=`, `?:`, `?.`,
-`h{"k"}` e `has`, `for x in`, `for n times`, `with object`, `using alias`,
-`defer`, `in`, `%%`, `lo..hi`, interpolação, `fallback`, `queue` (ver
-`docs/language.md` do xtpl).
+nomes, e as cadeias `|>`. E os operadores: `h{"k"}` e `has`, `in`,
+`lo..hi`, `%%`, `?:`, `?.`, `?=`, e as marcas `<const>`/`<contained>`. O resto
+está por fazer — `for x in`, `for n times`, `with object`, `using alias`,
+`defer`, `fallback`, interpolação, `raw`, `queue` (ver `docs/language.md` do
+xtpl).
 
 O que já entra:
 
@@ -81,6 +82,8 @@ O que já entra:
 | comandos | `if`, `while`, `for`, `do case`, `begin sequence` |
 | lambdas | `[o] o:nValor`, `[acc, x] acc + x` — de um a seis nomes, um corpo (expressão ou atribuição) que para na vírgula de quem o contém |
 | cadeias | `aP \|> filter([o] …) \|> map([o] …)`: o valor da esquerda vira o primeiro argumento da etapa; o `\|>` é o nível mais frouxo; como comando, como argumento, com modificador. Não dentro de um lambda ou code block |
+| operadores | hash `h{"k"}` (o `{` colado no nome) e `has`; `in`, com `lo..hi` à direita; `%%`; `?:`, pela direita, entre `.or.` e `\|>`; `?.` em membro; `?=` só como comando; `lo..hi` também como fonte de cadeia |
+| marcas | `local x <const, contained> := …` — `<const>` exige valor |
 | modificadores | `if` e `while` no fim de um comando simples (`return`, `exit`, `loop`, atribuição, chamada, `exec`) — não de um bloco nem de uma declaração |
 | classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
@@ -209,6 +212,13 @@ Contorno: `||`, que a gramática usa em todo lugar de qualquer jeito.
 dois. Pode ser só o jeito como `%` combina com espaço significativo; sem um
 Rakudo aqui para comparar, não dá para dizer. A gramática usa a forma escrita à
 mão.
+
+**Um defeito que muda a árvore.** Numa alternância `||`, uma captura
+quantificada (`<x>?`, `<x>*`) feita numa alternativa que depois **falha** não é
+descartada: ela se junta à da alternativa que casou. Com `<marcas>?` nas quatro
+alternativas do declarador, `local x <contained>` voltava com a marca quatro
+vezes. Uma captura sem quantificador não vaza. O remédio é capturar o que é
+comum uma vez, antes das alternativas.
 
 **Uma diferença do Rakudo.** Numa ação, `$/.from` é a posição no texto
 inteiro, mas `$/.orig` é só o texto casado — no Rakudo é o alvo inteiro — e

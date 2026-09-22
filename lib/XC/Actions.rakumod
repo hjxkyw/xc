@@ -246,6 +246,17 @@ method returnst($/)
 method exitst($/) { make Sai.new(linha => self!linha($/)) }
 method loopst($/) { make Continua.new(linha => self!linha($/)) }
 
+# 'x ?= v': uma Atribuicao com op '?='. Baixar e 'If x == Nil / x := v'.
+method atribnil($/)
+{
+  make Atribuicao.new(
+    alvo  => $<lvalue>.made,
+    op    => '?=',
+    valor => $<expr>.made,
+    linha => self!linha($/),
+  );
+}
+
 method assignment($/)
 {
   make Atribuicao.new(
@@ -346,6 +357,7 @@ method !mkdecl($/)
 {
   Declarador.new(
     nome      => ~$<name>,
+    marcas    => $<marcas> ?? (~$<marcas>).comb(/\w+/).map(*.lc).list !! (),
     inicial   => $<expr> ?? $<expr>.made !! Expr,
     declarado => $<typespec> ?? tipo-de-nome(~$<typespec><typename>)
                              !! DESCONHECIDO,
@@ -362,7 +374,16 @@ method hdrdecl($/)    { make self!mkdecl($/) }
 # 'andexpr' nao e um 'ou' de nada, e nao deve virar um no de 'ou'.
 method expr($/)
 {
-  make cadeia($<orexpr>.made, $<alimentacao>);
+  make cadeia($<elvis>.made, $<alimentacao>);
+}
+
+# 'a ?: b ?: c' encadeia pela direita: a ?: (b ?: c).
+method elvis($/)
+{
+  my @p = $<orexpr>.map(*.made);
+  my $acc = @p.pop;
+  $acc = Binaria.new(op => '?:', esq => $_, dir => $acc) for @p.reverse;
+  make $acc;
 }
 
 method etapa($/)
@@ -377,7 +398,7 @@ method etapa($/)
 method pipest($/)
 {
   make ChamadaCmd.new(
-    chamada => cadeia($<orexpr>.made, $<alimentacao>),
+    chamada => cadeia($<elvis>.made, $<alimentacao>),
     linha   => self!linha($/),
   );
 }
@@ -390,7 +411,18 @@ method notexpr($/)
                  !! $<cmpexpr>.made;
 }
 
-method cmpexpr($/) { make dobra-com-ops($/, 'addexpr', 'cmpop') }
+method cmpexpr($/)
+{
+  my $acc = $<rangeexpr>.made;
+  for $<cmpresto>.list -> $r
+  {
+    $acc = Binaria.new(op => (~$r<op>).lc, esq => $acc, dir => $r<dir>.made);
+  }
+  make $acc;
+}
+
+method rangeexpr($/) { make intervalo($<de>.made, $<ate>) }
+method inrhs($/)     { make intervalo($<de>.made, $<ate>) }
 method addexpr($/) { make dobra-com-ops($/, 'mulexpr', 'addop') }
 method mulexpr($/) { make dobra-com-ops($/, 'unary',   'mulop') }
 
@@ -416,6 +448,18 @@ method tmetodo($/)
   my $nome = ~$<member>;
   my @args = $<arglist>.made.list;
   make -> $base { Metodo.new(base => $base, nome => $nome, args => @args) }
+}
+
+method thash($/)
+{
+  my $chave = $<chave>.made;
+  make -> $base { IndiceHash.new(base => $base, chave => $chave) }
+}
+
+method tseguro($/)
+{
+  my $nome = ~$<member>;
+  make -> $base { MembroSeguro.new(base => $base, nome => $nome) }
 }
 
 method tmembro($/)
@@ -570,6 +614,12 @@ sub cadeia(Expr $fonte, $alimentacoes)
 {
   my @e = $alimentacoes.list.map(*<etapa>.made);
   @e ?? Cadeia.new(fonte => $fonte, etapas => @e) !! $fonte
+}
+
+# 'lo..hi' se tiver o '..', senao so o 'lo'.
+sub intervalo(Expr $de, $ate)
+{
+  $ate ?? Intervalo.new(de => $de, ate => $ate.made) !! $de
 }
 
 sub atrib-expr(Atribuicao $a)

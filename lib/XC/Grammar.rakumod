@@ -230,14 +230,21 @@ rule simples
   || <exitst>
   || <loopst>
   || <assignment>
+  || <atribnil>
   || <pipest>
   || <callst>
 }
 
+# ---- xtpl: '?=' -- atribui se Nil ---------------------------------------------
+# So como comando: 'cCache ?= "vazio"'. Nunca numa expressao -- '(f() ?= {})'
+# e recusado, o doc manda usar '?:' --, nem numa declaracao: 'local x ?= v'
+# nunca falharia o teste, e e recusado.
+rule atribnil { <!stmtword> <lvalue> '?=' <expr> }
+
 # Uma cadeia pelos efeitos, sem atribuicao na frente: 'aPedidos |> valida()
 # |> grava()'. Antes de 'callst', que casaria 'valida()' sozinho numa linha
 # que comeca com 'f(x) |> ...' e deixaria o resto sem dono.
-rule pipest { <!stmtword> <orexpr> <alimentacao>+ }
+rule pipest { <!stmtword> <elvis> <alimentacao>+ }
 
 # ---- xtpl: modificadores posfixados ----------------------------------------
 #
@@ -279,13 +286,28 @@ token kwlocal { :i 'local' }
 # a ordem do xtpl entra, e baixar para TL++ e trocar as duas partes de lugar.
 #
 # O tipo uma vez so: 'local nX as Numeric := 1 as Numeric' e recusado.
+#
+# E as marcas do xtpl, logo depois do nome: 'local aBuf <contained, const> :=
+# {}'. Entre um nome e o ':=' nao cabe expressao nenhuma, entao o '<' e o '>'
+# nao sao comparacao ali. '<const>' precisa de valor -- nunca vai poder
+# receber outro --, e a ultima linha recusa um 'const' sem inicializador.
+#
+# As marcas sao capturadas UMA vez, antes das alternativas, e nao em cada
+# uma: no rakupp 4.0.1 uma captura quantificada ('<x>?') feita numa
+# alternativa de '||' que depois falha nao e descartada -- ela se junta a da
+# alternativa que casou, e '<contained>' voltava quatro vezes.
 rule declarator
 {
-     [ <name> ':=' <expr> <typespec>? ]
-  || [ <name> <typespec> ':=' <expr> ]
-  || [ <name> <typespec> ]
-  || <name>
+  <name> <marcas>?
+  [    [ ':=' <expr> <typespec>? ]
+    || [ <typespec> ':=' <expr> ]
+    || [ <typespec> ]
+    || <?> ]
+  <!{ $<marcas> && (~$<marcas>).lc.contains('const') && !$<expr> }>
 }
+
+token marcas { '<' \s* <marca>+ % [ \s* ',' \s* ] \s* '>' }
+token marca  { :i [ 'const' || 'contained' ] >> }
 
 # As partes levam nome -- '<cond=expr>', '<corpo=body>' -- porque as
 # repetidas voltam como lista, e sem nome o corpo do 'else' seria so o ultimo
@@ -410,7 +432,13 @@ token stmtword
 # Nao dentro de um lambda nem de um code block: o corpo roda depois, e icar
 # uma etapa para fora dele a faria rodar antes. O lambda e o code block ligam
 # '$*BLOCO', e com ele ligado nenhuma expressao de dentro aceita '|>'.
-rule expr        { <orexpr> <alimentacao>* }
+rule expr        { <elvis> <alimentacao>* }
+
+# ---- xtpl: '?:' -- elvis -----------------------------------------------------
+# O valor da esquerda, a menos que seja Nil. Entre o '.or.' e o '|>', e
+# encadeia pela direita: 'primeiro() ?: segundo() ?: "ultimo"'.
+rule elvis       { <orexpr> [ <elvisop> <orexpr> ]* }
+token elvisop    { '?:' }
 rule alimentacao { <!{ $*BLOCO // False }> '|>' <etapa> }
 rule etapa       { <nscall> || <call> || <name> }
 rule orexpr    { <andexpr> [ <orop> <andexpr> ]* }
@@ -419,12 +447,34 @@ rule andexpr   { <notexpr> [ <andop> <notexpr> ]* }
 token andop    { :i '.and.' }
 rule notexpr   { <negate>? <cmpexpr> }
 token negate   { '!' || [ :i '.not.' ] }
-rule cmpexpr   { <addexpr> [ <cmpop> <addexpr> ]* }
-token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$' }
+# ---- comparacao, com 'in' e 'has' do xtpl -------------------------------------
+#
+#     cCod in aCodigos       u_xtpl_in(cCod, aCodigos)
+#     nValor in 1..100       (nValor >= 1 .And. nValor <= 100)
+#     hCfg has "taxa"        o retorno logico do Get
+#
+# Os dois no nivel do '$' do AdvPL, que e o que eles sao: a colecao do 'in' vai
+# ate a virgula, o colchete ou o '.and.'/'.or.' do mesmo nivel. O lado direito
+# do 'in' e o unico lugar, alem da fonte de uma cadeia, onde cabe um 'lo..hi'.
+rule cmpexpr   { <rangeexpr> <cmpresto>* }
+rule cmpresto  { [ <op=inop> <dir=inrhs> ] || [ <op=cmpop> <dir=rangeexpr> ] }
+token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$'
+               || [ :i 'has' >> ] }
+token inop     { :i 'in' >> }
+
+# ---- xtpl: 'lo..hi' ---------------------------------------------------------
+# So em dois lugares: a direita de um 'in', e como fonte de uma cadeia
+# ('1..999 |> filter(...)'). Em qualquer outro ponto nao ha o que um
+# intervalo seja, entao fora de um 'in' ele so casa seguido de '|>'.
+# As duas pontas levam nome: dois <addexpr> no mesmo nivel viriam juntos numa
+# lista em $<addexpr> (rakupp 4.0.1).
+rule rangeexpr { <de=addexpr> [ '..' <ate=addexpr> <?before <.ws> '|>'> ]? }
+rule inrhs     { <de=addexpr> [ '..' <ate=addexpr> ]? }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
 rule mulexpr   { <unary> [ <mulop> <unary> ]* }
-token mulop    { '*' || '/' || '%' }
+# '%%' -- divisivel por -- antes do '%' do AdvPL, que sozinho passa intocado.
+token mulop    { '%%' || '*' || '/' || '%' }
 rule unary     { <sign>? <postfix> }
 token sign     { '-' || '+' }
 
@@ -440,7 +490,9 @@ rule postfix
 # Uma regra por forma, para a arvore saber qual casou.
 rule trailer
 {
-     <tmetodo>
+     <thash>
+  || <tseguro>
+  || <tmetodo>
   || <tmembro>
   || <tindice>
   || <temalias>
@@ -451,6 +503,18 @@ rule trailer
 # membro simples, senao ele casaria o nome e deixaria os parenteses para tras.
 rule tmetodo  { ':' <member> '(' ~ ')' <arglist> }
 rule tmembro  { ':' <member> }
+
+# ---- xtpl: 'h{"k"}' -- acesso a hash ----------------------------------------
+# Chaves indexam um hash, colchetes indexam um array. Um '{' LOGO depois de um
+# nome -- sem espaco -- e acesso a hash, coisa que o AdvPL nunca tem; o
+# '<?after \w>' e o 'logo depois': o espaco entre o nome e o '{' ja foi comido
+# pelo <.ws> de quem chamou, e ai o que fica atras e o espaco.
+rule thash    { <?after \w> '{' ~ '}' <chave=expr> }
+
+# ---- xtpl: '?.' -- acesso seguro --------------------------------------------
+# 'oUsuario?.oEndereco?.cCidade': um elo Nil devolve Nil. So membro, sem
+# chamada -- e o que a doc e os testes do xtpl mostram.
+rule tseguro  { '?.' <member> }
 rule tindice  { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
 rule temalias { '->' '(' ~ ')' <expr> }
 rule tcampo   { '->' <member> }
