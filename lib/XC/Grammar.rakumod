@@ -159,9 +159,12 @@ rule param
 # 'return' e um COMANDO, nao so o fim da funcao. Um return antecipado dentro
 # de um 'if' e corrente, e se o 'return' final fosse parte da regra da funcao,
 # o corpo engoliria os de dentro e sobraria nada para fechar.
+# O valor e opcional, e um 'if'/'while' logo depois do 'return' e o comeco de
+# um modificador, nao o valor: 'return if lSkip' devolve nada. Sem o '<!modkw>'
+# o 'if' virava um nome e a linha deixava de casar.
 rule returnst
 {
-  :i 'return' <expr>?
+  :i 'return' [ <!modkw> <expr> ]?
 }
 
 rule exitst { :i 'exit' }
@@ -204,21 +207,48 @@ token typename
 }
 
 # ---- comandos ---------------------------------------------------------------
+# Os comandos de bloco e as declaracoes nao levam modificador; os simples
+# levam um, opcional, no fim da linha: 'x := 1 if c', 'return n if c',
+# 'exit if c', 'f() while c'. O 'exec' e um comando simples que so existe com
+# modificador.
 rule statement
 {
      <annotation>
-  || <returnst>
-  || <exitst>
-  || <loopst>
   || <seqst>
   || <declaration>
   || <ifst>
   || <whilest>
   || <forst>
   || <docasest>
+  || <execst>
+  || [ <simples> <modifier>? ]
+}
+
+rule simples
+{
+     <returnst>
+  || <exitst>
+  || <loopst>
   || <assignment>
   || <callst>
 }
+
+# ---- xtpl: modificadores posfixados ----------------------------------------
+#
+#     lFeito := .T. if nTotal > 5         If nTotal > 5 / lFeito := .T. / EndIf
+#     conout("x") while nTotal < 0        While nTotal < 0 / conout("x") / EndDo
+#     exec limpaTudo() if nTotal == 0     If ... / limpaTudo() / EndIf
+#     return(nTotal) if nX > 100          o 'return' tambem, colado no '('
+#
+# A palavra so vale solta: o limite de palavra do 'rule' impede que o 'if' de
+# 'iif(' seja lido como modificador. E a condicao vai ate o fim da linha.
+# A palavra vem pelo token 'modkw': capturada num '$<kw>=[...]' dentro deste
+# 'rule', o espaco que o :sigspace poe depois dela entrava na captura ("if ").
+rule modifier { <kw=modkw> <cond=expr> }
+token modkw   { :i [ 'if' || 'while' ] >> }
+
+# 'exec <expr>' marca uma expressao como comando. Sem modificador nao existe.
+rule execst   { :i 'exec' <expr> <modifier> }
 
 token blockcomment { '/*' .*? '*/' }
 

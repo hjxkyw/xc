@@ -205,10 +205,36 @@ method body($/)
 # Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
 method statement($/)
 {
-  my $filho = $/.hash.values[0];
-  my $no = $filho.made;
-  die "sem no para '{$/.hash.keys[0]}': {(~$/).trim}" without $no;
+  my $no;
+  if $<simples>
+  {
+    $no = $<simples>.made;
+    with $<modifier> -> $m
+    {
+      $no = Modificado.new(cmd => $no, op => (~$m<kw>).lc, cond => $m<cond>.made,
+                           linha => self!linha($/));
+    }
+  }
+  else
+  {
+    $no = $/.hash.values[0].made;
+  }
+  die "sem no para '{$/.hash.keys.sort.join(',')}': {(~$/).trim}" without $no;
   make $no;
+}
+
+# Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
+method simples($/) { make $/.hash.values[0].made }
+
+# 'exec f() if c': a expressao vira um comando, dentro do modificador.
+method execst($/)
+{
+  make Modificado.new(
+    cmd   => ChamadaCmd.new(chamada => $<expr>.made, linha => self!linha($/)),
+    op    => (~$<modifier><kw>).lc,
+    cond  => $<modifier><cond>.made,
+    linha => self!linha($/),
+  );
 }
 
 method returnst($/)

@@ -244,6 +244,17 @@ class Para is Cmd is export
   has Cmd  @.corpo;
 }
 
+# ---- xtpl: modificador posfixado ---------------------------------------------
+# 'x := 1 if c', 'return n if c', 'f() while c', 'exec f() if c'. O comando de
+# dentro e o que roda; 'op' diz como: 'if' vira um If de um ramo so, 'while'
+# um While. Baixar para TL++ e so isso -- o comando fica igual, dentro do bloco.
+class Modificado is Cmd is export
+{
+  has Cmd  $.cmd;
+  has Str  $.op;               # 'if' ou 'while'
+  has Expr $.cond;
+}
+
 class Sequencia is Cmd is export
 {
   has Cmd  @.corpo;
@@ -363,6 +374,7 @@ sub exprs-de(Cmd $c --> List) is export
     when ChamadaCmd { .chamada }
     when Retorno    { .valor }
     when Anotacao   { |.args }
+    when Modificado { .cond }
     when Se         { .hdrdecl.defined ?? (.hdrdecl.inicial, |.ramos.map(*.cond)) !! |.ramos.map(*.cond) }
     when Caso       { (.sujdecl.defined  ?? .sujdecl.inicial !! Expr),
                       (.sujatrib.defined ?? .sujatrib.valor  !! Expr),
@@ -384,6 +396,7 @@ sub corpos-de(Cmd $c --> List) is export
     when Enquanto   { (.corpo.List,).List }
     when Para       { (.corpo.List,).List }
     when Sequencia  { (.corpo.List, .recupera.List).List }
+    when Modificado { ((.cmd,).List,).List }
     default         { ().List }
   }
 }
