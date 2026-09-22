@@ -64,10 +64,10 @@ x := …`. Uma declaração no corpo de um bloco já era um comando como outro
 qualquer. E os modificadores posfixados: `x := 1 if c`, `return n if c`,
 `f() while c`, `exec f() if c`. E o lambda `[o] o:nValor`, de um a seis
 nomes, e as cadeias `|>`. E os operadores: `h{"k"}` e `has`, `in`,
-`lo..hi`, `%%`, `?:`, `?.`, `?=`, e as marcas `<const>`/`<contained>`. O resto
-está por fazer — `for x in`, `for n times`, `with object`, `using alias`,
-`defer`, `fallback`, interpolação, `raw`, `queue` (ver `docs/language.md` do
-xtpl).
+`lo..hi`, `%%`, `?:`, `?.`, `?=`, e as marcas `<const>`/`<contained>`. E
+`defer` e `fallback`. O resto está por fazer — `for x in`, `for n times`,
+`with object`, `using alias`, `external`, interpolação, `raw`, `queue` (ver
+`docs/language.md` do xtpl).
 
 O que já entra:
 
@@ -83,6 +83,8 @@ O que já entra:
 | lambdas | `[o] o:nValor`, `[acc, x] acc + x` — de um a seis nomes, um corpo (expressão ou atribuição) que para na vírgula de quem o contém |
 | cadeias | `aP \|> filter([o] …) \|> map([o] …)`: o valor da esquerda vira o primeiro argumento da etapa; o `\|>` é o nível mais frouxo; como comando, como argumento, com modificador. Não dentro de um lambda ou code block |
 | operadores | hash `h{"k"}` (o `{` colado no nome) e `has`; `in`, com `lo..hi` à direita; `%%`; `?:`, pela direita, entre `.or.` e `\|>`; `?.` em membro; `?=` só como comando; `lo..hi` também como fonte de cadeia |
+| `defer` | `defer <comando>`: atribuição, cadeia ou chamada, em qualquer bloco, sem modificador |
+| `fallback` | `expr fallback alt`, só no valor de uma atribuição, declaração ou `return`, ou entre parênteses; protege a cadeia inteira; não dentro de um lambda |
 | marcas | `local x <const, contained> := …` — `<const>` exige valor |
 | modificadores | `if` e `while` no fim de um comando simples (`return`, `exit`, `loop`, atribuição, chamada, `exec`) — não de um bloco nem de uma declaração |
 | classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
