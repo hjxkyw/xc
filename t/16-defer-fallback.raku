@@ -3,147 +3,147 @@ use XC::Grammar;
 use XC::Actions;
 use XC::AST;
 
-# 'defer' e 'fallback' do xtpl. Os casos vem dos testes e exemplos do xtpl. As
-# duas direcoes: a forma que sai, e o que tem de ser recusado -- em especial o
-# 'fallback' fora dos quatro lugares onde o xtpl o aceita.
+# xtpl's 'defer' and 'fallback'. The cases come from xtpl's tests and examples.
+# Both directions: the shape that comes out, and what has to be refused -- above
+# all 'fallback' outside the four places where xtpl accepts it.
 
-sub corpo(Str $linhas)
+sub body(Str $lines)
 {
-  my $src = "user function f()\n$linhas\nreturn\n";
-  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src));
-  $m ?? $m.made.funcoes[0].corpo !! Nil
+  my $src = "user function f()\n$lines\nreturn\n";
+  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+  $m ?? $m.made.functions[0].body !! Nil
 }
 
-sub cmd(Str $linha) { my $c = corpo("  $linha"); $c ?? $c[0] !! Nil }
+sub stmt(Str $line) { my $b = body("  $line"); $b ?? $b[0] !! Nil }
 
-sub casa(Str $linha)
+sub parses(Str $line)
 {
-  XC::Grammar.parse("user function f()\n  $linha\nreturn\n").defined
+  XC::Grammar.parse("user function f()\n  $line\nreturn\n").defined
 }
 
 my ($ok, $total) = 0, 0;
-sub confere(Str $o-que, &teste)
+sub check(Str $what, &test)
 {
   $total++;
-  my $v = try teste();
+  my $v = try test();
   $ok++ if $v;
-  say(($v ?? '  ok    ' !! '  FALHA '), $o-que);
+  say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
 # ---- fallback ---------------------------------------------------------------------
-confere 'no valor de uma atribuicao: Guarda com a expressao e a alternativa',
+check 'in the value of an assignment: a Guard with the expression and the fallback',
 {
-  my $g = cmd('cResposta := chamaServico(cUrl, cChave) fallback ""').valor;
-  $g ~~ Guarda && $g.expr ~~ Chamada && $g.expr.nome eq 'chamaServico'
-    && $g.alternativa ~~ Literal
+  my $g = stmt('cResposta := chamaServico(cUrl, cChave) fallback ""').value;
+  $g ~~ Guard && $g.expr ~~ Call && $g.expr.name eq 'chamaServico'
+    && $g.fallback ~~ Literal
 };
-confere 'protege a cadeia inteira: mais frouxo que |>',
+check 'it guards the whole pipeline: looser than |>',
 {
-  my $g = cmd('nSafe := aNums |> filter([x] x > 100) |> asum fallback 0').valor;
-  $g ~~ Guarda && $g.expr ~~ Cadeia && $g.expr.etapas == 2
+  my $g = stmt('nSafe := aNums |> filter([x] x > 100) |> asum fallback 0').value;
+  $g ~~ Guard && $g.expr ~~ Pipeline && $g.expr.stages == 2
 };
-confere 'entre parenteses protege so um pedaco: (a fallback {}) |> ...',
+check 'in parentheses it guards just a piece: (a fallback {}) |> ...',
 {
-  my $c = cmd('aList := (riskyCall(2) fallback {}) |> filter([x] x > 1)').valor;
-  $c ~~ Cadeia && $c.fonte ~~ Guarda && $c.fonte.alternativa ~~ ArrayLit
+  my $p = stmt('aList := (riskyCall(2) fallback {}) |> filter([x] x > 1)').value;
+  $p ~~ Pipeline && $p.source ~~ Guard && $p.source.fallback ~~ ArrayLit
 };
-confere 'entre parenteses, com ?: depois',
+check 'in parentheses, with ?: after',
 {
-  my $e = cmd('aItens := (jDados["itens"] fallback nil) ?: {}').valor;
-  $e ~~ Binaria && $e.op eq '?:' && $e.esq ~~ Guarda
+  my $e = stmt('aItens := (jDados["itens"] fallback nil) ?: {}').value;
+  $e ~~ Binary && $e.op eq '?:' && $e.left ~~ Guard
 };
-confere 'no inicializador de uma declaracao',
+check 'in the initializer of a declaration',
 {
-  cmd('local nH := riskyCall(1) fallback 0').nomes[0].inicial ~~ Guarda
+  stmt('local nH := riskyCall(1) fallback 0').declarators[0].init ~~ Guard
 };
-confere 'num return',
+check 'in a return',
 {
-  my $r = cmd('return f() fallback 0');
-  $r ~~ Retorno && $r.valor ~~ Guarda
+  my $r = stmt('return f() fallback 0');
+  $r ~~ ReturnStmt && $r.value ~~ Guard
 };
-confere 'alternativa negativa: nTmp := aNums[99] fallback -1',
+check 'a negative fallback: nTmp := aNums[99] fallback -1',
 {
-  my $g = cmd('nTmp := aNums[99] fallback -1').valor;
-  $g.expr ~~ Indice && $g.alternativa ~~ Binaria && $g.alternativa.op eq 'neg'
+  my $g = stmt('nTmp := aNums[99] fallback -1').value;
+  $g.expr ~~ Index && $g.fallback ~~ Binary && $g.fallback.op eq 'neg'
 };
-confere 'com modificador: a guarda fica dentro do comando',
+check 'with a modifier: the guard stays inside the statement',
 {
-  my $c = cmd('nS := riskyCall(1) fallback 0 if lX');
-  $c ~~ Modificado && $c.cmd.valor ~~ Guarda
+  my $s = stmt('nS := riskyCall(1) fallback 0 if lX');
+  $s ~~ Modified && $s.stmt.value ~~ Guard
 };
-confere 'sem fallback nao ha Guarda',
+check 'without fallback there is no Guard',
 {
-  cmd('x := f()').valor ~~ Chamada
+  stmt('x := f()').value ~~ Call
 };
-confere 'fallbackX e um nome',
+check 'fallbackX is a name',
 {
-  cmd('x := fallbackX').valor.nome eq 'fallbackX'
+  stmt('x := fallbackX').value.name eq 'fallbackX'
 };
-confere 'nomes lidos: os dois lados',
+check 'names read: both sides',
 {
   my @n;
-  percorre-expr(cmd('x := f(nA) fallback nB').valor, { @n.push(.nome) if $_ ~~ Nome });
+  walk-expr(stmt('x := f(nA) fallback nB').value, { @n.push(.name) if $_ ~~ Name });
   @n.join(' ') eq 'nA nB'
 };
 
 # ---- defer ------------------------------------------------------------------------
-confere 'defer closeCursor(): Adiado com a chamada',
+check 'defer closeCursor(): a Deferred holding the call',
 {
-  my $d = cmd('defer closeCursor()');
-  $d ~~ Adiado && $d.cmd ~~ ChamadaCmd && $d.cmd.chamada.nome eq 'closeCursor'
+  my $d = stmt('defer closeCursor()');
+  $d ~~ Deferred && $d.stmt ~~ CallStmt && $d.stmt.call.name eq 'closeCursor'
 };
-confere 'defer de metodo e de alias',
+check 'defer of a method and of an alias',
 {
-  cmd('defer oLog:Close()').cmd.chamada ~~ Metodo
-    && cmd('defer ZAPUR->(DbCloseArea())').cmd.chamada ~~ EmAlias
+  stmt('defer oLog:Close()').stmt.call ~~ MethodCall
+    && stmt('defer ZAPUR->(DbCloseArea())').stmt.call ~~ InAlias
 };
-confere 'defer de uma atribuicao',
+check 'defer of an assignment',
 {
-  my $d = cmd('defer nTotal := nTotal + 1');
-  $d.cmd ~~ Atribuicao && $d.cmd.alvo.nome eq 'nTotal'
+  my $d = stmt('defer nTotal := nTotal + 1');
+  $d.stmt ~~ Assignment && $d.stmt.target.name eq 'nTotal'
 };
-confere 'defer de uma cadeia',
+check 'defer of a pipeline',
 {
-  my $d = cmd('defer aRows |> validate() |> flush()');
-  $d.cmd ~~ ChamadaCmd && $d.cmd.chamada ~~ Cadeia
+  my $d = stmt('defer aRows |> validate() |> flush()');
+  $d.stmt ~~ CallStmt && $d.stmt.call ~~ Pipeline
 };
-confere 'defer dentro de um bloco',
+check 'defer inside a block',
 {
-  my @c = corpo("  if nX > 0\n    local nA := 5\n    defer logIt(nA)\n  endif");
-  @c[0].ramos[0].corpo[1] ~~ Adiado
+  my @s = body("  if nX > 0\n    local nA := 5\n    defer logIt(nA)\n  endif");
+  @s[0].branches[0].body[1] ~~ Deferred
 };
-confere 'um nome lido so pelo defer aparece no percurso',
+check 'a name read only by the defer shows up in the walk',
 {
   my @n;
-  percorre(corpo("  defer reportTotal(nCount)"), -> $c
+  walk(body("  defer reportTotal(nCount)"), -> $s
   {
-    percorre-expr($_, { @n.push(.nome) if $_ ~~ Nome }) for exprs-de($c);
+    walk-expr($_, { @n.push(.name) if $_ ~~ Name }) for exprs-of($s);
   });
   @n.join eq 'nCount'
 };
-confere 'deferred := 1 e uma atribuicao comum',
+check 'deferred := 1 is an ordinary assignment',
 {
-  cmd('deferred := 1') ~~ Atribuicao
+  stmt('deferred := 1') ~~ Assignment
 };
 
-# ---- o que tem de ser recusado -------------------------------------------------------
-my @recusar =
-  'f(a fallback 0)'                         => 'fallback num argumento',
-  'x := a fallback b fallback c'            => 'dois fallback',
-  'x := map(a, [y] g(y) fallback 0)'        => 'fallback dentro de um lambda',
-  'f() fallback g()'                        => 'fallback num comando de chamada',
-  'x := a fallback'                         => 'fallback sem alternativa',
-  'defer'                                   => 'defer sem comando',
-  'defer x'                                 => 'defer de um nome solto',
-  'defer f() if c'                          => 'defer com modificador',
-  'defer local x := 1'                      => 'defer de uma declaracao',
-  'defer return 1'                          => 'defer de um return',
+# ---- what has to be refused -----------------------------------------------------------
+my @refuse =
+  'f(a fallback 0)'                         => 'fallback in an argument',
+  'x := a fallback b fallback c'            => 'two fallbacks',
+  'x := map(a, [y] g(y) fallback 0)'        => 'fallback inside a lambda',
+  'f() fallback g()'                        => 'fallback on a call statement',
+  'x := a fallback'                         => 'fallback with no alternative',
+  'defer'                                   => 'defer with no statement',
+  'defer x'                                 => 'defer of a bare name',
+  'defer f() if c'                          => 'defer with a modifier',
+  'defer local x := 1'                      => 'defer of a declaration',
+  'defer return 1'                          => 'defer of a return',
   ;
 
-for @recusar -> $c
+for @refuse -> $c
 {
-  confere "recusa: {$c.value} ({$c.key})", { !casa($c.key) };
+  check "refuses: {$c.value} ({$c.key})", { !parses($c.key) };
 }
 
-say "\n  $ok de $total";
+say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

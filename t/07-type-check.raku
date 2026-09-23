@@ -1,11 +1,11 @@
 use lib 'lib';
 use XC::Grammar;
 use XC::Actions;
-use XC::Tipos;
+use XC::Types;
 
-# O que tem de passar e o que tem de ser recusado. As duas listas importam: um
-# verificador testado so pelo que ele recusa pode estar recusando tudo.
-my @passa =
+# What has to pass and what has to be refused. Both lists matter: a checker
+# tested only on what it refuses may be refusing everything.
+my @pass =
   'local nX := 1 as Numeric',
   'local nX := 1 + 2 as N',
   'local cS := "a" + "b" as Character',
@@ -15,61 +15,61 @@ my @passa =
   'local oO := Nil as Object',
   'local nX := f() as Numeric',
   'local xV := "qualquer" as Variant',
-  # A ordem do xtpl, conferida igual.
+  # xtpl's order, checked the same way.
   'local nX as Numeric := 1',
   ;
 
-my @recusa =
+my @refuse =
   'local nX := "texto" as Numeric',
   'local cS := 42 as Character',
   'local aL := "x" as Array',
   'local lB := 1 + 1 as Logical',
   'local nX := "a" + "b" as N',
-  # Uma comparacao de cada, porque 'when a || b' so pegava a primeira da
-  # lista e deixava as outras em "nao sei" -- que o verificador aceita.
+  # One comparison of each kind, because 'when a || b' only caught the first
+  # of the list and left the others as "unknown" -- which the checker accepts.
   'local nX := a != b as Numeric',
   'local nX := a < b as Numeric',
   'local nX := a >= b as Numeric',
   'local nX := a .and. b as Numeric',
   'local cS := a * b as Character',
-  # Casava como array: o ':' do par era lido como o de um membro de "a".
+  # It matched as an array: the pair's ':' was read as a member of "a".
   'local jJ := { "a": nX } as Array',
   'local cS as Character := 42',
   ;
 
-my ($ok, $total) = 0, @passa + @recusa;
+my ($ok, $total) = 0, @pass + @refuse;
 
-for @passa -> $src
+for @pass -> $src
 {
-  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(fonte => $src));
-  my @p = $m ?? confere($m.made) !! ('nao parseou',);
+  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(source => $src));
+  my @p = $m ?? check-declaration($m.made) !! ('did not parse',);
   if @p
   {
-    say "  RECUSOU  $src";
+    say "  REFUSED  $src";
     say "           {@p[0]}";
   }
   else
   {
     $ok++;
-    say "  passa    $src";
+    say "  passes   $src";
   }
 }
 
-for @recusa -> $src
+for @refuse -> $src
 {
-  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(fonte => $src));
-  my @p = $m ?? confere($m.made) !! ();
+  my $m = XC::Grammar.parse($src, rule => 'declaration', actions => XC::Actions.new(source => $src));
+  my @p = $m ?? check-declaration($m.made) !! ();
   if @p
   {
     $ok++;
-    say "  recusa   $src";
+    say "  refused  $src";
     say "           {@p[0]}";
   }
   else
   {
-    say "  ACEITOU  $src";
+    say "  ACCEPTED $src";
   }
 }
 
-say "\n  $ok de $total";
+say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

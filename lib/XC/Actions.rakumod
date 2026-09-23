@@ -1,61 +1,60 @@
-# XC::Actions -- o que transforma um casamento da gramatica em arvore.
+# XC::Actions -- what turns a grammar match into a tree.
 #
-# Um metodo por regra que produz no. Um comando sem metodo nao some calado:
-# 'statement' morre dizendo qual foi, porque um corpo com um comando a menos
-# e uma arvore errada que parece certa.
+# One method per rule that produces a node. A statement without a method does
+# not vanish silently: 'statement' dies naming it, because a body missing a
+# statement is a wrong tree that looks right.
 
 use XC::AST;
 
 unit class XC::Actions;
 
-# O texto inteiro, para saber em que linha cada no esta:
+# The whole text, to know which line each node is on:
 #
-#     XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src))
+#     XC::Grammar.parse($src, actions => XC::Actions.new(source => $src))
 #
-# Tem de vir de fora porque no rakupp 4.0.1 '$/.orig' e so o texto casado, e
-# nao o alvo inteiro como no Rakudo -- e nenhum outro metodo do casamento o
-# devolve. A versao anterior contava as linhas de '.orig' e dava sempre uma
-# posicao relativa; ninguem viu porque todo teste tinha uma linha so.
-has Str $.fonte;
-has Int @!quebras;             # a posicao de cada '\n', em ordem
+# It has to come from outside because under rakupp 4.0.1 '$/.orig' is only the
+# matched text, not the whole target as under Rakudo -- and no other method of
+# the match returns it.
+has Str $.source;
+has Int @!breaks;              # the position of each '\n', in order
 
 submethod TWEAK()
 {
-  with $!fonte
+  with $!source
   {
     my $i = 0;
-    while (my $p = $!fonte.index("\n", $i)).defined
+    while (my $p = $!source.index("\n", $i)).defined
     {
-      @!quebras.push($p);
+      @!breaks.push($p);
       $i = $p + 1;
     }
   }
 }
 
-# A linha de um casamento: quantas quebras vem antes dele, mais um.
-method !linha($m --> Int)
+# The line of a match: how many breaks come before it, plus one.
+method !line($m --> Int)
 {
-  die "XC::Actions precisa do texto: XC::Actions.new(fonte => \$src)"
-    without $!fonte;
-  my $alvo = $m.from;
-  my ($lo, $hi) = 0, +@!quebras;       # busca binaria: quebras < $alvo
+  die "XC::Actions needs the source text: XC::Actions.new(source => \$src)"
+    without $!source;
+  my $at = $m.from;
+  my ($lo, $hi) = 0, +@!breaks;        # binary search: breaks < $at
   while $lo < $hi
   {
     my $mid = ($lo + $hi) div 2;
-    if @!quebras[$mid] < $alvo { $lo = $mid + 1 } else { $hi = $mid }
+    if @!breaks[$mid] < $at { $lo = $mid + 1 } else { $hi = $mid }
   }
   $lo + 1
 }
 
-# ---- o arquivo ------------------------------------------------------------------
+# ---- the file -------------------------------------------------------------------
 method TOP($/)
 {
-  my ($ns, @usings, @diretivas, @anotacoes, @funcoes, @classes, @metodos);
+  my ($ns, @usings, @directives, @annotations, @functions, @classes, @methods);
   for $<toplevel> -> $t
   {
     if $t<function>
     {
-      @funcoes.push($t<function>.made);
+      @functions.push($t<function>.made);
     }
     elsif $t<classdecl>
     {
@@ -63,15 +62,15 @@ method TOP($/)
     }
     elsif $t<methodimpl>
     {
-      @metodos.push($t<methodimpl>.made);
+      @methods.push($t<methodimpl>.made);
     }
     elsif $t<preproc>
     {
-      @diretivas.push((~$t<preproc>).trim);
+      @directives.push((~$t<preproc>).trim);
     }
     elsif $t<annotation>
     {
-      @anotacoes.push($t<annotation>.made);
+      @annotations.push($t<annotation>.made);
     }
     elsif $t<namespacest>
     {
@@ -86,54 +85,53 @@ method TOP($/)
       }
     }
   }
-  make Programa.new(
-    namespace => $ns,
-    usings    => @usings,
-    diretivas => @diretivas,
-    anotacoes => @anotacoes,
-    funcoes   => @funcoes,
-    classes   => @classes,
-    metodos   => @metodos,
+  make Program.new(
+    namespace   => $ns,
+    usings      => @usings,
+    directives  => @directives,
+    annotations => @annotations,
+    functions   => @functions,
+    classes     => @classes,
+    methods     => @methods,
   );
 }
 
 method function($/)
 {
   my @w = (~$<funckind>).lc.words;
-  make Funcao.new(
-    tipo      => @w > 1 ?? @w[0] !! '',
-    nome      => ~$<name>,
-    params    => $<params><param>.map(*.made).list,
-    anotacoes => $<annotation>.map(*.made).list,
-    corpo     => $<body>.made,
-    linha     => self!linha($<funckind>),
+  make FunctionDef.new(
+    type        => @w > 1 ?? @w[0] !! '',
+    name        => ~$<name>,
+    params      => $<params><param>.map(*.made).list,
+    annotations => $<annotation>.map(*.made).list,
+    body        => $<body>.made,
+    line        => self!line($<funckind>),
   );
 }
 
 method param($/)
 {
-  make Parametro.new(
-    nome      => ~$<name>,
-    declarado => $<typespec> ?? tipo-de-nome(~$<typespec><typename>)
-                             !! DESCONHECIDO,
+  make Param.new(
+    name     => ~$<name>,
+    declared => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
   );
 }
 
-# ---- TLPP: classes ------------------------------------------------------------
+# ---- TL++: classes --------------------------------------------------------------
 method classdecl($/)
 {
-  my (@atributos, @metodos);
+  my (@members, @methods);
   for $<classmember> -> $m
   {
-    if $m<datadecl> { @atributos.append($m<datadecl>.made.list) }
-    else            { @metodos.push($m<methdecl>.made) }
+    if $m<datadecl> { @members.append($m<datadecl>.made.list) }
+    else            { @methods.push($m<methdecl>.made) }
   }
-  make Classe.new(
-    nome      => ~$<nome>,
-    supers    => $<supers> ?? $<supers>.map(~*).list !! (),
-    atributos => @atributos,
-    metodos   => @metodos,
-    linha     => self!linha($/),
+  make ClassDef.new(
+    name    => ~$<cname>,
+    supers  => $<supers> ?? $<supers>.map(~*).list !! (),
+    members => @members,
+    methods => @methods,
+    line    => self!line($/),
   );
 }
 
@@ -142,378 +140,375 @@ method datadecl($/)
   my $vis = $<visib> ?? ~$<visib>.trim.lc !! Str;
   make $<datavar>.map(-> $d
   {
-    Atributo.new(
-      nome  => ~$d<nome>,
-      tipo  => $d<tipo> ?? ~$d<tipo> !! Str,
-      visib => $vis,
+    DataMember.new(
+      name       => ~$d<dname>,
+      type       => $d<dtype> ?? ~$d<dtype> !! Str,
+      visibility => $vis,
     )
   }).list;
 }
 
 method methdecl($/)
 {
-  my ($construtor, $retorno) = False, Str;
+  my ($constructor, $returns) = False, Str;
   for $<methtag> -> $t
   {
-    if $t<ret> { $retorno = ~$t<ret> } else { $construtor = True }
+    if $t<ret> { $returns = ~$t<ret> } else { $constructor = True }
   }
-  make AssinaturaMetodo.new(
-    nome       => ~$<nome>,
-    params     => $<params><param>.map(*.made).list,
-    visib      => $<visib> ?? ~$<visib>.trim.lc !! Str,
-    construtor => $construtor,
-    retorno    => $retorno,
+  make MethodSig.new(
+    name        => ~$<mname>,
+    params      => $<params><param>.map(*.made).list,
+    visibility  => $<visib> ?? ~$<visib>.trim.lc !! Str,
+    constructor => $constructor,
+    returns     => $returns,
   );
 }
 
 method methodimpl($/)
 {
-  make MetodoImpl.new(
-    classe  => ~$<classe>,
-    nome    => ~$<nome>,
-    params  => $<params><param>.map(*.made).list,
-    retorno => $<ret> ?? ~$<ret> !! Str,
-    corpo   => $<body>.made,
-    linha   => self!linha($/),
+  make MethodImpl.new(
+    class-name => ~$<cname>,
+    name       => ~$<mname>,
+    params     => $<params><param>.map(*.made).list,
+    returns    => $<ret> ?? ~$<ret> !! Str,
+    body       => $<body>.made,
+    line       => self!line($/),
   );
 }
 
-# '::x': o proprio objeto como base. Membro ('::aBuf') ou metodo ('::Grow()').
+# '::x': the object itself as the base. A member ('::aBuf') or a method
+# ('::Grow()').
 method selfacc($/)
 {
-  my $base = AutoSelf.new;
+  my $base = SelfRef.new;
   make $<arglist>
-    ?? Metodo.new(base => $base, nome => ~$<member>, args => $<arglist>.made.list)
-    !! Membro.new(base => $base, nome => ~$<member>);
+    ?? MethodCall.new(base => $base, name => ~$<member>, args => $<arglist>.made.list)
+    !! Member.new(base => $base, name => ~$<member>);
 }
 
 method annotation($/)
 {
-  make Anotacao.new(
-    nome  => ~$<name>,
-    args  => $<arglist> ?? $<arglist>.made !! (),
-    linha => self!linha($/),
+  make Annotation.new(
+    name => ~$<name>,
+    args => $<arglist> ?? $<arglist>.made !! (),
+    line => self!line($/),
   );
 }
 
-# ---- comandos -------------------------------------------------------------------
-method body($/)
-{
-  make $<statement>.map(*.made).list;
-}
+# ---- statements -----------------------------------------------------------------
+method body($/)       { make $<statement>.map(*.made).list }
+method funcbody($/)   { make $<statement>.map(*.made).list }
+method closedbody($/) { make $<statement>.map(*.made).list }
 
-method corpofuncao($/)  { make $<statement>.map(*.made).list }
-method corpofechado($/) { make $<statement>.map(*.made).list }
-
-# Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
+# What matched is the only child: the alternation is ordered, only one side
+# wins.
 method statement($/)
 {
-  my $no;
-  if $<simples>
+  my $node;
+  if $<simple>
   {
-    $no = $<simples>.made;
+    $node = $<simple>.made;
     with $<modifier> -> $m
     {
-      $no = Modificado.new(cmd => $no, op => (~$m<kw>).lc, cond => $m<cond>.made,
-                           linha => self!linha($/));
+      $node = Modified.new(stmt => $node, op => (~$m<kw>).lc, cond => $m<cond>.made,
+                           line => self!line($/));
     }
   }
   else
   {
-    $no = $/.hash.values[0].made;
+    $node = $/.hash.values[0].made;
   }
-  die "sem no para '{$/.hash.keys.sort.join(',')}': {(~$/).trim}" without $no;
-  make $no;
+  die "no node for '{$/.hash.keys.sort.join(',')}': {(~$/).trim}" without $node;
+  make $node;
 }
 
-# Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
-method simples($/) { make $/.hash.values[0].made }
+method simple($/) { make $/.hash.values[0].made }
 
 method deferst($/)
 {
-  my $cmd = $<assignment> ?? $<assignment>.made
-         !! $<pipest>     ?? $<pipest>.made
-         !!                  $<callst>.made;
-  make Adiado.new(cmd => $cmd, linha => self!linha($/));
+  my $stmt = $<assignment> ?? $<assignment>.made
+          !! $<pipest>     ?? $<pipest>.made
+          !!                  $<callst>.made;
+  make Deferred.new(stmt => $stmt, line => self!line($/));
 }
 
-# 'exec f() if c': a expressao vira um comando, dentro do modificador.
+# 'exec f() if c': the expression becomes a statement, inside the modifier.
 method execst($/)
 {
-  make Modificado.new(
-    cmd   => ChamadaCmd.new(chamada => $<expr>.made, linha => self!linha($/)),
-    op    => (~$<modifier><kw>).lc,
-    cond  => $<modifier><cond>.made,
-    linha => self!linha($/),
+  make Modified.new(
+    stmt => CallStmt.new(call => $<expr>.made, line => self!line($/)),
+    op   => (~$<modifier><kw>).lc,
+    cond => $<modifier><cond>.made,
+    line => self!line($/),
   );
 }
 
 method returnst($/)
 {
-  make Retorno.new(valor => $<expr> ?? $<expr>.made !! Expr,
-                   linha => self!linha($/));
+  make ReturnStmt.new(value => $<expr> ?? $<expr>.made !! Expr, line => self!line($/));
 }
 
-method exitst($/) { make Sai.new(linha => self!linha($/)) }
-method loopst($/) { make Continua.new(linha => self!linha($/)) }
+method exitst($/) { make ExitStmt.new(line => self!line($/)) }
+method loopst($/) { make LoopStmt.new(line => self!line($/)) }
 
-# 'x ?= v': uma Atribuicao com op '?='. Baixar e 'If x == Nil / x := v'.
-method atribnil($/)
+# 'x ?= v': an Assignment with op '?='. Lowering is 'If x == Nil / x := v'.
+method nilassign($/)
 {
-  make Atribuicao.new(
-    alvo  => $<lvalue>.made,
-    op    => '?=',
-    valor => $<expr>.made,
-    linha => self!linha($/),
+  make Assignment.new(
+    target => $<lvalue>.made,
+    op     => '?=',
+    value  => $<expr>.made,
+    line   => self!line($/),
   );
 }
 
 method assignment($/)
 {
-  make Atribuicao.new(
-    alvo  => $<lvalue>.made,
-    op    => ~$<assignop>,
-    valor => $<expr>.made,
-    linha => self!linha($/),
+  make Assignment.new(
+    target => $<lvalue>.made,
+    op     => ~$<assignop>,
+    value  => $<expr>.made,
+    line   => self!line($/),
   );
 }
 
 method lvalue($/)
 {
-  my $base = $<selfacc> ?? $<selfacc>.made !! Nome.new(nome => ~$<name>);
-  make aplica($base, $<trailer>);
+  my $base = $<selfacc> ?? $<selfacc>.made !! Name.new(name => ~$<name>);
+  make apply-trailers($base, $<trailer>);
 }
 
 method callst($/)
 {
-  my $base = $<call> ?? $<call>.made !! Nome.new(nome => ~$<name>);
-  make ChamadaCmd.new(
-    chamada => aplica($base, $<trailer>),
-    linha   => self!linha($/),
+  my $base = $<call> ?? $<call>.made !! Name.new(name => ~$<name>);
+  make CallStmt.new(
+    call => apply-trailers($base, $<trailer>),
+    line => self!line($/),
   );
 }
 
 method ifst($/)
 {
-  make Se.new(
-    ramos   => ramos($<cond>, $<corpo>),
-    senao   => $<senao> ?? $<senao>.made !! (),
-    hdrdecl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarador,
-    linha   => self!linha($/),
+  make IfStmt.new(
+    branches    => branches($<cond>, $<then>),
+    otherwise   => $<else> ?? $<else>.made !! (),
+    header-decl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarator,
+    line        => self!line($/),
   );
 }
 
 method docasest($/)
 {
-  my ($decl, $atrib);
-  with $<sujeito>
+  my ($decl, $assign);
+  with $<subject>
   {
-    if .<sujlocal> { $decl  = .<hdrdecl>.made }
-    else           { $atrib = .<assignment>.made }
+    if .<subjlocal> { $decl   = .<hdrdecl>.made }
+    else            { $assign = .<assignment>.made }
   }
-  make Caso.new(
-    ramos    => ramos($<cond>, $<corpo>),
-    senao    => $<senao> ?? $<senao>.made !! (),
-    sujdecl  => $decl  // Declarador,
-    sujatrib => $atrib // Atribuicao,
-    linha    => self!linha($/),
+  make CaseStmt.new(
+    branches       => branches($<cond>, $<then>),
+    otherwise      => $<else> ?? $<else>.made !! (),
+    subject-decl   => $decl   // Declarator,
+    subject-assign => $assign // Assignment,
+    line           => self!line($/),
   );
 }
 
 method whilest($/)
 {
-  make Enquanto.new(
-    cond    => $<cond>.made,
-    corpo   => $<corpo>.made,
-    hdrdecl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarador,
-    linha   => self!linha($/),
+  make WhileStmt.new(
+    cond        => $<cond>.made,
+    body        => $<block>.made,
+    header-decl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarator,
+    line        => self!line($/),
   );
 }
 
 method forst($/)
 {
-  make Para.new(
+  make ForStmt.new(
     var       => ~$<var>,
     var-local => ?$<varlocal>,
-    de        => $<de>.made,
-    ate       => $<ate>.made,
-    passo     => $<passo> ?? $<passo>.made !! Expr,
-    corpo     => $<corpo>.made,
-    linha     => self!linha($/),
+    from      => $<from>.made,
+    to        => $<to>.made,
+    step      => $<step> ?? $<step>.made !! Expr,
+    body      => $<block>.made,
+    line      => self!line($/),
   );
 }
 
 method seqst($/)
 {
-  make Sequencia.new(
-    corpo       => $<corpo>.made,
-    tem-recover => ?$<recupera>,
-    erro        => $<erro> ?? ~$<erro> !! Str,
-    recupera    => $<recupera> ?? $<recupera>.made !! (),
-    linha       => self!linha($/),
+  make SequenceStmt.new(
+    body        => $<block>.made,
+    has-recover => ?$<recover>,
+    error-var   => $<errvar> ?? ~$<errvar> !! Str,
+    recover     => $<recover> ?? $<recover>.made !! (),
+    line        => self!line($/),
   );
 }
 
-# ---- declaracoes --------------------------------------------------------------
+# ---- declarations ---------------------------------------------------------------
 method declaration($/)
 {
-  make Declaracao.new(
-    escopo => ~$<declkind>.lc.trim,
-    nomes  => $<declarator>.map(*.made).list,
-    linha  => self!linha($/),
+  make Declaration.new(
+    scope       => ~$<declkind>.lc.trim,
+    declarators => $<declarator>.map(*.made).list,
+    line        => self!line($/),
   );
 }
 
-method !mkdecl($/)
+method !make-declarator($/)
 {
-  Declarador.new(
-    nome      => ~$<name>,
-    marcas    => $<marcas> ?? (~$<marcas>).comb(/\w+/).map(*.lc).list !! (),
-    inicial   => $<expr> ?? $<expr>.made !! Expr,
-    declarado => $<typespec> ?? tipo-de-nome(~$<typespec><typename>)
-                             !! DESCONHECIDO,
-    linha     => self!linha($/),
+  Declarator.new(
+    name       => ~$<name>,
+    attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
+    init       => $<expr> ?? $<expr>.made !! Expr,
+    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
+    line       => self!line($/),
   )
 }
 
-method declarator($/) { make self!mkdecl($/) }
-method hdrdecl($/)    { make self!mkdecl($/) }
+method declarator($/) { make self!make-declarator($/) }
+method hdrdecl($/)    { make self!make-declarator($/) }
 
-# ---- expressoes: descendo a precedencia ------------------------------------
+# ---- expressions: down the precedence -------------------------------------------
 #
-# Cada nivel com um so filho passa o filho adiante. Um 'orexpr' que e so um
-# 'andexpr' nao e um 'ou' de nada, e nao deve virar um no de 'ou'.
+# Each level with a single child passes the child on. An 'orexpr' that is just
+# an 'andexpr' is not an 'or' of anything, and must not become an 'or' node.
 method expr($/)
 {
-  make cadeia($<elvis>.made, $<alimentacao>);
+  make pipeline($<elvis>.made, $<feed>);
 }
 
-# 'a ?: b ?: c' encadeia pela direita: a ?: (b ?: c).
+# 'a ?: b ?: c' chains to the right: a ?: (b ?: c).
 method elvis($/)
 {
   my @p = $<orexpr>.map(*.made);
   my $acc = @p.pop;
-  $acc = Binaria.new(op => '?:', esq => $_, dir => $acc) for @p.reverse;
+  $acc = Binary.new(op => '?:', left => $_, right => $acc) for @p.reverse;
   make $acc;
 }
 
-# Sem 'fallback' e so a expressao; a maioria nao tem, e nao deve ganhar no.
+# Without 'fallback' it is just the expression; most have none, and must not
+# gain a node.
 method guardexpr($/)
 {
-  make $<alt>
-    ?? Guarda.new(expr => $<prot>.made, alternativa => $<alt>.made)
-    !! $<prot>.made;
+  make $<fallback>
+    ?? Guard.new(expr => $<guarded>.made, fallback => $<fallback>.made)
+    !! $<guarded>.made;
 }
 
-method etapa($/)
+method stage($/)
 {
   make $<nscall> ?? $<nscall>.made
     !! $<call>   ?? $<call>.made
-    !!              Chamada.new(nome => ~$<name>, args => ());
+    !!              Call.new(name => ~$<name>, args => ());
 }
 
-# Uma cadeia como comando, pelos efeitos. Fica numa ChamadaCmd como qualquer
-# expressao que vira comando.
+# A pipeline as a statement, for its effects. It sits in a CallStmt like any
+# expression that becomes a statement.
 method pipest($/)
 {
-  make ChamadaCmd.new(
-    chamada => cadeia($<elvis>.made, $<alimentacao>),
-    linha   => self!linha($/),
+  make CallStmt.new(
+    call => pipeline($<elvis>.made, $<feed>),
+    line => self!line($/),
   );
 }
-method orexpr($/)  { make dobra-com-ops($/, 'andexpr', 'orop') }
-method andexpr($/) { make dobra-com-ops($/, 'notexpr', 'andop') }
+
+method orexpr($/)  { make fold-ops($/, 'andexpr', 'orop') }
+method andexpr($/) { make fold-ops($/, 'notexpr', 'andop') }
 
 method notexpr($/)
 {
-  make $<negate> ?? Binaria.new(op => '!', esq => Expr, dir => $<cmpexpr>.made)
+  make $<negate> ?? Binary.new(op => '!', left => Expr, right => $<cmpexpr>.made)
                  !! $<cmpexpr>.made;
 }
 
 method cmpexpr($/)
 {
   my $acc = $<rangeexpr>.made;
-  for $<cmpresto>.list -> $r
+  for $<cmptail>.list -> $t
   {
-    $acc = Binaria.new(op => (~$r<op>).lc, esq => $acc, dir => $r<dir>.made);
+    $acc = Binary.new(op => (~$t<op>).lc, left => $acc, right => $t<rhs>.made);
   }
   make $acc;
 }
 
-method rangeexpr($/) { make intervalo($<de>.made, $<ate>) }
-method inrhs($/)     { make intervalo($<de>.made, $<ate>) }
-method addexpr($/) { make dobra-com-ops($/, 'mulexpr', 'addop') }
-method mulexpr($/) { make dobra-com-ops($/, 'unary',   'mulop') }
+method rangeexpr($/) { make interval($<lo>.made, $<hi>) }
+method inrhs($/)     { make interval($<lo>.made, $<hi>) }
+method addexpr($/)   { make fold-ops($/, 'mulexpr', 'addop') }
+method mulexpr($/)   { make fold-ops($/, 'unary',   'mulop') }
 
 method unary($/)
 {
   make $<sign> && ~$<sign> eq '-'
-    ?? Binaria.new(op => 'neg', esq => Expr, dir => $<postfix>.made)
+    ?? Binary.new(op => 'neg', left => Expr, right => $<postfix>.made)
     !! $<postfix>.made;
 }
 
-# Um primario e os trailers dele, de dentro para fora: 'o:x(1)[2]' e o
-# Indice de um Metodo de um Nome.
+# A primary and its trailers, from the inside out: 'o:x(1)[2]' is the Index
+# of a MethodCall on a Name.
 method postfix($/)
 {
-  make $<literal> ?? $<literal>.made !! aplica($<primary>.made, $<trailer>);
+  make $<literal> ?? $<literal>.made !! apply-trailers($<primary>.made, $<trailer>);
 }
 
-# Cada trailer faz uma funcao que recebe o que esta a esquerda dele.
+# Each trailer makes a function that takes what is to its left.
 method trailer($/) { make $/.hash.values[0].made }
 
-method tmetodo($/)
+method tmethod($/)
 {
-  my $nome = ~$<member>;
+  my $name = ~$<member>;
   my @args = $<arglist>.made.list;
-  make -> $base { Metodo.new(base => $base, nome => $nome, args => @args) }
+  make -> $base { MethodCall.new(base => $base, name => $name, args => @args) }
 }
 
 method thash($/)
 {
-  my $chave = $<chave>.made;
-  make -> $base { IndiceHash.new(base => $base, chave => $chave) }
+  my $key = $<key>.made;
+  make -> $base { HashIndex.new(base => $base, key => $key) }
 }
 
-method tseguro($/)
+method tsafe($/)
 {
-  my $nome = ~$<member>;
-  make -> $base { MembroSeguro.new(base => $base, nome => $nome) }
+  my $name = ~$<member>;
+  make -> $base { SafeMember.new(base => $base, name => $name) }
 }
 
-method tmembro($/)
+method tmember($/)
 {
-  my $nome = ~$<member>;
-  make -> $base { Membro.new(base => $base, nome => $nome) }
+  my $name = ~$<member>;
+  make -> $base { Member.new(base => $base, name => $name) }
 }
 
-method tindice($/)
+method tindex($/)
 {
   my @i = $<expr>.map(*.made);
-  make -> $base { Indice.new(base => $base, indices => @i) }
+  make -> $base { Index.new(base => $base, indices => @i) }
 }
 
-method temalias($/)
+method tinalias($/)
 {
   my $e = $<expr>.made;
-  make -> $base { EmAlias.new(base => $base, expr => $e) }
+  make -> $base { InAlias.new(base => $base, expr => $e) }
 }
 
-method tcampo($/)
+method tfield($/)
 {
-  my $nome = ~$<member>;
-  make -> $base { CampoAlias.new(base => $base, campo => $nome) }
+  my $name = ~$<member>;
+  make -> $base { AliasField.new(base => $base, field => $name) }
 }
 
-# Sem um else que devolva texto: uma forma nova de primario sem no tem de
-# aparecer aqui, e nao virar string calada.
+# No fallback that returns text: a new kind of primary without a node has to
+# show up here, not become a silent string.
 method primary($/)
 {
   make   $<selfacc>      ?? $<selfacc>.made
       !! $<literal>      ?? $<literal>.made
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
-      !! $<name>         ?? Nome.new(nome => ~$<name>)
+      !! $<name>         ?? Name.new(name => ~$<name>)
       !! $<expr>         ?? $<expr>.made
       !! $<macro>        ?? $<macro>.made
       !! $<aliasfield>   ?? $<aliasfield>.made
@@ -522,159 +517,149 @@ method primary($/)
       !! $<arrayliteral> ?? $<arrayliteral>.made
       !! $<codeblock>    ?? $<codeblock>.made
       !! $<lambda>       ?? $<lambda>.made
-      !! die "primario sem no: {(~$/).trim}";
+      !! die "primary with no node: {(~$/).trim}";
 }
 
 method macro($/)
 {
-  make Macro.new(alvo => $<expr> ?? $<expr>.made !! Nome.new(nome => ~$<name>));
+  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>));
 }
 
 method aliasfield($/)
 {
   make $<expr>
-    ?? EmAlias.new(alias => ~$<alias>, expr => $<expr>.made)
-    !! CampoAlias.new(alias => ~$<alias>, campo => ~$<campo>);
+    ?? InAlias.new(alias => ~$<alias>, expr => $<expr>.made)
+    !! AliasField.new(alias => ~$<alias>, field => ~$<field>);
 }
 
 method jsonliteral($/)
 {
-  make JsonLit.new(tipo => 'JSON', texto => (~$/).trim,
-                   pares => $<pair>.map(*.made).list);
+  make JsonLit.new(type => 'JSON', text => (~$/).trim,
+                   pairs => $<pair>.map(*.made).list);
 }
 
 method hashliteral($/)
 {
-  make HashLit.new(tipo => 'Object', texto => (~$/).trim,
-                   pares => $<hashpair>.map(*.made).list);
+  make HashLit.new(type => 'Object', text => (~$/).trim,
+                   pairs => $<hashpair>.map(*.made).list);
 }
 
-method pair($/)     { make Par.new(chave => $<expr>[0].made, valor => $<expr>[1].made) }
-method hashpair($/) { make Par.new(chave => $<expr>[0].made, valor => $<expr>[1].made) }
+method pair($/)     { make KeyValue.new(key => $<expr>[0].made, value => $<expr>[1].made) }
+method hashpair($/) { make KeyValue.new(key => $<expr>[0].made, value => $<expr>[1].made) }
 
 method arrayliteral($/)
 {
-  make ArrayLit.new(tipo => 'Array', texto => (~$/).trim,
-                    itens => $<expr>.map(*.made).list);
+  make ArrayLit.new(type => 'Array', text => (~$/).trim,
+                    items => $<expr>.map(*.made).list);
 }
 
 method lambda($/)
 {
-  make Lambda.new(tipo => 'Block', texto => (~$/).trim,
+  make Lambda.new(type => 'Block', text => (~$/).trim,
                   params => $<lparam>.map(~*).list,
-                  corpo  => ($<corpo>.made,));
+                  body   => ($<lbody>.made,));
 }
 
 method codeblock($/)
 {
-  make Bloco.new(tipo => 'Block', texto => (~$/).trim,
-                 params => $<name>.map(~*).list,
-                 corpo  => $<blockexpr>.map(*.made).list);
+  make CodeBlock.new(type => 'Block', text => (~$/).trim,
+                     params => $<name>.map(~*).list,
+                     body   => $<blockexpr>.map(*.made).list);
 }
 
-# Dentro de um bloco e num argumento, a atribuicao e uma expressao.
+# In a block and in an argument, an assignment is an expression.
 method blockexpr($/)
 {
-  make $<assignment> ?? atrib-expr($<assignment>.made) !! $<expr>.made;
+  make $<assignment> ?? assign-expr($<assignment>.made) !! $<expr>.made;
 }
 
 method call($/)
 {
-  make Chamada.new(nome => ~$<name>, args => $<arglist>.made.list);
+  make Call.new(name => ~$<name>, args => $<arglist>.made.list);
 }
 
-# O caminho inteiro e o nome; os pontos ficam nele, e nenhum segmento e uma
-# variavel lida (sao partes de namespace), entao percorre-expr nao desce neles.
+# The whole path is the name; the dots stay in it, and no segment is a variable
+# read (they are namespace parts), so walk-expr does not go into them.
 method nscall($/)
 {
-  make Chamada.new(nome => ~$<qname>, args => $<arglist>.made.list);
+  make Call.new(name => ~$<qname>, args => $<arglist>.made.list);
 }
 
-# 'f()' tem uma posicao vazia so e nenhum argumento; 'f( , 1)' tem duas, e a
-# primeira e Omitido.
+# 'f()' has a single empty position and no arguments; 'f( , 1)' has two, and
+# the first is Omitted.
 method arglist($/)
 {
-  my @s = $<slot>.map({ .<arg> ?? .<arg>.made !! Omitido.new });
-  make (@s == 1 && @s[0] ~~ Omitido) ?? () !! @s.List;
+  my @s = $<slot>.map({ .<arg> ?? .<arg>.made !! Omitted.new });
+  make (@s == 1 && @s[0] ~~ Omitted) ?? () !! @s.List;
 }
 
 method arg($/)
 {
-  make   $<byref>      ?? Ref.new(alvo => Nome.new(nome => ~$<byref><name>))
-      !! $<assignment> ?? atrib-expr($<assignment>.made)
+  make   $<byref>      ?? Ref.new(target => Name.new(name => ~$<byref><name>))
+      !! $<assignment> ?? assign-expr($<assignment>.made)
       !!                  $<expr>.made;
 }
 
 method literal($/)
 {
   make Literal.new(
-    tipo  =>   $<number>  ?? 'Numeric'
-            !! $<string>  ?? 'Character'
-            !! $<logical> ?? 'Logical'
-            !! $<nildef>  ?? 'Variant'
-            !!               DESCONHECIDO,
-    texto => ~$/,
+    type =>   $<number>  ?? 'Numeric'
+           !! $<string>  ?? 'Character'
+           !! $<logical> ?? 'Logical'
+           !! $<nildef>  ?? 'Variant'
+           !!               UNKNOWN,
+    text => ~$/,
   );
 }
 
-# ---- auxiliares ---------------------------------------------------------------
+# ---- helpers --------------------------------------------------------------------
 
-# Os trailers, em ordem, sobre uma base.
-sub aplica(Expr $base, $trailers)
+# The trailers, in order, over a base.
+sub apply-trailers(Expr $base, $trailers)
 {
   my $e = $base;
   $e = .made()($e) for $trailers.list;
   $e
 }
 
-# A fonte, e as etapas se houver. Sem nenhuma, e so a fonte -- a maioria das
-# expressoes nao tem '|>' e nao deve ganhar no nenhum.
-sub cadeia(Expr $fonte, $alimentacoes)
+# The source, and the stages if any. With none, it is just the source -- most
+# expressions have no '|>' and must not gain a node.
+sub pipeline(Expr $source, $feeds)
 {
-  my @e = $alimentacoes.list.map(*<etapa>.made);
-  @e ?? Cadeia.new(fonte => $fonte, etapas => @e) !! $fonte
+  my @stages = $feeds.list.map(*<stage>.made);
+  @stages ?? Pipeline.new(source => $source, stages => @stages) !! $source
 }
 
-# 'lo..hi' se tiver o '..', senao so o 'lo'.
-sub intervalo(Expr $de, $ate)
+# 'lo..hi' when there is a '..', otherwise just 'lo'.
+sub interval(Expr $lo, $hi)
 {
-  $ate ?? Intervalo.new(de => $de, ate => $ate.made) !! $de
+  $hi ?? Interval.new(lo => $lo, hi => $hi.made) !! $lo
 }
 
-sub atrib-expr(Atribuicao $a)
+sub assign-expr(Assignment $a)
 {
-  AtribExpr.new(alvo => $a.alvo, op => $a.op, valor => $a.valor)
+  AssignExpr.new(target => $a.target, op => $a.op, value => $a.value)
 }
 
-# Condicoes e corpos voltam como duas listas do mesmo tamanho; um ramo e um de
-# cada.
-sub ramos($conds, $corpos)
+# Conditions and bodies come back as two lists of the same length; a branch
+# is one of each.
+sub branches($conds, $bodies)
 {
   my @c = $conds.list;
-  my @b = $corpos.list;
-  (^@c).map({ Ramo.new(cond => @c[$_].made, corpo => @b[$_].made) }).list
+  my @b = $bodies.list;
+  (^@c).map({ Branch.new(cond => @c[$_].made, body => @b[$_].made) }).list
 }
 
-# 'a .or. b .or. c' com um so operador: dobra da esquerda.
-sub dobra($/, Str $filho, Str $op)
+# 'a + b - c', with the operator of each round.
+sub fold-ops($/, Str $child, Str $opname)
 {
-  my @partes = $/{$filho}.map(*.made);
-  return @partes[0] if @partes == 1;
-  my $acc = @partes.shift;
-  $acc = Binaria.new(op => $op, esq => $acc, dir => $_) for @partes;
-  $acc
-}
-
-# 'a + b - c' com o operador de cada volta.
-sub dobra-com-ops($/, Str $filho, Str $opnome)
-{
-  my @partes = $/{$filho}.map(*.made);
-  return @partes[0] if @partes == 1;
-  my @ops = $/{$opnome}.map({ (~$_).lc });
-  my $acc = @partes.shift;
-  for @partes.kv -> $i, $d
+  my @parts = $/{$child}.map(*.made);
+  return @parts[0] if @parts == 1;
+  my @ops = $/{$opname}.map({ (~$_).lc });
+  my $acc = @parts.shift;
+  for @parts.kv -> $i, $r
   {
-    $acc = Binaria.new(op => @ops[$i], esq => $acc, dir => $d);
+    $acc = Binary.new(op => @ops[$i], left => $acc, right => $r);
   }
   $acc
 }

@@ -1,29 +1,29 @@
 use lib 'lib';
 use XC::Grammar;
 
-# Um arquivo inteiro, do comeco ao fim. Por padrao o exemplo que vem junto;
-# passe caminhos na linha de comando para testar os seus.
-sub testa($caminho)
+# A whole file, start to end. By default the example that ships with this;
+# pass paths on the command line to test your own.
+sub check-file($path)
 {
-  my $src = try slurp($caminho);
+  my $src = try slurp($path);
   unless $src
   {
-    say "  ?     {$caminho} -- nao consegui ler";
+    say "  ?     {$path} -- could not read it";
     return False;
   }
   my $m = XC::Grammar.parse($src);
   if $m
   {
-    say "  ok    {$caminho.IO.basename}  ({$src.lines.elems} linhas, ",
-        "{$m<toplevel>.elems} itens de topo)";
+    say "  ok    {$path.IO.basename}  ({$src.lines.elems} lines, ",
+        "{$m<toplevel>.elems} top-level items)";
     return True;
   }
-  say "  FALHA {$caminho.IO.basename}";
+  say "  FAIL  {$path.IO.basename}";
   return False;
 }
 
-my @arquivos = @*ARGS || 'exemplos/saldo.xtpl';
+my @files = @*ARGS || 'examples/saldo.xtpl';
 my $ok = 0;
-$ok++ for @arquivos.grep({ testa($_) });
-say "\n  $ok de {@arquivos.elems}";
-exit($ok == @arquivos.elems ?? 0 !! 1);
+$ok++ for @files.grep({ check-file($_) });
+say "\n  $ok of {@files.elems}";
+exit($ok == @files.elems ?? 0 !! 1);

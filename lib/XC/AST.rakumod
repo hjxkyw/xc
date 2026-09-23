@@ -1,33 +1,32 @@
-# XC::AST -- a arvore que a gramatica produz.
+# XC::AST -- the tree the grammar produces.
 #
-# Cada no e uma classe pequena com o que importa daquele pedaco do programa,
-# e nada da sintaxe que o escreveu. 'local nX := 1 as N' e
-# 'local nX := 1 as Numeric' viram o mesmo no: a abreviacao e grafia.
+# Each node is a small class holding what matters about that piece of the
+# program, and none of the syntax that wrote it. 'local nX := 1 as N' and
+# 'local nX := 1 as Numeric' become the same node: the abbreviation is
+# spelling.
 #
-# Expressoes, comandos, funcoes e o arquivo. Nada fica como texto: todo nome
-# que uma expressao le e um no, ate dentro de 'o:x(n)[i]', de um code block ou
-# de uma macro. Uma analise que procura quem le uma variavel pode confiar que
-# nao ha leitura escondida numa string -- a nao ser a que a propria macro faz
-# em tempo de execucao, que nenhuma arvore enxerga.
+# Expressions, statements, functions, classes and the file. Nothing stays as
+# text: every name an expression reads is a node, even inside 'o:x(n)[i]', a
+# code block or a macro. An analysis looking for who reads a variable can
+# trust that no read hides inside a string -- except the one the macro itself
+# does at run time, which no tree can see.
 
 unit module XC::AST;
 
-# Os tipos do TL++, pelo nome inteiro. A gramatica aceita a abreviacao; a
-# arvore guarda sempre o nome, para quem ler nao ter de saber que 'N' e
-# 'Numeric'.
+# The TL++ types, by full name. The grammar accepts the abbreviation; the tree
+# always keeps the full name, so a reader need not know that 'N' is 'Numeric'.
 #
-# Strings, e nao um 'enum'. 'Array', 'Numeric', 'Date' e 'Block' ja sao
-# tipos do proprio Raku, e um enum com essas chaves nao ganha deles: o nome
-# continua sendo o tipo do Raku, que dentro de uma string sai vazio. O erro
-# foi meu, nao do rakupp.
-constant @TIPOS is export =
+# Strings, not an 'enum'. 'Array', 'Numeric', 'Date' and 'Block' are already
+# Raku types, and an enum with those keys does not win against them: the name
+# stays Raku's type object, which is empty inside a string.
+constant @TYPES is export =
   <Array Numeric Character Logical Date Object Block JSON Variant>;
 
-constant DESCONHECIDO is export = '?';
+constant UNKNOWN is export = '?';
 
-sub tipo-de-nome(Str $nome --> Str) is export
+sub type-of-name(Str $name --> Str) is export
 {
-  given $nome.lc
+  given $name.lc
   {
     when 'array'     | 'a' { 'Array'     }
     when 'numeric'   | 'n' { 'Numeric'   }
@@ -38,437 +37,445 @@ sub tipo-de-nome(Str $nome --> Str) is export
     when 'block'     | 'b' { 'Block'     }
     when 'json'      | 'j' { 'JSON'      }
     when 'variant'   | 'u' { 'Variant'   }
-    default                { DESCONHECIDO }
+    default                { UNKNOWN     }
   }
 }
 
-# ---- expressoes ---------------------------------------------------------------
+# ---- expressions --------------------------------------------------------------
 class Expr is export
 {
-  has Int $.linha is rw = 0;
+  has Int $.line is rw = 0;
 }
 
 class Literal is Expr is export
 {
-  has Str  $.tipo;
-  has Str  $.texto;
+  has Str  $.type;
+  has Str  $.text;
 }
 
-class Nome is Expr is export
+class Name is Expr is export
 {
-  has Str $.nome;
+  has Str $.name;
 }
 
-class Chamada is Expr is export
+class Call is Expr is export
 {
-  has Str  $.nome;
+  has Str  $.name;
   has Expr @.args;
 }
 
-class Binaria is Expr is export
+# Also the unary forms: '!' and 'neg', with 'left' undefined.
+class Binary is Expr is export
 {
   has Str  $.op;
-  has Expr $.esq;
-  has Expr $.dir;
+  has Expr $.left;
+  has Expr $.right;
 }
 
-# ---- o que vem depois de uma expressao ----------------------------------------
-class Indice is Expr is export           # a[i, j]
+# ---- what comes after an expression -----------------------------------------
+class Index is Expr is export             # a[i, j]
 {
   has Expr $.base;
   has Expr @.indices;
 }
 
-# O '::' de '::x' -- o proprio objeto, como base implicita de um Membro ou
-# Metodo. Nao le variavel nenhuma.
-class AutoSelf is Expr is export { }
+# The '::' of '::x' -- the object itself, as the implicit base of a Member or
+# MethodCall. It reads no variable.
+class SelfRef is Expr is export { }
 
-class Membro is Expr is export           # o:nX  (e ::nX, com base AutoSelf)
+class Member is Expr is export            # o:nX  (and ::nX, based on SelfRef)
 {
   has Expr $.base;
-  has Str  $.nome;
+  has Str  $.name;
 }
 
-# ---- xtpl: operadores que viram no proprio --------------------------------------
-# Os que sao um operador binario comum -- 'in', 'has', '%%', '?:' -- ficam numa
-# Binaria com o proprio 'op'; e o 'op' que diz a extensao. Estes tres tem
-# forma propria.
+# ---- xtpl: operators with a node of their own -----------------------------------
+# The ones that are an ordinary binary operator -- 'in', 'has', '%%', '?:' --
+# are a Binary with their own 'op'; the 'op' is what marks the extension.
+# These three have a shape of their own.
 
-# 'oUsuario?.cCidade': um Membro que devolve Nil se a base for Nil.
-class MembroSeguro is Membro is export { }
+# 'oUser?.cCity': a Member that returns Nil when its base is Nil.
+class SafeMember is Member is export { }
 
-# 'hCfg{"taxa"}': chaves indexam hash, colchetes indexam array.
-class IndiceHash is Expr is export
+# 'hCfg{"rate"}': braces index a hash, brackets index an array.
+class HashIndex is Expr is export
 {
   has Expr $.base;
-  has Expr $.chave;
+  has Expr $.key;
 }
 
-# '1..100', so a direita de um 'in' ou como fonte de uma cadeia.
-class Intervalo is Expr is export
+# '1..100', only on the right of an 'in' or as the source of a pipeline.
+class Interval is Expr is export
 {
-  has Expr $.de;
-  has Expr $.ate;
+  has Expr $.lo;
+  has Expr $.hi;
 }
 
-class Metodo is Expr is export           # o:Soma(1, 2)
+class MethodCall is Expr is export        # o:Sum(1, 2)
 {
   has Expr $.base;
-  has Str  $.nome;
+  has Str  $.name;
   has Expr @.args;
 }
 
-# Um campo de area. 'SA1->A1_NOME' tem a area pelo nome ('alias', e 'base'
-# indefinida); '(cAlias)->A1_NOME' tem a area numa expressao ('base').
-class CampoAlias is Expr is export
+# A work-area field. 'SA1->A1_NOME' names the area ('alias', with 'base'
+# undefined); '(cAlias)->A1_NOME' has the area in an expression ('base').
+class AliasField is Expr is export
 {
   has Expr $.base;
   has Str  $.alias;
-  has Str  $.campo;
+  has Str  $.field;
 }
 
-# Uma expressao avaliada numa area: 'SA1->( DbGoTop() )'. Area como acima.
-class EmAlias is Expr is export
+# An expression evaluated in a work area: 'SA1->( DbGoTop() )'. The area as
+# above.
+class InAlias is Expr is export
 {
   has Expr $.base;
   has Str  $.alias;
   has Expr $.expr;
 }
 
-# ---- o resto ------------------------------------------------------------------
-# '&cVar' e '&(cA + cB)'. O 'alvo' e o que da a string -- o Nome 'cVar' e LIDO.
-# O que a string faz em tempo de execucao, nada aqui sabe.
+# ---- the rest -------------------------------------------------------------------
+# '&cVar' and '&(cA + cB)'. The 'target' is what yields the string -- the Name
+# 'cVar' is READ. What the string does at run time, nothing here knows.
 class Macro is Expr is export
 {
-  has Expr $.alvo;
+  has Expr $.target;
 }
 
-class Ref is Expr is export              # '@aX' num argumento: le e escreve
+class Ref is Expr is export              # '@aX' in an argument: read and written
 {
-  has Expr $.alvo;
+  has Expr $.target;
 }
 
-class Omitido is Expr is export { }      # a posicao vazia de 'f( , 1)'
+class Omitted is Expr is export { }      # the empty position in 'f( , 1)'
 
-# Uma atribuicao onde vale uma expressao: 'If(c, a, cA := u)', '{|| n := 1}'.
-class AtribExpr is Expr is export
+# An assignment where an expression goes: 'If(c, a, cA := u)', '{|| n := 1}'.
+class AssignExpr is Expr is export
 {
-  has Expr $.alvo;
+  has Expr $.target;
   has Str  $.op;
-  has Expr $.valor;
+  has Expr $.value;
 }
 
-# Literais com partes. Continuam sendo Literal -- com o tipo e o texto --, para
-# quem so quer saber o tipo nao ter de conhecer cada um.
-class Par is export
+# Literals with parts. Still Literal -- with the type and the text --, so
+# whoever only wants the type need not know each one.
+class KeyValue is export
 {
-  has Expr $.chave;
-  has Expr $.valor;
+  has Expr $.key;
+  has Expr $.value;
 }
 
-class ArrayLit is Literal is export { has Expr @.itens; }
-class JsonLit  is Literal is export { has Par  @.pares; }
-class HashLit  is Literal is export { has Par  @.pares; }
+class ArrayLit is Literal is export { has Expr     @.items; }
+class JsonLit  is Literal is export { has KeyValue @.pairs; }
+class HashLit  is Literal is export { has KeyValue @.pairs; }
 
-class Bloco is Literal is export
+class CodeBlock is Literal is export
 {
   has Str  @.params;
-  has Expr @.corpo;
+  has Expr @.body;
 }
 
-# '[o] o:nValor' -- o lambda do xtpl. E um code block de um corpo so, entao e
-# um Bloco (tipo 'Block', params, corpo), e quem so quer o tipo ou descer nas
-# expressoes nao precisa distinguir. A classe propria marca a extensao: baixar
-# para TL++ e escrever '{|o| o:nValor}'.
-class Lambda is Bloco is export { }
+# '[o] o:nValue' -- xtpl's lambda. It is a code block with a single body, so
+# it is a CodeBlock (type 'Block', params, body), and whoever only wants the
+# type or walks the expressions need not tell them apart. The class of its
+# own marks the extension: lowering writes '{|o| o:nValue}'.
+class Lambda is CodeBlock is export { }
 
-# 'chamaServico(cUrl) fallback ""': se a expressao levantar erro, vale a
-# alternativa. So aparece no valor de uma atribuicao, declaracao ou 'return',
-# ou entre parenteses. Baixar e 'u_xtpl_safe_pipe({|| expr}, {|| alt})'.
-class Guarda is Expr is export
+# 'callService(cUrl) fallback ""': if the expression raises an error, the
+# fallback is the value. It only appears in the value of an assignment,
+# declaration or 'return', or inside parentheses. Lowering is
+# 'u_xtpl_safe_pipe({|| expr}, {|| fallback})'.
+class Guard is Expr is export
 {
   has Expr $.expr;
-  has Expr $.alternativa;
+  has Expr $.fallback;
 }
 
-# 'aPedidos |> filter([o] ...) |> map([o] ...)' -- a fonte e as etapas, em
-# ordem. Cada etapa e a chamada como foi escrita, SEM o primeiro argumento: o
-# '|>' e que o poe. '|> asum' e uma Chamada sem argumentos. Baixar e encadear
-# as chamadas ('map(filter(aPedidos, ...), ...)', ou um temporario por etapa, ou
-# o laco fundido) -- e isso e a geracao de codigo, nao a arvore.
-class Cadeia is Expr is export
+# 'aOrders |> filter([o] ...) |> map([o] ...)' -- the source and the stages, in
+# order. Each stage is the call as written, WITHOUT the first argument: '|>'
+# supplies it. '|> asum' is a Call with no arguments. Lowering chains the
+# calls ('map(filter(aOrders, ...), ...)', a temporary per stage, or the fused
+# loop) -- and that is code generation, not the tree.
+class Pipeline is Expr is export
 {
-  has Expr    $.fonte;
-  has Chamada @.etapas;
+  has Expr $.source;
+  has Call @.stages;
 }
 
-# ---- comandos -------------------------------------------------------------------
+# ---- statements -----------------------------------------------------------------
 #
-# Um corpo e um array de Cmd. As partes opcionais que faltam ficam com o objeto
-# de tipo -- 'Expr' sem valor --, que e o que '.defined' responde como falso.
-class Cmd is export
+# A body is an array of Stmt. The optional parts that are missing hold the type
+# object -- 'Expr' with no value --, which is what '.defined' answers false to.
+class Stmt is export
 {
-  has Int $.linha = 0;
+  has Int $.line = 0;
 }
 
-class Declarador is export
+class Declarator is export
 {
-  has Str   $.nome;
-  has Expr  $.inicial;         # indefinido se nao tem
-  has Str   $.declarado;       # o 'as ...', ou '?' se nao tem
-  has Str   @.marcas;          # 'const', 'contained' -- do xtpl
-  has Int   $.linha;
+  has Str   $.name;
+  has Expr  $.init;            # undefined when there is none
+  has Str   $.declared;        # the 'as ...', or '?' when there is none
+  has Str   @.attributes;      # 'const', 'contained' -- xtpl's
+  has Int   $.line;
 }
 
-class Declaracao is Cmd is export
+class Declaration is Stmt is export
 {
-  has Str        $.escopo;     # local, private, public, static
-  has Declarador @.nomes;
+  has Str        $.scope;        # local, private, public, static
+  has Declarator @.declarators;
 }
 
-# 'n := 1', 'n += 1', 'o:x := 2'. O alvo e um Nome, ou a cadeia que termina
-# no que se escreve: um Indice, um Membro, um CampoAlias.
-class Atribuicao is Cmd is export
+# 'n := 1', 'n += 1', 'o:x := 2'. The target is a Name, or the chain that ends
+# in what gets written: an Index, a Member, an AliasField.
+class Assignment is Stmt is export
 {
-  has Expr $.alvo;
+  has Expr $.target;
   has Str  $.op;
-  has Expr $.valor;
+  has Expr $.value;
 }
 
-# Uma chamada como comando: 'conout(x)', 'oDlg:Activate()'.
-class ChamadaCmd is Cmd is export
+# An expression as a statement: 'conout(x)', 'oDlg:Activate()', a pipeline.
+class CallStmt is Stmt is export
 {
-  has Expr $.chamada;
+  has Expr $.call;
 }
 
-class Retorno  is Cmd is export { has Expr $.valor; }   # indefinido: 'return'
-class Sai      is Cmd is export { }                      # exit
-class Continua is Cmd is export { }                      # loop
+class ReturnStmt is Stmt is export { has Expr $.value; }   # undefined: 'return'
+class ExitStmt   is Stmt is export { }                      # exit
+class LoopStmt   is Stmt is export { }                      # loop
 
-class Anotacao is Cmd is export
+class Annotation is Stmt is export
 {
-  has Str  $.nome;
+  has Str  $.name;
   has Expr @.args;
 }
 
-# Uma condicao e o que roda quando ela vale. 'if/elseif' e 'do case' sao a
-# mesma coisa: ramos em ordem, e o que sobra.
-class Ramo is export
+# A condition and what runs when it holds. 'if/elseif' and 'do case' are the
+# same thing: branches in order, and what is left over.
+class Branch is export
 {
   has Expr $.cond;
-  has Cmd  @.corpo;
+  has Stmt @.body;
 }
 
-class Se is Cmd is export
+class IfStmt is Stmt is export
 {
-  has Ramo       @.ramos;      # o 'if' e cada 'elseif'
-  has Cmd        @.senao;
-  has Declarador $.hdrdecl;    # 'if local x := ..., cond', indefinido se nao
+  has Branch     @.branches;       # the 'if' and each 'elseif'
+  has Stmt       @.otherwise;
+  has Declarator $.header-decl;    # 'if local x := ..., cond'; undefined if not
 }
 
-class Caso is Cmd is export
+class CaseStmt is Stmt is export
 {
-  has Ramo       @.ramos;      # cada 'case'
-  has Cmd        @.senao;      # 'otherwise'
-  # 'do case with <sujeito>': avaliado uma vez. Com 'local' e um declarador (um
-  # local novo); sem, uma atribuicao a uma variavel ja declarada. So um dos dois.
-  has Declarador $.sujdecl;
-  has Atribuicao $.sujatrib;
+  has Branch     @.branches;       # each 'case'
+  has Stmt       @.otherwise;      # 'otherwise'
+  # 'do case with <subject>': evaluated once. With 'local' it is a declarator
+  # (a new local); without, an assignment to a variable declared before. Only
+  # one of the two.
+  has Declarator $.subject-decl;
+  has Assignment $.subject-assign;
 }
 
-class Enquanto is Cmd is export
+class WhileStmt is Stmt is export
 {
   has Expr       $.cond;
-  has Cmd        @.corpo;
-  has Declarador $.hdrdecl;    # 'while local x := ..., cond', indefinido se nao
+  has Stmt       @.body;
+  has Declarator $.header-decl;    # 'while local x := ..., cond'; undefined if not
 }
 
-class Para is Cmd is export
+class ForStmt is Stmt is export
 {
   has Str  $.var;
-  has Bool $.var-local = False;  # 'for local i := ...': 'i' e um local novo
-  has Expr $.de;
-  has Expr $.ate;
-  has Expr $.passo;            # indefinido: passo 1
-  has Cmd  @.corpo;
+  has Bool $.var-local = False;    # 'for local i := ...': 'i' is a new local
+  has Expr $.from;
+  has Expr $.to;
+  has Expr $.step;                 # undefined: step 1
+  has Stmt @.body;
 }
 
-# ---- xtpl: modificador posfixado ---------------------------------------------
-# 'x := 1 if c', 'return n if c', 'f() while c', 'exec f() if c'. O comando de
-# dentro e o que roda; 'op' diz como: 'if' vira um If de um ramo so, 'while'
-# um While. Baixar para TL++ e so isso -- o comando fica igual, dentro do bloco.
-class Modificado is Cmd is export
+# ---- xtpl: postfix modifier -----------------------------------------------------
+# 'x := 1 if c', 'return n if c', 'f() while c', 'exec f() if c'. The inner
+# statement is what runs; 'op' says how: 'if' becomes a one-branch If,
+# 'while' a While. Lowering is just that -- the statement stays the same,
+# inside the block.
+class Modified is Stmt is export
 {
-  has Cmd  $.cmd;
-  has Str  $.op;               # 'if' ou 'while'
+  has Stmt $.stmt;
+  has Str  $.op;                   # 'if' or 'while'
   has Expr $.cond;
 }
 
-# 'defer f()': o comando roda antes de toda saida da funcao, na ordem inversa
-# do registro. Baixar e emiti-lo antes de cada 'return' e no fim do corpo. Um
-# nome lido so por um defer conta como lido -- 'percorre' desce nele.
-class Adiado is Cmd is export
+# 'defer f()': the statement runs before every exit from the function, in the
+# reverse order of registration. Lowering emits it before each 'return' and at
+# the end of the body. A name read only by a defer counts as read -- 'walk'
+# goes into it.
+class Deferred is Stmt is export
 {
-  has Cmd $.cmd;
+  has Stmt $.stmt;
 }
 
-class Sequencia is Cmd is export
+class SequenceStmt is Stmt is export
 {
-  has Cmd  @.corpo;
-  has Bool $.tem-recover = False;
-  has Str  $.erro;             # 'recover using oErr', indefinido se nao tem
-  has Cmd  @.recupera;
+  has Stmt @.body;
+  has Bool $.has-recover = False;
+  has Str  $.error-var;            # 'recover using oErr'; undefined if not
+  has Stmt @.recover;
 }
 
-# ---- o arquivo ------------------------------------------------------------------
-class Parametro is export
+# ---- the file -------------------------------------------------------------------
+class Param is export
 {
-  has Str $.nome;
-  has Str $.declarado;         # '?' se nao tem
+  has Str $.name;
+  has Str $.declared;              # '?' when there is none
 }
 
-class Funcao is export
+class FunctionDef is export
 {
-  has Str       $.tipo;         # user, static, main -- ou '' para o 'function' solto
-  has Str       $.nome;
-  has Parametro @.params;
-  has Anotacao  @.anotacoes;
-  has Cmd       @.corpo;
-  has Int       $.linha;
+  has Str        $.type;           # user, static, main -- or '' for a bare 'function'
+  has Str        $.name;
+  has Param      @.params;
+  has Annotation @.annotations;
+  has Stmt       @.body;
+  has Int        $.line;
 }
 
-# ---- TLPP: classes ------------------------------------------------------------
-class Atributo is export             # 'Data nome as tipo'
+class DataMember is export         # 'Data name as type'
 {
-  has Str $.nome;
-  has Str $.tipo;              # indefinido se nao tem
-  has Str $.visib;            # public/protected/private, indefinido se nao tem
+  has Str $.name;
+  has Str $.type;                  # undefined when there is none
+  has Str $.visibility;            # public/protected/private; undefined if none
 }
 
-class AssinaturaMetodo is export     # 'Method nome(params) [Constructor] [as tipo]'
+class MethodSig is export          # 'Method name(params) [Constructor] [as type]'
 {
-  has Str        $.nome;
-  has Parametro  @.params;
-  has Str        $.visib;
-  has Bool       $.construtor = False;
-  has Str        $.retorno;         # indefinido se nao tem
+  has Str   $.name;
+  has Param @.params;
+  has Str   $.visibility;
+  has Bool  $.constructor = False;
+  has Str   $.returns;             # undefined when there is none
 }
 
-class Classe is export
+class ClassDef is export
 {
-  has Str              $.nome;
-  has Str              @.supers;     # 'From A, B'
-  has Atributo         @.atributos;
-  has AssinaturaMetodo @.metodos;    # as assinaturas do bloco
-  has Int              $.linha;
+  has Str        $.name;
+  has Str        @.supers;         # 'From A, B'
+  has DataMember @.members;
+  has MethodSig  @.methods;        # the signatures in the block
+  has Int        $.line;
 }
 
-# 'Method nome(params) [as tipo] Class Nome' + corpo. Como uma Funcao, mas
-# ligada a uma classe.
-class MetodoImpl is export
+# 'Method name(params) [as type] Class Name' + body. Like a FunctionDef, but
+# bound to a class.
+class MethodImpl is export
 {
-  has Str        $.classe;
-  has Str        $.nome;
-  has Parametro  @.params;
-  has Str        $.retorno;         # indefinido se nao tem
-  has Cmd        @.corpo;
-  has Int        $.linha;
+  has Str   $.class-name;
+  has Str   $.name;
+  has Param @.params;
+  has Str   $.returns;             # undefined when there is none
+  has Stmt  @.body;
+  has Int   $.line;
 }
 
-class Programa is export
+class Program is export
 {
-  has Str        $.namespace;  # indefinido se nao tem
-  has Str        @.usings;
-  has Str        @.diretivas;  # '#include ...' inteiro, como veio
-  has Anotacao   @.anotacoes;  # as que nao estao antes de uma funcao
-  has Funcao     @.funcoes;
-  has Classe     @.classes;
-  has MetodoImpl @.metodos;    # as implementacoes soltas
+  has Str         $.namespace;     # undefined when there is none
+  has Str         @.usings;
+  has Str         @.directives;    # '#include ...' whole, as it came
+  has Annotation  @.annotations;   # the ones not before a function
+  has FunctionDef @.functions;
+  has ClassDef    @.classes;
+  has MethodImpl  @.methods;       # the loose implementations
 }
 
-# ---- percorrer -------------------------------------------------------------------
+# ---- walking --------------------------------------------------------------------
 
-# As expressoes logo abaixo de uma, em ordem de leitura. As partes que faltam
-# (o lado vazio de um '!', a base de um 'SA1->') nao aparecem.
+# The expressions right below one, in reading order. Missing parts (the empty
+# side of a '!', the base of an 'SA1->') do not appear.
 sub subexprs(Expr $e --> List) is export
 {
   my @s = do given $e
   {
-    when Binaria    { .esq, .dir }
-    when Chamada    { |.args }
-    when Indice     { .base, |.indices }
-    when Membro     { .base }
-    when Metodo     { .base, |.args }
-    when CampoAlias { .base }
-    when EmAlias    { .base, .expr }
-    when Macro      { .alvo }
-    when Ref        { .alvo }
-    when AtribExpr  { .alvo, .valor }
-    when ArrayLit   { |.itens }
-    when JsonLit | HashLit { |.pares.map({ .chave, .valor }).flat }
-    when Bloco      { |.corpo }
-    when Cadeia     { .fonte, |.etapas }
-    when Guarda     { .expr, .alternativa }
-    when IndiceHash { .base, .chave }
-    when Intervalo  { .de, .ate }
+    when Binary     { .left, .right }
+    when Call       { |.args }
+    when Index      { .base, |.indices }
+    when Member     { .base }
+    when MethodCall { .base, |.args }
+    when AliasField { .base }
+    when InAlias    { .base, .expr }
+    when Macro      { .target }
+    when Ref        { .target }
+    when AssignExpr { .target, .value }
+    when ArrayLit   { |.items }
+    when JsonLit | HashLit { |.pairs.map({ .key, .value }).flat }
+    when CodeBlock  { |.body }
+    when Pipeline   { .source, |.stages }
+    when Guard      { .expr, .fallback }
+    when HashIndex  { .base, .key }
+    when Interval   { .lo, .hi }
     default         { () }
   };
   @s.grep(*.defined).List
 }
 
-# Chama &f numa expressao e em todas as de dentro, em ordem de leitura.
-sub percorre-expr(Expr $e, &f) is export
+# Calls &f on an expression and on every one inside it, in reading order.
+sub walk-expr(Expr $e, &f) is export
 {
   return without $e;
   f($e);
-  percorre-expr($_, &f) for subexprs($e);
+  walk-expr($_, &f) for subexprs($e);
 }
 
-# As expressoes que um comando tem, sem descer nos corpos -- 'percorre' e que
-# desce. A variavel de um 'for' e um nome, nao uma expressao, e fica de fora.
-sub exprs-de(Cmd $c --> List) is export
+# The expressions a statement holds, without going into its bodies -- 'walk'
+# does that. The variable of a 'for' is a name, not an expression, and is left
+# out.
+sub exprs-of(Stmt $s --> List) is export
 {
-  my @s = do given $c
+  my @s = do given $s
   {
-    when Declaracao { |.nomes.map(*.inicial) }
-    when Atribuicao { .alvo, .valor }
-    when ChamadaCmd { .chamada }
-    when Retorno    { .valor }
-    when Anotacao   { |.args }
-    when Modificado { .cond }
-    when Se         { .hdrdecl.defined ?? (.hdrdecl.inicial, |.ramos.map(*.cond)) !! |.ramos.map(*.cond) }
-    when Caso       { (.sujdecl.defined  ?? .sujdecl.inicial !! Expr),
-                      (.sujatrib.defined ?? .sujatrib.valor  !! Expr),
-                      |.ramos.map(*.cond) }
-    when Enquanto   { .hdrdecl.defined ?? (.hdrdecl.inicial, .cond) !! .cond }
-    when Para       { .de, .ate, .passo }
-    default         { () }
+    when Declaration { |.declarators.map(*.init) }
+    when Assignment  { .target, .value }
+    when CallStmt    { .call }
+    when ReturnStmt  { .value }
+    when Annotation  { |.args }
+    when Modified    { .cond }
+    when IfStmt      { .header-decl.defined ?? (.header-decl.init, |.branches.map(*.cond))
+                                             !! |.branches.map(*.cond) }
+    when CaseStmt    { (.subject-decl.defined   ?? .subject-decl.init    !! Expr),
+                       (.subject-assign.defined ?? .subject-assign.value !! Expr),
+                       |.branches.map(*.cond) }
+    when WhileStmt   { .header-decl.defined ?? (.header-decl.init, .cond) !! .cond }
+    when ForStmt     { .from, .to, .step }
+    default          { () }
   };
   @s.grep(*.defined).List
 }
-#
-# Os corpos que um comando tem dentro, em ordem de leitura. E o que qualquer
-# analise precisa para descer na arvore sem saber de cada tipo de comando.
-sub corpos-de(Cmd $c --> List) is export
+
+# The bodies a statement holds, in reading order. It is what any analysis
+# needs to go down the tree without knowing every kind of statement.
+sub bodies-of(Stmt $s --> List) is export
 {
-  given $c
+  given $s
   {
-    when Se | Caso  { (|.ramos.map({ .corpo.List }), .senao.List).List }
-    when Enquanto   { (.corpo.List,).List }
-    when Para       { (.corpo.List,).List }
-    when Sequencia  { (.corpo.List, .recupera.List).List }
-    when Modificado { ((.cmd,).List,).List }
-    when Adiado     { ((.cmd,).List,).List }
-    default         { ().List }
+    when IfStmt | CaseStmt { (|.branches.map({ .body.List }), .otherwise.List).List }
+    when WhileStmt         { (.body.List,).List }
+    when ForStmt           { (.body.List,).List }
+    when SequenceStmt      { (.body.List, .recover.List).List }
+    when Modified          { ((.stmt,).List,).List }
+    when Deferred          { ((.stmt,).List,).List }
+    default                { ().List }
   }
 }
 
-# Chama &f em cada comando de um corpo, e nos de dentro, em ordem de leitura.
-sub percorre(@corpo, &f) is export
+# Calls &f on each statement of a body, and on the ones inside, in reading
+# order.
+sub walk(@body, &f) is export
 {
-  for @corpo -> $c
+  for @body -> $s
   {
-    f($c);
-    percorre($_, &f) for corpos-de($c);
+    f($s);
+    walk($_, &f) for bodies-of($s);
   }
 }

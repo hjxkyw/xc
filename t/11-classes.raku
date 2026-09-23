@@ -3,36 +3,37 @@ use XC::Grammar;
 use XC::Actions;
 use XC::AST;
 
-# Classes do TLPP -- nativas, nao extensao do xtpl. O bloco 'Class ... EndClass'
-# com 'Data' e as assinaturas 'Method', e as implementacoes 'Method nome(...)
-# Class Nome' soltas no arquivo. Mais o '::' de acesso ao proprio objeto. As
-# duas direcoes: a forma que sai, e o que tem de ser recusado.
+# TL++ classes -- native, not an xtpl extension. The 'Class ... EndClass' block
+# with 'Data' and the 'Method' signatures, and the implementations
+# 'Method name(...) Class Name' loose in the file. Plus the '::' access to the
+# object itself. Both directions: the shape that comes out, and what has to be
+# refused.
 
-sub prog(Str $src)
+sub program(Str $src)
 {
-  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src));
+  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   $m ?? $m.made !! Nil
 }
 
-sub casa(Str $src) { XC::Grammar.parse($src).defined }
+sub parses(Str $src) { XC::Grammar.parse($src).defined }
 
 sub expr(Str $src)
 {
-  my $m = XC::Grammar.parse($src, rule => 'expr', actions => XC::Actions.new(fonte => $src));
+  my $m = XC::Grammar.parse($src, rule => 'expr', actions => XC::Actions.new(source => $src));
   $m ?? $m.made !! Nil
 }
 
 my ($ok, $total) = 0, 0;
-sub confere(Str $o-que, &teste)
+sub check(Str $what, &test)
 {
   $total++;
-  my $v = try teste();
+  my $v = try test();
   $ok++ if $v;
-  say(($v ?? '  ok    ' !! '  FALHA '), $o-que);
+  say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- o arquivo de referencia (48_real_shapes) ------------------------------------
-my $ref = q:to/FIM/;
+# ---- the reference file (xtpl's 48_real_shapes) ---------------------------------
+my $ref = q:to/END/;
 class MinhaTool
   public method process(jPayLoad as json) as json
 endclass
@@ -44,29 +45,29 @@ method process(jPayLoad as json) as json class MinhaTool
     jResp["cliente"] := alltrim(SA1->A1_NOME)
   endif
 return jResp
-FIM
+END
 
-confere '48: uma classe e uma implementacao, nenhuma funcao',
+check '48: one class and one implementation, no functions',
 {
-  my $p = prog($ref);
-  $p.classes == 1 && $p.metodos == 1 && $p.funcoes == 0
+  my $p = program($ref);
+  $p.classes == 1 && $p.methods == 1 && $p.functions == 0
 };
-confere '48: a assinatura no bloco -- visibilidade, param tipado, retorno',
+check '48: the signature in the block -- visibility, typed param, return type',
 {
-  my $a = prog($ref).classes[0].metodos[0];
-  $a.nome eq 'process' && $a.visib eq 'public'
-    && $a.params.map({ .nome ~ ':' ~ .declarado }).join eq 'jPayLoad:JSON'
-    && $a.retorno eq 'json'
+  my $s = program($ref).classes[0].methods[0];
+  $s.name eq 'process' && $s.visibility eq 'public'
+    && $s.params.map({ .name ~ ':' ~ .declared }).join eq 'jPayLoad:JSON'
+    && $s.returns eq 'json'
 };
-confere '48: a implementacao -- classe, retorno, e o corpo com os comandos',
+check '48: the implementation -- class, return type, and the body',
 {
-  my $m = prog($ref).metodos[0];
-  $m.classe eq 'MinhaTool' && $m.nome eq 'process' && $m.retorno eq 'json'
-    && $m.corpo.grep(* ~~ Retorno) == 1
+  my $m = program($ref).methods[0];
+  $m.class-name eq 'MinhaTool' && $m.name eq 'process' && $m.returns eq 'json'
+    && $m.body.grep(* ~~ ReturnStmt) == 1
 };
 
-# ---- o bloco Class ... EndClass --------------------------------------------------
-my $bloco = q:to/FIM/;
+# ---- the Class ... EndClass block ---------------------------------------------------
+my $block = q:to/END/;
 Class Fila From Base
   Public Data aBuf as array
   Public Data nHead, nTail
@@ -75,81 +76,81 @@ Class Fila From Base
   Public Method Push(xItem)
   Method Grow()
 EndClass
-FIM
+END
 
-confere 'From, e os atributos com tipo e visibilidade',
+check 'From, and the data members with type and visibility',
 {
-  my $c = prog($bloco).classes[0];
-  $c.nome eq 'Fila' && $c.supers.join eq 'Base'
-    && $c.atributos.map(*.nome).join(' ') eq 'aBuf nHead nTail nUsed'
-    && $c.atributos[0].tipo eq 'array' && $c.atributos[0].visib eq 'public'
-    && !$c.atributos[3].visib.defined
+  my $c = program($block).classes[0];
+  $c.name eq 'Fila' && $c.supers.join eq 'Base'
+    && $c.members.map(*.name).join(' ') eq 'aBuf nHead nTail nUsed'
+    && $c.members[0].type eq 'array' && $c.members[0].visibility eq 'public'
+    && !$c.members[3].visibility.defined
 };
-confere 'as assinaturas: construtor marcado, e uma privada sem visibilidade',
+check 'the signatures: constructor flagged, and one with no visibility',
 {
-  my @m = prog($bloco).classes[0].metodos;
-  @m == 3 && @m[0].construtor && @m[0].visib eq 'public'
-    && !@m[2].construtor && !@m[2].visib.defined
+  my @m = program($block).classes[0].methods;
+  @m == 3 && @m[0].constructor && @m[0].visibility eq 'public'
+    && !@m[2].constructor && !@m[2].visibility.defined
 };
-confere 'From com mais de uma base',
+check 'From with more than one base',
 {
-  prog("Class C From A, B\n  Data x\nEndClass").classes[0].supers.join(',') eq 'A,B'
+  program("Class C From A, B\n  Data x\nEndClass").classes[0].supers.join(',') eq 'A,B'
 };
-confere 'classe sem From nem membros',
+check 'a class with no From and no members',
 {
-  my $c = prog("Class Vazia\nEndClass").classes[0];
-  $c.nome eq 'Vazia' && !$c.supers && !$c.atributos && !$c.metodos
+  my $c = program("Class Vazia\nEndClass").classes[0];
+  $c.name eq 'Vazia' && !$c.supers && !$c.members && !$c.methods
 };
 
-# ---- '::' -- acesso ao proprio objeto --------------------------------------------
-confere ':::aBuf e um Membro cuja base e o proprio objeto',
+# ---- '::' -- access to the object itself --------------------------------------------
+check '::aBuf is a Member whose base is the object itself',
 {
   my $e = expr('::aBuf');
-  $e ~~ Membro && $e.base ~~ AutoSelf && $e.nome eq 'aBuf'
+  $e ~~ Member && $e.base ~~ SelfRef && $e.name eq 'aBuf'
 };
-confere '::Grow() e um metodo do proprio objeto',
+check '::Grow() is a method of the object itself',
 {
   my $e = expr('::Grow()');
-  $e ~~ Metodo && $e.base ~~ AutoSelf && $e.nome eq 'Grow' && !$e.args
+  $e ~~ MethodCall && $e.base ~~ SelfRef && $e.name eq 'Grow' && !$e.args
 };
-confere '::aBuf[::nTail]: indice sobre membro, e o :: nao le variavel',
+check '::aBuf[::nTail]: an index on a member, and :: reads no variable',
 {
   my $e = expr('::aBuf[::nTail]');
   my @n;
-  percorre-expr($e, { @n.push(.nome) if $_ ~~ Nome });
-  $e ~~ Indice && $e.base ~~ Membro && @n == 0
+  walk-expr($e, { @n.push(.name) if $_ ~~ Name });
+  $e ~~ Index && $e.base ~~ Member && @n == 0
 };
-confere '::nHead := 1: o :: vale como alvo de atribuicao',
+check '::nHead := 1: :: works as an assignment target',
 {
   my $src = "method f() class C\n  ::nHead := 1\nreturn";
-  my $m = prog($src).metodos[0];
-  my $a = $m.corpo[0];
-  $a ~~ Atribuicao && $a.alvo ~~ Membro && $a.alvo.base ~~ AutoSelf
+  my $m = program($src).methods[0];
+  my $a = $m.body[0];
+  $a ~~ Assignment && $a.target ~~ Member && $a.target.base ~~ SelfRef
 };
-confere '::aBuf[::nTail] := x: alvo com membro e indice',
+check '::aBuf[::nTail] := x: a target with member and index',
 {
   my $src = "method f() class C\n  ::aBuf[::nTail] := x\nreturn";
-  my $a = prog($src).metodos[0].corpo[0];
-  $a ~~ Atribuicao && $a.alvo ~~ Indice && $a.alvo.base ~~ Membro
+  my $a = program($src).methods[0].body[0];
+  $a ~~ Assignment && $a.target ~~ Index && $a.target.base ~~ Member
 };
-confere 'Self ainda e um nome comum, e ::x le o mesmo objeto sem ler variavel',
+check 'Self is still an ordinary name, and ::x uses the object without a variable read',
 {
-  expr('Self') ~~ Nome && !expr('::x').base.isa(Nome)
+  expr('Self') ~~ Name && !expr('::x').base.isa(Name)
 };
 
-# ---- o que tem de ser recusado -------------------------------------------------------
-my @recusar =
-  "class C\n  data x"                          => 'classe sem endclass',
-  "method f(x) class"                          => 'implementacao sem o nome da classe',
-  "Class C\n  Data\nEndClass"                  => 'data sem nome',
-  "Class C\n  Method\nEndClass"                => 'method sem nome',
-  "::"                                         => 'dois-pontos sem membro',
+# ---- what has to be refused -----------------------------------------------------------
+my @refuse =
+  "class C\n  data x"                          => 'class without endclass',
+  "method f(x) class"                          => 'implementation without the class name',
+  "Class C\n  Data\nEndClass"                  => 'data with no name',
+  "Class C\n  Method\nEndClass"                => 'method with no name',
+  "::"                                         => 'colons with no member',
   ;
 
-for @recusar -> $c
+for @refuse -> $c
 {
-  confere "recusa: {$c.value}", { !casa($c.key) };
+  check "refuses: {$c.value}", { !parses($c.key) };
 }
 
-say "\n  $ok de $total";
+say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

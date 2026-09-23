@@ -1,55 +1,54 @@
-# XC::Grammar -- uma gramatica de TL++, com o xtpl crescendo dela.
+# XC::Grammar -- the grammar of xtpl: TL++ plus xtpl's extensions.
 #
-# ALVO: TL++, NAO AdvPL
+# Every valid TL++ file must match; the extensions are what the compiler
+# lowers to plain TL++. AdvPL in general is not a target: a grammar that
+# accepted everything AdvPL does could refuse nothing, which is how one ends
+# up back at regular expressions.
 #
-# A diferenca importa. TL++ tem 'namespace', tem anotacoes, e tem tipos
-# declarados. Uma gramatica que tentasse cobrir os dois teria de aceitar tudo
-# que o AdvPL aceita e mais, e nao poderia recusar nada -- que e como se
-# chega de volta a expressao regular.
+# ORDERED ALTERNATION EVERYWHERE
 #
-# ALTERNACAO ORDENADA EM TODO LUGAR
+# This file uses '||' and never '|'. Two reasons, and both count.
 #
-# Este arquivo usa '||' e nunca '|'. Duas razoes, e as duas contam.
+# The first is design: in a language grammar the order of the alternatives IS
+# the specification. 'declaration || assignment' says a line that could be
+# either is a declaration. Raku's '|' picks the longest match, which is a rule
+# about the text, not about the language.
 #
-# A primeira e de projeto: numa gramatica de linguagem a ordem das
-# alternativas E a especificacao. 'declaracao || atribuicao' diz que uma linha
-# que pode ser as duas coisas e uma declaracao. O '|' do Raku escolhe a mais
-# longa, que e uma regra sobre o texto e nao sobre a linguagem.
-#
-# A segunda e que, num 'rule', o '|' do rakupp 4.0.1 recusa uma alternativa
-# com sub-regra quantificada e separador que o Rakudo aceita:
+# The second is that, in a 'rule', rakupp 4.0.1's '|' refuses an alternative
+# holding a quantified subrule with a separator, which Rakudo accepts:
 #
 #     rule  call { <name> "(" <expr>* % "," ")" }
 #     rule  asg  { <name> ":=" \d+ }
-#     rule  alt  { <call> | <asg> }       # 'f("a")': Rakudo casa, rakupp nao
-#     rule  alt2 { <call> || <asg> }      # os dois casam
+#     rule  alt  { <call> | <asg> }       # 'f("a")': Rakudo matches, rakupp not
+#     rule  alt2 { <call> || <asg> }      # both match
 #
-# (Com 'token', os dois recusam o '|' -- o que e o Raku, nao o rakupp.) Como
-# '||' e o que se quer de qualquer jeito, isto nao e uma concessao.
+# (With 'token', both refuse the '|' -- that is Raku, not rakupp.) Since '||'
+# is what is wanted anyway, this is no concession.
 
 unit grammar XC::Grammar;
 
-# ---- nomes que nao se declaram -----------------------------------------------
+# ---- names that cannot be declared ------------------------------------------
 #
-# As mesmas regras do xtpl, conferidas contra ele:
+# The same rules as xtpl, checked against it case by case:
 #
-# Palavras reservadas -- a lista do xtpl, que inclui algumas funcoes nativas.
-# Valem para local, private, parametro, declaracao de cabecalho e 'for
-# local'; nao para parametro de lambda, que o xtpl aceita.
-my constant RESERVADAS = set <
+# Reserved words -- xtpl's list, which includes a few native functions. They
+# apply to local, private, parameters, header declarations and 'for local';
+# not to lambda parameters, which xtpl accepts.
+my constant RESERVED = set <
   function static user return if else elseif endif for next while enddo do
   local private public with without orwith given when otherwise end
   conout len eval array aadd substr userexception
 >;
-#
-# 'our': um 'sub' lexico daqui nao e visto de dentro de um '<!{ }>' no rakupp
-# 4.0.1 (no Rakudo e).
-our sub reservado(Str $n --> Bool) { RESERVADAS{$n.lc}:exists }
 
-# A forma de um nome que o xtpl gera: '__' na frente, um temporario curto
-# '<tipo>_<nivel>_<indice>', ou um slot 's_'/'b_'. So o 'local'/'private' do
-# nivel da funcao a recusa -- e o unico que sai com o nome como foi escrito.
-our sub gerado(Str $n --> Bool)
+# 'our': under rakupp 4.0.1 a lexical 'sub' in this file is not visible from
+# inside a '<!{ }>' (under Rakudo it is).
+our sub is-reserved(Str $n --> Bool) { RESERVED{$n.lc}:exists }
+
+# The shape of a name xtpl generates: a leading '__', a short temporary
+# '<kind>_<depth>_<index>', or a slot 's_'/'b_'. Only a function-level
+# 'local'/'private' refuses it -- the only declaration emitted with the name
+# as written.
+our sub is-generated(Str $n --> Bool)
 {
   so ($n.starts-with('__')
       || $n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | ch | dr | fs | hd | hi | i | j | ky | ls
@@ -58,29 +57,29 @@ our sub gerado(Str $n --> Bool)
       || $n ~~ m:i/ ^ <[sb]> '_' \d+ '_' \w+ $ /)
 }
 
-# UM COMANDO POR LINHA
+# ONE STATEMENT PER LINE
 #
-# Em AdvPL a quebra de linha termina o comando, a nao ser que a linha acabe
-# em ';'. Aqui ja foi so espaco, e isso deixava um comando continuar na linha
-# de baixo:
+# In AdvPL a line break ends the statement, unless the line ends in ';'. Here
+# it used to be plain whitespace, which let a statement run on into the next
+# line:
 #
-#     return                    o valor do return virava 'endif', e o
-#   endif                       arquivo inteiro deixava de casar
+#     return                    the return's value became 'endif', and the
+#   endif                       whole file stopped matching
 #
-#     return                    o valor virava 'user', e a funcao seguinte
-#                               passava a ser um 'function g()' sem 'user'
-#   user function g()           -- esta calada
+#     return                    the value became 'user', and the next function
+#                               turned into a 'function g()' without 'user'
+#   user function g()           -- silently
 #
-# Entao '<.ws>' nao atravessa linha, e cada lugar onde uma linha pode acabar
-# diz isso com '<.nl>'. Linhas em branco e so de comentario ficam dentro do
-# '<.nl>', e nao sao comandos.
+# So '<.ws>' does not cross lines, and every place a line may end says so with
+# '<.nl>'. Blank and comment-only lines live inside '<.nl>'; they are not
+# statements.
 rule TOP
 {
   ^ <.gap> [ <toplevel> <.gap> ]* $
 }
 
-# A funcao primeiro: ela comeca pelas suas anotacoes, e so se o que segue nao
-# for uma funcao a anotacao fica sozinha.
+# The function first: it starts with its annotations, and only when what
+# follows is not a function does an annotation stand alone.
 rule toplevel
 {
      <function>
@@ -89,17 +88,17 @@ rule toplevel
   || [ [ <preproc> || <namespacest> || <annotation> ] <.eol> ]
 }
 
-# ---- o que o pre-processador leva inteiro ---------------------------------
-# Uma diretiva vai inteira para o pre-processador do TL++ -- '#include',
-# '#define', '#command', '#xtranslate'. Nada aqui olha o que ha dentro: a
-# definicao de um '#command' e uma linguagem propria, e nao e a nossa.
+# ---- what the preprocessor takes whole ------------------------------------
+# A directive goes whole to the TL++ preprocessor -- '#include', '#define',
+# '#command', '#xtranslate'. Nothing here looks inside: the body of a
+# '#command' is a language of its own, and not ours.
 #
-# Mas ela pode CONTINUAR: uma linha terminada em ';' segue na proxima, e um
-# '#xtranslate' com corpo costuma ocupar tres ou quatro.
+# But it can CONTINUE: a line ending in ';' carries on to the next, and an
+# '#xtranslate' with a body usually spans three or four.
 token preproc
 {
-  # O '\N*?' e frugal de proposito: o guloso come o proprio ';' e depois nao
-  # tem o que casar.
+  # The '\N*?' is frugal on purpose: the greedy one eats its own ';' and then
+  # has nothing left to match.
   '#' [ \N*? ';' \h* \n ]* \N*
 }
 
@@ -111,36 +110,37 @@ rule namespacest
 
 token dottedname { <[A..Za..z_]> \w* [ '.' <[A..Za..z_]> \w* ]* }
 
-# ---- TL++: anotacoes -------------------------------------------------------
+# ---- TL++: annotations -----------------------------------------------------
 #
-# Uma linha que comeca com '@'. Pode ou nao levar argumentos entre
-# parenteses, e vem antes do que anota.
+# A line starting with '@'. It may or may not take arguments in parentheses,
+# and it comes before what it annotates.
 rule annotation
 {
   '@' <name> [ '(' ~ ')' <arglist> ]?
 }
 
-# ---- funcoes ---------------------------------------------------------------
+# ---- functions -------------------------------------------------------------
 rule function
 {
   [ <annotation> <.nl> ]*
   <funckind> <name> '(' ~ ')' <params> <.nl>
-  <body=corpofuncao>
+  <body=funcbody>
 }
 
-# O 'function' solto e aceito de proposito. O AdvPL o recusa ("Regular
-# functions are not allowed in code"), mas o TL++ aceita quando o nome comeca
-# com 'u_' -- e talvez com outros prefixos, que nao estao levantados. Recusar
-# aqui seria recusar TL++ valido.
+# A bare 'function' is accepted on purpose. AdvPL refuses it ("Regular
+# functions are not allowed in code"), but TL++ accepts it when the name
+# starts with 'u_' -- and maybe other prefixes, not yet surveyed. Refusing it
+# here would refuse valid TL++.
 token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
 
-# ---- TLPP: classes ----------------------------------------------------------
-# Nativo do TLPP, nao extensao do xtpl. Duas partes: o bloco 'Class ... EndClass'
-# com os membros 'Data' e as assinaturas 'Method', e as implementacoes
-# 'Method nome(...) Class Nome' soltas no arquivo, cada uma com o seu corpo.
+# ---- TL++: classes ---------------------------------------------------------
+# Native to TL++, not an xtpl extension. Two parts: the 'Class ... EndClass'
+# block with its 'Data' members and 'Method' signatures, and the
+# implementations 'Method name(...) Class Name' loose in the file, each with
+# its own body.
 rule classdecl
 {
-  :i 'class' <nome=name> [ :i [ 'from' || 'inherit' ] <supers=name>+ % ',' ]? <.nl>
+  :i 'class' <cname=name> [ :i [ 'from' || 'inherit' ] <supers=name>+ % ',' ]? <.nl>
   [ <classmember> <.nl> ]*
   :i 'endclass'
 }
@@ -153,24 +153,24 @@ rule classmember
 
 rule visib { :i [ 'public' || 'protected' || 'private' || 'exported' || 'hidden' ] }
 
-# 'Data nome [as tipo]', um ou mais por linha. O tipo aqui e um nome qualquer
-# (uma classe, inclusive), nao a lista fechada de 'as' das declaracoes.
+# 'Data name [as type]', one or more per line. The type here is any name (a
+# class included), not the closed list of 'as' in declarations.
 rule datadecl { <visib>? :i 'data' <datavar>+ % ',' }
-rule datavar  { <nome=name> [ :i 'as' <tipo=name> ]? }
+rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? }
 
-# A assinatura: 'Constructor' e o tipo de retorno sao opcionais e vem em
-# qualquer ordem.
-rule methdecl { <visib>? :i 'method' <nome=name> '(' ~ ')' <params> <methtag>* }
+# The signature: 'Constructor' and the return type are optional and come in
+# any order.
+rule methdecl { <visib>? :i 'method' <mname=name> '(' ~ ')' <params> <methtag>* }
 rule methtag  { :i 'constructor' || [ :i 'as' <ret=name> ] }
 
-# A implementacao, no nivel do arquivo. O 'as tipo' vem antes do 'class Nome'.
+# The implementation, at file level. The 'as type' comes before 'class Name'.
 rule methodimpl
 {
   [ <annotation> <.nl> ]*
-  :i 'method' <nome=name> '(' ~ ')' <params>
+  :i 'method' <mname=name> '(' ~ ')' <params>
      [ :i 'as' <ret=name> ]?
-     :i 'class' <classe=name> <.nl>
-  <body=corpofuncao>
+     :i 'class' <cname=name> <.nl>
+  <body=funcbody>
 }
 
 rule params
@@ -178,18 +178,19 @@ rule params
   <param>? [ ',' <param>? ]*
 }
 
-# Um parametro tambem pode ser tipado: 'f(nX as Numeric)'.
+# A parameter can be typed too: 'f(nX as Numeric)'.
 rule param
 {
-  <name> <!{ reservado(~$<name>) }> <typespec>?
+  <name> <!{ is-reserved(~$<name>) }> <typespec>?
 }
 
-# 'return' e um COMANDO, nao so o fim da funcao. Um return antecipado dentro
-# de um 'if' e corrente, e se o 'return' final fosse parte da regra da funcao,
-# o corpo engoliria os de dentro e sobraria nada para fechar.
-# O valor e opcional, e um 'if'/'while' logo depois do 'return' e o comeco de
-# um modificador, nao o valor: 'return if lSkip' devolve nada. Sem o '<!modkw>'
-# o 'if' virava um nome e a linha deixava de casar.
+# 'return' is a STATEMENT, not just the end of the function. An early return
+# inside an 'if' is common, and if the final 'return' were part of the
+# function rule, the body would swallow the inner ones and leave nothing to
+# close it.
+# The value is optional, and an 'if'/'while' right after 'return' starts a
+# modifier, not the value: 'return if lSkip' returns nothing. Without the
+# '<!modkw>' the 'if' became a name and the line stopped matching.
 rule returnst
 {
   :i 'return' [ <!modkw> <expr=guardexpr> ]?
@@ -198,41 +199,43 @@ rule returnst
 rule exitst { :i 'exit' }
 rule loopst { :i 'loop' }
 
-# Cada comando termina a sua linha. O corpo para no primeiro que nao casa --
-# 'endif', 'next', a proxima 'function' -- e quem o chamou decide o que e.
+# Each statement ends its line. The body stops at the first one that does not
+# match -- 'endif', 'next', the next 'function' -- and the caller decides what
+# it is.
 #
-# O PROLOGO
+# THE PROLOGUE
 #
-# As declaracoes vem antes do primeiro comando do corpo -- e o que o AdvPL
-# exige dos 'local', e o xtpl estende aos blocos. Um bloco tem UM prologo, no
-# comeco do seu primeiro corpo: o do 'if', do 'while', do 'for'. O 'elseif' e o
-# 'else' sao comandos do mesmo bloco, entao os seus corpos ja nascem fechados;
-# o 'case' idem, e o 'begin sequence' nem e um escopo para o xtpl. Conferido
-# contra o proprio xtpl, caso a caso.
+# Declarations come before the first statement of the body -- what AdvPL
+# requires of 'local', and what xtpl extends to blocks. A block has ONE
+# prologue, at the start of its first body: that of 'if', 'while', 'for'.
+# 'elseif' and 'else' are statements of the same block, so their bodies start
+# closed; so does 'case', and 'begin sequence' is not even a scope for xtpl.
+# Checked against xtpl itself, case by case.
 #
-# Tres corpos, que so diferem no que abrem:
+# Three bodies, differing only in what they open:
 #
-#     corpofuncao     prologo aberto, e e o nivel da funcao
-#     body            prologo aberto, dentro de um bloco
-#     corpofechado    prologo ja fechado: nenhuma declaracao
+#     funcbody      prologue open, at function level
+#     body          prologue open, inside a block
+#     closedbody    prologue already closed: no declarations
 #
-# '$*COMANDO' diz se o prologo ja fechou; 'statement' o liga depois de todo
-# comando que nao e declaracao. '$*TOPO' diz se as declaracoes daqui saem com
-# o nome como foi escrito -- as de bloco viram slots, e so as do nivel da
-# funcao podem colidir com um nome gerado.
-rule corpofuncao  { :my $*COMANDO = False; :my $*TOPO = True;  [ <statement> <.nl> ]* }
-rule body         { :my $*COMANDO = False; :my $*TOPO = False; [ <statement> <.nl> ]* }
-rule corpofechado { :my $*COMANDO = True;  :my $*TOPO = False; [ <statement> <.nl> ]* }
+# '$*PAST-PROLOGUE' says whether the prologue has closed; 'statement' sets it
+# after every statement that is not a declaration. '$*TOP-LEVEL' says whether
+# declarations here are emitted with the name as written -- block locals
+# become slots, and only function-level ones can collide with a generated
+# name.
+rule funcbody   { :my $*PAST-PROLOGUE = False; :my $*TOP-LEVEL = True;  [ <statement> <.nl> ]* }
+rule body       { :my $*PAST-PROLOGUE = False; :my $*TOP-LEVEL = False; [ <statement> <.nl> ]* }
+rule closedbody { :my $*PAST-PROLOGUE = True;  :my $*TOP-LEVEL = False; [ <statement> <.nl> ]* }
 
-# ---- tipos ------------------------------------------------------------------
+# ---- types ------------------------------------------------------------------
 #
-# O tipo pode vir declarado ou sair do inicializador:
+# The type can be declared or come from the initializer:
 #
-#     local aLista := {}              implicito
-#     local aLista as Array           explicito
-#     local aLista := {} as Array     os dois, e tem de bater
+#     local aList := {}              implicit
+#     local aList as Array           explicit
+#     local aList := {} as Array     both, and they must agree
 #
-# Os nomes abreviam para a primeira letra: 'as A' e 'as Array'.
+# The names abbreviate to their first letter: 'as A' and 'as Array'.
 rule typespec
 {
   :i 'as' <typename>
@@ -253,80 +256,85 @@ token typename
   ]
 }
 
-# ---- comandos ---------------------------------------------------------------
-# Os comandos de bloco e as declaracoes nao levam modificador; os simples
-# levam um, opcional, no fim da linha: 'x := 1 if c', 'return n if c',
-# 'exit if c', 'f() while c'. O 'exec' e um comando simples que so existe com
-# modificador.
+# ---- statements ---------------------------------------------------------------
+# Block statements and declarations take no modifier; simple ones take one,
+# optionally, at the end of the line: 'x := 1 if c', 'return n if c',
+# 'exit if c', 'f() while c'. 'exec' is a simple statement that only exists
+# with a modifier.
 rule statement
 {
   [
      <annotation>
   || <seqst>
-  || [ <!{ $*COMANDO // False }> <declaration> ]
+  || [ <!{ $*PAST-PROLOGUE // False }> <declaration> ]
   || <ifst>
   || <whilest>
   || <forst>
   || <docasest>
   || <execst>
   || <deferst>
-  || [ <simples> <modifier>? ]
+  || [ <simple> <modifier>? ]
   ]
-  { try $*COMANDO = True unless $<declaration> }
+  { try $*PAST-PROLOGUE = True unless $<declaration> }
 }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
 #
-#     defer fechaCursor()
-#     defer aLinhas |> valida() |> grava()
+#     defer closeCursor()
+#     defer aLines |> validate() |> save()
 #     defer nTotal := nTotal + 1
 #
-# Registra um comando para rodar antes de toda saida da funcao, na ordem
-# inversa do registro. O corpo e um comando comum -- atribuicao, cadeia ou
-# chamada --, e o 'defer' pode estar dentro de um bloco. Nao leva modificador:
-# em 'defer f() if c' nao haveria como dizer de quem e o 'if'.
-# Sem '>>' depois do 'defer': num 'rule', o espaco antes dele poe um <.ws>
-# que come o espaco, e o '>>' passa a exigir fim de palavra no comeco da
-# seguinte. O <.ws> ja recusa partir uma palavra, entao 'deferred' nao casa.
+# Registers a statement to run before every exit from the function, in the
+# reverse order of registration. The body is an ordinary statement --
+# assignment, pipeline or call --, and a 'defer' may sit inside a block. It
+# takes no modifier: in 'defer f() if c' there would be no telling whose 'if'
+# it is.
+# No '>>' after 'defer': in a 'rule', the space before it inserts a <.ws> that
+# eats the space, and '>>' would then demand a word end at the start of the
+# next word. <.ws> already refuses to split a word, so 'deferred' does not
+# match.
 rule deferst { :i 'defer' [ <assignment> || <pipest> || <callst> ] }
 
-rule simples
+rule simple
 {
      <returnst>
   || <exitst>
   || <loopst>
   || <assignment>
-  || <atribnil>
+  || <nilassign>
   || <pipest>
   || <callst>
 }
 
-# ---- xtpl: '?=' -- atribui se Nil ---------------------------------------------
-# So como comando: 'cCache ?= "vazio"'. Nunca numa expressao -- '(f() ?= {})'
-# e recusado, o doc manda usar '?:' --, nem numa declaracao: 'local x ?= v'
-# nunca falharia o teste, e e recusado.
-rule atribnil { <!stmtword> <lvalue> '?=' <expr> }
+# ---- xtpl: '?=' -- assign if Nil ----------------------------------------------
+# Only as a statement: 'cCache ?= "empty"'. Never in an expression --
+# '(f() ?= {})' is refused, xtpl's doc says to use '?:' --, nor in a
+# declaration: 'local x ?= v' could never fail the test, and is refused.
+rule nilassign { <!stmtword> <lvalue> '?=' <expr> }
 
-# Uma cadeia pelos efeitos, sem atribuicao na frente: 'aPedidos |> valida()
-# |> grava()'. Antes de 'callst', que casaria 'valida()' sozinho numa linha
-# que comeca com 'f(x) |> ...' e deixaria o resto sem dono.
-rule pipest { <!stmtword> <elvis> <alimentacao>+ }
+# A pipeline for its effects, with no assignment in front: 'aOrders |>
+# validate() |> save()'. Before 'callst', which would match 'validate()' alone
+# on a line starting with 'f(x) |> ...' and leave the rest without an owner.
+rule pipest { <!stmtword> <elvis> <feed>+ }
 
-# ---- xtpl: modificadores posfixados ----------------------------------------
+# ---- xtpl: postfix modifiers ------------------------------------------------
 #
-#     lFeito := .T. if nTotal > 5         If nTotal > 5 / lFeito := .T. / EndIf
+#     lDone := .T. if nTotal > 5          If nTotal > 5 / lDone := .T. / EndIf
 #     conout("x") while nTotal < 0        While nTotal < 0 / conout("x") / EndDo
-#     exec limpaTudo() if nTotal == 0     If ... / limpaTudo() / EndIf
-#     return(nTotal) if nX > 100          o 'return' tambem, colado no '('
+#     exec clearAll() if nTotal == 0      If ... / clearAll() / EndIf
+#     return(nTotal) if nX > 100          'return' too, touching the '('
 #
-# A palavra so vale solta: o limite de palavra do 'rule' impede que o 'if' de
-# 'iif(' seja lido como modificador. E a condicao vai ate o fim da linha.
-# A palavra vem pelo token 'modkw': capturada num '$<kw>=[...]' dentro deste
-# 'rule', o espaco que o :sigspace poe depois dela entrava na captura ("if ").
+# The word only counts on its own: the 'rule' word boundary keeps the 'if' of
+# 'iif(' from being read as a modifier. The condition runs to the end of the
+# line.
+# The word comes through the 'modkw' token: captured as '$<kw>=[...]' inside
+# this 'rule', the space that :sigspace adds after it got into the capture
+# ("if ").
 rule modifier { <kw=modkw> <cond=expr> }
 token modkw   { :i [ 'if' || 'while' ] >> }
 
-# 'exec <expr>' marca uma expressao como comando. Sem modificador nao existe.
+# 'exec <expr>' marks an expression as a statement. It does not exist without
+# a modifier.
 rule execst   { :i 'exec' <expr> <modifier> }
 
 token blockcomment { '/*' .*? '*/' }
@@ -338,108 +346,109 @@ rule declaration
 
 rule declkind { :i [ 'local' || 'private' || 'public' || 'static' ] }
 
-# 'local' isolado, para os cabecalhos de bloco que declaram.
+# 'local' on its own, for the block headers that declare.
 token kwlocal { :i 'local' }
 
-# O tipo, antes ou depois do inicializador:
+# The type, before or after the initializer:
 #
 #     local nX := 1 as Numeric        TL++
-#     local nX as Numeric             TL++, sem inicializador
-#     local nX as Numeric := 1        xtpl -- o TL++ recusa
+#     local nX as Numeric             TL++, no initializer
+#     local nX as Numeric := 1        xtpl -- TL++ refuses it
 #
-# O TL++ so aceita o tipo depois. O xtpl aceita as duas ordens e emite a do
-# TL++ (docs/language.md, "Tipos do TLPP"). Esta e a gramatica do xtpl, entao
-# a ordem do xtpl entra, e baixar para TL++ e trocar as duas partes de lugar.
+# TL++ only accepts the type after. xtpl accepts both orders and emits TL++'s
+# (docs/language.en.md, "TLPP types"). This is xtpl's grammar, so xtpl's order
+# is in, and lowering to TL++ swaps the two parts.
 #
-# O tipo uma vez so: 'local nX as Numeric := 1 as Numeric' e recusado.
+# The type only once: 'local nX as Numeric := 1 as Numeric' is refused.
 #
-# E as marcas do xtpl, logo depois do nome: 'local aBuf <contained, const> :=
-# {}'. Entre um nome e o ':=' nao cabe expressao nenhuma, entao o '<' e o '>'
-# nao sao comparacao ali. '<const>' precisa de valor -- nunca vai poder
-# receber outro --, e a ultima linha recusa um 'const' sem inicializador.
+# And xtpl's attributes, right after the name: 'local aBuf <contained, const>
+# := {}'. No expression fits between a name and ':=', so '<' and '>' are not
+# comparisons there. '<const>' needs a value -- it can never be given
+# another --, and the last line refuses a 'const' without an initializer.
 #
-# As marcas sao capturadas UMA vez, antes das alternativas, e nao em cada
-# uma: no rakupp 4.0.1 uma captura quantificada ('<x>?') feita numa
-# alternativa de '||' que depois falha nao e descartada -- ela se junta a da
-# alternativa que casou, e '<contained>' voltava quatro vezes.
+# The attributes are captured ONCE, before the alternatives, not in each one:
+# under rakupp 4.0.1 a quantified capture ('<x>?') made in a '||' alternative
+# that later fails is not discarded -- it is merged into the one that matched,
+# and '<contained>' came back four times.
 rule declarator
 {
   <name>
-  <!{ reservado(~$<name>) }>
-  <!{ ($*TOPO // False) && gerado(~$<name>) }>
-  <marcas>?
+  <!{ is-reserved(~$<name>) }>
+  <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) }>
+  <attrs>?
   [    [ ':=' <expr=guardexpr> <typespec>? ]
     || [ <typespec> ':=' <expr=guardexpr> ]
     || [ <typespec> ]
     || <?> ]
-  <!{ $<marcas> && (~$<marcas>).lc.contains('const') && !$<expr> }>
+  <!{ $<attrs> && (~$<attrs>).lc.contains('const') && !$<expr> }>
 }
 
-token marcas { '<' \s* <marca>+ % [ \s* ',' \s* ] \s* '>' }
-token marca  { :i [ 'const' || 'contained' ] >> }
+token attrs { '<' \s* <attr>+ % [ \s* ',' \s* ] \s* '>' }
+token attr  { :i [ 'const' || 'contained' ] >> }
 
-# As partes levam nome -- '<cond=expr>', '<corpo=body>' -- porque as
-# repetidas voltam como lista, e sem nome o corpo do 'else' seria so o ultimo
-# de uma lista que as vezes tem um a mais.
-# 'if local x := f(), <cond>' declara um local do bloco no proprio cabecalho e
-# so entao a condicao. O 'local' e uma palavra reservada, entao a virgula
-# separa o declarador da condicao sem ambiguidade: 'f()' para na virgula, e o
-# que vem depois e a condicao. So o 'if' de abertura declara; 'elseif' nao.
+# The parts are named -- '<cond=expr>', '<then=body>' -- because repeated
+# ones come back as a list, and unnamed the 'else' body would be just the last
+# of a list that sometimes has one more.
+# 'if local x := f(), <cond>' declares a block local in the header itself, and
+# only then the condition. 'local' is a reserved word, so the comma separates
+# the declarator from the condition unambiguously: 'f()' stops at the comma,
+# and what follows is the condition. Only the opening 'if' declares; 'elseif'
+# does not.
 rule ifst
 {
   :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
-     <corpo=body>
-  [ :i 'elseif' <cond=expr> <.nl> <corpo=corpofechado> ]*
-  [ :i 'else' <.nl> <senao=corpofechado> ]?
+     <then=body>
+  [ :i 'elseif' <cond=expr> <.nl> <then=closedbody> ]*
+  [ :i 'else' <.nl> <else=closedbody> ]?
   :i 'endif'
 }
 
 rule whilest
 {
   :i 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
-     <corpo=body>
+     <block=body>
   :i [ 'enddo' || 'end' ]
 }
 
-# 'for local i := ...' faz de 'i' um local novo do laco. Sem 'local', 'i' e
-# uma variavel ja declarada antes.
+# 'for local i := ...' makes 'i' a new local of the loop. Without 'local', 'i'
+# is a variable declared before.
 rule forst
 {
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
-     <!{ $<varlocal> && reservado(~$<var>) }> ':=' <de=expr>
-     :i 'to' <ate=expr> [ :i 'step' <passo=expr> ]? <.nl>
-     <corpo=body>
-  :i 'next' <fim=name>?
+     <!{ $<varlocal> && is-reserved(~$<var>) }> ':=' <from=expr>
+     :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
+     <block=body>
+  :i 'next' <endname=name>?
 }
 
-# 'do case with <sujeito>' avalia o sujeito uma vez e lhe da um nome, em vez
-# de repetir a expressao em cada 'case'. Com 'local' o sujeito e um local novo
-# do bloco; sem, atribui a uma variavel ja declarada.
+# 'do case with <subject>' evaluates the subject once and names it, instead of
+# repeating the expression in every 'case'. With 'local' the subject is a new
+# block local; without, it assigns to a variable declared before.
 rule docasest
 {
-  :i 'do' 'case' [ :i 'with' <sujeito> ]? <.nl>
-  [ :i 'case' <cond=expr> <.nl> <corpo=corpofechado> ]+
-  [ :i 'otherwise' <.nl> <senao=corpofechado> ]?
+  :i 'do' 'case' [ :i 'with' <subject> ]? <.nl>
+  [ :i 'case' <cond=expr> <.nl> <then=closedbody> ]+
+  [ :i 'otherwise' <.nl> <else=closedbody> ]?
   :i 'endcase'
 }
 
-rule sujeito
+rule subject
 {
-     [ :i <sujlocal=kwlocal> <hdrdecl> ]
+     [ :i <subjlocal=kwlocal> <hdrdecl> ]
   || <assignment>
 }
 
-# A declaracao de um cabecalho de bloco precisa de inicializador: e o valor que
-# ela liga para a condicao ou para os 'case'. 'local x' sozinho iria para o
-# prologo.
-rule hdrdecl { <name> <!{ reservado(~$<name>) }> ':=' <expr> <typespec>? }
+# A block header declaration needs an initializer: it is the value it binds
+# for the condition or for the 'case's. A bare 'local x' would belong in the
+# prologue.
+rule hdrdecl { <name> <!{ is-reserved(~$<name>) }> ':=' <expr> <typespec>? }
 
-# BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- o tratamento de erro.
+# BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- error handling.
 rule seqst
 {
   :i 'begin' 'sequence' <.nl>
-     <corpo=corpofechado>
-  [ :i 'recover' [ :i 'using' <erro=name> ]? <.nl> <recupera=corpofechado> ]?
+     <block=closedbody>
+  [ :i 'recover' [ :i 'using' <errvar=name> ]? <.nl> <recover=closedbody> ]?
   :i 'end' [ :i 'sequence' ]?
 }
 
@@ -450,16 +459,16 @@ rule assignment
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 
-# Uma chamada de verdade, nao um nome solto: ou tem parenteses, ou tem ao
-# menos um ':' / '->' / '[' depois.
+# A real call, not a bare name: either it has parentheses, or at least one
+# ':' / '->' / '[' after.
 #
-# E nao pode COMECAR com uma palavra que abre um comando. Sem essa guarda,
-# 'return (.t.)' casa como chamada a uma funcao chamada 'return', o corpo
-# engole a linha, e a funcao acaba sem o return que a fecha.
+# And it cannot START with a word that opens a statement. Without that guard,
+# 'return (.t.)' matches as a call to a function named 'return', the body
+# swallows the line, and the function ends without the return that closes it.
 #
-# A guarda fica aqui e em <assignment>, e nao em <name>: 'If', 'End' e 'Next'
-# sao nomes de funcao e de metodo -- 'If(c,a,b)' e o ternario e 'oDlg:End()'
-# fecha um dialogo. So o comeco de um comando e reservado.
+# The guard lives here and in <assignment>, not in <name>: 'If', 'End' and
+# 'Next' are function and method names -- 'If(c,a,b)' is the ternary and
+# 'oDlg:End()' closes a dialog. Only the start of a statement is reserved.
 rule callst
 {
   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] ]
@@ -476,139 +485,144 @@ token stmtword
   ] >>
 }
 
-# ---- expressoes, por precedencia --------------------------------------------
+# ---- expressions, by precedence ---------------------------------------------
 #
-# Cada nivel escrito como 'a [ op a ]*', e nao como 'a+ % op'. Num 'rule',
-# '<n>+ % <op>' nao casa quando a entrada tem espacos:
+# Each level written as 'a [ op a ]*', not as 'a+ % op'. In a 'rule',
+# '<n>+ % <op>' does not match when the input has spaces:
 #
-#     rule TOP { <n>+ % <op> }          # nao casa '1 + 2 - 3', casa '1+2-3'
-#     rule TOP { <n> [ <op> <n> ]* }     # casa os dois
+#     rule TOP { <n>+ % <op> }          # no match on '1 + 2 - 3', matches '1+2-3'
+#     rule TOP { <n> [ <op> <n> ]* }     # matches both
 #
-# E o Raku, nao o rakupp: o Rakudo 2026.08 faz igual.
+# That is Raku, not rakupp: Rakudo 2026.08 does the same.
 #
-# Sem o operador capturado, 'a + b' virava um no de soma com operador vazio,
-# e o verificador de tipos nao sabia que era uma soma.
+# Without the operator captured, 'a + b' became a sum node with an empty
+# operator, and the type checker could not tell it was a sum.
+#
 # ---- xtpl: '|>' ------------------------------------------------------------
 #
-#     aCodigos := aPedidos |> filter([o] o:nValor > 1000) |> map([o] o:cCodigo)
-#     nTotal   := len(aNums |> distinct)
+#     aCodes := aOrders |> filter([o] o:nValue > 1000) |> map([o] o:cCode)
+#     nTotal := len(aNums |> distinct)
 #
-# O valor da esquerda vira o PRIMEIRO argumento da etapa da direita. O '|>' e
-# o nivel mais frouxo: a fonte vai ate a virgula, o parenteses ou o comeco da
-# expressao que a contem. Uma etapa e uma chamada ou um nome solto
-# ('|> asum' e 'asum(x)').
+# The value on the left becomes the FIRST argument of the stage on the right.
+# '|>' is the loosest level: the source runs back to the comma, the
+# parenthesis or the start of the expression holding it. A stage is a call or
+# a bare name ('|> asum' is 'asum(x)').
 #
-# Nao dentro de um lambda nem de um code block: o corpo roda depois, e icar
-# uma etapa para fora dele a faria rodar antes. O lambda e o code block ligam
-# '$*BLOCO', e com ele ligado nenhuma expressao de dentro aceita '|>'.
-rule expr        { <elvis> <alimentacao>* }
+# Not inside a lambda or code block: the body runs later, and lifting a stage
+# out of it would run the stage first. The lambda and the code block set
+# '$*IN-BLOCK', and with it set no expression inside accepts '|>'.
+rule expr        { <elvis> <feed>* }
 
 # ---- xtpl: 'fallback' --------------------------------------------------------
 #
-#     cResposta := chamaServico(cUrl) fallback ""
+#     cReply := callService(cUrl) fallback ""
 #     n := aNums |> filter([x] x > 1) |> asum fallback 0
-#     aL := (arriscada(2) fallback {}) |> map([x] x * 2)
+#     aL := (risky(2) fallback {}) |> map([x] x * 2)
 #
-# Protege uma expressao: se ela levantar erro, vale a alternativa. O xtpl tira
-# o 'fallback' da cauda da linha, entao ele nao e um operador que caiba em
-# qualquer lugar: so no valor de uma atribuicao, de uma declaracao ou de um
-# 'return', e entre parenteses -- os parenteses sao o jeito de proteger so um
-# pedaco. Mais frouxo que o '|>': protege a cadeia inteira. Nao dentro de um
-# lambda ou code block, como o '|>'.
+# Guards an expression: if it raises an error, the alternative is the value.
+# xtpl strips 'fallback' off the tail of the line, so it is not an operator
+# that fits anywhere: only in the value of an assignment, a declaration or a
+# 'return', and inside parentheses -- parentheses are how to guard just a
+# piece. Looser than '|>': it guards the whole pipeline. Not inside a lambda
+# or code block, like '|>'.
 #
-# As duas partes levam nome: um <expr> e um <alt=expr> no mesmo nivel viriam
-# juntos numa lista em $<expr>.
-rule guardexpr { <prot=expr> [ <!{ $*BLOCO // False }> <fbkw> <alt=expr> ]? }
+# Both parts are named: an <expr> and an <alt=expr> at the same level would
+# come back together as a list in $<expr>.
+rule guardexpr { <guarded=expr> [ <!{ $*IN-BLOCK // False }> <fbkw> <fallback=expr> ]? }
 token fbkw     { :i 'fallback' >> }
 
 # ---- xtpl: '?:' -- elvis -----------------------------------------------------
-# O valor da esquerda, a menos que seja Nil. Entre o '.or.' e o '|>', e
-# encadeia pela direita: 'primeiro() ?: segundo() ?: "ultimo"'.
-rule elvis       { <orexpr> [ <elvisop> <orexpr> ]* }
-token elvisop    { '?:' }
-rule alimentacao { <!{ $*BLOCO // False }> '|>' <etapa> }
-rule etapa       { <nscall> || <call> || <name> }
+# The value on the left, unless it is Nil. Between '.or.' and '|>', and it
+# chains to the right: 'first() ?: second() ?: "last"'.
+rule elvis     { <orexpr> [ <elvisop> <orexpr> ]* }
+token elvisop  { '?:' }
+rule feed      { <!{ $*IN-BLOCK // False }> '|>' <stage> }
+rule stage     { <nscall> || <call> || <name> }
 rule orexpr    { <andexpr> [ <orop> <andexpr> ]* }
 token orop     { :i '.or.' }
 rule andexpr   { <notexpr> [ <andop> <notexpr> ]* }
 token andop    { :i '.and.' }
 rule notexpr   { <negate>? <cmpexpr> }
 token negate   { '!' || [ :i '.not.' ] }
-# ---- comparacao, com 'in' e 'has' do xtpl -------------------------------------
+
+# ---- comparison, with xtpl's 'in' and 'has' -----------------------------------
 #
-#     cCod in aCodigos       u_xtpl_in(cCod, aCodigos)
-#     nValor in 1..100       (nValor >= 1 .And. nValor <= 100)
-#     hCfg has "taxa"        o retorno logico do Get
+#     cCode in aCodes       u_xtpl_in(cCode, aCodes)
+#     nValue in 1..100      (nValue >= 1 .And. nValue <= 100)
+#     hCfg has "rate"       the logical result of the Get
 #
-# Os dois no nivel do '$' do AdvPL, que e o que eles sao: a colecao do 'in' vai
-# ate a virgula, o colchete ou o '.and.'/'.or.' do mesmo nivel. O lado direito
-# do 'in' e o unico lugar, alem da fonte de uma cadeia, onde cabe um 'lo..hi'.
-rule cmpexpr   { <rangeexpr> <cmpresto>* }
-rule cmpresto  { [ <op=inop> <dir=inrhs> ] || [ <op=cmpop> <dir=rangeexpr> ] }
+# Both at the level of AdvPL's '$', which is what they are: the collection of
+# 'in' runs to the comma, the bracket or the '.and.'/'.or.' of the same level.
+# The right of 'in' is the only place, besides the source of a pipeline,
+# where a 'lo..hi' fits.
+rule cmpexpr   { <rangeexpr> <cmptail>* }
+rule cmptail   { [ <op=inop> <rhs=inrhs> ] || [ <op=cmpop> <rhs=rangeexpr> ] }
 token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$'
                || [ :i 'has' >> ] }
 token inop     { :i 'in' >> }
 
 # ---- xtpl: 'lo..hi' ---------------------------------------------------------
-# So em dois lugares: a direita de um 'in', e como fonte de uma cadeia
-# ('1..999 |> filter(...)'). Em qualquer outro ponto nao ha o que um
-# intervalo seja, entao fora de um 'in' ele so casa seguido de '|>'.
-# As duas pontas levam nome: uma captura com apelido tambem entra no nome
-# original (e o Raku), entao dois <addexpr> no mesmo nivel viriam juntos numa
-# lista em $<addexpr>.
-rule rangeexpr { <de=addexpr> [ '..' <ate=addexpr> <?before <.ws> '|>'> ]? }
-rule inrhs     { <de=addexpr> [ '..' <ate=addexpr> ]? }
+# Only in two places: the right of an 'in', and as the source of a pipeline
+# ('1..999 |> filter(...)'). Anywhere else there is nothing a range could be,
+# so outside an 'in' it only matches when followed by '|>'.
+# Both ends are named: an aliased capture also lands under the original name
+# (that is Raku), so two <addexpr> at the same level would come back together
+# as a list in $<addexpr>.
+rule rangeexpr { <lo=addexpr> [ '..' <hi=addexpr> <?before <.ws> '|>'> ]? }
+rule inrhs     { <lo=addexpr> [ '..' <hi=addexpr> ]? }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
 rule mulexpr   { <unary> [ <mulop> <unary> ]* }
-# '%%' -- divisivel por -- antes do '%' do AdvPL, que sozinho passa intocado.
+# '%%' -- divisible by -- before AdvPL's '%', which passes through untouched.
 token mulop    { '%%' || '*' || '/' || '%' }
 rule unary     { <sign>? <postfix> }
 token sign     { '-' || '+' }
 
-# Um literal nao leva trailer: string e numero nao tem membro nem indice. Sem
-# isso '{ "a": nX }' casava como um ARRAY cujo item era o membro 'nX' da
-# string "a" -- o ':' do par virava o de um membro, e o JSON caia para array.
+# A literal takes no trailer: strings and numbers have no members or indices.
+# Without this, '{ "a": nX }' matched as an ARRAY whose item was member 'nX'
+# of the string "a" -- the pair's ':' became a member's, and the JSON fell
+# back to an array.
 rule postfix
 {
      <literal>
   || [ <primary> <trailer>* ]
 }
 
-# Uma regra por forma, para a arvore saber qual casou.
+# One rule per form, so the tree knows which one matched.
 rule trailer
 {
      <thash>
-  || <tseguro>
-  || <tmetodo>
-  || <tmembro>
-  || <tindice>
-  || <temalias>
-  || <tcampo>
+  || <tsafe>
+  || <tmethod>
+  || <tmember>
+  || <tindex>
+  || <tinalias>
+  || <tfield>
 }
 
-# ':' seguido de um metodo COM argumentos: 'MSDialog():New(...)'. Antes do
-# membro simples, senao ele casaria o nome e deixaria os parenteses para tras.
-rule tmetodo  { ':' <member> '(' ~ ')' <arglist> }
-rule tmembro  { ':' <member> }
+# ':' followed by a method WITH arguments: 'MSDialog():New(...)'. Before the
+# plain member, or that would match the name and leave the parentheses
+# behind.
+rule tmethod  { ':' <member> '(' ~ ')' <arglist> }
+rule tmember  { ':' <member> }
 
-# ---- xtpl: 'h{"k"}' -- acesso a hash ----------------------------------------
-# Chaves indexam um hash, colchetes indexam um array. Um '{' LOGO depois de um
-# nome -- sem espaco -- e acesso a hash, coisa que o AdvPL nunca tem; o
-# '<?after \w>' e o 'logo depois': o espaco entre o nome e o '{' ja foi comido
-# pelo <.ws> de quem chamou, e ai o que fica atras e o espaco.
-rule thash    { <?after \w> '{' ~ '}' <chave=expr> }
+# ---- xtpl: 'h{"k"}' -- hash access ------------------------------------------
+# Braces index a hash, brackets index an array. A '{' RIGHT after a name --
+# no space -- is hash access, which AdvPL never has; '<?after \w>' is the
+# 'right after': a space between the name and '{' has already been eaten by
+# the caller's <.ws>, and then what lies behind is that space.
+rule thash    { <?after \w> '{' ~ '}' <key=expr> }
 
-# ---- xtpl: '?.' -- acesso seguro --------------------------------------------
-# 'oUsuario?.oEndereco?.cCidade': um elo Nil devolve Nil. So membro, sem
-# chamada -- e o que a doc e os testes do xtpl mostram.
-rule tseguro  { '?.' <member> }
-rule tindice  { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
-rule temalias { '->' '(' ~ ')' <expr> }
-rule tcampo   { '->' <member> }
+# ---- xtpl: '?.' -- safe access ----------------------------------------------
+# 'oUser?.oAddress?.cCity': a Nil link returns Nil. Members only, no calls --
+# which is what xtpl's doc and tests show.
+rule tsafe    { '?.' <member> }
+rule tindex   { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
+rule tinalias { '->' '(' ~ ')' <expr> }
+rule tfield   { '->' <member> }
 
-# Depois de ':' ou '->' vem um MEMBRO, e um membro pode chamar-se 'End' ou
-# 'Next'. A lista de reservadas vale onde um comando comeca, nao aqui.
+# After ':' or '->' comes a MEMBER, and a member can be called 'End' or
+# 'Next'. The reserved list applies where a statement starts, not here.
 token member { <[A..Za..z_]> \w* }
 
 rule primary
@@ -628,15 +642,16 @@ rule primary
   || [ '(' ~ ')' <expr=guardexpr> ]
 }
 
-# Uma chamada qualificada por um caminho pontuado do TL++:
+# A call qualified by a TL++ dotted path:
 #
-#     totvs.tools.Alguma.Coisa():New()
+#     totvs.tools.Some.Thing():New()
 #
-# O que distingue isso de 'nA.And.nB' -- lexicamente igual -- e terminar em
-# chamada: 'qname' exige o '(' logo depois. E os segmentos nao podem ser as
-# palavras dos operadores '.and.'/'.or.'/'.not.', senao esta regra roubaria
-# 'nA.And.nB' do operador. Fora isso, e TL++ puro e sai como entrou, entao o
-# no e uma Chamada comum cujo nome ja traz os pontos.
+# What sets it apart from 'nA.And.nB' -- lexically the same -- is ending in a
+# call: 'qname' requires the '(' right after. And the segments cannot be the
+# words of the '.and.'/'.or.'/'.not.' operators, or this rule would steal
+# 'nA.And.nB' from the operator. Apart from that it is plain TL++ and goes
+# out as it came in, so the node is an ordinary Call whose name carries the
+# dots.
 rule nscall { <qname> '(' ~ ')' <arglist> }
 
 token qname
@@ -645,8 +660,8 @@ token qname
 }
 token logword { :i [ 'and' || 'or' || 'not' ] <![\w]> }
 
-# O operador macro: '&(expressao)' ou '&nome'. Compila e roda a string em
-# tempo de execucao -- nada aqui enxerga o que ha dentro.
+# The macro operator: '&(expression)' or '&name'. Compiles and runs the
+# string at run time -- nothing here sees what is inside.
 rule macro
 {
   '&' [ [ '(' ~ ')' <expr> ] || <name> ]
@@ -654,72 +669,76 @@ rule macro
 
 rule call        { <name> '(' ~ ')' <arglist> }
 
-# Uma posicao por virgula, vazia ou nao: 'f( , 1, , )' tem quatro, e a arvore
-# precisa saber em qual o '1' esta. Escrito a mao em vez de com '%': um item
-# que pode casar vazio dentro de um '*' para na primeira volta, e ai ',1' nao
-# casa.
+# One position per comma, empty or not: 'f( , 1, , )' has four, and the tree
+# needs to know which one the '1' is in. Written by hand instead of with '%':
+# an item that can match empty inside a '*' stops on the first round, and then
+# ',1' does not match.
 rule arglist     { <slot> [ ',' <slot> ]* }
 rule slot        { <arg>? }
 
-# Uma atribuicao tambem e um argumento valido: 'If( c, a, cA := u )'.
+# An assignment is a valid argument too: 'If( c, a, cA := u )'.
 rule arg         { <byref> || <assignment> || <expr> }
 rule byref       { '@' <name> }
 
-# 'SA1->A1_NOME' e 'SA1->( DbGoTop() )'. O 'SA1' e o NOME de uma area, nao uma
-# variavel: com variavel se escreve '(cAlias)->A1_NOME', que e um primario
-# entre parenteses seguido de um trailer.
-rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <campo=member> ] }
+# 'SA1->A1_NOME' and 'SA1->( DbGoTop() )'. 'SA1' is the NAME of a work area,
+# not a variable: with a variable one writes '(cAlias)->A1_NOME', which is a
+# parenthesized primary followed by a trailer.
+rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <field=member> ] }
 
-# '{ : }' e o JSON vazio e '{ => }' o hash vazio. Precisam de grafia propria
-# porque '{}' ja quer dizer array vazio -- e tem de vir ANTES de
-# <arrayliteral>, que casaria as chaves e deixaria o ':' para tras.
-# Pelo menos um par, ou o ':' do vazio. Com '<pair>*' um '{}' sem nada
-# dentro casava aqui -- e esta regra vem antes de <arrayliteral>, entao todo
-# array vazio virava JSON.
+# '{ : }' is the empty JSON and '{ => }' the empty hash. They need a spelling
+# of their own because '{}' already means the empty array -- and they must
+# come BEFORE <arrayliteral>, which would match the braces and leave the ':'
+# behind.
+# At least one pair, or the ':' of the empty one. With '<pair>*' an empty '{}'
+# matched here -- and this rule comes before <arrayliteral>, so every empty
+# array became JSON.
 rule jsonliteral { '{' ~ '}' [ ':' || [ <pair>+ % ',' ] ] }
 rule hashliteral { '{' ~ '}' [ '=>' || [ <hashpair>+ % ',' ] ] }
 rule pair        { <expr> ':' <expr> }
 rule hashpair    { <expr> '=>' <expr> }
 rule arrayliteral { '{' ~ '}' [ <expr>* % ',' ] }
 
-# '{ || ... }' e um bloco sem parametros, e os dois pipes ficam colados.
+# '{ || ... }' is a block with no parameters, and the two pipes touch.
 rule codeblock
 {
-  :my $*BLOCO = True;
+  :my $*IN-BLOCK = True;
   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] <blockexpr>* % ',' '}'
 }
 
-# Dentro de um code block a atribuicao E uma expressao.
+# Inside a code block an assignment IS an expression.
 rule blockexpr   { <assignment> || <expr> }
 
 # ---- xtpl: lambda -------------------------------------------------------------
 #
-#     map(aPedidos, [o] o:nValor)                     {|o| o:nValor}
+#     map(aOrders, [o] o:nValue)                      {|o| o:nValue}
 #     reduce(aNums, [acc, x] acc + x, 0)              {|acc, x| acc + x}
-#     tap([cLinha] nLidas += 1)                       uma atribuicao tambem
+#     tap([cLine] nRead += 1)                         an assignment too
 #
-# De um a seis nomes, e um corpo so: o corpo e uma expressao (ou atribuicao)
-# e para na virgula ou no parenteses de quem o contem -- o 'reduce' acima tem
-# o lambda e a semente como argumentos separados. O '[' so abre um lambda no
-# comeco de um primario; depois de um valor ele e indice ('a[i]').
+# One to six names, and a single body: the body is an expression (or an
+# assignment) and stops at the comma or parenthesis of what holds it -- the
+# 'reduce' above has the lambda and the seed as separate arguments. '[' only
+# opens a lambda at the start of a primary; after a value it is an index
+# ('a[i]').
 #
-# Um '|>' logo depois do corpo e recusado, e nao deixado para quem esta de
-# fora: sem isso 'map(a, [x] x |> f)' viraria 'f([x] x)' -- outro programa,
-# calado. E o erro que o xtpl da: uma cadeia nao aninha num bloco.
+# A '|>' right after the body is refused, not left to whatever is outside:
+# otherwise 'map(a, [x] x |> f)' would become 'f([x] x)' -- a different
+# program, silently. It is the error xtpl gives: a pipeline does not nest in a
+# block.
 rule lambda
 {
-  :my $*BLOCO = True;
-  '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <corpo=blockexpr>
+  :my $*IN-BLOCK = True;
+  '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <lbody=blockexpr>
   <!before \h* '|>'>
 }
 
-# '::x' abrevia o acesso a um membro do proprio objeto -- o 'Self:x' do AdvPL.
-# Vale como valor ('::aBuf'), chamada ('::Grow()') e alvo ('::nHead := 1').
+# '::x' abbreviates access to a member of the object itself -- AdvPL's
+# 'Self:x'. It works as a value ('::aBuf'), a call ('::Grow()') and a target
+# ('::nHead := 1').
 rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 
 rule lvalue      { [ <selfacc> || <name> ] <trailer>* }
 
-# ---- terminais ---------------------------------------------------------------
+# ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
 token number   { \d+ [ '.' \d+ ]? }
 token string   { [ '"' <-["]>* '"' ] || [ "'" <-[']>* "'" ] }
@@ -727,14 +746,14 @@ token logical  { :i '.t.' || '.f.' }
 token nildef   { :i 'nil' >> }
 token name     { <[A..Za..z_]> \w* }
 
-# Espaco DENTRO de uma linha: brancos, comentarios, e a continuacao ';' --
-# que e o unico jeito de um comando seguir na linha de baixo.
+# Whitespace WITHIN a line: blanks, comments, and the ';' continuation --
+# which is the only way a statement carries on to the next line.
 token ws { <!ww> [ \h || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 token linecont    { ';' \h* \v }
 token linecomment { '//' \N* }
 
-# O fim de uma linha (ou do arquivo), e o que vier ate o proximo comando:
-# linhas em branco, linhas so de comentario, e o recuo.
+# The end of a line (or of the file), and whatever comes before the next
+# statement: blank lines, comment-only lines, and the indentation.
 token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ] }
 token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 token nl  { <.eol> <.gap> }
