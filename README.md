@@ -86,6 +86,8 @@ O que já entra:
 | `defer` | `defer <comando>`: atribuição, cadeia ou chamada, em qualquer bloco, sem modificador |
 | `fallback` | `expr fallback alt`, só no valor de uma atribuição, declaração ou `return`, ou entre parênteses; protege a cadeia inteira; não dentro de um lambda |
 | marcas | `local x <const, contained> := …` — `<const>` exige valor |
+| prólogo | as declarações `local`/`private` vêm antes do primeiro comando, no corpo da função e no primeiro corpo de um `if`, `while` e `for`; `elseif`, `else`, `case` e `begin sequence` não abrem prólogo |
+| nomes | as palavras reservadas do xtpl não se declaram (menos como parâmetro de lambda); a forma de um nome que o xtpl gera — `__x`, `fo_0_0`, `s_1_0` — não se declara no nível da função |
 | modificadores | `if` e `while` no fim de um comando simples (`return`, `exit`, `loop`, atribuição, chamada, `exec`) — não de um bloco nem de uma declaração |
 | classes | `Class … EndClass` (`From`, `Data`, assinaturas `Method` com `Constructor` e tipo de retorno), e as implementações `Method … Class Nome`; `::x` no corpo |
 | locais de bloco | no cabeçalho: `for local i`, `if local x := …, cond`, `while local …, cond`, `do case with [local] …` |
@@ -169,6 +171,13 @@ my $arvore = XC::Grammar.parse($src, actions => XC::Actions.new(fonte => $src)).
 `t/08-arvore.raku` e `t/09-expressoes.raku` conferem a forma que sai e o que
 tem de ser recusado.
 
+`t/erros/` são os fontes que o xtpl recusa, copiados dele com a mensagem que
+ele dá, e `t/17-erros-xtpl.raku` os confere: os de sintaxe a gramática recusa,
+e cada um tem uma correção mínima que tem de casar — é o que mostra que a
+recusa foi pelo erro certo. Os de análise (nome não declarado, escopo,
+`<const>`, aridade) a gramática aceita, e ficam para a passada que os recusar.
+Ver `t/erros/LEIA.md`.
+
 `lib/XC/Tipos.rakumod` confere que o inicializador bate com o tipo declarado:
 
 ```
@@ -212,6 +221,11 @@ inteiro; `.prematch` e `.postmatch` saem errados junto. `.from` e `.to` estão
 certos. Por isso `XC::Actions` recebe o texto de fora. A versão anterior
 contava as linhas de `.orig` e dava uma posição relativa; ninguém viu porque
 todo teste tinha uma linha só.
+
+**Um `sub` léxico não é visto de dentro de uma regra.** Num arquivo
+`unit grammar`, um `sub` declarado com `my` (o padrão) não é encontrado por um
+`<!{ … }>` de uma das regras — "Undefined routine" —, e `self` lá dentro também
+não existe. No Rakudo os dois funcionam. Com `our sub` funciona nos dois.
 
 **Uma diferença ainda não reduzida.** Com `<expr>* % ","` dentro de uma das
 alternativas de um `|`, num `rule`, o Rakudo casa e o rakupp não:

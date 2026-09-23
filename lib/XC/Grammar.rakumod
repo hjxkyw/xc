@@ -29,6 +29,35 @@
 
 unit grammar XC::Grammar;
 
+# ---- nomes que nao se declaram -----------------------------------------------
+#
+# As mesmas regras do xtpl, conferidas contra ele:
+#
+# Palavras reservadas -- a lista do xtpl, que inclui algumas funcoes nativas.
+# Valem para local, private, parametro, declaracao de cabecalho e 'for
+# local'; nao para parametro de lambda, que o xtpl aceita.
+my constant RESERVADAS = set <
+  function static user return if else elseif endif for next while enddo do
+  local private public with without orwith given when otherwise end
+  conout len eval array aadd substr userexception
+>;
+#
+# 'our': um 'sub' lexico daqui nao e visto de dentro de um '<!{ }>' no rakupp
+# 4.0.1 (no Rakudo e).
+our sub reservado(Str $n --> Bool) { RESERVADAS{$n.lc}:exists }
+
+# A forma de um nome que o xtpl gera: '__' na frente, um temporario curto
+# '<tipo>_<nivel>_<indice>', ou um slot 's_'/'b_'. So o 'local'/'private' do
+# nivel da funcao a recusa -- e o unico que sai com o nome como foi escrito.
+our sub gerado(Str $n --> Bool)
+{
+  so ($n.starts-with('__')
+      || $n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | ch | dr | fs | hd | hi | i | j | ky | ls
+                         | lm | lo | n | ok | ol | op | o | pv | pb | rd | rc | sn | sp | s | v ]
+                       | et | gt | ht | pt ] '_' \d+ '_' \d+ $ /
+      || $n ~~ m:i/ ^ <[sb]> '_' \d+ '_' \w+ $ /)
+}
+
 # UM COMANDO POR LINHA
 #
 # Em AdvPL a quebra de linha termina o comando, a nao ser que a linha acabe
@@ -96,7 +125,7 @@ rule function
 {
   [ <annotation> <.nl> ]*
   <funckind> <name> '(' ~ ')' <params> <.nl>
-  <body>
+  <body=corpofuncao>
 }
 
 # O 'function' solto e aceito de proposito. O AdvPL o recusa ("Regular
@@ -141,7 +170,7 @@ rule methodimpl
   :i 'method' <nome=name> '(' ~ ')' <params>
      [ :i 'as' <ret=name> ]?
      :i 'class' <classe=name> <.nl>
-  <body>
+  <body=corpofuncao>
 }
 
 rule params
@@ -152,7 +181,7 @@ rule params
 # Um parametro tambem pode ser tipado: 'f(nX as Numeric)'.
 rule param
 {
-  <name> <typespec>?
+  <name> <!{ reservado(~$<name>) }> <typespec>?
 }
 
 # 'return' e um COMANDO, nao so o fim da funcao. Um return antecipado dentro
@@ -171,10 +200,29 @@ rule loopst { :i 'loop' }
 
 # Cada comando termina a sua linha. O corpo para no primeiro que nao casa --
 # 'endif', 'next', a proxima 'function' -- e quem o chamou decide o que e.
-rule body
-{
-  [ <statement> <.nl> ]*
-}
+#
+# O PROLOGO
+#
+# As declaracoes vem antes do primeiro comando do corpo -- e o que o AdvPL
+# exige dos 'local', e o xtpl estende aos blocos. Um bloco tem UM prologo, no
+# comeco do seu primeiro corpo: o do 'if', do 'while', do 'for'. O 'elseif' e o
+# 'else' sao comandos do mesmo bloco, entao os seus corpos ja nascem fechados;
+# o 'case' idem, e o 'begin sequence' nem e um escopo para o xtpl. Conferido
+# contra o proprio xtpl, caso a caso.
+#
+# Tres corpos, que so diferem no que abrem:
+#
+#     corpofuncao     prologo aberto, e e o nivel da funcao
+#     body            prologo aberto, dentro de um bloco
+#     corpofechado    prologo ja fechado: nenhuma declaracao
+#
+# '$*COMANDO' diz se o prologo ja fechou; 'statement' o liga depois de todo
+# comando que nao e declaracao. '$*TOPO' diz se as declaracoes daqui saem com
+# o nome como foi escrito -- as de bloco viram slots, e so as do nivel da
+# funcao podem colidir com um nome gerado.
+rule corpofuncao  { :my $*COMANDO = False; :my $*TOPO = True;  [ <statement> <.nl> ]* }
+rule body         { :my $*COMANDO = False; :my $*TOPO = False; [ <statement> <.nl> ]* }
+rule corpofechado { :my $*COMANDO = True;  :my $*TOPO = False; [ <statement> <.nl> ]* }
 
 # ---- tipos ------------------------------------------------------------------
 #
@@ -212,9 +260,10 @@ token typename
 # modificador.
 rule statement
 {
+  [
      <annotation>
   || <seqst>
-  || <declaration>
+  || [ <!{ $*COMANDO // False }> <declaration> ]
   || <ifst>
   || <whilest>
   || <forst>
@@ -222,6 +271,8 @@ rule statement
   || <execst>
   || <deferst>
   || [ <simples> <modifier>? ]
+  ]
+  { try $*COMANDO = True unless $<declaration> }
 }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
@@ -313,7 +364,10 @@ token kwlocal { :i 'local' }
 # alternativa que casou, e '<contained>' voltava quatro vezes.
 rule declarator
 {
-  <name> <marcas>?
+  <name>
+  <!{ reservado(~$<name>) }>
+  <!{ ($*TOPO // False) && gerado(~$<name>) }>
+  <marcas>?
   [    [ ':=' <expr=guardexpr> <typespec>? ]
     || [ <typespec> ':=' <expr=guardexpr> ]
     || [ <typespec> ]
@@ -335,8 +389,8 @@ rule ifst
 {
   :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
      <corpo=body>
-  [ :i 'elseif' <cond=expr> <.nl> <corpo=body> ]*
-  [ :i 'else' <.nl> <senao=body> ]?
+  [ :i 'elseif' <cond=expr> <.nl> <corpo=corpofechado> ]*
+  [ :i 'else' <.nl> <senao=corpofechado> ]?
   :i 'endif'
 }
 
@@ -351,7 +405,8 @@ rule whilest
 # uma variavel ja declarada antes.
 rule forst
 {
-  :i 'for' [ :i <varlocal=kwlocal> ]? <var=name> ':=' <de=expr>
+  :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
+     <!{ $<varlocal> && reservado(~$<var>) }> ':=' <de=expr>
      :i 'to' <ate=expr> [ :i 'step' <passo=expr> ]? <.nl>
      <corpo=body>
   :i 'next' <fim=name>?
@@ -363,8 +418,8 @@ rule forst
 rule docasest
 {
   :i 'do' 'case' [ :i 'with' <sujeito> ]? <.nl>
-  [ :i 'case' <cond=expr> <.nl> <corpo=body> ]+
-  [ :i 'otherwise' <.nl> <senao=body> ]?
+  [ :i 'case' <cond=expr> <.nl> <corpo=corpofechado> ]+
+  [ :i 'otherwise' <.nl> <senao=corpofechado> ]?
   :i 'endcase'
 }
 
@@ -377,14 +432,14 @@ rule sujeito
 # A declaracao de um cabecalho de bloco precisa de inicializador: e o valor que
 # ela liga para a condicao ou para os 'case'. 'local x' sozinho iria para o
 # prologo.
-rule hdrdecl { <name> ':=' <expr> <typespec>? }
+rule hdrdecl { <name> <!{ reservado(~$<name>) }> ':=' <expr> <typespec>? }
 
 # BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- o tratamento de erro.
 rule seqst
 {
   :i 'begin' 'sequence' <.nl>
-     <corpo=body>
-  [ :i 'recover' [ :i 'using' <erro=name> ]? <.nl> <recupera=body> ]?
+     <corpo=corpofechado>
+  [ :i 'recover' [ :i 'using' <erro=name> ]? <.nl> <recupera=corpofechado> ]?
   :i 'end' [ :i 'sequence' ]?
 }
 

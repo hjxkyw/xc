@@ -202,6 +202,9 @@ method body($/)
   make $<statement>.map(*.made).list;
 }
 
+method corpofuncao($/)  { make $<statement>.map(*.made).list }
+method corpofechado($/) { make $<statement>.map(*.made).list }
+
 # Quem casou e o unico filho: a alternancia e ordenada, so um lado vinga.
 method statement($/)
 {
