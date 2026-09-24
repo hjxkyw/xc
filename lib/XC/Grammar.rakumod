@@ -85,7 +85,7 @@ rule toplevel
      <function>
   || <classdecl>
   || <methodimpl>
-  || [ [ <preproc> || <namespacest> || <annotation> ] <.eol> ]
+  || [ [ <preproc> || <namespacest> || <externalst> || <annotation> ] <.eol> ]
 }
 
 # ---- what the preprocessor takes whole ------------------------------------
@@ -109,6 +109,19 @@ rule namespacest
 }
 
 token dottedname { <[A..Za..z_]> \w* [ '.' <[A..Za..z_]> \w* ]* }
+
+# ---- xtpl: 'external' --------------------------------------------------------
+#
+#     external CRLF, dDataBase         names that exist but xtpl cannot see
+#     external alias SA1, SB1          work areas the caller opens
+#
+# A promise, not a declaration: it emits nothing. File level, beside the
+# includes, and at least one name -- what xtpl's doc says and all of its
+# corpus does. xtpl itself is laxer: it also takes 'external' inside a
+# function, and with no names at all (where it does nothing). xc follows the
+# doc.
+rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname=name> [ ',' <xname=name> ]* }
+token kwalias   { :i 'alias' >> }
 
 # ---- TL++: annotations -----------------------------------------------------
 #
@@ -273,6 +286,7 @@ rule statement
   || <docasest>
   || <execst>
   || <deferst>
+  || <usingst>
   || [ <simple> <modifier>? ]
   ]
   { try $*PAST-PROLOGUE = True unless $<declaration> }
@@ -294,6 +308,26 @@ rule statement
 # next word. <.ws> already refuses to split a word, so 'deferred' does not
 # match.
 rule deferst { :i 'defer' [ <assignment> || <pipest> || <callst> ] }
+
+# ---- xtpl: 'using alias' -- a scoped work area ------------------------------
+#
+#     using alias SA1 order 1 do
+#       nTotal := SA1->A1_SALDO
+#       return nTotal if nTotal > 100
+#     end using
+#
+# Selects the area, optionally sets an index order, and puts back what it
+# found at every way out of the block, an early 'return' included. The name is
+# a bare word: the alias itself, or a variable in scope holding one -- which of
+# the two is for name resolution to say, not the grammar. The body opens a
+# prologue, like 'while'. Only 'end using' closes it: xtpl refuses a bare
+# 'end' and 'endusing'.
+rule usingst
+{
+  :i 'using' 'alias' <area=name> [ :i 'order' <order=expr> ]? :i 'do' <.nl>
+     <block=body>
+  :i 'end' 'using'
+}
 
 rule simple
 {

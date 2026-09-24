@@ -49,7 +49,7 @@ method !line($m --> Int)
 # ---- the file -------------------------------------------------------------------
 method TOP($/)
 {
-  my ($ns, @usings, @directives, @annotations, @functions, @classes, @methods);
+  my ($ns, @usings, @directives, @annotations, @functions, @classes, @methods, @externals);
   for $<toplevel> -> $t
   {
     if $t<function>
@@ -67,6 +67,10 @@ method TOP($/)
     elsif $t<preproc>
     {
       @directives.push((~$t<preproc>).trim);
+    }
+    elsif $t<externalst>
+    {
+      @externals.push($t<externalst>.made);
     }
     elsif $t<annotation>
     {
@@ -93,6 +97,16 @@ method TOP($/)
     functions   => @functions,
     classes     => @classes,
     methods     => @methods,
+    externals   => @externals,
+  );
+}
+
+method externalst($/)
+{
+  make External.new(
+    alias => ?$<isalias>,
+    names => $<xname>.map(~*).list,
+    line  => self!line($/),
   );
 }
 
@@ -334,6 +348,16 @@ method forst($/)
     step      => $<step> ?? $<step>.made !! Expr,
     body      => $<block>.made,
     line      => self!line($/),
+  );
+}
+
+method usingst($/)
+{
+  make UsingAlias.new(
+    area  => ~$<area>,
+    order => $<order> ?? $<order>.made !! Expr,
+    body  => $<block>.made,
+    line  => self!line($/),
   );
 }
 

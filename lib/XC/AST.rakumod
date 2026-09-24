@@ -317,6 +317,17 @@ class Deferred is Stmt is export
   has Stmt $.stmt;
 }
 
+# 'using alias SA1 order 1 do ... end using'. 'area' is the word as written --
+# an alias, or a variable holding one; name resolution tells them apart.
+# Lowering saves the current area, record and order, selects this one, and
+# restores all three at every exit, after the pending defers.
+class UsingAlias is Stmt is export
+{
+  has Str  $.area;
+  has Expr $.order;                # undefined: the order is left alone
+  has Stmt @.body;
+}
+
 class SequenceStmt is Stmt is export
 {
   has Stmt @.body;
@@ -379,6 +390,15 @@ class MethodImpl is export
   has Int   $.line;
 }
 
+# 'external CRLF, dDataBase' or 'external alias SA1, SB1': a promise that the
+# names exist. It emits nothing; name resolution reads it.
+class External is export
+{
+  has Bool $.alias = False;
+  has Str  @.names;
+  has Int  $.line;
+}
+
 class Program is export
 {
   has Str         $.namespace;     # undefined when there is none
@@ -388,6 +408,7 @@ class Program is export
   has FunctionDef @.functions;
   has ClassDef    @.classes;
   has MethodImpl  @.methods;       # the loose implementations
+  has External    @.externals;
 }
 
 # ---- walking --------------------------------------------------------------------
@@ -448,6 +469,7 @@ sub exprs-of(Stmt $s --> List) is export
                        |.branches.map(*.cond) }
     when WhileStmt   { .header-decl.defined ?? (.header-decl.init, .cond) !! .cond }
     when ForStmt     { .from, .to, .step }
+    when UsingAlias  { .order }
     default          { () }
   };
   @s.grep(*.defined).List
@@ -463,6 +485,7 @@ sub bodies-of(Stmt $s --> List) is export
     when WhileStmt         { (.body.List,).List }
     when ForStmt           { (.body.List,).List }
     when SequenceStmt      { (.body.List, .recover.List).List }
+    when UsingAlias        { (.body.List,).List }
     when Modified          { ((.stmt,).List,).List }
     when Deferred          { ((.stmt,).List,).List }
     default                { ().List }

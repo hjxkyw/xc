@@ -26,11 +26,12 @@ my %syntax =
   stale_keyword         => ("  given n do\n  end given\n" => "  do case\n  case n == 1\n  endcase\n",),
   unbalanced_line       => ('minhaFuncao(nX,' => 'minhaFuncao(nX, ;',),
   unknown_attribute     => ('<bogus>' => '<const>',),
+  using_unclosed        => ("    nT := 1\n" => "    nT := 1\n  end using\n",),
   ;
 
 my @analysis = <
   arity_too_many call_form const_assign const_by_ref contained_captured
-  contained_deferred distinct_adjacent_no_key fallback_over_source
+  contained_deferred distinct_adjacent_no_key external_assign fallback_over_source
   out_of_scope redeclared scalar_chain scalar_declared source_stranded
   undeclared_read undeclared_write
 >;
@@ -39,10 +40,9 @@ my @analysis = <
 # prefixes), so xc does not refuse it -- xtpl refuses them all.
 my @decided = <bare_function>;
 
-my %pending =
-  external_assign => "'external'",
-  using_unclosed  => "'using alias'",
-  ;
+# None at the moment; a new error case that needs an unbuilt construct goes
+# here, as 'name => "the construct"'.
+my %pending;
 
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)
