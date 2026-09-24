@@ -296,6 +296,23 @@ class ForStmt is Stmt is export
   has Stmt @.body;
 }
 
+# 'for oItem [, nPos] in aItems': 'elem' and 'index' are new block locals.
+# Lowering binds the source once and walks it with a hidden counter.
+class ForInStmt is Stmt is export
+{
+  has Str  $.elem;
+  has Str  $.index;                # undefined when not named
+  has Expr $.source;
+  has Stmt @.body;
+}
+
+# 'for n times': the count is evaluated once; the counter is hidden.
+class ForTimesStmt is Stmt is export
+{
+  has Expr $.count;
+  has Stmt @.body;
+}
+
 # ---- xtpl: postfix modifier -----------------------------------------------------
 # 'x := 1 if c', 'return n if c', 'f() while c', 'exec f() if c'. The inner
 # statement is what runs; 'op' says how: 'if' becomes a one-branch If,
@@ -469,6 +486,8 @@ sub exprs-of(Stmt $s --> List) is export
                        |.branches.map(*.cond) }
     when WhileStmt   { .header-decl.defined ?? (.header-decl.init, .cond) !! .cond }
     when ForStmt     { .from, .to, .step }
+    when ForInStmt   { .source }
+    when ForTimesStmt { .count }
     when UsingAlias  { .order }
     default          { () }
   };
@@ -484,6 +503,8 @@ sub bodies-of(Stmt $s --> List) is export
     when IfStmt | CaseStmt { (|.branches.map({ .body.List }), .otherwise.List).List }
     when WhileStmt         { (.body.List,).List }
     when ForStmt           { (.body.List,).List }
+    when ForInStmt         { (.body.List,).List }
+    when ForTimesStmt      { (.body.List,).List }
     when SequenceStmt      { (.body.List, .recover.List).List }
     when UsingAlias        { (.body.List,).List }
     when Modified          { ((.stmt,).List,).List }

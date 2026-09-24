@@ -351,6 +351,26 @@ method forst($/)
   );
 }
 
+method forinst($/)
+{
+  make ForInStmt.new(
+    elem   => ~$<elem>,
+    index  => $<idx> ?? ~$<idx> !! Str,
+    source => $<source>.made,
+    body   => $<block>.made,
+    line   => self!line($/),
+  );
+}
+
+method fortimesst($/)
+{
+  make ForTimesStmt.new(
+    count => $<count>.made,
+    body  => $<block>.made,
+    line  => self!line($/),
+  );
+}
+
 method usingst($/)
 {
   make UsingAlias.new(

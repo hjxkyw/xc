@@ -283,6 +283,8 @@ rule statement
   || <ifst>
   || <whilest>
   || <forst>
+  || <forinst>
+  || <fortimesst>
   || <docasest>
   || <execst>
   || <deferst>
@@ -453,6 +455,40 @@ rule forst
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
      <block=body>
   :i 'next' <endname=name>?
+}
+
+# ---- xtpl: 'for x in ...' and 'for n times' ----------------------------------
+#
+#     for oItem in aItems              for oItem, nPos in aItems
+#       nTotal += oItem:nValue           conout(cValToChar(nPos))
+#     next                             next
+#
+#     for 3 times                      for countLines(oDoc) times
+#       conout("line")                   nTotal := nTotal + 1
+#     next                             next
+#
+# The element and the index are new block locals of the loop, declared by the
+# header without 'local' -- so 'for local x in a' is refused, as xtpl does,
+# and so are reserved words. The source is any expression, a pipeline included,
+# and the count too. Tried after the classic 'for', which needs ':=' right
+# after the name, so 'for n times' and 'for x in a' fall through to these.
+#
+# Only 'next' closes them. xtpl also takes 'enddo', and would emit 'For ...
+# EndDo', which is not AdvPL.
+rule forinst
+{
+  :i 'for' <elem=name> <!{ is-reserved(~$<elem>) }>
+     [ ',' <idx=name> <!{ is-reserved(~$<idx>) }> ]?
+     :i 'in' <source=expr> <.nl>
+     <block=body>
+  :i 'next' <endname=name>?
+}
+
+rule fortimesst
+{
+  :i 'for' <count=expr> :i 'times' <.nl>
+     <block=body>
+  :i 'next'
 }
 
 # 'do case with <subject>' evaluates the subject once and names it, instead of
