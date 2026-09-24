@@ -83,6 +83,10 @@ class Index is Expr is export             # a[i, j]
 # MethodCall. It reads no variable.
 class SelfRef is Expr is export { }
 
+# The ':' of ':x' inside 'with object' -- the subject of the innermost block,
+# as the base of a Member or MethodCall. It reads no variable.
+class SubjectRef is Expr is export { }
+
 class Member is Expr is export            # o:nX  (and ::nX, based on SelfRef)
 {
   has Expr $.base;
@@ -352,6 +356,23 @@ class UsingAlias is Stmt is export
   has Stmt @.body;
 }
 
+# 'with object <subject> ... end with'. The subject is evaluated once; the
+# ':x' inside refer to it through SubjectRef.
+class WithObject is Stmt is export
+{
+  has Expr $.subject;
+  has Stmt @.body;
+}
+
+# 'raw <text>' or 'raw ... end raw': lines for the preprocessor, kept as
+# written. Lowering still interpolates their strings and renames the declared
+# variables they mention, as xtpl does.
+class RawStmt is Stmt is export
+{
+  has Bool $.block = False;
+  has Str  @.lines;
+}
+
 class SequenceStmt is Stmt is export
 {
   has Stmt @.body;
@@ -497,6 +518,7 @@ sub exprs-of(Stmt $s --> List) is export
     when ForInStmt   { .source }
     when ForTimesStmt { .count }
     when UsingAlias  { .order }
+    when WithObject  { .subject }
     default          { () }
   };
   @s.grep(*.defined).List
@@ -515,6 +537,7 @@ sub bodies-of(Stmt $s --> List) is export
     when ForTimesStmt      { (.body.List,).List }
     when SequenceStmt      { (.body.List, .recover.List).List }
     when UsingAlias        { (.body.List,).List }
+    when WithObject        { (.body.List,).List }
     when Modified          { ((.stmt,).List,).List }
     when Deferred          { ((.stmt,).List,).List }
     default                { ().List }

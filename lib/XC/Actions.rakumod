@@ -288,13 +288,17 @@ method assignment($/)
 
 method lvalue($/)
 {
-  my $base = $<selfacc> ?? $<selfacc>.made !! Name.new(name => ~$<name>);
+  my $base = $<selfacc> ?? $<selfacc>.made
+          !! $<subjacc> ?? $<subjacc>.made
+          !!               Name.new(name => ~$<name>);
   make apply-trailers($base, $<trailer>);
 }
 
 method callst($/)
 {
-  my $base = $<call> ?? $<call>.made !! Name.new(name => ~$<name>);
+  my $base = $<call>    ?? $<call>.made
+          !! $<subjacc> ?? $<subjacc>.made
+          !!               Name.new(name => ~$<name>);
   make CallStmt.new(
     call => apply-trailers($base, $<trailer>),
     line => self!line($/),
@@ -367,6 +371,39 @@ method fortimesst($/)
   make ForTimesStmt.new(
     count => $<count>.made,
     body  => $<block>.made,
+    line  => self!line($/),
+  );
+}
+
+method withst($/)
+{
+  make WithObject.new(
+    subject => $<subject>.made,
+    body    => $<block>.made,
+    line    => self!line($/),
+  );
+}
+
+method withbody($/) { make $<statement>.map(*.made).list }
+
+# ':x' / ':m(...)': the subject of the innermost 'with object' as the base.
+method subjacc($/)
+{
+  my $base = SubjectRef.new;
+  make $<arglist>
+    ?? MethodCall.new(base => $base, name => ~$<member>, args => $<arglist>.made.list)
+    !! Member.new(base => $base, name => ~$<member>);
+}
+
+method rawst($/)
+{
+  # The block has a list of lines; the one-line form has a single match, and
+  # '.map' over a single match would walk its (empty) positional captures.
+  my @lines = $<rawblock> ?? $<rawblock><rawline>.map(*.Str)
+                          !! (~$<rawone><rawline>,);
+  make RawStmt.new(
+    block => ?$<rawblock>,
+    lines => @lines,
     line  => self!line($/),
   );
 }
@@ -549,6 +586,7 @@ method tfield($/)
 method primary($/)
 {
   make   $<selfacc>      ?? $<selfacc>.made
+      !! $<subjacc>      ?? $<subjacc>.made
       !! $<literal>      ?? $<literal>.made
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made

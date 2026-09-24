@@ -289,6 +289,8 @@ rule statement
   || <execst>
   || <deferst>
   || <usingst>
+  || <withst>
+  || <rawst>
   || [ <simple> <modifier>? ]
   ]
   { try $*PAST-PROLOGUE = True unless $<declaration> }
@@ -330,6 +332,70 @@ rule usingst
      <block=body>
   :i 'end' 'using'
 }
+
+# ---- xtpl: 'with object' ----------------------------------------------------
+#
+#     with object oModel:GetModel("SA1DETAIL")
+#       :SetValue("A1_COD", cCod)
+#       cName := :GetValue("A1_NOME")
+#     end with
+#
+# The subject is evaluated once; inside the block a ':' where AdvPL could not
+# have one -- at the start of an operand or of a statement -- means "the
+# subject". A ':' after a name, ')' or ']' stays ordinary member access. Blocks
+# nest, and the innermost subject wins. The body opens a prologue.
+#
+# Only 'end with' closes it, and ':x' outside a block is refused: xtpl takes a
+# bare 'end' and a stray ':x' and emits them as they are, which is not AdvPL.
+# 'with' without 'object' is one of xtpl's removed constructs.
+rule withst
+{
+  :i 'with' 'object' <subject=expr> <.nl>
+     <block=withbody>
+  :i 'end' 'with'
+}
+
+# A body like 'body', with the subject in reach. A rule of its own so the
+# subject expression itself still sees only the enclosing block's subject.
+rule withbody
+{
+  :my $*IN-WITH = True; :my $*PAST-PROLOGUE = False; :my $*TOP-LEVEL = False;
+  [ <statement> <.nl> ]*
+}
+
+# ':member' or ':method(...)' on the subject of the enclosing 'with object'.
+rule subjacc { <?{ $*IN-WITH // False }> ':' <member> [ '(' ~ ')' <arglist> ]? }
+
+# ---- xtpl: 'raw' -- a line for the preprocessor ---------------------------------
+#
+#     raw @ 10, 5 SAY "Total" GET nTotal PICTURE "@E 999,999.99"
+#
+#     raw
+#       @ 12, 5 SAY "Name" GET cName PICTURE "@!"
+#     end raw
+#
+# Text for a '#command' or '#xtranslate' -- not AdvPL until the preprocessor
+# runs, so the grammar does not read it. A raw line carries on over a ';'
+# continuation. The lowering still reads inside it: xtpl interpolates the
+# strings there and renames declared variables.
+#
+# 'raw' followed by a space starts a raw line; 'raw(1)' is a call. 'raw := 2'
+# is an assignment to a variable named 'raw' -- xtpl would emit ':= 2'.
+# Only 'end raw' closes the block: xtpl takes 'endraw' as one more raw line
+# and never closes it. Not at file level, where directives already pass
+# through whole (xtpl accepts it there).
+token rawst    { <rawblock> || <rawone> }
+token rawblock
+{
+  :i 'raw' \h* <.linecomment>? <.rawnl>
+  # '<!ww>', not '>>': under rakupp 4.0.1 a '>>' just before the '>' that
+  # closes a lookahead makes the lookahead fail (Rakudo is fine).
+  [ <!before \h* :i 'end' \h+ 'raw' <!ww> > <rawline> <.rawnl> ]*
+  \h* :i 'end' \h+ 'raw' >>
+}
+token rawone   { :i 'raw' \h+ <!before [ <assignop> || '?=' ]> <rawline> }
+token rawline { [ \N*? ';' \h* \v ]* \N* }
+token rawnl   { \r\n || \v }
 
 rule simple
 {
@@ -541,7 +607,7 @@ token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 # 'oDlg:End()' closes a dialog. Only the start of a statement is reserved.
 rule callst
 {
-  <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] ]
+  <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ] ]
 }
 
 token stmtword
@@ -698,6 +764,7 @@ token member { <[A..Za..z_]> \w* }
 rule primary
 {
      <selfacc>
+  || <subjacc>
   || <lambda>
   || <macro>
   || <literal>
@@ -806,7 +873,7 @@ rule lambda
 # ('::nHead := 1').
 rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 
-rule lvalue      { [ <selfacc> || <name> ] <trailer>* }
+rule lvalue      { [ <selfacc> || <subjacc> || <name> ] <trailer>* }
 
 # ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
