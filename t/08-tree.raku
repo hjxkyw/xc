@@ -166,6 +166,16 @@ check "';' at the end continues the statement",
   my @s = body("  n := soma(1, ;\n           2)\n  return n");
   kinds(@s) eq 'Assignment ReturnStmt' && @s[0].value.args == 2
 };
+check "';' followed by a // comment still continues",
+{
+  my @s = body("  aBig := aNums ;   // a comment on a continued line\n    |> distinct\n  return aBig");
+  kinds(@s) eq 'Assignment ReturnStmt' && @s[0].value ~~ Pipeline
+};
+check "';' followed by a /* */ comment still continues",
+{
+  my @s = body("  n := soma(1, ; /* note */\n           2)\n  return n");
+  kinds(@s) eq 'Assignment ReturnStmt' && @s[0].value.args == 2
+};
 check 'comments and blank lines do not become statements',
 {
   kinds(body("  // so isto\n\n  n := 1 // no fim\n  /* dois\n  */\n  return n"))
@@ -184,6 +194,7 @@ my @refuse =
   "  if x\n    y()"                    => 'if without endif',
   "  for i := 1 to 3\n    y()"         => 'for without next',
   "  local nX as Numeric := 1 as N"    => 'type twice, in a body',
+  "  n := soma(1, // ;\n    2)"         => "a ';' inside a comment is not a continuation",
   ;
 
 for @refuse -> $c

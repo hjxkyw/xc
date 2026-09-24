@@ -748,8 +748,12 @@ token name     { <[A..Za..z_]> \w* }
 
 # Whitespace WITHIN a line: blanks, comments, and the ';' continuation --
 # which is the only way a statement carries on to the next line.
+#
+# A comment may follow the ';': 'aNums ;   // note' still continues. A ';'
+# INSIDE a comment is just comment text, so '// ;' at the end of a line does
+# not continue anything -- the comment token has already taken it.
 token ws { <!ww> [ \h || <.linecont> || <.linecomment> || <.blockcomment> ]* }
-token linecont    { ';' \h* \v }
+token linecont    { ';' \h* [ <.linecomment> || <.blockcomment> ]? \h* \v }
 token linecomment { '//' \N* }
 
 # The end of a line (or of the file), and whatever comes before the next
