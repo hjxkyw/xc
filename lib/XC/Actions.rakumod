@@ -646,6 +646,7 @@ method arg($/)
 
 method literal($/)
 {
+  return make $<string>.made if $<string>;
   make Literal.new(
     type =>   $<number>  ?? 'Numeric'
            !! $<string>  ?? 'Character'
@@ -654,6 +655,16 @@ method literal($/)
            !!               UNKNOWN,
     text => ~$/,
   );
+}
+
+# A string: a plain Literal, or an Interp when it holds a '${ }'.
+method string($/)
+{
+  my $s = $<dqstring> // $<sqstring>;
+  my @parts = $s<spart>.map({ .<interp> ?? .<interp><expr>.made !! ~.<text> });
+  make @parts.grep(Expr)
+    ?? Interp.new(type => 'Character', text => ~$/, parts => @parts)
+    !! Literal.new(type => 'Character', text => ~$/);
 }
 
 # ---- helpers --------------------------------------------------------------------

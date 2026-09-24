@@ -811,7 +811,33 @@ rule lvalue      { [ <selfacc> || <name> ] <trailer>* }
 # ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
 token number   { \d+ [ '.' \d+ ]? }
-token string   { [ '"' <-["]>* '"' ] || [ "'" <-[']>* "'" ] }
+# ---- strings, and xtpl's interpolation ----------------------------------------
+#
+#     "total = ${nTotal} items"       ("total = " + cValToChar(nTotal) + " items")
+#     'rate ${hCfg{"t"}} end'         both quote styles interpolate
+#
+# The expression inside '${ }' is ordinary code, parsed by the grammar. Settled
+# against xtpl's own output:
+#
+# - '${' commits. If no expression and '}' follow, the string fails -- it does
+#   not fall back to literal text, or an unclosed '${h{'k'} ...' would pass.
+#   So '${}' is refused, and so is anything that is not a valid expression
+#   (xtpl emits '${n +}' as broken code; xc refuses it).
+# - A string inside the expression cannot use the quote of any string around
+#   it: that quote would end the outer string, as it does in xtpl. The string
+#   kinds set '$*IN-DQ' / '$*IN-SQ' for what they hold.
+# - '$' not followed by '{' is text ('R$ 10'); there are no escapes.
+#
+# xtpl does not interpolate a string in a 'local' initializer -- it passes
+# through as written. xc interpolates it wherever it is.
+token string   { [ <!{ $*IN-DQ // False }> <dqstring> ] || [ <!{ $*IN-SQ // False }> <sqstring> ] }
+token dqstring { :my $*IN-DQ = True; '"' <spart=dqpart>* '"' }
+token sqstring { :my $*IN-SQ = True; "'" <spart=sqpart>* "'" }
+token dqpart   { <interp> || <text=dqtext> }
+token sqpart   { <interp> || <text=sqtext> }
+token dqtext   { [ <-["$]> || '$' <!before '{'> ]+ }
+token sqtext   { [ <-['$]> || '$' <!before '{'> ]+ }
+token interp   { '${' <.ws> <expr> <.ws> '}' }
 token logical  { :i '.t.' || '.f.' }
 token nildef   { :i 'nil' >> }
 token name     { <[A..Za..z_]> \w* }

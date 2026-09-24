@@ -168,6 +168,13 @@ class KeyValue is export
 }
 
 class ArrayLit is Literal is export { has Expr     @.items; }
+
+# '"total = ${nTotal} items"' -- a string with xtpl's interpolation. Still a
+# Literal of type 'Character', with its text as written; 'parts' holds the
+# pieces in order, a Str for each run of text and an Expr for each '${ }'. A
+# string with no '${' stays a plain Literal. Lowering joins the parts with
+# '+', wrapping each expression in 'cValToChar'.
+class Interp is Literal is export { has @.parts; }
 class JsonLit  is Literal is export { has KeyValue @.pairs; }
 class HashLit  is Literal is export { has KeyValue @.pairs; }
 
@@ -447,6 +454,7 @@ sub subexprs(Expr $e --> List) is export
     when Ref        { .target }
     when AssignExpr { .target, .value }
     when ArrayLit   { |.items }
+    when Interp     { |.parts.grep(Expr) }
     when JsonLit | HashLit { |.pairs.map({ .key, .value }).flat }
     when CodeBlock  { |.body }
     when Pipeline   { .source, |.stages }
