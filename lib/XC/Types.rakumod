@@ -16,7 +16,7 @@ use XC::AST;
 unit module XC::Types;
 
 # The operators that decide the type on their own, whatever the operands.
-constant @LOGICAL-OPS = ('==', '!=', '<>', '<', '>', '<=', '>=', '$',
+constant @LOGICAL-OPS = ('==', '=', '!=', '<>', '#', '<', '>', '<=', '>=', '$',
                          '.and.', '.or.', '!');
 constant @NUMERIC-OPS = ('-', '*', '/', '%', 'neg');
 

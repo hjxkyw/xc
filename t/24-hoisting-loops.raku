@@ -113,9 +113,9 @@ check 'a block local shadowing an enclosing one is reported',
   problems("  for x in a\n    for x in a\n      n := 1\n    next\n  next")
     eqv ("3: block local 'x', with the name of an enclosing block local,",)
 };
-check "'for ... in' over lines() still needs the loop xc does not generate yet",
+check "'for ... in' over rows() is reported (xtpl's corpus never walks one that way)",
 {
-  problems("  for cL in lines(\"a.txt\")\n    n := 1\n  next") eqv ("2: 'for ... in' over lines()",)
+  problems("  for cL in rows(\"SA1\")\n    n := 1\n  next") eqv ("2: 'for ... in' over rows()",)
 };
 
 check 'the output compiles to itself',

@@ -597,7 +597,9 @@ rule assignment
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 
 # A real call, not a bare name: either it has parentheses, or at least one
-# ':' / '->' / '[' after.
+# ':' / '->' / '[' after. It may start with a parenthesised expression, as
+# in '(cAlias)->(DbSkip())' -- plain TL++, and how an alias held in a
+# variable is reached.
 #
 # And it cannot START with a word that opens a statement. Without that guard,
 # 'return (.t.)' matches as a call to a function named 'return', the body
@@ -608,7 +610,8 @@ token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 # 'oDlg:End()' closes a dialog. Only the start of a statement is reserved.
 rule callst
 {
-  <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ] ]
+  <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
+             || [ '(' ~ ')' <pexpr=expr> <trailer>+ ] ]
 }
 
 token stmtword
@@ -694,7 +697,12 @@ token negate   { '!' || [ :i '.not.' ] }
 # where a 'lo..hi' fits.
 rule cmpexpr   { <rangeexpr> <cmptail>* }
 rule cmptail   { [ <op=inop> <rhs=inrhs> ] || [ <op=cmpop> <rhs=rangeexpr> ] }
-token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$'
+# AdvPL's own two as well: '=' compares in an expression (the loose
+# equality; as a statement it is still an assignment, which <statement> tries
+# first), and '#' is not-equal. '==' before '=', '>=' and '<=' before '>' and
+# '<': the alternation is ordered.
+token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$' || '#'
+               || [ '=' <!before '>'> ]
                || [ :i 'has' >> ] }
 token inop     { :i 'in' >> }
 
@@ -874,7 +882,9 @@ rule lambda
 # ('::nHead := 1').
 rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 
-rule lvalue      { [ <selfacc> || <subjacc> || <name> ] <trailer>* }
+# '(cAlias)->A1_COD := x' too: a parenthesised expression, with at least one
+# trailer after it -- a bare '(x)' is not something to assign to.
+rule lvalue      { [ '(' ~ ')' <pexpr=expr> <trailer>+ ] || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }

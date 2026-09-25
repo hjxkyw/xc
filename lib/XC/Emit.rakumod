@@ -134,15 +134,38 @@ sub call-name(Str $name --> Str)
   VERBS{$name.lc}:exists ?? "u_xtpl_{$name.lc}" !! $name
 }
 
-# An expression that is rewritten itself, not just for what it holds.
-sub lowers-itself(Expr $e --> Bool)
+# ---- sources ---------------------------------------------------------------------
+#
+# rows() and lines() are sources, not functions: a chain from one becomes a
+# loop over the work area or the file, with the stages inside it, and nothing
+# is materialised. These stages fuse into the loop; a terminal ends it; any
+# other stage applies, as an ordinary call, to what the loop collected.
+my constant FUSED        = set <filter reject map tap take takewhile>;
+my constant TERMINAL     = set <asum count anyof allof noneof first>;
+my constant NEEDS-LAMBDA = set <filter reject map tap takewhile anyof allof noneof>;
+
+# The rows()/lines() call a chain starts from, or the call itself.
+sub source-call(Expr $e --> Call)
 {
-  so $e ~~ Lambda | Pipeline || ($e ~~ Call && VERBS{$e.name.lc}:exists)
+  return $e.source if $e ~~ Pipeline && $e.source ~~ Call && $e.source.name.lc (elem) <rows lines>;
+  return $e if $e ~~ Call && $e.name.lc (elem) <rows lines>;
+  Call
 }
 
-sub contains-lowering(Expr $e --> Bool)
+# The stages split into the fused run, the terminal that may end it, and the
+# rest, which apply to the result. A Hash, not a List of Lists: rakupp 4.0.1
+# flattens the inner Lists when a returned List is destructured.
+sub split-stages(@stages --> Hash)
 {
-  lowers-itself($e) || so subexprs($e).first({ contains-lowering($_) })
+  my (@fused, $terminal, @rest);
+  for @stages -> $st
+  {
+    my $n = $st.name.lc;
+    if !@rest && !$terminal.defined && FUSED{$n}         { @fused.push($st) }
+    elsif !@rest && !$terminal.defined && TERMINAL{$n}   { $terminal = $st }
+    else                                                  { @rest.push($st) }
+  }
+  %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
 }
 
 class Emitter
@@ -155,6 +178,16 @@ class Emitter
   has %!used;
   has @!hoist;                     # [name, comment]
   has %!hoisted;
+
+  # While a fused stage's lambda is rendered, its parameter stands for the
+  # element: %!subst maps it to the text of the value, %!field to the area
+  # prefix when the element is a work-area record ('r:A1_COD' -> 'SA1->A1_COD').
+  has %!subst;
+  has %!field;
+
+  # Inside 'for ... in lines()': what a 'return' has to do first (close the
+  # file), innermost first.
+  has @!closers;
 
   submethod TWEAK() { $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n" }
 
@@ -202,19 +235,44 @@ class Emitter
           when UsingAlias   { "'using alias'" }
           when WithObject   { "'with object'" }
           when RawStmt      { "'raw'" }
-          when ForInStmt    { .source ~~ Call && .source.name.lc (elem) <rows lines>
-                                ?? "'for ... in' over {.source.name.lc}()" !! Str }
+          when ForInStmt    { source-call(.source).defined && source-call(.source).name.lc eq 'rows'
+                                ?? "'for ... in' over rows()" !! Str }
+          when Modified     { self!stream-value(.stmt).defined
+                                ?? 'a chain from a source under a postfix modifier' !! Str }
           default           { Str }
         };
         @found.push($s.line => $what) with $what;
+
+        # A source only reads at the head of a chain in a statement that can
+        # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
+        # as the source of a 'for'.
+        my $top = self!stream-value($s);
+        my $for = $s ~~ ForInStmt && $s.source ~~ Call ?? $s.source !! Expr;
+        my %heads;                     # the source calls that head a chain
+        for exprs-of($s) -> $e
+        {
+          walk-expr($e, { %heads{.source.WHICH} = True if $_ ~~ Pipeline && .source ~~ Call });
+        }
         for exprs-of($s) -> $e
         {
           walk-expr($e, -> $x
           {
             my $w = self!expr-extension($x);
             @found.push($s.line => $w) with $w;
+            if $x ~~ Call && $x.name.lc (elem) <rows lines>
+            {
+              my $ok = ($top.defined && source-call($top) === $x) || ($for.defined && $for === $x);
+              unless $ok
+              {
+                @found.push($s.line => %heads{$x.WHICH}
+                  ?? "a chain from {$x.name.lc}() where it cannot run as a loop first "
+                     ~ "(it goes in 'x := ...', 'return ...' or a statement of its own)"
+                  !! "'{$x.name.lc}()' outside the head of a chain (it is a source)");
+              }
+            }
           });
         }
+        @found.append(self!chain-problems($top, $s)) if $top.defined;
       });
       @found.append(self!scope-problems($f));
     }
@@ -225,8 +283,6 @@ class Emitter
   {
     given $x
     {
-      when Pipeline   { .source ~~ Call && .source.name.lc (elem) <rows lines>
-                          ?? "'|>' over {.source.name.lc}()" !! Str }
       when Guard      { "'fallback'" }
       when Interp     { 'string interpolation' }
       when SafeMember { "'?.'" }
@@ -316,6 +372,90 @@ class Emitter
     @found
   }
 
+  # The chain from a source that a statement runs, when the statement is one
+  # that can run the loop first: 'x := chain', 'return chain', or the chain
+  # alone, for its effects.
+  method !stream-value(Stmt $s --> Expr)
+  {
+    given $s
+    {
+      when Assignment { return .value if .op eq ':=' && source-call(.value).defined }
+      when ReturnStmt { return .value if .value.defined && source-call(.value).defined }
+      when CallStmt   { return .call if .call ~~ Pipeline && source-call(.call).defined }
+    }
+    Expr
+  }
+
+  # What stops a chain from a source from being lowered.
+  method !chain-problems(Expr $chain, Stmt $s --> List)
+  {
+    my @p;
+    my $call = source-call($chain);
+    my $kind = $call.name.lc;
+    # One by one: rakupp 4.0.1 flattens Lists inside a list assignment.
+    my %split = split-stages($chain ~~ Pipeline ?? $chain.stages.list !! ());
+    my $fused    = %split<fused>;
+    my $terminal = %split<terminal>;
+    my $rest     = %split<rest>;
+
+    @p.push("'rows()' with no alias, or more than an alias and a key")
+      if $kind eq 'rows' && !(1 <= $call.args <= 2);
+    @p.push("'lines()' with no path, or more than one") if $kind eq 'lines' && $call.args != 1;
+
+    # A fused stage's lambda has to be written in the stage: it becomes the
+    # loop's code, and a block held in a variable cannot.
+    for |$fused, |($terminal // ()) -> $st
+    {
+      my $n = $st.name.lc;
+      my $needs = NEEDS-LAMBDA{$n} || ($n (elem) <count first> && $st.args);
+      if $needs && !($st.args == 1 && $st.args[0] ~~ Lambda && $st.args[0].params == 1)
+      {
+        @p.push("'$n' over {$kind}() without its lambda written in the stage");
+      }
+      @p.push("'take' over {$kind}() without a count") if $n eq 'take' && $st.args != 1;
+    }
+
+    # Over rows() the element is the current record, not a value, until a
+    # 'map' makes one: its name only names fields, and there is nothing to
+    # collect from it.
+    if $kind eq 'rows'
+    {
+      my $mapped = False;
+      for |$fused, |($terminal // ()) -> $st
+      {
+        last if $mapped;
+        my $l = $st.args[0];
+        if $l ~~ Lambda && $l.params == 1 && self!record-misused($l)
+        {
+          @p.push("over rows() the element is the current record, so it can only name a field");
+        }
+        $mapped = True if $st.name.lc eq 'map';
+      }
+      my $t = $terminal.defined ?? $terminal.name.lc !! '';
+      my $needs-value = $t (elem) <asum first> || (!$t && ($rest || $s !~~ CallStmt));
+      @p.push("over rows() nothing to collect before a 'map' makes the record a value")
+        if $needs-value && !$mapped;
+    }
+    @p.map({ $s.line => $_ }).List
+  }
+
+  # Whether a lambda over a record uses its parameter for anything but a field.
+  method !record-misused(Lambda $l --> Bool)
+  {
+    my $p = $l.params[0].lc;
+    my %field-base;
+    for $l.body -> $b
+    {
+      walk-expr($b, { %field-base{.base.WHICH} = True if $_ ~~ Member && .base ~~ Name && .base.name.lc eq $p });
+    }
+    my $misused = False;
+    for $l.body -> $b
+    {
+      walk-expr($b, { $misused = True if $_ ~~ Name && .name.lc eq $p && !%field-base{.WHICH} });
+    }
+    $misused
+  }
+
   # ---- the whole file ----------------------------------------------------------
   method emit(Program $p --> Str)
   {
@@ -398,6 +538,7 @@ class Emitter
   {
     for @body -> $s
     {
+      my $walked = False;             # set by a branch that walks the bodies itself
       given $s
       {
         # A block local: an assignment where it was, a Local at the top. One
@@ -409,6 +550,21 @@ class Emitter
           self!hoist($_, 'a block local') for .declarators.map(*.name);
           self!replace($s, False,
             .declarators.map({ "{.name} := {.init.defined ?? self!expr(.init) !! 'Nil'}" }));
+        }
+        # A 'return' inside 'for ... in lines()' closes the file first.
+        when { $_ ~~ ReturnStmt && @!closers }
+        {
+          self!replace($s, False, (|self!closer-lines, self!with-edits($s, exprs-of($s))));
+        }
+        # A chain from a source: the loop first, then the statement with its
+        # result -- or the loop alone, for a chain run for its effects.
+        when { self!stream-value($_).defined }
+        {
+          my $statement = $s ~~ CallStmt;
+          my ($result, @lines) = self!stream(self!stream-value($s), !$statement);
+          @lines.push($s ~~ ReturnStmt ?? "return $result" !! "{self!expr($s.target)} := $result")
+            unless $statement;
+          self!replace($s, False, @lines);
         }
         when { needs-lowering($_) }
         {
@@ -437,6 +593,36 @@ class Emitter
           self!header($s, .step // .to, 0,
             "For {.var} := {self!expr(.from)} To {self!expr(.to)}"
               ~ (.step.defined ?? " Step {self!expr(.step)}" !! ''));
+        }
+        when { $_ ~~ ForInStmt && source-call(.source).defined }
+        {
+          # 'for x in lines(p)': opened only if it exists, and advanced at the
+          # top, so a 'loop' in the body does not stall on the same line. Every
+          # way out closes it: the end of the loop, and each 'return' inside.
+          self!hoist(.elem, 'a block local');
+          self!hoist(.index, 'a block local') if .index.defined;
+          my $fs  = self!gen('fs', 'the path of the file walked');
+          my $fok = self!gen('fok', 'whether the file opened');
+          my @h = "$fs := {self!expr(.source.args[0])}", "$fok := File($fs)",
+                  "If $fok", "  FT_FUse($fs)", "  FT_FGoTop()", 'EndIf';
+          @h.push("{.index} := 0") if .index.defined;
+          my $while = @h.elems;
+          @h.push("While $fok .And. !FT_FEof()");
+          @h.push("  {.index} := {.index} + 1") if .index.defined;
+          @h.append("  {.elem} := FT_FReadLn()", '  FT_FSkip()');
+          self!header($s, .source, $while, |@h);
+
+          # 'next' becomes the end of the walk.
+          my $raw = self!slice($s);
+          my $ce  = code-end($raw);
+          my $at  = $s.src-from + $raw.substr(0, $ce).lc.rindex('next');
+          @!edits.push([$at, $s.src-from + $ce,
+            self!join-at($at, ('EndDo', "If $fok", '  FT_FUse()', 'EndIf'))]);
+
+          @!closers.push(["If $fok", '  FT_FUse()', 'EndIf']);
+          self!collect($_, False) for bodies-of($s);
+          @!closers.pop;
+          $walked = True;
         }
         when ForInStmt
         {
@@ -498,11 +684,172 @@ class Emitter
         }
       }
       # A Modified is lowered whole, with what it holds.
-      unless $s ~~ Modified
+      unless $s ~~ Modified || $walked
       {
         self!collect($_, False) for bodies-of($s);
       }
     }
+  }
+
+  # What a 'return' inside 'for ... in lines()' does first, innermost first.
+  method !closer-lines(--> List) { @!closers.reverse.map(|*).List }
+
+  # A chain from a source, as a loop: the lines, and the text of its result.
+  # The stages go inside the loop in order -- a filter an If around the rest,
+  # a map the new element, a take a count that stops the walk -- and the
+  # terminal, or an AAdd when there is none, collects. Any stage after that
+  # applies to what was collected, as an ordinary call.
+  method !stream(Expr $chain, Bool $collect --> List)
+  {
+    my $call = source-call($chain);
+    my %split = split-stages($chain ~~ Pipeline ?? $chain.stages.list !! ());
+    my $fused    = %split<fused>;
+    my $terminal = %split<terminal>;
+    my $rest     = %split<rest>;
+    my (@setup, @ahead, @body, @close, @teardown, $head, $advance, $read);
+    my ($elem, $prefix, $fv) = Str, Str, Str;
+
+    if $call.name.lc eq 'rows'
+    {
+      # A literal alias is written out ('SA1->A1_COD'); anything else is bound
+      # once and reached as '(alias)->'. The area and the record the walk found
+      # are put back afterwards.
+      my $a = $call.args[0];
+      my $select;
+      if $a ~~ Literal && $a !~~ Interp && $a.type eq 'Character'
+      {
+        $select = $a.text;
+        $prefix = $a.text.substr(1, *-1) ~ '->';
+      }
+      else
+      {
+        my $fal = self!gen('fal', 'the alias of the area walked');
+        @setup.push("$fal := {self!expr($a)}");
+        $select = $fal;
+        $prefix = "($fal)->";
+      }
+      my $far = self!gen('far', 'the area selected before the walk');
+      my $frc = self!gen('frc', 'the record the area was on before the walk');
+      @setup.append("$far := Alias()", "DbSelectArea($select)", "$frc := {$prefix}(RecNo())",
+        $call.args > 1 ?? "{$prefix}(DbSeek({self!expr($call.args[1])}))" !! "{$prefix}(DbGoTop())");
+      $head     = "While !{$prefix}(Eof())";
+      $advance  = "{$prefix}(DbSkip())";
+      @teardown = "{$prefix}(DbGoto($frc))", "If !Empty($far)", "  DbSelectArea($far)", 'EndIf';
+    }
+    else
+    {
+      # A path held in a variable is used as it is; anything else is bound
+      # once -- as xtpl does.
+      my $path = $call.args[0];
+      my $fs;
+      if $path ~~ Name
+      {
+        $fs = self!expr($path);
+      }
+      else
+      {
+        $fs = self!gen('fs', 'the path of the file walked');
+        @setup.push("$fs := {self!expr($path)}");
+      }
+      my $fok = self!gen('fok', 'whether the file opened');
+      $fv = self!gen('fv', 'the element walked');
+      @setup.append("$fok := File($fs)", "If $fok", "  FT_FUse($fs)", "  FT_FGoTop()", 'EndIf');
+      $head     = "While $fok .And. !FT_FEof()";
+      $read     = "$fv := FT_FReadLn()";
+      $advance  = 'FT_FSkip()';
+      @teardown = "If $fok", '  FT_FUse()', 'EndIf';
+      $elem     = $fv;
+    }
+
+    my $ind = '';
+    my &lambda = -> $st { self!bound($st.args[0], $elem, $prefix) };
+    for @$fused -> $st
+    {
+      given $st.name.lc
+      {
+        when 'filter' { @body.push("{$ind}If {lambda($st)}");      @close.unshift("{$ind}EndIf"); $ind ~= '  ' }
+        when 'reject' { @body.push("{$ind}If !({lambda($st)})");   @close.unshift("{$ind}EndIf"); $ind ~= '  ' }
+        when 'map'
+        {
+          $fv //= self!gen('fv', 'the element walked');
+          @body.push("{$ind}$fv := {lambda($st)}");
+          $elem = $fv;
+        }
+        when 'tap'    { @body.push("{$ind}{lambda($st)}") }
+        when 'take'
+        {
+          # A number is the limit as it is; anything else is bound once.
+          my $n = $st.args[0];
+          my $limit;
+          my $fn = self!gen('fn', 'how many elements have passed');
+          if $n ~~ Literal && $n.type eq 'Numeric'
+          {
+            $limit = self!expr($n);
+          }
+          else
+          {
+            $limit = self!gen('flm', 'the limit of a take');
+            @ahead.push("$limit := {self!expr($n)}");
+          }
+          @ahead.push("$fn := 0");
+          @body.append("{$ind}If $fn >= $limit", "{$ind}  Exit", "{$ind}EndIf", "{$ind}$fn := $fn + 1");
+        }
+        when 'takewhile' { @body.append("{$ind}If !({lambda($st)})", "{$ind}  Exit", "{$ind}EndIf") }
+      }
+    }
+
+    my $fo = Str;
+    my $t = $terminal.defined ?? $terminal.name.lc !! '';
+    if $t || $collect || $rest
+    {
+      $fo = self!gen('fo', 'the result of the chain');
+      my $cond = $terminal.defined && $terminal.args ?? lambda($terminal) !! Str;
+      given $t
+      {
+        when 'asum'   { @ahead.push("$fo := 0");   @body.push("{$ind}$fo := $fo + $elem") }
+        when 'count'
+        {
+          @ahead.push("$fo := 0");
+          @body.append($cond.defined
+            ?? ("{$ind}If $cond", "{$ind}  $fo := $fo + 1", "{$ind}EndIf")
+            !! ("{$ind}$fo := $fo + 1",));
+        }
+        when 'anyof'  { @ahead.push("$fo := .F."); @body.append("{$ind}If $cond", "{$ind}  $fo := .T.", "{$ind}  Exit", "{$ind}EndIf") }
+        when 'allof'  { @ahead.push("$fo := .T."); @body.append("{$ind}If !($cond)", "{$ind}  $fo := .F.", "{$ind}  Exit", "{$ind}EndIf") }
+        when 'noneof' { @ahead.push("$fo := .T."); @body.append("{$ind}If $cond", "{$ind}  $fo := .F.", "{$ind}  Exit", "{$ind}EndIf") }
+        when 'first'
+        {
+          @ahead.push("$fo := Nil");
+          @body.append($cond.defined
+            ?? ("{$ind}If $cond", "{$ind}  $fo := $elem", "{$ind}  Exit", "{$ind}EndIf")
+            !! ("{$ind}$fo := $elem", "{$ind}Exit"));
+        }
+        default       { @ahead.push("$fo := \{\}"); @body.push("{$ind}AAdd($fo, $elem)") }
+      }
+    }
+
+    my @loop = $head, |(($read // ()).map({ "  $_" })), |(@body, @close).flat.map({ "  $_" }), "  $advance", 'EndDo';
+    my $result = $fo // 'Nil';
+    for @$rest -> $st
+    {
+      $result = call-name($st.name) ~ '(' ~ ($result, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
+    }
+    ($result, |@setup, |@ahead, |@loop, |@teardown).List
+  }
+
+  # A stage's lambda body, its parameter bound to the element: the value's
+  # text, or -- over a record, before a map -- the area prefix for its fields.
+  method !bound(Lambda $l, $elem, $prefix --> Str)
+  {
+    my $p = $l.params[0].lc;
+    my %s = %!subst;
+    my %f = %!field;
+    if $elem.defined { %!subst{$p} = $elem; %!field{$p}:delete }
+    else             { %!field{$p} = $prefix; %!subst{$p}:delete }
+    my $text = self!expr($l.body[0]);
+    %!subst = %s;
+    %!field = %f;
+    $text
   }
 
   # A whole statement replaced by lines; the comment goes back on the header
@@ -549,7 +896,7 @@ class Emitter
     my @edits;
     for @exprs.grep(*.defined) -> $e
     {
-      next unless contains-lowering($e);
+      next unless self!contains-lowering($e);
       if $e.src-from >= 0
       {
         my $raw = self!slice($e);
@@ -574,7 +921,26 @@ class Emitter
     {
       when Lambda
       {
-        "\{|{.params.join(', ')}| {.body.map({ self!expr($_) }).join(', ')}\}"
+        # Its own parameters are not the element of an enclosing stage.
+        my $lambda = $_;
+        my %s = %!subst;
+        my %f = %!field;
+        %!subst{$_.lc}:delete for $lambda.params;
+        %!field{$_.lc}:delete for $lambda.params;
+        my $text = "\{|{$lambda.params.join(', ')}| {$lambda.body.map({ self!expr($_) }).join(', ')}\}";
+        %!subst = %s;
+        %!field = %f;
+        $text
+      }
+      when Name
+      {
+        %!subst{.name.lc}:exists ?? %!subst{.name.lc} !! self!with-edits($_, ())
+      }
+      when Member
+      {
+        .base ~~ Name && %!field{.base.name.lc}:exists
+          ?? %!field{.base.name.lc} ~ .name
+          !! self!with-edits($_, subexprs($_))
       }
       when Pipeline
       {
@@ -587,12 +953,27 @@ class Emitter
       }
       when Call
       {
-        lowers-itself($_)
+        self!lowers-itself($_)
           ?? call-name(.name) ~ '(' ~ .args.map({ self!part($_) }).join(', ') ~ ')'
           !! self!with-edits($_, subexprs($_))
       }
       default { self!with-edits($_, subexprs($_)) }
     }
+  }
+
+  # An expression that is rewritten itself, not just for what it holds.
+  method !lowers-itself(Expr $e --> Bool)
+  {
+    return True if $e ~~ Lambda || $e ~~ Pipeline;
+    return True if $e ~~ Call && VERBS{$e.name.lc}:exists;
+    return True if $e ~~ Name && %!subst{$e.name.lc}:exists;
+    return True if $e ~~ Member && $e.base ~~ Name && %!field{$e.base.name.lc}:exists;
+    False
+  }
+
+  method !contains-lowering(Expr $e --> Bool)
+  {
+    self!lowers-itself($e) || so subexprs($e).first({ self!contains-lowering($_) })
   }
 
   # An argument: an omitted one is empty.
@@ -654,6 +1035,8 @@ class Emitter
   method !lower-inner(Stmt $s --> List)
   {
     return self!lower($s)[1..*].List if needs-lowering($s);
+    return (|self!closer-lines, |self!with-edits($s, exprs-of($s)).lines).List
+      if $s ~~ ReturnStmt && @!closers;
     self!with-edits($s, exprs-of($s)).lines.List
   }
 }

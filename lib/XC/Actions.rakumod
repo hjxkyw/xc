@@ -302,6 +302,7 @@ method lvalue($/)
 {
   my $base = $<selfacc> ?? $<selfacc>.made
           !! $<subjacc> ?? $<subjacc>.made
+          !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make self!spanned(apply-trailers($base, $<trailer>), $/);
 }
@@ -310,6 +311,7 @@ method callst($/)
 {
   my $base = $<call>    ?? $<call>.made
           !! $<subjacc> ?? $<subjacc>.made
+          !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
     call => self!spanned(apply-trailers($base, $<trailer>), $/),

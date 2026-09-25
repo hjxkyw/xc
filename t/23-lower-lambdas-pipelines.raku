@@ -115,13 +115,15 @@ check 'a lambda in the value of a ?=',
   $out.lines[4..6].join("\n") eq "  If x == Nil\n    x := u_xtpl_map(a, \{|o| o\})\n  EndIf"
 };
 
-# ---- what is still not lowered -----------------------------------------------------------
-check "'|>' over rows() and lines() is reported: those sources need a loop",
+# ---- chains from sources ------------------------------------------------------------------
+# A chain from rows() or lines() runs as a loop before its statement, so it
+# only goes where that is the same thing: t/25-sources.raku has the rest.
+check "a chain from a source in a declaration's value is reported, with where it can go",
 {
-  my $src = "user function f()\n  local n := rows(\"SA1\") |> count\n  local m := lines(\"a.txt\") |> count\nreturn n\n";
+  my $src = "user function f()\n  local n := rows(\"SA1\") |> count\nreturn n\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
-  !$out.defined && $!.problems.map(*.value).join(', ') eq "'|>' over rows(), '|>' over lines()"
+  !$out.defined && $!.problems[0].value.starts-with('a chain from rows() where it cannot run as a loop first')
 };
 
 # ---- the output is plain TL++ -------------------------------------------------------------
