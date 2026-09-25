@@ -47,7 +47,8 @@ our sub is-reserved(Str $n --> Bool) { RESERVED{$n.lc}:exists }
 # The shape of a name xtpl generates: a leading '__', a short temporary
 # '<kind>_<depth>_<index>', or a slot 's_'/'b_'. Only a function-level
 # 'local'/'private' refuses it -- the only declaration emitted with the name
-# as written.
+# as written. xc's own output declares such names, so reading it back
+# (checking that it compiles to itself) sets '$*GENERATED-OK'.
 our sub is-generated(Str $n --> Bool)
 {
   so ($n.starts-with('__')
@@ -476,7 +477,7 @@ rule declarator
 {
   <name>
   <!{ is-reserved(~$<name>) }>
-  <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) }>
+  <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
   <attrs>?
   [    [ ':=' <expr=guardexpr> <typespec>? ]
     || [ <typespec> ':=' <expr=guardexpr> ]

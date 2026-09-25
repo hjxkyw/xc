@@ -23,7 +23,25 @@ my $in  = @*ARGS[0];
 my $out = @*ARGS[1] // $in.subst(/ '.' <-[./]>* $ /, '') ~ '.tlpp';
 fail-with("$in: no such file") unless $in.IO.f;
 
-my $src = slurp($in);
+# Read as bytes, not with 'slurp': 'slurp' turns every "\r\n" into "\n", and
+# a CRLF source has to come out CRLF. UTF-8 when the bytes are valid UTF-8,
+# windows-1252 otherwise -- what Protheus sources are, when they are not
+# UTF-8 -- and the output goes back in the same encoding, with the same line
+# ends and the same byte-order mark, as xtpl does.
+my $bytes = $in.IO.slurp(:bin);
+my $encoding = 'utf-8';
+my $src = try $bytes.decode('utf-8');
+without $src
+{
+  $encoding = 'windows-1252';
+  $src = $bytes.decode('windows-1252');
+}
+my $bom = '';
+if $src.starts-with("\x[FEFF]")
+{
+  $bom = "\x[FEFF]";
+  $src = $src.substr(1);
+}
 
 # How far the parse got: the grammar records the end of every line it could
 # finish. The first line it could not is the one to show.
@@ -48,5 +66,5 @@ if $! ~~ X::XC::NotLowered
 }
 fail-with("$in: {$!.message}") if $!;
 
-spurt($out, $tlpp);
+spurt($out, ($bom ~ $tlpp).encode($encoding));
 say "$in -> $out";

@@ -326,6 +326,10 @@ class ForInStmt is Stmt is export
   has Str  $.index;                # undefined when not named
   has Expr $.source;
   has Stmt @.body;
+  # The span of the name after 'next' ('next oItem'), -1 when none: in TL++
+  # 'Next' can only name the counter, so the emitter drops it.
+  has Int  $.endname-from is rw = -1;
+  has Int  $.endname-to   is rw = -1;
 }
 
 # 'for n times': the count is evaluated once; the counter is hidden.

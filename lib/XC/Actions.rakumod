@@ -369,13 +369,19 @@ method forst($/)
 
 method forinst($/)
 {
-  make ForInStmt.new(
+  my $node = ForInStmt.new(
     elem   => ~$<elem>,
     index  => $<idx> ?? ~$<idx> !! Str,
     source => $<source>.made,
     body   => $<block>.made,
     line   => self!line($/),
   );
+  with $<endname> -> $e
+  {
+    $node.endname-from = self!from($e);
+    $node.endname-to   = self!to($e);
+  }
+  make $node;
 }
 
 method fortimesst($/)
