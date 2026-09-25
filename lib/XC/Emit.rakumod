@@ -217,6 +217,12 @@ class Emitter
   # Statements rewritten already, by the prologue pass: the walk skips them.
   has %!done;
 
+  # Block locals renamed, by the block that declares them (its WHICH):
+  # head => the header locals ('if local x', 'for x in'), in scope in the
+  # header and the body; body => the locals of its prologue, in scope in the
+  # body only. Each maps the name, lower case, to the new one.
+  has %!renames;
+
   submethod TWEAK() { $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n" }
 
   # ---- lines -----------------------------------------------------------------
@@ -329,18 +335,11 @@ class Emitter
     for $f.body.grep(Declaration) -> $d { %fn{.name.lc} = True for $d.declarators }
     my @found;
 
+    # (A block local with the name of a function variable or of an enclosing
+    # block local is renamed; see !plan-renames.)
     my sub declare(Str $n, Int $line, @stack)
     {
-      my $k = $n.lc;
-      if %fn{$k}
-      {
-        @found.push($line => "block local '$n', with the name of a variable of the function,");
-      }
-      elsif @stack[0 ..^ @stack.end].first({ .{$k} })
-      {
-        @found.push($line => "block local '$n', with the name of an enclosing block local,");
-      }
-      @stack[*-1]{$k} = True;
+      @stack[*-1]{$n.lc} = True;
     }
 
     my sub visit(@body, @stack, Bool $top)
@@ -596,6 +595,7 @@ class Emitter
     });
 
     self!declare-names($f);
+    self!plan-renames($f);
 
     # The defers, lowered once each, with their comment on their last line.
     @!defers = ();
@@ -677,6 +677,95 @@ class Emitter
     });
   }
 
+  # Which block locals to rename. xc keeps names as written, and a block local
+  # becomes a Local of the function -- so one with the name of a function
+  # variable, or of a block local of an enclosing block, would share its
+  # Local and clobber it. Those get a name of their own, in the shape xtpl
+  # gives its slots: s_<depth>_<name>. The same name in sibling blocks shares
+  # one Local, as before.
+  method !plan-renames($f)
+  {
+    %!renames = ();
+    my %fn;
+    %fn{.name.lc} = True for $f.params;
+    for $f.body.grep(Declaration) -> $d { %fn{.name.lc} = True for $d.declarators }
+    my %mine;                          # the new names made here
+
+    my sub prologue(@body) { @body.grep({ $_ ~~ Declaration && .scope eq 'local' }).map({ |.declarators.map(*.name) }) }
+
+    my sub visit(@body, @stack, Int $depth)
+    {
+      for @body -> $s
+      {
+        next if $s ~~ Modified || $s ~~ Deferred;
+        my @bodies = bodies-of($s);
+        next unless @bodies;
+        my @head = do given $s
+        {
+          when IfStmt | WhileStmt { .header-decl.defined ?? (.header-decl.name,) !! () }
+          when ForStmt            { .var-local ?? (.var,) !! () }
+          when ForInStmt          { (.elem, |(.index // ())) }
+          when CaseStmt           { .subject-decl.defined ?? (.subject-decl.name,) !! () }
+          default                 { () }
+        };
+        my @own = |@head, |@bodies.map({ |prologue($_) });
+        my %set;
+        my %head;
+        my %body;
+        for @own.kv -> $i, $n
+        {
+          my $k = $n.lc;
+          if %fn{$k} || @stack.first({ .{$k} })
+          {
+            my $new = "s_{$depth}_$n";
+            $new ~= '_' while %!used{$new.lc} && !%mine{$new.lc};
+            %!used{$new.lc} = True;
+            %mine{$new.lc} = True;
+            if $i < @head { %head{$k} = $new } else { %body{$k} = $new }
+          }
+          %set{$k} = True;
+        }
+        %!renames{$s.WHICH} = %(head => %head, body => %body) if %head || %body;
+        visit($_, [|@stack, %set], $depth + 1) for @bodies;
+      }
+    }
+    visit($f.body, [], 1);
+  }
+
+  # The name a header local of $s goes by.
+  method !nm(Stmt $s, Str $name --> Str)
+  {
+    with %!renames{$s.WHICH} { return .<head>{$name.lc} // $name }
+    $name
+  }
+
+  # The name a local goes by where the walk is now.
+  method !local(Str $name --> Str) { %!subst{$name.lc} // $name }
+
+  # Code run with the header locals of $s in scope ('if local x := e, x > 1':
+  # the condition sees x).
+  method !in-scope(Stmt $s, &code)
+  {
+    my %saved = %!subst;
+    with %!renames{$s.WHICH} -> %r { %!subst{$_} = %r<head>{$_} for %r<head>.keys }
+    my $result = code();
+    %!subst = %saved;
+    $result
+  }
+
+  # The bodies of $s, with its header locals and its prologue's in scope.
+  method !collect-bodies(Stmt $s)
+  {
+    my %saved = %!subst;
+    with %!renames{$s.WHICH} -> %r
+    {
+      %!subst{$_} = %r<head>{$_} for %r<head>.keys;
+      %!subst{$_} = %r<body>{$_} for %r<body>.keys;
+    }
+    self!collect($_, False) for bodies-of($s);
+    %!subst = %saved;
+  }
+
   # A Local to add after the function's prologue, once per name.
   method !hoist(Str $name, Str $comment)
   {
@@ -733,8 +822,8 @@ class Emitter
         # would return the type itself, and every T would match.
         when { $_ ~~ Declaration && !$top && .scope eq 'local' }
         {
-          self!hoist($_, 'a block local') for .declarators.map(*.name);
-          self!replace($s, False, .declarators.map({ .init.defined ?? |self!init-lines(.name, .init) !! "{.name} := Nil" }));
+          self!hoist(self!local($_), 'a block local') for .declarators.map(*.name);
+          self!replace($s, False, .declarators.map({ .init.defined ?? |self!init-lines(self!local(.name), .init) !! "{self!local(.name)} := Nil" }));
         }
         # A 'defer' leaves where it is written; its body runs at the exits.
         when Deferred
@@ -792,7 +881,7 @@ class Emitter
           @!edits.push([$start, $s.src-from + $ce, self!join-at($start, @restore)]);
 
           @!closers.push('using' => @restore.List);
-          self!collect($_, False) for bodies-of($s);
+          self!collect-bodies($s);
           @!closers.pop;
           $walked = True;
         }
@@ -821,42 +910,58 @@ class Emitter
         when { $_ ~~ IfStmt && .header-decl.defined }
         {
           my $d = .header-decl;
-          self!hoist($d.name, 'a block local');
-          self!header($s, .branches[0].cond, 1,
-            "{$d.name} := {self!expr($d.init)}", "If {self!expr(.branches[0].cond)}");
-          self!expressions($s, .branches[1..*].map(*.cond));
+          my $x = self!nm($s, $d.name);
+          self!hoist($x, 'a block local');
+          my $init = self!expr($d.init);
+          self!in-scope($s, {
+            self!header($s, $s.branches[0].cond, 1, "$x := $init", "If {self!expr($s.branches[0].cond)}");
+            self!expressions($s, $s.branches[1..*].map(*.cond));
+          });
         }
         when { $_ ~~ WhileStmt && .header-decl.defined }
         {
           # Bound and tested on every round, 'loop' included.
           my $d = .header-decl;
-          self!hoist($d.name, 'a block local');
-          self!header($s, .cond, 0, 'While .T.', "  {$d.name} := {self!expr($d.init)}",
-            "  If !({self!expr(.cond)})", '    Exit', '  EndIf');
+          my $x = self!nm($s, $d.name);
+          self!hoist($x, 'a block local');
+          my $init = self!expr($d.init);
+          my $cond = self!in-scope($s, { self!expr($s.cond) });
+          self!header($s, .cond, 0, 'While .T.', "  $x := $init", "  If !($cond)", '    Exit', '  EndIf');
         }
-        when { $_ ~~ ForStmt && .var-local }
+        # 'for local i', or a counter renamed with its block: the header written
+        # out, and a 'next i' loses the name, which is no longer the counter's.
+        when { $_ ~~ ForStmt && (.var-local || %!subst{.var.lc}:exists) }
         {
-          self!hoist(.var, 'a block local');
+          my $x = .var-local ?? self!nm($s, .var) !! self!local(.var);
+          self!hoist($x, 'a block local') if .var-local;
           self!header($s, .step // .to, 0,
-            "For {.var} := {self!expr(.from)} To {self!expr(.to)}"
+            "For $x := {self!expr(.from)} To {self!expr(.to)}"
               ~ (.step.defined ?? " Step {self!expr(.step)}" !! ''));
+          if .endname-from >= 0 && $x ne .var
+          {
+            my $from = .endname-from;
+            $from-- while $from > 0 && $!src.substr($from - 1, 1) eq ' ' | "\t";
+            @!edits.push([$from, .endname-to, '']);
+          }
         }
         when { $_ ~~ ForInStmt && source-call(.source).defined }
         {
           # 'for x in lines(p)': opened only if it exists, and advanced at the
           # top, so a 'loop' in the body does not stall on the same line. Every
           # way out closes it: the end of the loop, and each 'return' inside.
-          self!hoist(.elem, 'a block local');
-          self!hoist(.index, 'a block local') if .index.defined;
+          my $el = self!nm($s, .elem);
+          my $ix = .index.defined ?? self!nm($s, .index) !! Str;
+          self!hoist($el, 'a block local');
+          self!hoist($ix, 'a block local') if $ix.defined;
           my $fs  = self!gen('fs', 'the path of the file walked');
           my $fok = self!gen('fok', 'whether the file opened');
           my @h = "$fs := {self!expr(.source.args[0])}", "$fok := File($fs)",
                   "If $fok", "  FT_FUse($fs)", "  FT_FGoTop()", 'EndIf';
-          @h.push("{.index} := 0") if .index.defined;
+          @h.push("$ix := 0") if $ix.defined;
           my $while = @h.elems;
           @h.push("While $fok .And. !FT_FEof()");
-          @h.push("  {.index} := {.index} + 1") if .index.defined;
-          @h.append("  {.elem} := FT_FReadLn()", '  FT_FSkip()');
+          @h.push("  $ix := $ix + 1") if $ix.defined;
+          @h.append("  $el := FT_FReadLn()", '  FT_FSkip()');
           self!header($s, .source, $while, |@h);
 
           # 'next' becomes the end of the walk.
@@ -870,7 +975,7 @@ class Emitter
           # the file; a 'return' has to close it itself.
           @!closers.push('lines' => ("If $fok", '  FT_FUse()', 'EndIf'));
           @!closers.push('loop' => ());
-          self!collect($_, False) for bodies-of($s);
+          self!collect-bodies($s);
           @!closers.pop;
           @!closers.pop;
           $walked = True;
@@ -878,12 +983,14 @@ class Emitter
         when ForInStmt
         {
           # The source evaluated once; the index, when named, is the counter.
-          self!hoist(.elem, 'a block local');
-          self!hoist(.index, 'a block local') if .index.defined;
+          my $el = self!nm($s, .elem);
+          my $ix = .index.defined ?? self!nm($s, .index) !! Str;
+          self!hoist($el, 'a block local');
+          self!hoist($ix, 'a block local') if $ix.defined;
           my $src = self!gen('fs', "the source of a 'for ... in'");
-          my $ctr = .index // self!gen('fi', "the counter of a 'for ... in'");
+          my $ctr = $ix // self!gen('fi', "the counter of a 'for ... in'");
           self!header($s, .source, 1, "$src := {self!expr(.source)}",
-            "For $ctr := 1 To Len($src)", "  {.elem} := {$src}[$ctr]");
+            "For $ctr := 1 To Len($src)", "  $el := {$src}[$ctr]");
           # 'next oItem' names the element; TL++'s 'Next' names the counter.
           if .endname-from >= 0
           {
@@ -916,8 +1023,9 @@ class Emitter
           my $last;
           with $c.subject-decl -> $d
           {
-            self!hoist($d.name, 'a block local');
-            $bind = "{$d.name} := {self!expr($d.init)}";
+            my $x = self!nm($c, $d.name);
+            self!hoist($x, 'a block local');
+            $bind = "$x := {self!expr($d.init)}";
             $last = $d.init;
           }
           else
@@ -927,7 +1035,7 @@ class Emitter
             $last = $a.value;
           }
           self!header($s, $last, 1, $bind, 'Do Case');
-          self!expressions($s, $c.branches.map(*.cond));
+          self!in-scope($c, { self!expressions($c, $c.branches.map(*.cond)) });
         }
         default
         {
@@ -940,7 +1048,7 @@ class Emitter
       {
         my $loop = $s ~~ WhileStmt || $s ~~ ForStmt || $s ~~ ForInStmt || $s ~~ ForTimesStmt;
         @!closers.push('loop' => ()) if $loop;
-        self!collect($_, False) for bodies-of($s);
+        self!collect-bodies($s);
         @!closers.pop if $loop;
       }
     }

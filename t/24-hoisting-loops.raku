@@ -103,15 +103,15 @@ sub problems(Str $lines)
   my $out = try emit($m.made, $src);
   $out.defined ?? () !! $!.problems.map({ .key ~ ': ' ~ .value }).List
 }
-check 'a block local with the name of a variable of the function is reported',
+# A clash would share a Local and clobber it, so the block local gets a name
+# of its own, in xtpl's slot shape -- only inside its scope.
+lowers 'a block local with the name of a variable of the function is renamed, inside its block only',
+  "  local oI := 0\n  for oI in a\n    n := oI\n  next\n  n := oI",
+  "  local oI := 0\n  Local s_1_oI  // a block local\n  Local fs_0_0  // the source of a 'for ... in'\n  Local fi_0_0  // the counter of a 'for ... in'\n  fs_0_0 := a\n  For fi_0_0 := 1 To Len(fs_0_0)\n    s_1_oI := fs_0_0[fi_0_0]\n    n := s_1_oI\n  next\n  n := oI";
+check 'a block local shadowing an enclosing one is renamed; the outer one is itself again after',
 {
-  problems("  local oI := 0\n  for oI in a\n    n := 1\n  next")
-    eqv ("3: block local 'oI', with the name of a variable of the function,",)
-};
-check 'a block local shadowing an enclosing one is reported',
-{
-  problems("  for x in a\n    for x in a\n      n := 1\n    next\n  next")
-    eqv ("3: block local 'x', with the name of an enclosing block local,",)
+  my $b = body-of("  local nT := 0\n  for x in a\n    for x in a\n      n := x\n    next\n    n := x\n  next");
+  $b.contains("      s_2_x := fs_0_1[fi_0_1]\n      n := s_2_x\n    next\n    n := x\n")
 };
 check "'for ... in' over rows() is reported (xtpl's corpus never walks one that way)",
 {

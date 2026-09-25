@@ -375,7 +375,7 @@ method whilest($/)
 
 method forst($/)
 {
-  make ForStmt.new(
+  my $node = ForStmt.new(
     var       => ~$<var>,
     var-local => ?$<varlocal>,
     from      => $<from>.made,
@@ -384,6 +384,12 @@ method forst($/)
     body      => $<block>.made,
     line      => self!line($/),
   );
+  with $<endname> -> $e
+  {
+    $node.endname-from = self!from($e);
+    $node.endname-to   = self!to($e);
+  }
+  make $node;
 }
 
 method forinst($/)
@@ -727,7 +733,7 @@ method arglist($/)
 method arg($/)
 {
   make self!spanned(
-         $<byref>      ?? Ref.new(target => Name.new(name => ~$<byref><name>))
+         $<byref>      ?? Ref.new(target => self!spanned(Name.new(name => ~$<byref><name>), $<byref><name>))
       !! $<assignment> ?? assign-expr($<assignment>.made)
       !!                  $<expr>.made, $/);
 }

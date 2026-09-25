@@ -319,6 +319,10 @@ class ForStmt is Stmt is export
   has Expr $.to;
   has Expr $.step;                 # undefined: step 1
   has Stmt @.body;
+  # The span of the name after 'next', -1 when none: dropped when the
+  # counter is renamed.
+  has Int  $.endname-from is rw = -1;
+  has Int  $.endname-to   is rw = -1;
 }
 
 # 'for oItem [, nPos] in aItems': 'elem' and 'index' are new block locals.
