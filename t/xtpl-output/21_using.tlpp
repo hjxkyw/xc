@@ -1,0 +1,89 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 21_using.tlpp -- scoped work areas.
+//
+// Forgetting to restore an alias is a classic Protheus bug, and its damage
+// appears somewhere else entirely. The area, the index order and the record
+// pointer are put back at every way out of the block, early returns included
+// -- which is the defer machinery, so the two have to agree on order:
+// deferred statements first, since they may still want the area, then the
+// work areas, innermost block first.
+// --------------------------------------------------------------------------------
+
+user function testUsing(cAlias, nX)
+
+  Local nT := 0
+  Local aC := {}
+
+  Local far_0_0       // a area que estava selecionada antes do percurso
+  Local fo_0_0        // o resultado da cadeia
+  Local frc_0_0       // o registro em que a area estava antes do percurso
+  Local fv_0_0        // o elemento em percurso
+  Local s_1_usearea   // o local de bloco 'usearea'
+  Local s_1_useord    // o local de bloco 'useord'
+  Local s_1_userec    // o local de bloco 'userec'
+  Local s_2_usealias  // o local de bloco 'usealias'
+  Local s_2_usearea   // o local de bloco 'usearea'
+  Local s_2_userec    // o local de bloco 'userec'
+
+  s_1_usearea := Alias()
+  DbSelectArea("SA1")
+  s_1_userec := SA1->(RecNo())
+  s_1_useord := SA1->(IndexOrd())
+  SA1->(DbSetOrder(1))
+    nT := SA1->A1_SALDO
+    If nX > 100  // restored before the return
+      SA1->(DbSetOrder(s_1_useord))
+      SA1->(DbGoto(s_1_userec))
+      If !Empty(s_1_usearea)
+        DbSelectArea(s_1_usearea)
+      EndIf
+      Return nT
+    EndIf
+
+    nT := nT + 1
+
+    s_2_usealias := cAlias
+    s_2_usearea := Alias()
+    DbSelectArea(s_2_usealias)  // a variable holds the alias here
+    s_2_userec := (s_2_usealias)->(RecNo())
+      nT := nT + 1
+    (s_2_usealias)->(DbGoto(s_2_userec))
+    If !Empty(s_2_usearea)
+      DbSelectArea(s_2_usearea)
+    EndIf
+  SA1->(DbSetOrder(s_1_useord))
+  SA1->(DbGoto(s_1_userec))
+
+  If !Empty(s_1_usearea)
+    DbSelectArea(s_1_usearea)
+  EndIf
+
+  // a chain walks its own area and restores it the same way
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  SA1->(DbGoTop())
+  fo_0_0 := {}
+
+  While !SA1->(Eof())
+    If SA1->A1_SALDO > 0
+      fv_0_0 := SA1->A1_COD
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+    SA1->(DbSkip())
+  EndDo
+
+  SA1->(DbGoto(frc_0_0))
+
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  aC := fo_0_0
+
+  return nT + len(aC)
+
+// --------------------------------------------------------------------------------
+// the end

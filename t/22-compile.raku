@@ -195,9 +195,9 @@ check 'bin/xc: a block never closed',
 check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
-  spurt $in, "user function f(a)\n  defer conout(1)\nreturn 1\n";
+  spurt $in, "user function f(o)\n  with object o\n    :Ativa()\n  end with\nreturn 1\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:2: 'defer' is not lowered yet") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:2: 'with object' is not lowered yet") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;

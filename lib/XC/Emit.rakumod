@@ -185,9 +185,20 @@ class Emitter
   has %!subst;
   has %!field;
 
-  # Inside 'for ... in lines()': what a 'return' has to do first (close the
-  # file), innermost first.
+  # The way out. Entries, innermost last: 'lines' => the lines that close a
+  # file, 'using' => the lines that restore a work area, and 'loop' => ()
+  # marking a loop body. A 'return' runs the pending defers and then every
+  # entry, innermost first; an 'exit' or 'loop' runs only the entries between
+  # it and the loop it leaves.
   has @!closers;
+
+  # The function's defers, in the order written: [where, lines]. A 'return'
+  # runs those written before it, the last one first.
+  has @!defers;
+
+  # The names the function declares: a 'using alias' word that is one of
+  # them is a variable holding the alias, not the alias itself.
+  has %!declared;
 
   submethod TWEAK() { $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n" }
 
@@ -231,8 +242,6 @@ class Emitter
       {
         my $what = do given $s
         {
-          when Deferred     { "'defer'" }
-          when UsingAlias   { "'using alias'" }
           when WithObject   { "'with object'" }
           when RawStmt      { "'raw'" }
           when ForInStmt    { source-call(.source).defined && source-call(.source).name.lc eq 'rows'
@@ -369,6 +378,38 @@ class Emitter
     }
 
     visit($f.body, [{},], True);
+
+    # A block local a defer reads, declared in more than one block: xc gives
+    # the blocks one Local, so the defer, which runs at the end, could see the
+    # other block's value. xtpl gives it storage of its own.
+    my %blocks;
+    walk($f.body, -> $s
+    {
+      given $s
+      {
+        when Declaration { if .scope eq 'local' && !($f.body.first(* === $s)) { %blocks{.name.lc}++ for .declarators } }
+        when ForInStmt   { %blocks{.elem.lc}++; %blocks{.index.lc}++ if .index.defined }
+        when ForStmt     { %blocks{.var.lc}++ if .var-local }
+        when IfStmt | WhileStmt { %blocks{.header-decl.name.lc}++ if .header-decl.defined }
+        when CaseStmt    { %blocks{.subject-decl.name.lc}++ if .subject-decl.defined }
+      }
+    });
+    walk($f.body, -> $s
+    {
+      if $s ~~ Deferred
+      {
+        for exprs-of($s.stmt) -> $e
+        {
+          walk-expr($e, -> $x
+          {
+            if $x ~~ Name && (%blocks{$x.name.lc} // 0) > 1
+            {
+              @found.push($s.line => "block local '{$x.name}', read by a defer and declared in more than one block,");
+            }
+          });
+        }
+      }
+    });
     @found
   }
 
@@ -463,6 +504,17 @@ class Emitter
     die X::XC::NotLowered.new(problems => @problems) if @problems;
 
     self!function($_) for |$p.functions, |$p.methods;
+
+    # Two edits over the same text would garble it without a word: stop
+    # instead. (An insertion at the edge of another edit is fine.)
+    my @sorted = @!edits.sort({ .[0], .[1] });
+    for 1 ..^ @sorted -> $i
+    {
+      my ($a, $b) = @sorted[$i - 1], @sorted[$i];
+      die "internal: overlapping edits at offsets {$a[0]}..{$a[1]} and {$b[0]}..{$b[1]}"
+        if $b[0] < $a[1] && $b[1] > $b[0];
+    }
+
     my $out = $!src;
     for @!edits.sort({ -.[0], -.[1] }) -> [$from, $to, $text]
     {
@@ -488,7 +540,45 @@ class Emitter
       for exprs-of($s) -> $e { walk-expr($e, { %!used{.name.lc} = True if $_ ~~ Name }) }
     });
 
+    %!declared = ();
+    %!declared{.name.lc} = True for $f.params;
+    walk($f.body, -> $s
+    {
+      given $s
+      {
+        when Declaration { %!declared{.name.lc} = True for .declarators }
+        when ForStmt     { %!declared{.var.lc} = True if .var-local }
+        when ForInStmt   { %!declared{.elem.lc} = True; %!declared{.index.lc} = True if .index.defined }
+        when IfStmt | WhileStmt { %!declared{.header-decl.name.lc} = True if .header-decl.defined }
+        when CaseStmt    { %!declared{.subject-decl.name.lc} = True if .subject-decl.defined }
+      }
+    });
+
+    # The defers, lowered once each, with their comment on their last line.
+    @!defers = ();
+    walk($f.body, -> $s
+    {
+      if $s ~~ Deferred
+      {
+        my @lines = self!stmt-lines($s.stmt);
+        my $comment = split-comment(self!slice($s))[1];
+        @lines[*-1] ~= "  $comment" if $comment;
+        @!defers.push([$s.src-from, @lines.List]);
+      }
+    });
+
     self!collect($f.body, True);
+
+    # The natural end: unless the body ends in a 'return', every defer runs
+    # after its last statement.
+    my $last = $f.body[*-1];
+    if @!defers && $last.defined && $last !~~ ReturnStmt
+    {
+      my $at = self!line-end($last.src-from + code-end(self!slice($last)));
+      my $indent = self!indent-at($f.body[0].src-from);
+      my @lines = @!defers.reverse.map({ |.[1] });
+      @!edits.push([$at, $at, @lines.map({ $!nl ~ $indent ~ $_ }).join]);
+    }
     self!hoist-edit($f) if @!hoist;
   }
 
@@ -551,10 +641,65 @@ class Emitter
           self!replace($s, False,
             .declarators.map({ "{.name} := {.init.defined ?? self!expr(.init) !! 'Nil'}" }));
         }
-        # A 'return' inside 'for ... in lines()' closes the file first.
-        when { $_ ~~ ReturnStmt && @!closers }
+        # A 'defer' leaves where it is written; its body runs at the exits.
+        when Deferred
         {
-          self!replace($s, False, (|self!closer-lines, self!with-edits($s, exprs-of($s))));
+          my $from = self!line-start($s.src-from);
+          my $end  = self!line-end($s.src-from + code-end(self!slice($s)));
+          $end++ if $end < $!src.chars;              # the line break too
+          @!edits.push([$from, $end, '']);
+          $walked = True;                            # its body is spliced, not edited here
+        }
+        # A 'return' runs the pending defers and closes what is open.
+        when { $_ ~~ ReturnStmt && self!return-exits($_) }
+        {
+          self!replace($s, False, (|self!return-exits($s), self!with-edits($s, exprs-of($s))));
+        }
+        # An 'exit' or 'loop' closes what it leaves.
+        when { ($_ ~~ ExitStmt || $_ ~~ LoopStmt) && self!jump-exits }
+        {
+          self!replace($s, False, (|self!jump-exits, self!with-edits($s, ())));
+        }
+        # 'using alias': the area selected, and put back at 'end using' and
+        # on every way out of the block.
+        when UsingAlias
+        {
+          my (@setup, @restore, $select, $prefix);
+          if %!declared{.area.lc}
+          {
+            my $fal = self!gen('fal', "the alias of a 'using alias', from a variable");
+            @setup.push("$fal := {.area}");
+            $select = $fal;
+            $prefix = "($fal)->";
+          }
+          else
+          {
+            $select = "\"{.area}\"";
+            $prefix = "{.area}->";
+          }
+          my $far = self!gen('far', "the area selected before a 'using alias'");
+          my $frc = self!gen('frc', "the record the area was on before a 'using alias'");
+          my $at  = @setup.elems + 1;            # the DbSelectArea line takes the comment
+          @setup.append("$far := Alias()", "DbSelectArea($select)", "$frc := {$prefix}(RecNo())");
+          with .order -> $o
+          {
+            my $fol = self!gen('fol', "the index order before a 'using alias'");
+            @setup.append("$fol := {$prefix}(IndexOrd())", "{$prefix}(DbSetOrder({self!expr($o)}))");
+            @restore.push("{$prefix}(DbSetOrder($fol))");
+          }
+          @restore.append("{$prefix}(DbGoto($frc))", "If !Empty($far)", "  DbSelectArea($far)", 'EndIf');
+
+          self!header-to($s, self!line-end($s.src-from), $at, |@setup);
+          my $raw = self!slice($s);
+          my $ce  = code-end($raw);
+          my $m   = $raw.substr(0, $ce).lc.match(/ 'end' \s+ 'using' /, :g)[*-1];
+          my $start = $s.src-from + $m.from;
+          @!edits.push([$start, $s.src-from + $ce, self!join-at($start, @restore)]);
+
+          @!closers.push('using' => @restore.List);
+          self!collect($_, False) for bodies-of($s);
+          @!closers.pop;
+          $walked = True;
         }
         # A chain from a source: the loop first, then the statement with its
         # result -- or the loop alone, for a chain run for its effects.
@@ -562,8 +707,15 @@ class Emitter
         {
           my $statement = $s ~~ CallStmt;
           my ($result, @lines) = self!stream(self!stream-value($s), !$statement);
-          @lines.push($s ~~ ReturnStmt ?? "return $result" !! "{self!expr($s.target)} := $result")
-            unless $statement;
+          if $s ~~ ReturnStmt
+          {
+            @lines.append(self!return-exits($s));
+            @lines.push("return $result");
+          }
+          elsif !$statement
+          {
+            @lines.push("{self!expr($s.target)} := $result");
+          }
           self!replace($s, False, @lines);
         }
         when { needs-lowering($_) }
@@ -619,8 +771,12 @@ class Emitter
           @!edits.push([$at, $s.src-from + $ce,
             self!join-at($at, ('EndDo', "If $fok", '  FT_FUse()', 'EndIf'))]);
 
-          @!closers.push(["If $fok", '  FT_FUse()', 'EndIf']);
+          # Below the loop marker: an 'exit' leaves the loop, whose end closes
+          # the file; a 'return' has to close it itself.
+          @!closers.push('lines' => ("If $fok", '  FT_FUse()', 'EndIf'));
+          @!closers.push('loop' => ());
           self!collect($_, False) for bodies-of($s);
+          @!closers.pop;
           @!closers.pop;
           $walked = True;
         }
@@ -683,16 +839,53 @@ class Emitter
           self!expressions($s, exprs-of($s));
         }
       }
-      # A Modified is lowered whole, with what it holds.
+      # A Modified is lowered whole, with what it holds. A loop's body is
+      # marked, so an 'exit' in it knows what it leaves.
       unless $s ~~ Modified || $walked
       {
+        my $loop = $s ~~ WhileStmt || $s ~~ ForStmt || $s ~~ ForInStmt || $s ~~ ForTimesStmt;
+        @!closers.push('loop' => ()) if $loop;
         self!collect($_, False) for bodies-of($s);
+        @!closers.pop if $loop;
       }
     }
   }
 
-  # What a 'return' inside 'for ... in lines()' does first, innermost first.
-  method !closer-lines(--> List) { @!closers.reverse.map(|*).List }
+  # What a 'return' at $s does first: the defers written before it, the last
+  # one first -- they may still want the areas -- then everything open,
+  # innermost first.
+  method !return-exits(Stmt $s --> List)
+  {
+    (|@!defers.grep({ .[0] < $s.src-from }).reverse.map({ |.[1] }),
+     |@!closers.reverse.grep(*.key ne 'loop').map({ |.value })).List
+  }
+
+  # What an 'exit' or 'loop' does first: close what is open between it and the
+  # loop it leaves.
+  method !jump-exits(--> List)
+  {
+    my @lines;
+    for @!closers.reverse -> $c
+    {
+      last if $c.key eq 'loop';
+      @lines.append(|$c.value);
+    }
+    @lines.List
+  }
+
+  # A statement as the lines it becomes where it is spliced (a defer's body).
+  method !stmt-lines(Stmt $s --> List)
+  {
+    with self!stream-value($s) -> $chain
+    {
+      my $statement = $s ~~ CallStmt;
+      my ($result, @lines) = self!stream($chain, !$statement);
+      @lines.push("{self!expr($s.target)} := $result") if $s ~~ Assignment;
+      return @lines.List;
+    }
+    return self!lower($s)[1..*].List if needs-lowering($s);
+    self!with-edits($s, exprs-of($s)).lines.List
+  }
 
   # A chain from a source, as a loop: the lines, and the text of its result.
   # The stages go inside the loop in order -- a filter an If around the rest,
@@ -866,7 +1059,12 @@ class Emitter
   # header's comment goes back on line $at.
   method !header(Stmt $s, Expr $last, Int $at, *@lines)
   {
-    my $end = self!line-end($last.src-from + code-end(self!slice($last)));
+    self!header-to($s, self!line-end($last.src-from + code-end(self!slice($last))), $at, |@lines);
+  }
+
+  # The same, up to a given end.
+  method !header-to(Stmt $s, Int $end, Int $at, *@lines)
+  {
     my $comment = split-comment($!src.substr($s.src-from, $end - $s.src-from))[1];
     @lines[$at] ~= "  $comment" if $comment;
     @!edits.push([$s.src-from, $end, self!join-at($s.src-from, @lines)]);
@@ -1035,9 +1233,10 @@ class Emitter
   method !lower-inner(Stmt $s --> List)
   {
     return self!lower($s)[1..*].List if needs-lowering($s);
-    return (|self!closer-lines, |self!with-edits($s, exprs-of($s)).lines).List
-      if $s ~~ ReturnStmt && @!closers;
-    self!with-edits($s, exprs-of($s)).lines.List
+    my @exits = $s ~~ ReturnStmt                  ?? self!return-exits($s)
+             !! ($s ~~ ExitStmt || $s ~~ LoopStmt) ?? self!jump-exits
+             !! ();
+    (|@exits, |self!with-edits($s, exprs-of($s)).lines).List
   }
 }
 
