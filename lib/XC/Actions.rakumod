@@ -312,7 +312,7 @@ method callst($/)
           !! $<subjacc> ?? $<subjacc>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
-    call => apply-trailers($base, $<trailer>),
+    call => self!spanned(apply-trailers($base, $<trailer>), $/),
     line => self!line($/),
   );
 }
@@ -473,7 +473,9 @@ method hdrdecl($/)    { make self!make-declarator($/) }
 # an 'andexpr' is not an 'or' of anything, and must not become an 'or' node.
 method expr($/)
 {
-  make self!spanned(pipeline($<elvis>.made, $<feed>), $/);
+  # The source gets its own span first: the emitter renders it on its own,
+  # and a folded operator ('a + b') has no span otherwise.
+  make self!spanned(pipeline(self!spanned($<elvis>.made, $<elvis>), $<feed>), $/);
 }
 
 # 'a ?: b ?: c' chains to the right: a ?: (b ?: c).
@@ -506,7 +508,7 @@ method stage($/)
 method pipest($/)
 {
   make CallStmt.new(
-    call => pipeline($<elvis>.made, $<feed>),
+    call => self!spanned(pipeline(self!spanned($<elvis>.made, $<elvis>), $<feed>), $/),
     line => self!line($/),
   );
 }
@@ -546,7 +548,7 @@ method unary($/)
 # of a MethodCall on a Name.
 method postfix($/)
 {
-  make $<literal> ?? $<literal>.made !! apply-trailers($<primary>.made, $<trailer>);
+  make self!spanned($<literal> ?? $<literal>.made !! apply-trailers($<primary>.made, $<trailer>), $/);
 }
 
 # Each trailer makes a function that takes what is to its left.
@@ -666,19 +668,19 @@ method codeblock($/)
 # In a block and in an argument, an assignment is an expression.
 method blockexpr($/)
 {
-  make $<assignment> ?? assign-expr($<assignment>.made) !! $<expr>.made;
+  make self!spanned($<assignment> ?? assign-expr($<assignment>.made) !! $<expr>.made, $/);
 }
 
 method call($/)
 {
-  make Call.new(name => ~$<name>, args => $<arglist>.made.list);
+  make self!spanned(Call.new(name => ~$<name>, args => $<arglist>.made.list), $/);
 }
 
 # The whole path is the name; the dots stay in it, and no segment is a variable
 # read (they are namespace parts), so walk-expr does not go into them.
 method nscall($/)
 {
-  make Call.new(name => ~$<qname>, args => $<arglist>.made.list);
+  make self!spanned(Call.new(name => ~$<qname>, args => $<arglist>.made.list), $/);
 }
 
 # 'f()' has a single empty position and no arguments; 'f( , 1)' has two, and
@@ -691,9 +693,10 @@ method arglist($/)
 
 method arg($/)
 {
-  make   $<byref>      ?? Ref.new(target => Name.new(name => ~$<byref><name>))
+  make self!spanned(
+         $<byref>      ?? Ref.new(target => Name.new(name => ~$<byref><name>))
       !! $<assignment> ?? assign-expr($<assignment>.made)
-      !!                  $<expr>.made;
+      !!                  $<expr>.made, $/);
 }
 
 method literal($/)

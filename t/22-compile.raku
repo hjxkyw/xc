@@ -153,12 +153,12 @@ check 'the output of a compile compiles to itself',
 # ---- what is not lowered yet ------------------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
-  my $src = "user function f(a, h)\n  local n := a |> asum\n  local c := \"n=\$\{n\}\"\n  n := h\{\"k\"\} fallback 0\nreturn n\n";
+  my $src = "user function f(a, h)\n  local n := rows(\"SA1\") |> count\n  local c := \"n=\$\{n\}\"\n  n := h\{\"k\"\} fallback 0\nreturn n\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
   !$out.defined && $! ~~ X::XC::NotLowered
     && $!.problems.map({ .key ~ ' ' ~ .value }).join(', ')
-       eq "2 '|>', 3 string interpolation, 4 'fallback', 4 hash access"
+       eq "2 '|>' over rows(), 3 string interpolation, 4 'fallback', 4 hash access"
 };
 
 # ---- the driver ------------------------------------------------------------------------
@@ -195,9 +195,9 @@ check 'bin/xc: a block never closed',
 check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
-  spurt $in, "user function f(a)\n  local n := a |> asum\nreturn n\n";
+  spurt $in, "user function f(a)\n  defer conout(1)\nreturn 1\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:2: '|>' is not lowered yet") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:2: 'defer' is not lowered yet") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;

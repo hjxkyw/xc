@@ -75,6 +75,76 @@ sub split-comment(Str $text --> List) is export
   ($code.trim-trailing, $comment)
 }
 
+# Where the code of a piece of source ends: before its trailing blanks and
+# comments. A node's span can run on over them, since grammar rules swallow the
+# whitespace after them.
+sub code-end(Str $text --> Int) is export
+{
+  my ($i, $n, $quote, $end) = 0, $text.chars, '', 0;
+  while $i < $n
+  {
+    my $c = $text.substr($i, 1);
+    if $quote
+    {
+      $quote = '' if $c eq $quote;
+      $end = ++$i;
+    }
+    elsif $c eq '"' || $c eq "'"
+    {
+      $quote = $c;
+      $end = ++$i;
+    }
+    elsif $text.substr($i, 2) eq '//'
+    {
+      $i = $text.index("\n", $i) // $n;
+    }
+    elsif $text.substr($i, 2) eq '/*'
+    {
+      $i = ($text.index('*/', $i + 2) // $n - 2) + 2;
+    }
+    elsif $c ~~ /\s/
+    {
+      $i++;
+    }
+    elsif $c eq ';' && $text.substr($i + 1) ~~ / ^ \h* [ '//' \N* || '/*' .*? '*/' \h* ]? \v /
+    {
+      # A ';' continuation: the rest of its line is not code.
+      $i++;
+    }
+    else
+    {
+      $end = ++$i;
+    }
+  }
+  $end
+}
+
+# xtpl's runtime verbs: a call to one of these names -- not a method -- is
+# the runtime's 'u_xtpl_<name>', wherever it is. The runtime is
+# runtime/xtpl_runtime.tlpp, which has to be compiled into the RPO.
+my constant VERBS = set <
+  map filter reject reduce fold take drop distinct sort sortby reverse flatten
+  enumerate chunks zip asum aprod amax amin anyof allof noneof keys values
+  pairs takewhile dropwhile chunkby first count distinctadjacent maxby minby
+  scan expand tap pairwise queue split join starts ends contains
+>;
+
+sub call-name(Str $name --> Str)
+{
+  VERBS{$name.lc}:exists ?? "u_xtpl_{$name.lc}" !! $name
+}
+
+# An expression that is rewritten itself, not just for what it holds.
+sub lowers-itself(Expr $e --> Bool)
+{
+  so $e ~~ Lambda | Pipeline || ($e ~~ Call && VERBS{$e.name.lc}:exists)
+}
+
+sub contains-lowering(Expr $e --> Bool)
+{
+  lowers-itself($e) || so subexprs($e).first({ contains-lowering($_) })
+}
+
 class Emitter
 {
   has Str $.src;
@@ -121,8 +191,8 @@ class Emitter
   {
     given $x
     {
-      when Pipeline   { "'|>'" }
-      when Lambda     { 'a lambda' }
+      when Pipeline   { .source ~~ Call && .source.name.lc (elem) <rows lines>
+                          ?? "'|>' over {.source.name.lc}()" !! Str }
       when Guard      { "'fallback'" }
       when Interp     { 'string interpolation' }
       when SafeMember { "'?.'" }
@@ -159,12 +229,95 @@ class Emitter
       if needs-lowering($s)
       {
         @!edits.push([$s.src-from, $s.src-to, self!render($s)]);
+        next;
+      }
+      # The statement keeps its shape: only its lowered expressions change,
+      # and the rest of the line stays as written, comment included. A comment
+      # inside a rewritten expression cannot stay inside generated code, so it
+      # moves to the end of the statement.
+      my @e = self!expr-edits(exprs-of($s));
+      if @e
+      {
+        @!edits.append(@e);
+        my $moved = @e.map(*.[3]).grep(*.chars).join(' ');
+        if $moved
+        {
+          my $at = $s.src-from + code-end(self!slice($s));
+          @!edits.push([$at, $at, "  $moved"]);
+        }
+      }
+      self!collect($_) for bodies-of($s);
+    }
+  }
+
+  # Edits for the outermost expressions that hold something to lower:
+  # [from, to, new code, the comments that were inside].
+  method !expr-edits(@exprs --> List)
+  {
+    my @edits;
+    for @exprs.grep(*.defined) -> $e
+    {
+      next unless contains-lowering($e);
+      if $e.src-from >= 0
+      {
+        my $raw = self!slice($e);
+        my $to  = $e.src-from + code-end($raw);
+        my $comment = split-comment($raw.substr(0, $to - $e.src-from))[1];
+        @edits.push([$e.src-from, $to, self!expr($e), $comment]);
       }
       else
       {
-        self!collect($_) for bodies-of($s);
+        @edits.append(self!expr-edits(subexprs($e)));
       }
     }
+    @edits
+  }
+
+  # An expression as TL++ code: built from its parts when it lowers itself,
+  # else its source with the lowered expressions inside it replaced. Code
+  # only -- the comments are the statement's business.
+  method !expr(Expr $e --> Str)
+  {
+    given $e
+    {
+      when Lambda
+      {
+        "\{|{.params.join(', ')}| {.body.map({ self!expr($_) }).join(', ')}\}"
+      }
+      when Pipeline
+      {
+        my $acc = self!expr(.source);
+        for .stages -> $st
+        {
+          $acc = call-name($st.name) ~ '(' ~ ($acc, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
+        }
+        $acc
+      }
+      when Call
+      {
+        lowers-itself($_)
+          ?? call-name(.name) ~ '(' ~ .args.map({ self!part($_) }).join(', ') ~ ')'
+          !! self!with-edits($_, subexprs($_))
+      }
+      default { self!with-edits($_, subexprs($_)) }
+    }
+  }
+
+  # An argument: an omitted one is empty.
+  method !part(Expr $e --> Str) { $e ~~ Omitted ?? '' !! self!expr($e) }
+
+  # A node's source, with the edits for the given expressions inside it.
+  method !with-edits($node, @exprs --> Str)
+  {
+    die "internal: no source span for a {$node.^name}" if $node.src-from < 0;
+    my $raw = self!slice($node);
+    for self!expr-edits(@exprs).sort({ -.[0] }) -> [$from, $to, $text, $]
+    {
+      $raw = $raw.substr(0, $from - $node.src-from) ~ $text ~ $raw.substr($to - $node.src-from);
+    }
+    # Up to where the code ends -- a trailing ';' continuation, blanks and
+    # comments are not part of it -- and without the comments inside.
+    split-comment($raw.substr(0, code-end($raw)))[0].trim
   }
 
   # A statement's replacement: its lowered lines, the first at the statement's
@@ -198,14 +351,14 @@ class Emitter
       {
         my @inner = self!lower-inner(.stmt).map({ "  $_" });
         .op eq 'while'
-          ?? (True, "While {self!code(.cond)}", |@inner, 'EndDo')
-          !! (True, "If {self!code(.cond)}",    |@inner, 'EndIf')
+          ?? (True, "While {self!expr(.cond)}", |@inner, 'EndDo')
+          !! (True, "If {self!expr(.cond)}",    |@inner, 'EndIf')
       }
       when Assignment
       {
         # '?=': assign only when the target is Nil.
-        my $t = self!code(.target);
-        (True, "If $t == Nil", "  $t := {self!code(.value)}", 'EndIf')
+        my $t = self!expr(.target);
+        (True, "If $t == Nil", "  $t := {self!expr(.value)}", 'EndIf')
       }
       when Declaration
       {
@@ -215,7 +368,7 @@ class Emitter
         my @d = .declarators.map(-> $d
         {
           $d.name
-            ~ ($d.init.defined ?? " := {self!code($d.init)}" !! '')
+            ~ ($d.init.defined ?? " := {self!expr($d.init)}" !! '')
             ~ ($d.typespec-text.defined ?? " {$d.typespec-text}" !! '')
         });
         (False, "$kw {@d.join(', ')}")
@@ -228,7 +381,7 @@ class Emitter
   method !lower-inner(Stmt $s --> List)
   {
     return self!lower($s)[1..*].List if needs-lowering($s);
-    self!code($s).lines.List
+    self!with-edits($s, exprs-of($s)).lines.List
   }
 }
 
