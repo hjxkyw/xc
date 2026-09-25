@@ -1,0 +1,52 @@
+# xc -- compiles an xtpl source to TL++.
+#
+#   rakupp bin/xc file.xtpl              writes file.tlpp next to it
+#   rakupp bin/xc file.xtpl out.tlpp     writes out.tlpp
+#
+# Exits with 1 and says why when the file does not parse, or when it uses an
+# extension xc cannot lower yet -- the .tlpp is not written in either case.
+
+use lib $*PROGRAM.IO.absolute.IO.parent.parent.add('lib').Str;
+use XC::Grammar;
+use XC::Actions;
+use XC::Emit;
+use XC::Source;
+
+sub fail-with(Str $message)
+{
+  note $message;
+  exit 1;
+}
+
+fail-with("usage: rakupp bin/xc file.xtpl [out.tlpp]") unless 1 <= @*ARGS <= 2;
+my $in  = @*ARGS[0];
+my $out = @*ARGS[1] // $in.subst(/ '.' <-[./]>* $ /, '') ~ '.tlpp';
+fail-with("$in: no such file") unless $in.IO.f;
+
+my $src = slurp($in);
+
+# How far the parse got: the grammar records the end of every line it could
+# finish. The first line it could not is the one to show.
+my $*FURTHEST = 0;
+my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+unless $m
+{
+  # The mark is a match offset; XC::Source turns it into characters and lines.
+  my $pos = XC::Source.new(text => $src);
+  # Everything up to the end parsed, and the file still did not match: a
+  # block was left open.
+  fail-with("$in: the file ends inside a block that was never closed")
+    unless $src.substr($pos.char($*FURTHEST)).trim;
+  my $line = $pos.line($*FURTHEST);
+  fail-with("$in:$line: cannot parse this line: {$src.lines[$line - 1].trim}");
+}
+
+my $tlpp = try emit($m.made, $src);
+if $! ~~ X::XC::NotLowered
+{
+  fail-with($!.problems.map({ "$in:{.key}: {.value} is not lowered yet" }).join("\n"));
+}
+fail-with("$in: {$!.message}") if $!;
+
+spurt($out, $tlpp);
+say "$in -> $out";

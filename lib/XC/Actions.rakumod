@@ -5,45 +5,45 @@
 # statement is a wrong tree that looks right.
 
 use XC::AST;
+use XC::Source;
 
 unit class XC::Actions;
 
-# The whole text, to know which line each node is on:
+# The whole text, to know which line each node is on and where it came from:
 #
 #     XC::Grammar.parse($src, actions => XC::Actions.new(source => $src))
 #
 # It has to come from outside because under rakupp 4.0.1 '$/.orig' is only the
 # matched text, not the whole target as under Rakudo -- and no other method of
-# the match returns it.
+# the match returns it. Positions go through XC::Source, which turns match
+# offsets (bytes under rakupp 4.0.1) into characters and lines.
 has Str $.source;
-has Int @!breaks;              # the position of each '\n', in order
+has XC::Source $!pos;
 
 submethod TWEAK()
 {
-  with $!source
-  {
-    my $i = 0;
-    while (my $p = $!source.index("\n", $i)).defined
-    {
-      @!breaks.push($p);
-      $i = $p + 1;
-    }
-  }
+  $!pos = XC::Source.new(text => $_) with $!source;
 }
 
-# The line of a match: how many breaks come before it, plus one.
 method !line($m --> Int)
 {
   die "XC::Actions needs the source text: XC::Actions.new(source => \$src)"
     without $!source;
-  my $at = $m.from;
-  my ($lo, $hi) = 0, +@!breaks;        # binary search: breaks < $at
-  while $lo < $hi
-  {
-    my $mid = ($lo + $hi) div 2;
-    if @!breaks[$mid] < $at { $lo = $mid + 1 } else { $hi = $mid }
-  }
-  $lo + 1
+  $!pos.line($m.from)
+}
+
+# A match's start and end as character offsets.
+method !from($m --> Int) { $!pos.char($m.from) }
+method !to($m --> Int)   { $!pos.char($m.to) }
+
+# Records where an expression came from. The same node can pass up through
+# several levels ('(a)' is the node 'a'); the widest span wins, and it still
+# denotes that node.
+method !spanned(Expr $e, $/)
+{
+  $e.src-from = self!from($/);
+  $e.src-to   = self!to($/);
+  $e
 }
 
 # ---- the file -------------------------------------------------------------------
@@ -233,6 +233,14 @@ method statement($/)
     $node = $/.hash.values[0].made;
   }
   die "no node for '{$/.hash.keys.sort.join(',')}': {(~$/).trim}" without $node;
+  # The inner statement of a modifier has a span of its own, for the emitter.
+  with $<simple> -> $s
+  {
+    $s.made.src-from = self!from($s);
+    $s.made.src-to   = self!to($s);
+  }
+  $node.src-from = self!from($/);
+  $node.src-to   = self!to($/);
   make $node;
 }
 
@@ -240,17 +248,21 @@ method simple($/) { make $/.hash.values[0].made }
 
 method deferst($/)
 {
-  my $stmt = $<assignment> ?? $<assignment>.made
-          !! $<pipest>     ?? $<pipest>.made
-          !!                  $<callst>.made;
+  my $m = $<assignment> // $<pipest> // $<callst>;
+  my $stmt = $m.made;
+  $stmt.src-from = self!from($m);      # the deferred statement's own span
+  $stmt.src-to   = self!to($m);
   make Deferred.new(stmt => $stmt, line => self!line($/));
 }
 
 # 'exec f() if c': the expression becomes a statement, inside the modifier.
 method execst($/)
 {
+  my $call = CallStmt.new(call => $<expr>.made, line => self!line($/));
+  $call.src-from = self!from($<expr>);
+  $call.src-to   = self!to($<expr>);
   make Modified.new(
-    stmt => CallStmt.new(call => $<expr>.made, line => self!line($/)),
+    stmt => $call,
     op   => (~$<modifier><kw>).lc,
     cond => $<modifier><cond>.made,
     line => self!line($/),
@@ -291,7 +303,7 @@ method lvalue($/)
   my $base = $<selfacc> ?? $<selfacc>.made
           !! $<subjacc> ?? $<subjacc>.made
           !!               Name.new(name => ~$<name>);
-  make apply-trailers($base, $<trailer>);
+  make self!spanned(apply-trailers($base, $<trailer>), $/);
 }
 
 method callst($/)
@@ -442,6 +454,8 @@ method declaration($/)
 method !make-declarator($/)
 {
   Declarator.new(
+    type-first    => ?($<typespec> && $<expr> && $<typespec>.from < $<expr>.from),
+    typespec-text => $<typespec> ?? (~$<typespec>).trim !! Str,
     name       => ~$<name>,
     attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
     init       => $<expr> ?? $<expr>.made !! Expr,
@@ -459,7 +473,7 @@ method hdrdecl($/)    { make self!make-declarator($/) }
 # an 'andexpr' is not an 'or' of anything, and must not become an 'or' node.
 method expr($/)
 {
-  make pipeline($<elvis>.made, $<feed>);
+  make self!spanned(pipeline($<elvis>.made, $<feed>), $/);
 }
 
 # 'a ?: b ?: c' chains to the right: a ?: (b ?: c).
@@ -475,9 +489,9 @@ method elvis($/)
 # gain a node.
 method guardexpr($/)
 {
-  make $<fallback>
+  make self!spanned($<fallback>
     ?? Guard.new(expr => $<guarded>.made, fallback => $<fallback>.made)
-    !! $<guarded>.made;
+    !! $<guarded>.made, $/);
 }
 
 method stage($/)
@@ -706,6 +720,7 @@ method string($/)
 }
 
 # ---- helpers --------------------------------------------------------------------
+
 
 # The trailers, in order, over a base.
 sub apply-trailers(Expr $base, $trailers)

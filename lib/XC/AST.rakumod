@@ -42,9 +42,16 @@ sub type-of-name(Str $name --> Str) is export
 }
 
 # ---- expressions --------------------------------------------------------------
+# 'src-from' and 'src-to' are source offsets: the emitter copies the source through and
+# edits only what it lowers, so it needs to know where each piece came from.
+# Set for every full expression (an argument, a condition, a value); -1 when
+# not known. 'src-to' may include trailing blanks and a trailing comment, which
+# the emitter trims.
 class Expr is export
 {
-  has Int $.line is rw = 0;
+  has Int $.line     is rw = 0;
+  has Int $.src-from is rw = -1;
+  has Int $.src-to   is rw = -1;
 }
 
 class Literal is Expr is export
@@ -222,6 +229,8 @@ class Pipeline is Expr is export
 class Stmt is export
 {
   has Int $.line = 0;
+  has Int $.src-from is rw = -1;   # source offsets, as for Expr
+  has Int $.src-to   is rw = -1;
 }
 
 class Declarator is export
@@ -231,6 +240,8 @@ class Declarator is export
   has Str   $.declared;        # the 'as ...', or '?' when there is none
   has Str   @.attributes;      # 'const', 'contained' -- xtpl's
   has Int   $.line;
+  has Bool  $.type-first = False;  # 'local x as N := 1' -- xtpl's order
+  has Str   $.typespec-text;       # the 'as ...' as written; undefined if none
 }
 
 class Declaration is Stmt is export

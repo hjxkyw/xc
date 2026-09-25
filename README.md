@@ -10,6 +10,13 @@ tar xzf rakupp-linux-x86_64.tar.gz
 export PATH=$PWD/rakupp/bin:$PATH
 ```
 
+## Compiling a file
+
+```sh
+rakupp bin/xc file.xtpl              # writes file.tlpp
+rakupp bin/xc file.xtpl out.tlpp
+```
+
 ## Running the tests
 
 ```sh

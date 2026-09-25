@@ -923,4 +923,7 @@ token linecomment { '//' \N* }
 # statement: blank lines, comment-only lines, and the indentation.
 token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ] }
 token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
-token nl  { <.eol> <.gap> }
+# Every line end records how far the parse got, for the driver's error
+# message: the first line it could not continue past. 'try', because the
+# grammar is also used without a driver, where '$*FURTHEST' does not exist.
+token nl  { <.eol> <.gap> { try $*FURTHEST = $/.to if $/.to > $*FURTHEST } }
