@@ -17,6 +17,9 @@ rakupp bin/xc file.xtpl              # writes file.tlpp
 rakupp bin/xc file.xtpl out.tlpp
 ```
 
+The generated code calls xtpl's runtime, `runtime/xtpl_runtime.tlpp`, which
+has to be compiled into the RPO alongside it.
+
 ## Running the tests
 
 ```sh
