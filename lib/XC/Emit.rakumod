@@ -235,7 +235,6 @@ class Emitter
   method not-lowered(Program $p --> List)
   {
     my @found;
-    for $p.externals -> $x { @found.push($x.line => "'external'") }
     for |$p.functions, |$p.methods -> $f
     {
       walk($f.body, -> $s
@@ -292,14 +291,10 @@ class Emitter
   {
     given $x
     {
-      when Guard      { "'fallback'" }
-      when Interp     { 'string interpolation' }
-      when SafeMember { "'?.'" }
-      when HashIndex  { 'hash access' }
       when Interval   { "'lo..hi'" }
-      when HashLit    { "'\{ => \}'" }
       when SubjectRef { "':x' of 'with object'" }
-      when Binary     { .op (elem) <in has %% ?:> ?? "'{.op}'" !! Str }
+      # A write inside an expression ('[k] h{k} := 1'): Set is a statement.
+      when AssignExpr { .target ~~ HashIndex ?? 'a hash write inside an expression' !! Str }
       default         { Str }
     }
   }
@@ -502,6 +497,24 @@ class Emitter
   {
     my @problems = self.not-lowered($p);
     die X::XC::NotLowered.new(problems => @problems) if @problems;
+
+    # 'external' emits nothing: its line goes, but for its comment.
+    for $p.externals.grep(*.src-from >= 0) -> $x
+    {
+      my $raw  = $!src.substr($x.src-from, $x.src-to - $x.src-from);
+      my $from = self!line-start($x.src-from);
+      my $end  = self!line-end($x.src-from + code-end($raw));
+      my $comment = split-comment($raw)[1];
+      if $comment
+      {
+        @!edits.push([$from, $end, $comment]);
+      }
+      else
+      {
+        $end++ if $end < $!src.chars;              # the line break too
+        @!edits.push([$from, $end, '']);
+      }
+    }
 
     self!function($_) for |$p.functions, |$p.methods;
 
@@ -1130,6 +1143,37 @@ class Emitter
         %!field = %f;
         $text
       }
+      # 'h{k}': a call, right wherever it is (xtpl lifts a Get, which goes
+      # wrong in a 'while' condition, an 'elseif' or a lambda).
+      when HashIndex { "u_xtpl_hget({self!expr(.base)}, {self!expr(.key)})" }
+      when HashLit
+      {
+        .pairs
+          ?? 'u_xtpl_hnew({' ~ .pairs.map({ '{' ~ self!expr(.key) ~ ', ' ~ self!expr(.value) ~ '}' }).join(', ') ~ '})'
+          !! 'THashMap():New()'
+      }
+      when Guard
+      {
+        "u_xtpl_safe_pipe(\{|| {self!expr(.expr)}\}, \{|| {self!expr(.fallback)}\})"
+      }
+      when Interp { self!interpolated($_) }
+      when SafeCall
+      {
+        self!safe(.base, ":{.name}(" ~ .args.map({ self!part($_) }).join(', ') ~ ')')
+      }
+      when SafeMember { self!safe(.base, ":{.name}") }
+      when { $_ ~~ Binary && .op (elem) <in has %% ?:> }
+      {
+        my ($l, $rt) = self!expr(.left), self!expr(.right);
+        given .op
+        {
+          when 'in'  { "u_xtpl_in($l, $rt)" }
+          when 'has' { "u_xtpl_hhas($l, $rt)" }
+          when '%%'  { "(($l) % ($rt) == 0)" }
+          # The right side only when the left is Nil: a block, run if needed.
+          default    { "u_xtpl_elvis($l, \{|| $rt\})" }
+        }
+      }
       when Name
       {
         %!subst{.name.lc}:exists ?? %!subst{.name.lc} !! self!with-edits($_, ())
@@ -1166,12 +1210,67 @@ class Emitter
     return True if $e ~~ Call && VERBS{$e.name.lc}:exists;
     return True if $e ~~ Name && %!subst{$e.name.lc}:exists;
     return True if $e ~~ Member && $e.base ~~ Name && %!field{$e.base.name.lc}:exists;
+    return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
+    return True if $e ~~ SafeMember || $e ~~ SafeCall;
+    return True if $e ~~ Binary && $e.op (elem) <in has %% ?:>;
     False
   }
 
   method !contains-lowering(Expr $e --> Bool)
   {
     self!lowers-itself($e) || so subexprs($e).first({ self!contains-lowering($_) })
+  }
+
+  # '"total ${n} items"' -> '("total " + cValToChar(n) + " items")', in the
+  # string's own quote; one part alone needs no parentheses.
+  method !interpolated(Interp $i --> Str)
+  {
+    my $q = $i.text.substr(0, 1);
+    my @parts = $i.parts.grep({ $_ ~~ Expr || .chars }).map({ $_ ~~ Expr ?? "cValToChar({self!expr($_)})" !! "$q$_$q" });
+    @parts == 1 ?? @parts[0] !! '(' ~ @parts.join(' + ') ~ ')'
+  }
+
+  # 'o?.x' / 'o?.M(...)': Nil when the base is Nil. A name is read twice, as
+  # xtpl does; anything else is evaluated once, as the argument of a block.
+  method !safe(Expr $base, Str $tail --> Str)
+  {
+    my $b = self!expr($base);
+    $base ~~ Name
+      ?? "If($b != Nil, $b$tail, Nil)"
+      !! "Eval(\{|__v| If(__v != Nil, __v$tail, Nil)\}, $b)"
+  }
+
+  # 'h{k} := v' -> 'h:Set(k, v)'. One that also reads -- '+=', '?=' -- reads
+  # and writes the same hash and key, so anything but a name (and, for the
+  # key, a literal) is held first, to be evaluated once.
+  method !hash-set(Assignment $a --> List)
+  {
+    my $t = $a.target;
+    my $h = self!expr($t.base);
+    my $k = self!expr($t.key);
+    my @pre;
+    unless $a.op (elem) (':=', '=')
+    {
+      unless $t.base ~~ Name
+      {
+        my $n = self!gen('fhd', 'a hash that is read and written back');
+        @pre.push("$n := $h");
+        $h = $n;
+      }
+      unless $t.key ~~ Name || $t.key ~~ Literal
+      {
+        my $n = self!gen('fky', 'a key that is read and written back');
+        @pre.push("$n := $k");
+        $k = $n;
+      }
+    }
+    my $v = self!expr($a.value);
+    given $a.op
+    {
+      when { $_ (elem) (':=', '=') } { (False, |@pre, "$h:Set($k, $v)") }
+      when '?='       { (!@pre, |@pre, "If u_xtpl_hget($h, $k) == Nil", "  $h:Set($k, $v)", 'EndIf') }
+      default         { (False, |@pre, "$h:Set($k, u_xtpl_hget($h, $k) {$a.op.chop} ($v))") }
+    }
   }
 
   # An argument: an omitted one is empty.
@@ -1206,6 +1305,7 @@ class Emitter
           ?? (True, "While {self!expr(.cond)}", |@inner, 'EndDo')
           !! (True, "If {self!expr(.cond)}",    |@inner, 'EndIf')
       }
+      when { $_ ~~ Assignment && .target ~~ HashIndex } { self!hash-set($_) }
       when Assignment
       {
         # '?=': assign only when the target is Nil.
@@ -1245,7 +1345,7 @@ sub needs-lowering(Stmt $s --> Bool)
   given $s
   {
     when Modified    { True }
-    when Assignment  { .op eq '?=' }
+    when Assignment  { .op eq '?=' || .target ~~ HashIndex }
     when Declaration { so .declarators.first({ .type-first || .attributes }) }
     default          { False }
   }

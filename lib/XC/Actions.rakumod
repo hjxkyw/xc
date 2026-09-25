@@ -46,6 +46,18 @@ method !spanned(Expr $e, $/)
   $e
 }
 
+# A folded operator spans from its left operand to its right one: the
+# emitter rewrites some of them whole ('%%', 'in', 'has', '?:').
+sub joined(Binary $b --> Binary)
+{
+  if $b.left.defined && $b.left.src-from >= 0 && $b.right.src-to >= 0
+  {
+    $b.src-from = $b.left.src-from;
+    $b.src-to   = $b.right.src-to;
+  }
+  $b
+}
+
 # ---- the file -------------------------------------------------------------------
 method TOP($/)
 {
@@ -103,11 +115,14 @@ method TOP($/)
 
 method externalst($/)
 {
-  make External.new(
+  my $x = External.new(
     alias => ?$<isalias>,
     names => $<xname>.map(~*).list,
     line  => self!line($/),
   );
+  $x.src-from = self!from($/);
+  $x.src-to   = self!to($/);
+  make $x;
 }
 
 method function($/)
@@ -303,8 +318,10 @@ method lvalue($/)
   my $base = $<selfacc> ?? $<selfacc>.made
           !! $<subjacc> ?? $<subjacc>.made
           !! $<pexpr>   ?? $<pexpr>.made
+          !! $<call>    ?? $<call>.made
           !!               Name.new(name => ~$<name>);
-  make self!spanned(apply-trailers($base, $<trailer>), $/);
+  make self!spanned(self!trailed($base, $<selfacc> // $<subjacc> // $<pexpr> // $<call> // $<name>,
+                                 $<trailer>, $/), $/);
 }
 
 method callst($/)
@@ -314,7 +331,7 @@ method callst($/)
           !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
-    call => self!spanned(apply-trailers($base, $<trailer>), $/),
+    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<pexpr> // $<name>, $<trailer>, $/), $/),
     line => self!line($/),
   );
 }
@@ -491,7 +508,7 @@ method elvis($/)
 {
   my @p = $<orexpr>.map(*.made);
   my $acc = @p.pop;
-  $acc = Binary.new(op => '?:', left => $_, right => $acc) for @p.reverse;
+  $acc = joined(Binary.new(op => '?:', left => $_, right => $acc)) for @p.reverse;
   make $acc;
 }
 
@@ -526,7 +543,7 @@ method andexpr($/) { make fold-ops($/, 'notexpr', 'andop') }
 
 method notexpr($/)
 {
-  make $<negate> ?? Binary.new(op => '!', left => Expr, right => $<cmpexpr>.made)
+  make $<negate> ?? self!spanned(Binary.new(op => '!', left => Expr, right => $<cmpexpr>.made), $/)
                  !! $<cmpexpr>.made;
 }
 
@@ -535,7 +552,7 @@ method cmpexpr($/)
   my $acc = $<rangeexpr>.made;
   for $<cmptail>.list -> $t
   {
-    $acc = Binary.new(op => (~$t<op>).lc, left => $acc, right => $t<rhs>.made);
+    $acc = joined(Binary.new(op => (~$t<op>).lc, left => $acc, right => $t<rhs>.made));
   }
   make $acc;
 }
@@ -548,7 +565,7 @@ method mulexpr($/)   { make fold-ops($/, 'unary',   'mulop') }
 method unary($/)
 {
   make $<sign> && ~$<sign> eq '-'
-    ?? Binary.new(op => 'neg', left => Expr, right => $<postfix>.made)
+    ?? self!spanned(Binary.new(op => 'neg', left => Expr, right => $<postfix>.made), $/)
     !! $<postfix>.made;
 }
 
@@ -556,7 +573,7 @@ method unary($/)
 # of a MethodCall on a Name.
 method postfix($/)
 {
-  make self!spanned($<literal> ?? $<literal>.made !! apply-trailers($<primary>.made, $<trailer>), $/);
+  make self!spanned($<literal> ?? $<literal>.made !! self!trailed($<primary>.made, $<primary>, $<trailer>, $/), $/);
 }
 
 # Each trailer makes a function that takes what is to its left.
@@ -578,7 +595,15 @@ method thash($/)
 method tsafe($/)
 {
   my $name = ~$<member>;
-  make -> $base { SafeMember.new(base => $base, name => $name) }
+  with $<arglist> -> $args
+  {
+    my @args = $args.made.list;
+    make -> $base { SafeCall.new(base => $base, name => $name, args => @args) };
+  }
+  else
+  {
+    make -> $base { SafeMember.new(base => $base, name => $name) };
+  }
 }
 
 method tmember($/)
@@ -734,10 +759,21 @@ method string($/)
 
 
 # The trailers, in order, over a base.
-sub apply-trailers(Expr $base, $trailers)
+# The base with its trailers applied, each step spanning from the start of the
+# whole ($whole) to the end of its trailer: the emitter may rewrite any of
+# them ('o:hCfg' in 'o:hCfg{"k"} := 1'). The base gets its own match's span
+# when it has none.
+method !trailed(Expr $base, $base-match, $trailers, $whole --> Expr)
 {
+  self!spanned($base, $base-match) if $base.src-from < 0 && $base-match.defined;
+  my $from = self!from($whole);
   my $e = $base;
-  $e = .made()($e) for $trailers.list;
+  for $trailers.list -> $t
+  {
+    $e = $t.made()($e);
+    $e.src-from = $from;
+    $e.src-to   = self!to($t);
+  }
   $e
 }
 
@@ -778,7 +814,7 @@ sub fold-ops($/, Str $child, Str $opname)
   my $acc = @parts.shift;
   for @parts.kv -> $i, $r
   {
-    $acc = Binary.new(op => @ops[$i], left => $acc, right => $r);
+    $acc = joined(Binary.new(op => @ops[$i], left => $acc, right => $r));
   }
   $acc
 }

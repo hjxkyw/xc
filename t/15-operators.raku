@@ -146,6 +146,19 @@ check 'oP?.oC?.cNome: two safe links',
   $e ~~ SafeMember && $e.name eq 'cNome' && $e.base ~~ SafeMember
     && $e.base.base.name eq 'oP'
 };
+# xtpl takes the call form too, and emits 'If(o != Nil, o:M, Nil)(1)' -- broken
+# code; xc lowers it (it was refused here before xc could).
+check '?. with a call: a SafeCall, which is still a MethodCall',
+{
+  my $e = expr('o?.Metodo(1, 2)');
+  $e ~~ SafeCall && $e ~~ MethodCall && $e.name eq 'Metodo' && $e.args == 2
+};
+# xtpl takes a hash of a hash and reads it right; it was refused here before.
+check 'h{"a"}{"b"}: a hash read of a hash read',
+{
+  my $e = expr('h{"a"}{"b"}');
+  $e ~~ HashIndex && $e.base ~~ HashIndex && $e.base.base.name eq 'h'
+};
 check 'a SafeMember is still a Member',
 {
   expr('o?.x') ~~ Member
@@ -192,7 +205,6 @@ check 'an attribute with a type: local n <const> := 1 as N',
 # ---- what has to be refused -----------------------------------------------------------
 my @refuse =
   'x := hCfg {"taxa"}'        => 'a space between the name and {',
-  'x := h{"a"}{"b"}'          => 'a hash of a hash',
   'x := 1..10'                => 'a loose interval',
   'x := f(1..10)'             => 'an interval as an argument',
   'x := (f() ?= 1)'           => '?= in an expression',
@@ -201,7 +213,6 @@ my @refuse =
   'local x <const> as N'      => 'const with no value, with a type',
   'local x <frozen> := 1'     => 'an attribute that does not exist',
   'local x <> := 1'           => 'an empty attribute',
-  'x := o?.M()'               => '?. with a call',
   'x := a ?:'                 => '?: with no right side',
   'x := a in'                 => 'in with no collection',
   'x := n %%'                 => '%% with no right side',

@@ -129,6 +129,9 @@ class MethodCall is Expr is export        # o:Sum(1, 2)
   has Expr @.args;
 }
 
+# 'o?.Method(1)': a method call that yields Nil when the base is Nil.
+class SafeCall is MethodCall is export { }
+
 # A work-area field. 'SA1->A1_NOME' names the area ('alias', with 'base'
 # undefined); '(cAlias)->A1_NOME' has the area in an expression ('base').
 class AliasField is Expr is export
@@ -457,6 +460,8 @@ class External is export
   has Bool $.alias = False;
   has Str  @.names;
   has Int  $.line;
+  has Int  $.src-from is rw = -1;   # the line to drop: it emits nothing
+  has Int  $.src-to   is rw = -1;
 }
 
 class Program is export

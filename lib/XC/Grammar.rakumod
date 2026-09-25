@@ -752,16 +752,18 @@ rule tmethod  { ':' <member> '(' ~ ')' <arglist> }
 rule tmember  { ':' <member> }
 
 # ---- xtpl: 'h{"k"}' -- hash access ------------------------------------------
-# Braces index a hash, brackets index an array. A '{' RIGHT after a name --
-# no space -- is hash access, which AdvPL never has; '<?after \w>' is the
-# 'right after': a space between the name and '{' has already been eaten by
-# the caller's <.ws>, and then what lies behind is that space.
-rule thash    { <?after \w> '{' ~ '}' <key=expr> }
+# Braces index a hash, brackets index an array. A '{' RIGHT after a name, a
+# ')', a ']' or a '}' -- no space -- is hash access, which AdvPL never has:
+# 'hCfg{"k"}', 'getHash(){"k"}', 'aHashes[1]{"k"}', 'h{"a"}{"b"}'.
+# '<?after ...>' is the 'right after': a space before the '{' has already
+# been eaten by the caller's <.ws>, and then what lies behind is that space.
+rule thash    { <?after <[\w)\]}]>> '{' ~ '}' <key=expr> }
 
 # ---- xtpl: '?.' -- safe access ----------------------------------------------
-# 'oUser?.oAddress?.cCity': a Nil link returns Nil. Members only, no calls --
-# which is what xtpl's doc and tests show.
-rule tsafe    { '?.' <member> }
+# 'oUser?.oAddress?.cCity', 'oUser?.Method(1)': Nil when the base is Nil,
+# instead of an error. xtpl's doc shows members; it takes the call form too,
+# and emits 'If(...)(1)' for it, which is broken -- xc lowers it.
+rule tsafe    { '?.' <member> [ '(' ~ ')' <arglist> ]? }
 rule tindex   { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
 rule tinalias { '->' '(' ~ ')' <expr> }
 rule tfield   { '->' <member> }
@@ -882,9 +884,11 @@ rule lambda
 # ('::nHead := 1').
 rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 
-# '(cAlias)->A1_COD := x' too: a parenthesised expression, with at least one
-# trailer after it -- a bare '(x)' is not something to assign to.
-rule lvalue      { [ '(' ~ ')' <pexpr=expr> <trailer>+ ] || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
+# '(cAlias)->A1_COD := x' and 'GetObj():cName := x' too: a parenthesised
+# expression or a call, with at least one trailer after it -- a bare '(x)'
+# or 'f()' is not something to assign to.
+rule lvalue      { [ '(' ~ ')' <pexpr=expr> <trailer>+ ] || [ <call> <trailer>+ ]
+                || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }

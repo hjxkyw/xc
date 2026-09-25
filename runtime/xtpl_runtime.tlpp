@@ -130,6 +130,29 @@ Return xAcc
 User Function xtpl_in(xValue, aData)
 Return aScan(aData, xValue) > 0
 
+// xc: a hash read, as an expression -- 'h{k}'. Get fills its by-reference
+// argument only when the key is there, so a miss reads back as Nil. xtpl
+// lifts the Get above the statement instead, which goes wrong in a 'while'
+// condition, an 'elseif' and a lambda; a call is right wherever it is.
+User Function xtpl_hget(oHash, xKey)
+  Local xValue := Nil
+  oHash:Get(xKey, @xValue)
+Return xValue
+
+// xc: 'h has k' -- whether the key is in the hash: Get's own result.
+User Function xtpl_hhas(oHash, xKey)
+  Local xValue := Nil
+Return oHash:Get(xKey, @xValue)
+
+// xc: a hash literal, '{k1 => v1, k2 => v2}', from {{k1, v1}, {k2, v2}}.
+User Function xtpl_hnew(aPairs)
+  Local oHash := THashMap():New()
+  Local nX
+  For nX := 1 To Len(aPairs)
+    oHash:Set(aPairs[nX][1], aPairs[nX][2])
+  Next
+Return oHash
+
 User Function xtpl_take(aData, nCount)
   Local nLen := Min(Len(aData), Max(0, nCount))
   Local aRes := Array(nLen)

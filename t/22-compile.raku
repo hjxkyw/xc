@@ -153,12 +153,12 @@ check 'the output of a compile compiles to itself',
 # ---- what is not lowered yet ------------------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
-  my $src = "user function f(a, h)\n  local c := \"n=\$\{a\}\"\n  a := h\{\"k\"\} fallback 0\nreturn a\n";
+  my $src = "user function f(a, o)\n  local n := 1..3 |> asum\n  raw ANOTE n\n  with object o\n    :Ativa()\n  end with\nreturn n\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
   !$out.defined && $! ~~ X::XC::NotLowered
     && $!.problems.map({ .key ~ ' ' ~ .value }).join(', ')
-       eq "2 string interpolation, 3 'fallback', 3 hash access"
+       eq "2 'lo..hi', 3 'raw', 4 'with object', 5 ':x' of 'with object'"
 };
 
 # ---- the driver ------------------------------------------------------------------------
