@@ -257,7 +257,7 @@ my @refuse =
     => "over rows() nothing to collect before a 'map' makes the record a value",
   "  x := rows(\"SA1\")"
     => "over rows() nothing to collect before a 'map' makes the record a value",
-  "  x := lines(cP) |> filter(bOk)"
+  "  local bOk := \{|l| .T.\}\n  x := lines(cP) |> filter(bOk)"
     => "'filter' over lines() without its lambda written in the stage",
   "  x := len(lines(cP))"
     => "'lines()' outside the head of a chain (it is a source)",

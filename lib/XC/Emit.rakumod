@@ -140,9 +140,21 @@ sub call-name(Str $name --> Str)
 # loop over the work area or the file, with the stages inside it, and nothing
 # is materialised. These stages fuse into the loop; a terminal ends it; any
 # other stage applies, as an ordinary call, to what the loop collected.
-my constant FUSED        = set <filter reject map tap take takewhile>;
+my constant FUSED        = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent>;
 my constant TERMINAL     = set <asum count anyof allof noneof first>;
-my constant NEEDS-LAMBDA = set <filter reject map tap takewhile anyof allof noneof>;
+my constant NEEDS-LAMBDA = set <filter reject map tap takewhile dropwhile expand anyof allof noneof>;
+
+# The stages that stop the walk with an 'Exit'. After an 'expand' that Exit
+# would only leave the expand's own inner loop -- a take would not stop the
+# walk, and a 'first' would be overwritten by every later element -- so from
+# there on they apply to what was collected instead.
+my constant EXITS        = set <take takewhile anyof allof noneof first>;
+
+# The verbs that take a block, where a bare function name means the block
+# that calls it: 'map(alltrim)' is 'map([it] alltrim(it))', as in xtpl. A
+# name that is a variable is a block held in it, and stays as it is.
+my constant TAKES-BLOCK  = set <map filter reject tap takewhile dropwhile expand maxby minby
+                                sortby chunkby distinctadjacent first count anyof allof noneof>;
 
 # The rows()/lines() call a chain starts from, or the call itself.
 sub source-call(Expr $e --> Call)
@@ -158,12 +170,14 @@ sub source-call(Expr $e --> Call)
 sub split-stages(@stages --> Hash)
 {
   my (@fused, $terminal, @rest);
+  my $expanded = False;
   for @stages -> $st
   {
     my $n = $st.name.lc;
-    if !@rest && !$terminal.defined && FUSED{$n}         { @fused.push($st) }
-    elsif !@rest && !$terminal.defined && TERMINAL{$n}   { $terminal = $st }
-    else                                                  { @rest.push($st) }
+    my $free = !@rest && !$terminal.defined && !($expanded && EXITS{$n});
+    if $free && FUSED{$n}            { @fused.push($st); $expanded ||= $n eq 'expand' }
+    elsif $free && TERMINAL{$n}      { $terminal = $st }
+    else                             { @rest.push($st) }
   }
   %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
 }
@@ -199,6 +213,9 @@ class Emitter
   # The names the function declares: a 'using alias' word that is one of
   # them is a variable holding the alias, not the alias itself.
   has %!declared;
+
+  # Statements rewritten already, by the prologue pass: the walk skips them.
+  has %!done;
 
   submethod TWEAK() { $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n" }
 
@@ -237,6 +254,7 @@ class Emitter
     my @found;
     for |$p.functions, |$p.methods -> $f
     {
+      self!declare-names($f);
       walk($f.body, -> $s
       {
         my $what = do given $s
@@ -254,7 +272,7 @@ class Emitter
         # A source only reads at the head of a chain in a statement that can
         # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
         # as the source of a 'for'.
-        my $top = self!stream-value($s);
+        my @tops = self!stream-values($s);
         my $for = $s ~~ ForInStmt && $s.source ~~ Call ?? $s.source !! Expr;
         my %heads;                     # the source calls that head a chain
         for exprs-of($s) -> $e
@@ -269,7 +287,7 @@ class Emitter
             @found.push($s.line => $w) with $w;
             if $x ~~ Call && $x.name.lc (elem) <rows lines>
             {
-              my $ok = ($top.defined && source-call($top) === $x) || ($for.defined && $for === $x);
+              my $ok = @tops.first({ source-call($_) === $x }).defined || ($for.defined && $for === $x);
               unless $ok
               {
                 @found.push($s.line => %heads{$x.WHICH}
@@ -280,7 +298,7 @@ class Emitter
             }
           });
         }
-        @found.append(self!chain-problems($top, $s)) if $top.defined;
+        @found.append(self!chain-problems($_, $s)) for @tops;
       });
       @found.append(self!scope-problems($f));
     }
@@ -422,6 +440,16 @@ class Emitter
     Expr
   }
 
+  # Every chain from a source a statement runs: the one of 'x := chain' and
+  # the like, or the values of a 'local' declaration.
+  method !stream-values(Stmt $s --> List)
+  {
+    with self!stream-value($s) -> $c { return ($c,) }
+    return $s.declarators.map(*.init).grep({ .defined && source-call($_).defined }).List
+      if $s ~~ Declaration && $s.scope eq 'local';
+    ()
+  }
+
   # What stops a chain from a source from being lowered.
   method !chain-problems(Expr $chain, Stmt $s --> List)
   {
@@ -443,12 +471,12 @@ class Emitter
     for |$fused, |($terminal // ()) -> $st
     {
       my $n = $st.name.lc;
-      my $needs = NEEDS-LAMBDA{$n} || ($n (elem) <count first> && $st.args);
-      if $needs && !($st.args == 1 && $st.args[0] ~~ Lambda && $st.args[0].params == 1)
+      my $needs = NEEDS-LAMBDA{$n} || ($n (elem) <count first distinctadjacent> && $st.args);
+      if $needs && !($st.args == 1 && (self!is-lambda($st.args[0]) || self!is-function-name($n, $st.args[0])))
       {
         @p.push("'$n' over {$kind}() without its lambda written in the stage");
       }
-      @p.push("'take' over {$kind}() without a count") if $n eq 'take' && $st.args != 1;
+      @p.push("'$n' over {$kind}() without a count") if $n (elem) <take drop> && $st.args != 1;
     }
 
     # Over rows() the element is the current record, not a value, until a
@@ -461,11 +489,16 @@ class Emitter
       {
         last if $mapped;
         my $l = $st.args[0];
-        if $l ~~ Lambda && $l.params == 1 && self!record-misused($l)
+        if ($l ~~ Lambda && $l.params == 1 && self!record-misused($l))
+           || self!is-function-name($st.name.lc, $l)
         {
           @p.push("over rows() the element is the current record, so it can only name a field");
         }
-        $mapped = True if $st.name.lc eq 'map';
+        if $st.name.lc eq 'distinctadjacent' && !$st.args
+        {
+          @p.push("over rows() 'distinctAdjacent' needs a key: the record is not a value to compare");
+        }
+        $mapped = True if $st.name.lc (elem) <map expand>;
       }
       my $t = $terminal.defined ?? $terminal.name.lc !! '';
       my $needs-value = $t (elem) <asum first> || (!$t && ($rest || $s !~~ CallStmt));
@@ -473,6 +506,15 @@ class Emitter
         if $needs-value && !$mapped;
     }
     @p.map({ $s.line => $_ }).List
+  }
+
+  method !is-lambda($e --> Bool) { so $e ~~ Lambda && $e.params == 1 }
+
+  # A bare function name where a block is taken: not a variable of the
+  # function, so it names a function to call with the element.
+  method !is-function-name(Str $verb, $e --> Bool)
+  {
+    so TAKES-BLOCK{$verb} && $e ~~ Name && !%!declared{$e.name.lc}
   }
 
   # Whether a lambda over a record uses its parameter for anything but a field.
@@ -553,19 +595,7 @@ class Emitter
       for exprs-of($s) -> $e { walk-expr($e, { %!used{.name.lc} = True if $_ ~~ Name }) }
     });
 
-    %!declared = ();
-    %!declared{.name.lc} = True for $f.params;
-    walk($f.body, -> $s
-    {
-      given $s
-      {
-        when Declaration { %!declared{.name.lc} = True for .declarators }
-        when ForStmt     { %!declared{.var.lc} = True if .var-local }
-        when ForInStmt   { %!declared{.elem.lc} = True; %!declared{.index.lc} = True if .index.defined }
-        when IfStmt | WhileStmt { %!declared{.header-decl.name.lc} = True if .header-decl.defined }
-        when CaseStmt    { %!declared{.subject-decl.name.lc} = True if .subject-decl.defined }
-      }
-    });
+    self!declare-names($f);
 
     # The defers, lowered once each, with their comment on their last line.
     @!defers = ();
@@ -580,6 +610,28 @@ class Emitter
       }
     });
 
+    # A chain from a source as the value of a prologue declaration runs as a
+    # loop, which is a statement, and statements come after the
+    # declarations. So from the first such declaration on, the 'local'
+    # declarations keep their names and types, and their values become
+    # assignments after the prologue, in the order written -- a later value
+    # still sees an earlier one.
+    %!done = ();
+    my @prologue;
+    for $f.body -> $s { last unless $s ~~ Declaration; @prologue.push($s) }
+    my $first = @prologue.first({ .scope eq 'local' && .declarators.first({ .init.defined && source-call(.init).defined }) }, :k);
+    my @inits;
+    if $first.defined
+    {
+      for @prologue[$first .. *].grep(*.scope eq 'local') -> $d
+      {
+        %!done{$d.WHICH} = True;
+        my $kw = split-comment(self!slice($d))[0].trim.words[0];
+        self!replace($d, False, ("$kw " ~ $d.declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),));
+        @inits.append(self!init-lines(.name, .init)) for $d.declarators.grep(*.init.defined);
+      }
+    }
+
     self!collect($f.body, True);
 
     # The natural end: unless the body ends in a 'return', every defer runs
@@ -592,7 +644,37 @@ class Emitter
       my @lines = @!defers.reverse.map({ |.[1] });
       @!edits.push([$at, $at, @lines.map({ $!nl ~ $indent ~ $_ }).join]);
     }
+    # Inserted at the end of the prologue, after the hoisted Locals and before
+    # any defer there: an insert at the same place as another comes out ahead
+    # of it when pushed after it, so these go after the defers' and before the
+    # Locals'.
+    if @inits
+    {
+      my $last = @prologue[*-1];
+      my $at = self!line-end($last.src-from + code-end(self!slice($last)));
+      my $indent = self!indent-at($f.body[0].src-from);
+      @!edits.push([$at, $at, @inits.map({ $!nl ~ $indent ~ $_ }).join]);
+    }
     self!hoist-edit($f) if @!hoist;
+  }
+
+  # The names the function declares, anywhere in it: a 'using alias' word or
+  # a bare name given to a verb that is one of them is a variable.
+  method !declare-names($f)
+  {
+    %!declared = ();
+    %!declared{.name.lc} = True for $f.params;
+    walk($f.body, -> $s
+    {
+      given $s
+      {
+        when Declaration { %!declared{.name.lc} = True for .declarators }
+        when ForStmt     { %!declared{.var.lc} = True if .var-local }
+        when ForInStmt   { %!declared{.elem.lc} = True; %!declared{.index.lc} = True if .index.defined }
+        when IfStmt | WhileStmt { %!declared{.header-decl.name.lc} = True if .header-decl.defined }
+        when CaseStmt    { %!declared{.subject-decl.name.lc} = True if .subject-decl.defined }
+      }
+    });
   }
 
   # A Local to add after the function's prologue, once per name.
@@ -641,6 +723,7 @@ class Emitter
   {
     for @body -> $s
     {
+      next if %!done{$s.WHICH};
       my $walked = False;             # set by a branch that walks the bodies itself
       given $s
       {
@@ -651,8 +734,7 @@ class Emitter
         when { $_ ~~ Declaration && !$top && .scope eq 'local' }
         {
           self!hoist($_, 'a block local') for .declarators.map(*.name);
-          self!replace($s, False,
-            .declarators.map({ "{.name} := {.init.defined ?? self!expr(.init) !! 'Nil'}" }));
+          self!replace($s, False, .declarators.map({ .init.defined ?? |self!init-lines(.name, .init) !! "{.name} := Nil" }));
         }
         # A 'defer' leaves where it is written; its body runs at the exits.
         when Deferred
@@ -968,7 +1050,12 @@ class Emitter
     }
 
     my $ind = '';
-    my &lambda = -> $st { self!bound($st.args[0], $elem, $prefix) };
+    my &lambda = -> $st
+    {
+      $st.args[0] ~~ Lambda
+        ?? self!bound($st.args[0], $elem, $prefix)
+        !! "{$st.args[0].name}($elem)"                 # a function name
+    };
     for @$fused -> $st
     {
       given $st.name.lc
@@ -1001,6 +1088,56 @@ class Emitter
           @body.append("{$ind}If $fn >= $limit", "{$ind}  Exit", "{$ind}EndIf", "{$ind}$fn := $fn + 1");
         }
         when 'takewhile' { @body.append("{$ind}If !({lambda($st)})", "{$ind}  Exit", "{$ind}EndIf") }
+        when 'drop'
+        {
+          # The rest of the chain in the Else: the first n pass by.
+          my $n = $st.args[0];
+          my $limit;
+          my $fn = self!gen('fn', 'how many elements have passed');
+          if $n ~~ Literal && $n.type eq 'Numeric' { $limit = self!expr($n) }
+          else
+          {
+            $limit = self!gen('flm', 'the limit of a drop');
+            @ahead.push("$limit := {self!expr($n)}");
+          }
+          @ahead.push("$fn := 0");
+          @body.append("{$ind}If $fn < $limit", "{$ind}  $fn := $fn + 1", "{$ind}Else");
+          @close.unshift("{$ind}EndIf");
+          $ind ~= '  ';
+        }
+        when 'dropwhile'
+        {
+          # A flag, not a test: once the leading run is over, an element that
+          # would have matched still passes.
+          my $flag = self!gen('fdr', 'whether the leading run of a dropwhile is still on');
+          @ahead.push("$flag := .T.");
+          @body.append("{$ind}If !($flag .And. ({lambda($st)}))", "{$ind}  $flag := .F.");
+          @close.unshift("{$ind}EndIf");
+          $ind ~= '  ';
+        }
+        when 'expand'
+        {
+          # A loop inside the loop: the rest runs once per inner element.
+          my $bag = self!gen('fbg', 'the inner array of an expand');
+          my $j   = self!gen('fj', 'the position in the inner array of an expand');
+          $fv //= self!gen('fv', 'the element walked');
+          @body.append("{$ind}$bag := {lambda($st)}", "{$ind}For $j := 1 To Len($bag)", "{$ind}  $fv := {$bag}[$j]");
+          @close.unshift("{$ind}Next");
+          $elem = $fv;
+          $ind ~= '  ';
+        }
+        when 'distinctadjacent'
+        {
+          # A key equal to the one before is skipped; the first always passes.
+          my $op = self!gen('fop', 'whether distinctAdjacent has seen an element');
+          my $ls = self!gen('fls', 'the key distinctAdjacent saw last');
+          my $pb = self!gen('fpb', 'the key of the element distinctAdjacent looks at');
+          @ahead.append("$op := .F.", "$ls := Nil", "$pb := Nil");
+          @body.append("{$ind}$pb := {$st.args ?? lambda($st) !! $elem}",
+                       "{$ind}If !($op .And. ($pb == $ls))", "{$ind}  $op := .T.", "{$ind}  $ls := $pb");
+          @close.unshift("{$ind}EndIf");
+          $ind ~= '  ';
+        }
       }
     }
 
@@ -1056,6 +1193,16 @@ class Emitter
     %!subst = %s;
     %!field = %f;
     $text
+  }
+
+  # 'name := value' as lines: the loop first when the value is a chain from a
+  # source.
+  method !init-lines(Str $name, Expr $value --> List)
+  {
+    return ("$name := {self!expr($value)}",) unless source-call($value).defined;
+    my @lines = self!stream($value, True);
+    my $result = @lines.shift;
+    (|@lines, "$name := $result").List
   }
 
   # A whole statement replaced by lines; the comment goes back on the header
@@ -1189,15 +1336,19 @@ class Emitter
         my $acc = self!expr(.source);
         for .stages -> $st
         {
-          $acc = call-name($st.name) ~ '(' ~ ($acc, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
+          $acc = call-name($st.name) ~ '(' ~ ($acc, |$st.args.map({ self!block-arg($st.name, $_) })).join(', ') ~ ')';
         }
         $acc
       }
       when Call
       {
-        self!lowers-itself($_)
-          ?? call-name(.name) ~ '(' ~ .args.map({ self!part($_) }).join(', ') ~ ')'
-          !! self!with-edits($_, subexprs($_))
+        # A verb: the first argument is the data, any after it may be a
+        # bare function name standing for a block.
+        my $call = $_;
+        self!lowers-itself($call)
+          ?? call-name($call.name) ~ '(' ~ $call.args.kv.map(-> $i, $a
+               { $i == 0 ?? self!part($a) !! self!block-arg($call.name, $a) }).join(', ') ~ ')'
+          !! self!with-edits($call, subexprs($call))
       }
       default { self!with-edits($_, subexprs($_)) }
     }
@@ -1271,6 +1422,13 @@ class Emitter
       when '?='       { (!@pre, |@pre, "If u_xtpl_hget($h, $k) == Nil", "  $h:Set($k, $v)", 'EndIf') }
       default         { (False, |@pre, "$h:Set($k, u_xtpl_hget($h, $k) {$a.op.chop} ($v))") }
     }
+  }
+
+  # An argument of a verb that takes a block: a bare function name becomes
+  # the block that calls it ('alltrim' -> '{|__it| alltrim(__it)}').
+  method !block-arg(Str $verb, Expr $e --> Str)
+  {
+    self!is-function-name($verb.lc, $e) ?? "\{|__it| {$e.name}(__it)\}" !! self!part($e)
   }
 
   # An argument: an omitted one is empty.
