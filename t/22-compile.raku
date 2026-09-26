@@ -153,12 +153,12 @@ check 'the output of a compile compiles to itself',
 # ---- what is not lowered yet ------------------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
-  my $src = "user function f(a, o)\n  local n := 1..3 |> asum\n  raw ANOTE n\n  with object o\n    :Ativa()\n  end with\nreturn n\n";
+  my $src = "user function f(a, h)\n  private p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  a := map(a, [k] h\{k\} := 1)\nreturn a\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
   !$out.defined && $! ~~ X::XC::NotLowered
     && $!.problems.map({ .key ~ ' ' ~ .value }).join(', ')
-       eq "2 'lo..hi', 3 'raw', 4 'with object', 5 ':x' of 'with object'"
+       eq "2 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own), 3 'for ... in' over rows(), 5 a hash write inside an expression"
 };
 
 # ---- the driver ------------------------------------------------------------------------
@@ -195,9 +195,9 @@ check 'bin/xc: a block never closed',
 check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
-  spurt $in, "user function f(o)\n  with object o\n    :Ativa()\n  end with\nreturn 1\n";
+  spurt $in, "user function f()\n  for r in rows(\"SA1\")\n  next\nreturn 1\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:2: 'with object' is not lowered yet") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:2: 'for ... in' over rows() is not lowered yet") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;

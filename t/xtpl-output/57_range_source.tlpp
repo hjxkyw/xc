@@ -1,0 +1,102 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 57_range_source.tlpp -- 'lo..hi' como fonte de uma cadeia.
+//
+// A mesma grafia que 'in 1..100' usa, e a unica fonte que percorre sem uma
+// colecao atras: o laco conta, e nada e alocado.
+//
+//    n := 1..999 |> filter([x] x %% 3 .or. x %% 5) |> asum
+//
+// que e o primeiro problema do Project Euler, e em Raku se escreve
+//
+//    say sum((1..999).grep: * %% (3 | 5))
+//
+// O contador e o elemento sao variaveis DIFERENTES. Fazer o contador ser o
+// elemento economizava uma atribuicao e quebrava o laco: um 'map' escreve no
+// elemento, e escrever no contador de um For muda o que ele percorre.
+// --------------------------------------------------------------------------------
+
+user function testRangeSource(nLo, nHi)
+
+  Local nEuler := 0
+  Local aDobros := {}
+  Local nQuantos := 0
+  Local nCalculado := 0
+  Local aPrimeiros := {}
+
+  Local fhi_0_0  // a ponta de cima de um intervalo
+  Local fi_0_0   // o indice do percurso
+  Local fn_0_0   // quantos elementos ja passaram
+  Local fo_0_0   // o resultado da cadeia
+  Local fv_0_0   // o elemento em percurso
+
+  // literal dos dois lados: entra direto no cabecalho
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To 999
+    fv_0_0 := fi_0_0
+    If (fv_0_0 % 3) == 0 .or. (fv_0_0 % 5) == 0
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+
+  nEuler := fo_0_0
+
+  // um map escreve no elemento, entao o contador tem de ser outro
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To 10
+    fv_0_0 := fi_0_0
+    fv_0_0 := fv_0_0 * 2
+    AAdd(fo_0_0, fv_0_0)
+  Next
+
+  aDobros := fo_0_0
+
+  // contagem com teste, sem construir nada
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To 100
+    fv_0_0 := fi_0_0
+    If (fv_0_0 % 7) == 0
+      fo_0_0 := fo_0_0 + 1
+    EndIf
+  Next
+
+  nQuantos := fo_0_0
+
+  // pontas calculadas: ligadas antes do laco
+  fhi_0_0 := calcFim(nHi)
+  fo_0_0 := 0
+
+  For fi_0_0 := nLo To fhi_0_0
+    fv_0_0 := fi_0_0
+    If fv_0_0 > 0
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+
+  nCalculado := fo_0_0
+
+  // take corta o percurso, nao o resultado
+  fn_0_0 := 0
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To 1000000
+    fv_0_0 := fi_0_0
+    If (fv_0_0 % 3) == 0
+      If fn_0_0 >= 4
+        Exit
+      EndIf
+      fn_0_0 := fn_0_0 + 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  aPrimeiros := fo_0_0
+
+  return nEuler + len(aDobros) + nQuantos + nCalculado + len(aPrimeiros)
+
+// --------------------------------------------------------------------------------
+// the end

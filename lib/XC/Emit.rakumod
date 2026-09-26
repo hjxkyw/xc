@@ -18,6 +18,8 @@
 # line of each one. xtpl syntax never passes silently into a .tlpp.
 
 use XC::AST;
+use XC::Grammar;
+use XC::Actions;
 
 unit module XC::Emit;
 
@@ -156,12 +158,24 @@ my constant EXITS        = set <take takewhile anyof allof noneof first>;
 my constant TAKES-BLOCK  = set <map filter reject tap takewhile dropwhile expand maxby minby
                                 sortby chunkby distinctadjacent first count anyof allof noneof>;
 
-# The rows()/lines() call a chain starts from, or the call itself.
-sub source-call(Expr $e --> Call)
+# The source a chain starts from -- a rows()/lines() call or a range
+# 'lo..hi' -- or the source itself.
+sub is-source(Expr $e --> Bool)
 {
-  return $e.source if $e ~~ Pipeline && $e.source ~~ Call && $e.source.name.lc (elem) <rows lines>;
-  return $e if $e ~~ Call && $e.name.lc (elem) <rows lines>;
-  Call
+  so ($e ~~ Call && $e.name.lc (elem) <rows lines>) || $e ~~ Interval
+}
+
+sub source-call(Expr $e --> Expr)
+{
+  return $e.source if $e ~~ Pipeline && is-source($e.source);
+  return $e if is-source($e);
+  Expr
+}
+
+# 'rows', 'lines' or 'range'.
+sub source-kind(Expr $src --> Str)
+{
+  $src ~~ Interval ?? 'range' !! $src.name.lc
 }
 
 # The stages split into the fused run, the terminal that may end it, and the
@@ -217,6 +231,10 @@ class Emitter
   # Statements rewritten already, by the prologue pass: the walk skips them.
   has %!done;
 
+  # The subjects of the 'with object' blocks around the walk, innermost last:
+  # ':x' is the last one's 'x'.
+  has @!subjects;
+
   # Block locals renamed, by the block that declares them (its WHICH):
   # head => the header locals ('if local x', 'for x in'), in scope in the
   # header and the body; body => the locals of its prologue, in scope in the
@@ -265,9 +283,7 @@ class Emitter
       {
         my $what = do given $s
         {
-          when WithObject   { "'with object'" }
-          when RawStmt      { "'raw'" }
-          when ForInStmt    { source-call(.source).defined && source-call(.source).name.lc eq 'rows'
+          when ForInStmt    { source-call(.source).defined && source-kind(source-call(.source)) eq 'rows'
                                 ?? "'for ... in' over rows()" !! Str }
           when Modified     { self!stream-value(.stmt).defined
                                 ?? 'a chain from a source under a postfix modifier' !! Str }
@@ -279,11 +295,17 @@ class Emitter
         # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
         # as the source of a 'for'.
         my @tops = self!stream-values($s);
-        my $for = $s ~~ ForInStmt && $s.source ~~ Call ?? $s.source !! Expr;
+        my $for = $s ~~ ForInStmt && is-source($s.source) ?? $s.source !! Expr;
         my %heads;                     # the source calls that head a chain
         for exprs-of($s) -> $e
         {
-          walk-expr($e, { %heads{.source.WHICH} = True if $_ ~~ Pipeline && .source ~~ Call });
+          walk-expr($e, { %heads{.source.WHICH} = True if $_ ~~ Pipeline && is-source(.source) });
+        }
+        # A range is also the right side of 'in': a membership test, no loop.
+        my %in-range;
+        for exprs-of($s) -> $e
+        {
+          walk-expr($e, { %in-range{.right.WHICH} = True if $_ ~~ Binary && .op eq 'in' && .right ~~ Interval });
         }
         for exprs-of($s) -> $e
         {
@@ -291,15 +313,19 @@ class Emitter
           {
             my $w = self!expr-extension($x);
             @found.push($s.line => $w) with $w;
-            if $x ~~ Call && $x.name.lc (elem) <rows lines>
+            if is-source($x)
             {
-              my $ok = @tops.first({ source-call($_) === $x }).defined || ($for.defined && $for === $x);
+              my $ok = @tops.first({ source-call($_) === $x }).defined || ($for.defined && $for === $x)
+                    || %in-range{$x.WHICH};
               unless $ok
               {
+                my $what = $x ~~ Interval ?? 'a range' !! "{$x.name.lc}()";
                 @found.push($s.line => %heads{$x.WHICH}
-                  ?? "a chain from {$x.name.lc}() where it cannot run as a loop first "
+                  ?? "a chain from $what where it cannot run as a loop first "
                      ~ "(it goes in 'x := ...', 'return ...' or a statement of its own)"
-                  !! "'{$x.name.lc}()' outside the head of a chain (it is a source)");
+                  !! $x ~~ Interval
+                     ?? "a range outside 'in' and the head of a chain"
+                     !! "'{$x.name.lc}()' outside the head of a chain (it is a source)");
               }
             }
           });
@@ -315,8 +341,6 @@ class Emitter
   {
     given $x
     {
-      when Interval   { "'lo..hi'" }
-      when SubjectRef { "':x' of 'with object'" }
       # A write inside an expression ('[k] h{k} := 1'): Set is a statement.
       when AssignExpr { .target ~~ HashIndex ?? 'a hash write inside an expression' !! Str }
       default         { Str }
@@ -454,7 +478,7 @@ class Emitter
   {
     my @p;
     my $call = source-call($chain);
-    my $kind = $call.name.lc;
+    my $kind = source-kind($call);
     # One by one: rakupp 4.0.1 flattens Lists inside a list assignment.
     my %split = split-stages($chain ~~ Pipeline ?? $chain.stages.list !! ());
     my $fused    = %split<fused>;
@@ -464,6 +488,7 @@ class Emitter
     @p.push("'rows()' with no alias, or more than an alias and a key")
       if $kind eq 'rows' && !(1 <= $call.args <= 2);
     @p.push("'lines()' with no path, or more than one") if $kind eq 'lines' && $call.args != 1;
+    my $what = $kind eq 'range' ?? 'a range' !! "{$kind}()";
 
     # A fused stage's lambda has to be written in the stage: it becomes the
     # loop's code, and a block held in a variable cannot.
@@ -473,9 +498,9 @@ class Emitter
       my $needs = NEEDS-LAMBDA{$n} || ($n (elem) <count first distinctadjacent> && $st.args);
       if $needs && !($st.args == 1 && (self!is-lambda($st.args[0]) || self!is-function-name($n, $st.args[0])))
       {
-        @p.push("'$n' over {$kind}() without its lambda written in the stage");
+        @p.push("'$n' over $what without its lambda written in the stage");
       }
-      @p.push("'$n' over {$kind}() without a count") if $n (elem) <take drop> && $st.args != 1;
+      @p.push("'$n' over $what without a count") if $n (elem) <take drop> && $st.args != 1;
     }
 
     # Over rows() the element is the current record, not a value, until a
@@ -944,7 +969,30 @@ class Emitter
             @!edits.push([$from, .endname-to, '']);
           }
         }
-        when { $_ ~~ ForInStmt && source-call(.source).defined }
+        when { $_ ~~ ForInStmt && .source ~~ Interval }
+        {
+          # 'for x [, i] in lo..hi': a count, the element a copy of it.
+          my $el = self!nm($s, .elem);
+          my $ix = .index.defined ?? self!nm($s, .index) !! Str;
+          self!hoist($el, 'a block local');
+          self!hoist($ix, 'a block local') if $ix.defined;
+          my @h;
+          my $lo = self!range-end(.source.lo, 'flo', 'the low end of a range', @h);
+          my $hi = self!range-end(.source.hi, 'fhi', 'the high end of a range', @h);
+          my $fi = self!gen('fi', "the counter of a 'for ... in'");
+          @h.push("$ix := 0") if $ix.defined;
+          my $at = @h.elems;
+          @h.append("For $fi := $lo To $hi", "  $el := $fi");
+          @h.push("  $ix := $ix + 1") if $ix.defined;
+          self!header($s, .source.hi, $at, |@h);
+          if .endname-from >= 0
+          {
+            my $from = .endname-from;
+            $from-- while $from > 0 && $!src.substr($from - 1, 1) eq ' ' | "\t";
+            @!edits.push([$from, .endname-to, '']);
+          }
+        }
+        when { $_ ~~ ForInStmt && .source ~~ Call && source-kind(.source) eq 'lines' }
         {
           # 'for x in lines(p)': opened only if it exists, and advanced at the
           # top, so a 'loop' in the body does not stall on the same line. Every
@@ -1037,6 +1085,47 @@ class Emitter
           self!header($s, $last, 1, $bind, 'Do Case');
           self!in-scope($c, { self!expressions($c, $c.branches.map(*.cond)) });
         }
+        # 'with object': the subject bound once, ':x' its 'x', and the
+        # 'end with' line gone. The subject is read with the outer one in scope.
+        when WithObject
+        {
+          my $t = self!gen('fbs', "the subject of a 'with object'");
+          self!header($s, .subject, 0, "$t := {self!expr(.subject)}");
+          self!drop-closer($s, / 'end' \s+ 'with' /);
+          @!subjects.push($t);
+          self!collect-bodies($s);
+          @!subjects.pop;
+          $walked = True;
+        }
+        # 'raw': the text for the preprocessor, as written -- but with its
+        # strings interpolated and its renamed block locals renamed, as xtpl
+        # does. A block loses its 'raw' and 'end raw' lines, not their comments.
+        when RawStmt
+        {
+          if .block
+          {
+            my $raw  = self!slice($s);
+            my $ce   = code-end($raw);
+            my $from = self!line-start($s.src-from);
+            my $last = $s.src-from + $raw.substr(0, $ce).lc.match(/ 'end' \s+ 'raw' /, :g)[*-1].from;
+            my $end  = self!line-end($s.src-from + $ce);
+            my @out;
+            my $open = split-comment($!src.substr($s.src-from, self!line-end($s.src-from) - $s.src-from))[1];
+            @out.push(self!indent-at($s.src-from) ~ $open) if $open;
+            @out.append(.lines.map({ self!raw-text($_) }));
+            my $shut = split-comment($!src.substr($last, $end - $last))[1];
+            @out.push(self!indent-at($last) ~ $shut) if $shut;
+            my $to = $end;
+            $to++ if $to < $!src.chars;              # the line break too
+            @!edits.push([$from, $to, @out ?? @out.map({ $_ ~ $!nl }).join !! '']);
+          }
+          else
+          {
+            my $raw = self!slice($s);
+            my $at  = $raw.index(.lines[0]);
+            @!edits.push([$s.src-from, $s.src-from + $at + .lines[0].chars, self!raw-text(.lines[0])]);
+          }
+        }
         default
         {
           self!expressions($s, exprs-of($s));
@@ -1104,8 +1193,22 @@ class Emitter
     my $rest     = %split<rest>;
     my (@setup, @ahead, @body, @close, @teardown, $head, $advance, $read);
     my ($elem, $prefix, $fv) = Str, Str, Str;
+    my $end = 'EndDo';
 
-    if $call.name.lc eq 'rows'
+    if $call ~~ Interval
+    {
+      # A range counts: nothing is allocated, nothing to put back. The element
+      # is a copy of the counter, so a map writing it leaves the count alone.
+      my $lo = self!range-end($call.lo, 'flo', 'the low end of a range', @setup);
+      my $hi = self!range-end($call.hi, 'fhi', 'the high end of a range', @setup);
+      my $fi = self!gen('fi', 'the counter of a range');
+      $fv    = self!gen('fv', 'the element walked');
+      $head  = "For $fi := $lo To $hi";
+      $read  = "$fv := $fi";
+      $end   = 'Next';
+      $elem  = $fv;
+    }
+    elsif $call.name.lc eq 'rows'
     {
       # A literal alias is written out ('SA1->A1_COD'); anything else is bound
       # once and reached as '(alias)->'. The area and the record the walk found
@@ -1279,13 +1382,24 @@ class Emitter
       }
     }
 
-    my @loop = $head, |(($read // ()).map({ "  $_" })), |(@body, @close).flat.map({ "  $_" }), "  $advance", 'EndDo';
+    my @loop = $head, |(($read // ()).map({ "  $_" })), |(@body, @close).flat.map({ "  $_" }),
+               |(($advance // ()).map({ "  $_" })), $end;
     my $result = $fo // 'Nil';
     for @$rest -> $st
     {
       $result = call-name($st.name) ~ '(' ~ ($result, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
     }
     ($result, |@setup, |@ahead, |@loop, |@teardown).List
+  }
+
+  # An end of a range: a number or a name as it is, anything else bound once
+  # before the loop, so a call does not sit in its header.
+  method !range-end(Expr $e, Str $kind, Str $comment, @setup --> Str)
+  {
+    return self!expr($e) if ($e ~~ Literal && $e.type eq 'Numeric') || $e ~~ Name;
+    my $t = self!gen($kind, $comment);
+    @setup.push("$t := {self!expr($e)}");
+    $t
   }
 
   # A stage's lambda body, its parameter bound to the element: the value's
@@ -1311,6 +1425,86 @@ class Emitter
     my @lines = self!stream($value, True);
     my $result = @lines.shift;
     (|@lines, "$name := $result").List
+  }
+
+  # A block's closing line ('end with') dropped: the whole line, unless a
+  # comment follows the keyword, which stays where it was.
+  method !drop-closer(Stmt $s, Regex $closer)
+  {
+    my $raw = self!slice($s);
+    my $ce  = code-end($raw);
+    my $at  = $s.src-from + $raw.substr(0, $ce).lc.match($closer, :g)[*-1].from;
+    my $end = self!line-end($s.src-from + $ce);
+    my $comment = split-comment($!src.substr($at, $end - $at))[1];
+    my $from = self!line-start($at);
+    if $comment
+    {
+      @!edits.push([$from, $end, self!indent-at($at) ~ $comment]);
+    }
+    else
+    {
+      $end++ if $end < $!src.chars;
+      @!edits.push([$from, $end, '']);
+    }
+  }
+
+  # A raw line, for the preprocessor: as written, but a string holding '${'
+  # interpolated (parsed as xtpl, on its own) and a renamed block local
+  # renamed. A comment ends the processing; a member or field name ('o:x',
+  # 'A->x') and a function name ('x(') are not variables.
+  method !raw-text(Str $text --> Str)
+  {
+    my $out = '';
+    my $i = 0;
+    my $n = $text.chars;
+    while $i < $n
+    {
+      my $c = $text.substr($i, 1);
+      if $text.substr($i, 2) eq '//'
+      {
+        $out ~= $text.substr($i);
+        last;
+      }
+      elsif $c eq '"' || $c eq "'"
+      {
+        my $close = $text.index($c, $i + 1) // $n - 1;
+        my $str = $text.substr($i, $close - $i + 1);
+        $out ~= $str.contains('${') ?? self!raw-string($str) !! $str;
+        $i = $close + 1;
+      }
+      elsif $c ~~ / <[A..Za..z_]> /
+      {
+        my $word = ($text.substr($i) ~~ / ^ <[A..Za..z_]> \w* /).Str;
+        my $before = $out.substr(*-1) // '';
+        my $after = $text.substr($i + $word.chars) ~~ / ^ \h* '(' /;
+        $out ~= %!subst{$word.lc}:exists && $before ne ':' && $before ne '>' && !$after
+          ?? %!subst{$word.lc} !! $word;
+        $i += $word.chars;
+      }
+      else
+      {
+        $out ~= $c;
+        $i++;
+      }
+    }
+    $out
+  }
+
+  # A string with interpolation, from a raw line: parsed on its own, and
+  # rendered with the renames in effect here. If it is not valid, as written.
+  method !raw-string(Str $str --> Str)
+  {
+    my $m = XC::Grammar.parse($str, rule => 'expr', actions => XC::Actions.new(source => $str));
+    return $str unless $m;
+    Emitter.new(src => $str).render-snippet($m.made, %!subst)
+  }
+
+  # An expression parsed from a piece of text of its own (a raw line's
+  # string), rendered with the given renames.
+  method render-snippet(Expr $e, %subst --> Str)
+  {
+    %!subst = %subst;
+    self!expr($e)
   }
 
   # A whole statement replaced by lines; the comment goes back on the header
@@ -1398,6 +1592,11 @@ class Emitter
         %!field = %f;
         $text
       }
+      # ':x' / ':m(...)' inside 'with object': the innermost subject's.
+      when { ($_ ~~ Member || $_ ~~ MethodCall) && .base ~~ SubjectRef }
+      {
+        @!subjects[*-1] ~ ':' ~ .name ~ ($_ ~~ MethodCall ?? '(' ~ .args.map({ self!part($_) }).join(', ') ~ ')' !! '')
+      }
       # 'h{k}': a call, right wherever it is (xtpl lifts a Get, which goes
       # wrong in a 'while' condition, an 'elseif' or a lambda).
       when HashIndex { "u_xtpl_hget({self!expr(.base)}, {self!expr(.key)})" }
@@ -1419,14 +1618,40 @@ class Emitter
       when SafeMember { self!safe(.base, ":{.name}") }
       when { $_ ~~ Binary && .op (elem) <in has %% ?:> }
       {
-        my ($l, $rt) = self!expr(.left), self!expr(.right);
-        given .op
+        # The node in a variable: inside 'given .op' the topic is the operator.
+        # The right side is rendered only where it is an expression -- a range
+        # is not one.
+        my $b = $_;
+        my $l = self!expr($b.left);
+        given $b.op
         {
-          when 'in'  { "u_xtpl_in($l, $rt)" }
-          when 'has' { "u_xtpl_hhas($l, $rt)" }
-          when '%%'  { "(($l) % ($rt) == 0)" }
+          when 'in'
+          {
+            # 'x in lo..hi' is a range test, with x read once.
+            if $b.right ~~ Interval
+            {
+              my $lo = self!expr($b.right.lo);
+              my $hi = self!expr($b.right.hi);
+              $b.left ~~ Name || $b.left ~~ Literal
+                ?? "($l >= $lo .And. $l <= $hi)"
+                !! "Eval(\{|__v| __v >= $lo .And. __v <= $hi\}, $l)"
+            }
+            else
+            {
+              "u_xtpl_in($l, {self!expr($b.right)})"
+            }
+          }
+          when 'has' { "u_xtpl_hhas($l, {self!expr($b.right)})" }
+          # Parenthesised whole: the node is rewritten in place, and '!x %% 3'
+          # must not become '!(x % 3) == 0'. Its operands only when compound.
+          when '%%'
+          {
+            my $ll = $b.left  ~~ Name || $b.left  ~~ Literal ?? $l !! "($l)";
+            my $rr = $b.right ~~ Name || $b.right ~~ Literal ?? self!expr($b.right) !! "({self!expr($b.right)})";
+            "(($ll % $rr) == 0)"
+          }
           # The right side only when the left is Nil: a block, run if needed.
-          default    { "u_xtpl_elvis($l, \{|| $rt\})" }
+          default    { "u_xtpl_elvis($l, \{|| {self!expr($b.right)}\})" }
         }
       }
       when Name
@@ -1471,6 +1696,7 @@ class Emitter
     return True if $e ~~ Member && $e.base ~~ Name && %!field{$e.base.name.lc}:exists;
     return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
     return True if $e ~~ SafeMember || $e ~~ SafeCall;
+    return True if ($e ~~ Member || $e ~~ MethodCall) && $e.base ~~ SubjectRef;
     return True if $e ~~ Binary && $e.op (elem) <in has %% ?:>;
     False
   }

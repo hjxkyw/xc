@@ -392,12 +392,17 @@ method forst($/)
   make $node;
 }
 
+method forrange($/)
+{
+  make self!spanned(Interval.new(lo => $<lo>.made, hi => $<hi>.made), $/);
+}
+
 method forinst($/)
 {
   my $node = ForInStmt.new(
     elem   => ~$<elem>,
     index  => $<idx> ?? ~$<idx> !! Str,
-    source => $<source>.made,
+    source => $<srange> ?? $<srange>.made !! $<source>.made,
     body   => $<block>.made,
     line   => self!line($/),
   );

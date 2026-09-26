@@ -87,7 +87,7 @@ lowers "'in' is the runtime's",
   '  x := u_xtpl_in(3, a)';
 lowers "'%%' is divisible-by",
   '  x := a %% 3',
-  '  x := ((a) % (3) == 0)';
+  '  x := ((a % 3) == 0)';
 lowers "'?:' evaluates its right side only when the left is Nil",
   '  x := o ?: slow(a)',
   '  x := u_xtpl_elvis(o, {|| slow(a)})';

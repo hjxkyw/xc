@@ -546,7 +546,7 @@ rule forinst
 {
   :i 'for' <elem=name> <!{ is-reserved(~$<elem>) }>
      [ ',' <idx=name> <!{ is-reserved(~$<idx>) }> ]?
-     :i 'in' <source=expr> <.nl>
+     :i 'in' [ <srange=forrange> || <source=expr> ] <.nl>
      <block=body>
   :i 'next' <endname=name>?
 }
@@ -715,6 +715,10 @@ token inop     { :i 'in' >> }
 # as a list in $<addexpr>.
 rule rangeexpr { <lo=addexpr> [ '..' <hi=addexpr> <?before <.ws> '|>'> ]? }
 rule inrhs     { <lo=addexpr> [ '..' <hi=addexpr> ]? }
+
+# 'for i in 1..n': a range as the source of a 'for'. xtpl takes it, and emits
+# 'x := 1..n' -- not TL++; xc counts.
+rule forrange  { <lo=addexpr> '..' <hi=addexpr> }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
 rule mulexpr   { <unary> [ <mulop> <unary> ]* }
