@@ -24,10 +24,22 @@
 # name and file, and a name an undeclared write has made a PRIVATE is known
 # from then on.
 
+#
+# WARNINGS
+#
+# Besides a name nothing declares: a variable assigned but never read (or
+# declared and never used), a function that returns a value on one path and
+# nothing on another, and a field of an area nothing in the function opened --
+# xtpl's, in xtpl's words. Not its fusion warnings: they are about fusing
+# chains over arrays, which xc does not do.
+
 use XC::AST;
 use XC::Grammar;
 
 unit module XC::Check;
+
+# The calls that open a work area, when given its name as a string.
+my constant OPENERS = set <dbselectarea dbusearea chkfile>;
 
 # Words that are never a variable (xtpl's 'known_words').
 my constant KNOWN = set <nil to step exit loop self super iif in and or not t f class data method
@@ -66,6 +78,12 @@ my class Checker
   has Scope $!scope;
   has Int  $!line = 0;
   has Bool $!in-defer = False;
+  has @!records;                   # this function's variables, for 'never read'
+  has %!opened;                    # upper case => True: areas this function opened
+  has %!warned-alias;              # upper case => True: 'not opened' said already
+  has %!external-alias;            # upper case => True: 'external alias'
+  has Int $.lines = 0;             # the file's length: where the last function ends
+  has @!ends;                      # the lines the functions start on, sorted
 
   method !problem(Str $message) { @!found.push($!line => $message) }
   method !warning(Str $message)  { @!warned.push($!line => $message) }
@@ -81,6 +99,11 @@ my class Checker
     {
       %!externals{.lc} = $x.line for $x.names;
     }
+    for $p.externals.grep(*.alias) -> $x
+    {
+      %!external-alias{.uc} = True for $x.names;
+    }
+    @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
     for $p.directives -> $d
     {
       %!defines{~$0.lc} = True if $d ~~ m:i/ ^ '#' \h* 'define' \h+ (\w+) /;
@@ -102,16 +125,61 @@ my class Checker
 
   method !function($f)
   {
-    %!retired  = ();
-    %!scalar   = ();
+    %!retired      = ();
+    %!scalar       = ();
+    @!records      = ();
+    %!opened       = ();
+    %!warned-alias = ();
     $!scope = Scope.new;
     $!line  = $f.line;
-    self!declare(.name, $f.line) for $f.params;
+    self!declare(.name, $f.line, kind => 'param') for $f.params;
     self!body($f.body);
+    self!never-read;
+    self!returns($f);
+  }
+
+  # A variable never read: assigned, or not even that. Not a parameter, a
+  # public or a private (a callee may read those), nor what a loop declares.
+  method !never-read()
+  {
+    for @!records.grep({ .<kind> eq 'local' && !.<reads> }).sort(*.<line>) -> %v
+    {
+      @!warned.push(%v<line> => (%v<writes>
+        ?? "'{%v<name>}' is assigned but never read"
+        !! "'{%v<name>}' is declared but never used"));
+    }
+  }
+
+  # A function that returns a value on one path and nothing on another hands
+  # its caller a Nil, found out somewhere else and later.
+  method !returns($f)
+  {
+    my (@valued, @bare);
+    walk($f.body, -> $s
+    {
+      if $s ~~ ReturnStmt { ($s.value.defined ?? @valued !! @bare).push($s) }
+    });
+    return unless @valued;
+    my $first = @valued.map(*.line).min;
+    for @bare -> $b
+    {
+      @!warned.push($b.line => "this returns nothing, but the function returns a value on line $first");
+    }
+    my $last = $f.body[*-1];
+    unless $last ~~ ReturnStmt || ($last ~~ Modified && $last.stmt ~~ ReturnStmt)
+    {
+      # On the function's last line, as xtpl does: the one before the next
+      # function, or the file's last.
+      my $next = @!ends.first(* > $f.line);
+      my $end = $next.defined ?? $next - 1 !! ($!lines || $last.line);
+      @!warned.push($end => "the function can reach its end without a return, but returns a value on line $first");
+    }
   }
 
   # ---- scopes -------------------------------------------------------------------
-  method !declare(Str $name, Int $line, :@attributes = ())
+  # $kind: 'local' (a local or a static: reported if never read), 'param',
+  # 'loop' (what a loop header declares) or 'public'. $written: it has a value.
+  method !declare(Str $name, Int $line, :@attributes = (), Str :$kind = 'local', Bool :$written = False)
   {
     my $k = $name.lc;
     if $!scope.names{$k}:exists
@@ -119,10 +187,26 @@ my class Checker
       @!found.push($line => "'$name' is already declared in this block.");
       return;
     }
-    $!scope.names{$k} = %(name => $name, line => $line,
-                          const => so('const' (elem) @attributes),
-                          contained => so('contained' (elem) @attributes));
+    my %v = name => $name, line => $line, kind => $kind, reads => 0, writes => +$written,
+            const => so('const' (elem) @attributes),
+            contained => so('contained' (elem) @attributes);
+    $!scope.names{$k} = %v;
+    @!records.push(%v);
     %!retired{$k}:delete;
+  }
+
+  # The declaration itself, to count its reads and writes. Held in a variable
+  # before '<reads>++': under rakupp 4.0.1, '++' on an element of a Hash a
+  # method returned changes a copy (Rakudo changes the Hash).
+  method !record(Str $k)
+  {
+    my $s = $!scope;
+    while $s.defined
+    {
+      return $s.names{$k} if $s.names{$k}:exists;
+      $s = $s.outer;
+    }
+    Nil
   }
 
   # Code in a block of its own. Its names are retired when it ends, unless an
@@ -176,6 +260,8 @@ my class Checker
     my $k = $name.lc;
     with self!find($k) -> %v
     {
+      my $r = self!record($k);
+      $r<reads>++;
       self!leaves(%v, $name, %v<captured> || $!in-defer);
       return;
     }
@@ -185,11 +271,15 @@ my class Checker
     self!warning("'$name' is not declared") unless %!warned-names{"read $k"}++;
   }
 
-  method !write(Str $name)
+  # $reads: it reads too ('+=', '?=', a 'for' counter) -- xtpl counts a name
+  # as written only alone on the left of ':='.
+  method !write(Str $name, Bool :$reads = False)
   {
     my $k = $name.lc;
     with self!find($k) -> %v
     {
+      my $r = self!record($k);
+      $reads ?? $r<reads>++ !! $r<writes>++;
       self!problem("'$name' is <const> (declared on line {%v<line>}) and cannot be assigned.") if %v<const>;
       self!leaves(%v, $name, %v<captured> || $!in-defer);
       return;
@@ -210,6 +300,8 @@ my class Checker
     my $k = $name.lc;
     with self!find($k) -> %v
     {
+      my $r = self!record($k);
+      $r<reads>++;
       self!problem("'$name' is <const> (declared on line {%v<line>}) and cannot be passed by reference with '@'.")
         if %v<const>;
       self!leaves(%v, $name, True);
@@ -254,11 +346,12 @@ my class Checker
         {
           self!expr($d.init) if $d.init.defined;
           next if $s.scope eq 'private';
-          self!declare($d.name, $d.line, attributes => $d.attributes);
+          self!declare($d.name, $d.line, attributes => $d.attributes,
+                       kind => $s.scope eq 'public' ?? 'public' !! 'local', written => $d.init.defined);
           self!note-scalar($d);
         }
       }
-      when Assignment { self!expr(.value); self!target(.target) }
+      when Assignment { self!expr(.value); self!target(.target, .op) }
       when CallStmt   { self!expr(.call) }
       when ReturnStmt { self!expr(.value) if .value.defined }
       when IfStmt
@@ -266,7 +359,7 @@ my class Checker
         my $if = $_;
         self!expr($if.header-decl.init) if $if.header-decl.defined;
         self!in-block({
-          with $if.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes) }
+          with $if.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
           for $if.branches -> $b
           {
             self!expr($b.cond);
@@ -280,7 +373,7 @@ my class Checker
         my $w = $_;
         self!expr($w.header-decl.init) if $w.header-decl.defined;
         self!in-block({
-          with $w.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes) }
+          with $w.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
           self!expr($w.cond);
           self!body($w.body);
         });
@@ -289,9 +382,9 @@ my class Checker
       {
         my $f = $_;
         self!expr($_) for $f.from, $f.to, $f.step;
-        self!write($f.var) unless $f.var-local;
+        self!write($f.var, :reads) unless $f.var-local;
         self!in-block({
-          self!declare($f.var, $f.line) if $f.var-local;
+          self!declare($f.var, $f.line, kind => 'loop') if $f.var-local;
           self!body($f.body);
         });
       }
@@ -300,8 +393,8 @@ my class Checker
         my $f = $_;
         self!expr($f.source);
         self!in-block({
-          self!declare($f.elem, $f.line);
-          self!declare($f.index, $f.line) if $f.index.defined;
+          self!declare($f.elem, $f.line, kind => 'loop');
+          self!declare($f.index, $f.line, kind => 'loop') if $f.index.defined;
           self!body($f.body);
         });
       }
@@ -315,9 +408,9 @@ my class Checker
       {
         my $c = $_;
         self!expr($c.subject-decl.init) if $c.subject-decl.defined;
-        with $c.subject-assign -> $a { self!expr($a.value); self!target($a.target) }
+        with $c.subject-assign -> $a { self!expr($a.value); self!target($a.target, $a.op) }
         self!in-block({
-          with $c.subject-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes) }
+          with $c.subject-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
           for $c.branches -> $b
           {
             self!expr($b.cond);
@@ -339,7 +432,7 @@ my class Checker
         self!expr($u.order) if $u.order.defined;
         # The word is a variable holding the alias if one is declared by
         # that name, and the alias itself otherwise.
-        self!read($u.area) if self!find($u.area.lc).defined;
+        if self!find($u.area.lc).defined { self!read($u.area) } else { %!opened{$u.area.uc} = True }
         self!in-block({ self!body($u.body) });
       }
       when WithObject
@@ -369,7 +462,12 @@ my class Checker
         {
           for $l.comb(/ <[A..Za..z_]> \w* /) -> $w
           {
-            with self!find($w.lc) -> %v { self!leaves(%v, %v<name>, True) }
+            with self!find($w.lc) -> %v
+            {
+              my $r = self!record($w.lc);
+              $r<reads>++;
+              self!leaves(%v, %v<name>, True);
+            }
           }
         }
       }
@@ -378,9 +476,9 @@ my class Checker
 
   # The target of an assignment: a name is written; anything else reads its
   # parts ('o' in 'o:x := 1', 'h' and 'k' in 'h{k} := v').
-  method !target(Expr $t)
+  method !target(Expr $t, Str $op = ':=')
   {
-    $t ~~ Name ?? self!write($t.name) !! self!expr($t);
+    $t ~~ Name ?? self!write($t.name, reads => !($op (elem) (':=', '='))) !! self!expr($t);
   }
 
   # A declaration that says its variable holds one value -- a scalar literal,
@@ -412,7 +510,7 @@ my class Checker
         # from outside is captured.
         my $outer = $!scope;
         $!scope = Scope.new(outer => $outer, closure => True);
-        self!declare($_, $!line) for .params;
+        self!declare($_, $!line, kind => 'param') for .params;
         self!expr($_) for .body;
         $!scope = $outer;
       }
@@ -421,9 +519,9 @@ my class Checker
       # the tree does not keep them. So a name there is read only if a
       # variable by that name exists. Inside '( ... )' a bare name is a field.
       when InAlias    { self!alias-base(.base) }
-      when AliasField { self!alias-base(.base) }
+      when AliasField { self!field($_); self!alias-base(.base) }
       when Ref        { .target ~~ Name ?? self!by-ref(.target.name) !! self!expr(.target) }
-      when AssignExpr { self!expr(.value); self!target(.target) }
+      when AssignExpr { self!expr(.value); self!target(.target, .op) }
       when Call
       {
         self!call($_);
@@ -465,6 +563,15 @@ my class Checker
   method !call(Call $c)
   {
     my $n = $c.name.lc;
+    # An area opened here: DbSelectArea("SA1") and the like, and rows("SA1").
+    if OPENERS{$n} || $n eq 'rows'
+    {
+      for $c.args.grep({ $_ ~~ Literal && .type eq 'Character' && $_ !~~ Interp }) -> $a
+      {
+        my $name = $a.text.substr(1, *-1);
+        %!opened{$name.uc} = True if $name ~~ / ^ <[A..Za..z_]> \w* $ /;
+      }
+    }
     if $n (elem) <rows lines> && !%!sources-ok{$c.WHICH}
     {
       self!problem("'{$n}()' is a source, and only reads at the head of a chain. Assign it, "
@@ -491,6 +598,18 @@ my class Checker
       self!problem("{%f<name>}() takes {%f<params>} parameter{%f<params> == 1 ?? '' !! 's'} "
                    ~ "(line {%f<line>}), but is given $given.");
     }
+  }
+
+  # 'SA1->A1_COD': an area nothing in the function opened, said once per
+  # area. A variable holding the alias ('(cAlias)->x') cannot be checked.
+  method !field(AliasField $f)
+  {
+    my $word = $f.alias // ($f.base ~~ Name ?? $f.base.name !! Str);
+    return unless $word.defined && !self!find($word.lc).defined;
+    my $a = $word.uc;
+    return if %!opened{$a} || %!external-alias{$a} || $a.starts-with('__') || %!warned-alias{$a}++;
+    self!warning("nothing in this function opened $a. Wrap the use in 'using alias $a do', "
+                 ~ "or declare 'external alias $a' if the caller opens it.");
   }
 
   method !alias-base($b)
@@ -560,9 +679,9 @@ sub check-program(Program $p --> List) is export
 }
 
 # The same, with the warnings: %(errors => ..., warnings => ...).
-sub check-all(Program $p --> Hash) is export
+sub check-all(Program $p, Int :$lines = 0 --> Hash) is export
 {
-  my $c = Checker.new;
+  my $c = Checker.new(:$lines);
   $c.program($p);
   my &tidy = { .unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List };
   %(errors => tidy($c.found), warnings => tidy($c.warned))

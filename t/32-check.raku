@@ -48,7 +48,7 @@ sub warns(Str $what, Str $lines, *@warnings)
 
 # ---- declared ------------------------------------------------------------------------------
 passes 'a parameter, a local, a static, a public',
-  "  local nL := a\n  static nS := 0\n  public nP := 1\n  nL := nS + nP";
+  "  local nL := a\n  static nS := 0\n  public nP := 1\n  nL := nS + nP\n  a := nL";
 passes 'a private, even in a function the file calls: it is dynamic',
   "  private nPriv := 1\n  g()";
 check "passes: a private read in another function of the file",
@@ -68,7 +68,7 @@ check "passes: an external name, and a #define of the file",
 passes 'Self, nil and the known words',
   "  a := Self\n  a := nil";
 passes "a name before '->' is the area, and inside 'ALIAS->( ... )' a bare name is a field",
-  "  a := SA1->A1_COD\n  a := SA1->(A1_SALDO + A1_JUROS)";
+  "  DbSelectArea(\"SA1\")\n  a := SA1->A1_COD\n  a := SA1->(A1_SALDO + A1_JUROS)";
 passes 'a bare function name given to a verb that takes a block',
   "  a := map(a, alltrim)\n  a := a |> filter(isOk) |> map(upper)";
 passes "a member, a method, a call, 'Self''s '::x'",
@@ -82,7 +82,7 @@ passes 'names inside an interpolation and a hash access',
 passes 'raw text is not read',
   "  raw MOSTRE nNaoDeclarado";
 passes "'recover using' writes a declared variable",
-  "  local oErr\n  begin sequence\n    a := 1\n  recover using oErr\n    a := 2\n  end sequence";
+  "  local oErr\n  begin sequence\n    a := 1\n  recover using oErr\n    a := oErr\n  end sequence";
 
 # ---- not declared: a warning --------------------------------------------------------------
 # xtpl refuses these; xc warns, so plain TL++ that uses the system's globals
@@ -156,7 +156,47 @@ refuses "a variable declared 'as numeric' as a chain's source",
 passes 'a parameter as a chain source: it says nothing about what it holds',
   "  a := a |> asum";
 passes "rows() and lines() where a source may stand alone",
-  "  local x := lines(\"a.txt\")\n  a := lines(\"b.txt\")\n  for cL in lines(\"c.txt\")\n  next";
+  "  local x := lines(\"a.txt\")\n  a := lines(\"b.txt\")\n  a := x\n  for cL in lines(\"c.txt\")\n  next";
+
+# ---- xtpl's warnings: never read, returns, areas ---------------------------------------------
+warns 'a variable assigned but never read, on its declaration',
+  "  local nX := 0\n  nX := a", "2: 'nX' is assigned but never read";
+warns 'a variable declared and never used',
+  "  local nX", "2: 'nX' is declared but never used";
+passes "a read counts in raw text, in '+=', in '\@x' and as a 'for' counter",
+  "  local n1 := 0, n2 := 0, n3 := 0, n4 := 0\n  raw ANOTE n1\n  n2 += 1\n  aadd(@n3, 1)\n  for n4 := 1 to 2\n  next";
+passes "not reported: a parameter, a private, a public, what a loop declares",
+  "  private pX := 1\n  public uX := 1\n  for eX, iX in a\n  next\n  for local cX := 1 to 2\n  next";
+
+check "warns: a bare 'return' where the function also returns a value",
+{
+  result("user function f(a)\n  return 1 if a > 0\n  return\n")<warnings>
+    eqv ("3: this returns nothing, but the function returns a value on line 2",)
+};
+check "warns: the end reached without a return, on the function's last line",
+{
+  result("user function f(a)\n  return 1 if a > 0\n  a := 2\n\nuser function g()\nreturn 1\n")<warnings>
+    eqv ("4: the function can reach its end without a return, but returns a value on line 2",)
+};
+check "passes: every path returns a value",
+{
+  !result("user function f(a)\n  if a > 0\n    return 1\n  endif\nreturn 2\n")<warnings>
+};
+
+warns 'a field of an area nothing opened: once per area',
+  "  a := SA1->A1_COD + SA1->A1_NOME",
+  "2: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.";
+passes 'opened by DbSelectArea, ChkFile, rows() or using alias',
+  "  DbSelectArea(\"SA1\")\n  ChkFile(\"SB1\")\n  a := SA1->A1_COD + SB1->B1_COD\n  a := rows(\"SC5\") |> map([r] r:C5_NUM)\n  a := SC5->C5_NUM\n  using alias SD1 do\n    a := SD1->D1_COD\n  end using";
+check "passes: an area the caller opens, declared 'external alias'",
+{
+  !result("external alias SA1\nuser function f()\nreturn SA1->A1_COD\n")<warnings>
+};
+warns 'used before the line that opens it',
+  "  a := SA1->A1_COD\n  DbSelectArea(\"SA1\")",
+  "2: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.";
+passes 'an area held in a variable is not checked',
+  "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
 
 # ---- the driver ----------------------------------------------------------------------------
 check 'bin/xc prints a warning with its file and line, and compiles',

@@ -63,7 +63,7 @@ unless $m
 # What xtpl refuses although it parses -- scopes, <const>, the calls to this
 # file's functions, ... -- each with xtpl's message; and what it warns about,
 # a name nothing declares among them, which does not stop the compile.
-my %checked = check-all($m.made);
+my %checked = check-all($m.made, lines => $src.lines.elems);
 note "$in:{.key}: warning: {.value}" for %checked<warnings>.list;
 fail-with(%checked<errors>.map({ "$in:{.key}: {.value}" }).join("\n")) if %checked<errors>;
 
