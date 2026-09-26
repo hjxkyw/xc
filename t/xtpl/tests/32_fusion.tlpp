@@ -1,0 +1,174 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 32_fusion.tlpp -- element-wise chains become one loop.
+//
+// Each stage is otherwise a call that walks its input and builds a new array.
+// Fused, the stages are the body of a single loop: no array between them, and
+// 'take' becomes an Exit rather than a function that runs after everything
+// else has already been computed and thrown away.
+// --------------------------------------------------------------------------------
+
+user function testFusion(aRows, nLimit)
+
+  Local aTop := {}
+  Local aRest := {}
+  Local nSum := 0
+  Local nBest := 0
+  Local aOne := {}
+  Local aSorted := {}
+  Local cJoined := ""
+  Local cBare := ""
+  Local nFold := 0
+  Local cLong := ""
+
+  Local b_0_r    // o local de bloco 'r', fixado: tem armazenamento so dele
+  Local ffs_0_0  // o primeiro elemento que passou no teste
+  Local fi_0_0   // o indice do percurso
+  Local flm_0_0  // o limite de um take
+  Local fn_0_0   // quantos elementos ja passaram
+  Local fo_0_0   // o resultado da cadeia
+  Local fv_0_0   // o elemento em percurso
+  Local pt_0_0   // o resultado de uma etapa que nao fundiu
+
+  // filter, map and take: one pass, and it stops at ten
+  fn_0_0 := 0
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    If fv_0_0:nSaldo > 0
+      fv_0_0 := fv_0_0:cCod
+      If fn_0_0 >= 10
+        Exit
+      EndIf
+      fn_0_0 := fn_0_0 + 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  aTop := fo_0_0
+
+  // drop with a bound limit, and reject
+  flm_0_0 := nLimit
+  fn_0_0 := 0
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    If fn_0_0 < flm_0_0
+      fn_0_0 := fn_0_0 + 1
+    Else
+      If !(fv_0_0:lCancelled)
+        AAdd(fo_0_0, fv_0_0)
+      EndIf
+    EndIf
+  Next
+
+  aRest := fo_0_0
+
+  // a fold as the last stage: no array is built at all
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    If fv_0_0:lPago
+      fv_0_0 := fv_0_0:nValor
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+
+  nSum := fo_0_0
+
+  fo_0_0 := Nil
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:nValor
+    If fo_0_0 == Nil
+      fo_0_0 := fv_0_0
+    Else
+      fo_0_0 := Max(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  nBest := fo_0_0
+
+  // one stage on its own stays an ordinary call -- a loop either way
+  pt_0_0 := u_xtpl_filter(aRows, {|b_0_r| b_0_r:nSaldo > 0})
+  aOne := pt_0_0
+
+  // the leading run fuses; sort carries on from the array it built
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    If fv_0_0:nSaldo > 0
+      fv_0_0 := fv_0_0:cCod
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  pt_0_0 := u_xtpl_sort(fo_0_0)
+  aSorted := pt_0_0
+
+  // join is the one terminal that takes an argument -- the separator. A flag
+  // marks the first element, because testing the accumulator for emptiness
+  // would lose the separator after a legitimately empty first element.
+  ffs_0_0 := .T.
+  fo_0_0 := ""
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:cCod
+    If ffs_0_0
+      ffs_0_0 := .F.
+    Else
+      fo_0_0 := fo_0_0 + "; "
+    EndIf
+    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  Next
+
+  cJoined := fo_0_0
+
+  fo_0_0 := ""
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:cCod
+    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  Next
+
+  cBare := fo_0_0
+
+  // reduce carries its own combining step, so it needs no name known in
+  // advance -- which is what stops the fusable terminals being a closed list.
+  // fold is the seedless form: the first element is the starting value.
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:nValor
+    fo_0_0 := fo_0_0 + fv_0_0 * 2
+  Next
+
+  nFold := fo_0_0
+
+  fo_0_0 := Nil
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:cCod
+    If fo_0_0 == Nil
+      fo_0_0 := fv_0_0
+    Else
+      fo_0_0 := Iif(len(fv_0_0) > len(fo_0_0), fv_0_0, fo_0_0)
+    EndIf
+  Next
+
+  cLong := fo_0_0
+
+  return len(aTop) + len(aRest) + nSum + nBest + len(aOne) + len(aSorted) + nFold + len(cLong) + len(cJoined) + len(cBare)
+
+// --------------------------------------------------------------------------------
+// the end

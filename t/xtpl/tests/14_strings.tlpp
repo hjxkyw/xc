@@ -1,0 +1,65 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 14_strings.tlpp -- string verbs and interpolation.
+//
+// The runtime only carries what AdvPL lacks. Upper, AllTrim, PadL and the
+// rest already take their subject first, so they compose with '|>' as they
+// stand -- wrapping them would shadow the originals on every existing call.
+// --------------------------------------------------------------------------------
+
+user function testStrings(cNome, nTotal, hCfg, aLinhas)
+
+  Local aPartes := {}
+  Local cOut := ""
+  Local lHit := .F.
+
+  Local ffs_0_0  // o primeiro elemento que passou no teste
+  Local fi_0_0   // o indice do percurso
+  Local fo_0_0   // o resultado da cadeia
+  Local fv_0_0   // o elemento em percurso
+  Local ht_0_0   // o valor lido de um hash
+  Local pt_0_0   // o resultado de uma etapa que nao fundiu
+  Local pt_0_1   // o resultado de uma etapa que nao fundiu
+
+  aPartes := u_xtpl_split(cNome, ",")
+  ffs_0_0 := .T.
+  fo_0_0 := ""
+
+  For fi_0_0 := 1 To Len(aPartes)
+    fv_0_0 := aPartes[fi_0_0]
+    fv_0_0 := alltrim(fv_0_0)
+    If ffs_0_0
+      ffs_0_0 := .F.
+    Else
+      fo_0_0 := fo_0_0 + "; "
+    EndIf
+    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  Next
+
+  cOut := fo_0_0
+
+  // AdvPL's own functions need nothing from the runtime
+  pt_0_0 := alltrim(cNome)
+  pt_0_1 := upper(pt_0_0)
+  cOut := pt_0_1
+
+  lHit := u_xtpl_starts(cNome, "SA") .or. u_xtpl_ends(cNome, "01") .or. u_xtpl_contains(cNome, "X")
+
+  // interpolation: the literal becomes a concatenation before anything else
+  // sees it, so a hash read inside one is an ordinary subscript
+  cOut := ("total = " + cValToChar(nTotal) + " itens")
+  cOut := ("ola " + cValToChar(cNome))
+  cOut := cValToChar(cNome)
+  ht_0_0 := Nil
+  hCfg:Get('t', @ht_0_0)
+  cOut := ("taxa " + cValToChar(ht_0_0) + " fim")
+
+  cOut := "nada para trocar"
+
+  conout(("a " + cValToChar(nTotal) + " b"))
+
+  return cOut + cValToChar(lHit) + cValToChar(len(aLinhas))
+
+// --------------------------------------------------------------------------------
+// the end

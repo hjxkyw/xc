@@ -84,8 +84,8 @@ for '43_rows' => {}, '44_lines' => {}, '45_foreach_lines' => { each => 'fs', ope
 {
   check "{$t.key}: the same statements as xtpl's output",
   {
-    my $src = slurp("t/xtpl-output/{$t.key}.xtpl");
-    normalised(compile($src), $t.value) eqv normalised(slurp("t/xtpl-output/{$t.key}.tlpp"), $t.value)
+    my $src = slurp("t/xtpl/tests/{$t.key}.xtpl");
+    normalised(compile($src), $t.value) eqv normalised(slurp("t/xtpl/tests/{$t.key}.tlpp"), $t.value)
   };
 }
 
@@ -244,7 +244,7 @@ check 'a return after the walk does not close anything',
 # ---- the output is plain TL++ --------------------------------------------------------------
 check 'the output compiles to itself',
 {
-  my $once = compile(slurp('t/xtpl-output/43_rows.xtpl'));
+  my $once = compile(slurp('t/xtpl/tests/43_rows.xtpl'));
   my $*GENERATED-OK = True;
   compile($once) eq $once
 };

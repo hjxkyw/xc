@@ -1,0 +1,46 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 22_loop_comment.tlpp -- a comment on a loop header.
+//
+// Masking turns a comment into one token, so a construct anchored to the end
+// of its line stops seeing the end as soon as one is written. 'for N times'
+// failed outright before this, reporting 'times' as an undeclared variable.
+// --------------------------------------------------------------------------------
+
+user function testLoopComment(aItems, oDoc)
+
+  Local nTotal := 0
+
+  Local s_1_0  // um slot, dividido por each, times
+  Local s_1_1  // um slot, dividido por ntimes, oItem
+  Local s_1_2  // um slot, dividido por eachi, nIdx
+
+  For s_1_0 := 1 To 3  // a literal count
+    nTotal := nTotal + 1
+  next
+
+  s_1_1 := contaLinhas(oDoc)
+
+  For s_1_0 := 1 To s_1_1  // a bound count
+    nTotal := nTotal + 1
+  next
+
+  s_1_0 := aItems
+
+  For s_1_2 := 1 To Len(s_1_0)  // the element alone
+    s_1_1 := s_1_0[s_1_2]
+    nTotal := nTotal + s_1_1:nValor
+  next
+
+  s_1_0 := aItems
+
+  For s_1_2 := 1 To Len(s_1_0)  // element and index
+    s_1_1 := s_1_0[s_1_2]
+    nTotal := nTotal + s_1_2
+  next
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

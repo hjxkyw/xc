@@ -1,0 +1,180 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 52_torture.tlpp -- constructs that meet each other in unusual ways.
+//
+// Written adversarially rather than to demonstrate anything: nested walks,
+// chains inside arguments and conditions, comments and continuations cutting
+// constructs in half, and a source inside a defer. Six bugs came out of
+// writing it, and each line below is one of the shapes that found one.
+// --------------------------------------------------------------------------------
+
+user function testTorture(hCfg, cNum, aRows, cPath, nX)
+
+  Local nT := 0
+  Local aOut := {}
+  Local cMsg := ""
+  Local aQ := {}
+  Local aX := {}
+
+  Local b_0_g        // o local de bloco 'g', fixado: tem armazenamento so dele
+  Local fbg_0_0      // o saco de um expand
+  Local fch_0_0      // o pedaco atual de um chunkby
+  Local fi_0_0       // o indice do percurso
+  Local fj_0_0       // o indice de dentro de um expand
+  Local fky_0_0      // a chave do pedaco atual de um chunkby
+  Local flm_0_0      // o limite de um take
+  Local fls_1_0      // o elemento anterior (pairwise)
+  Local fn_0_0       // quantos elementos ja passaram
+  Local fo_0_0       // o resultado da cadeia
+  Local fo_1_0       // o resultado da cadeia
+  Local fop_0_0      // se ha um pedaco aberto (chunkby)
+  Local fop_1_0      // se ha um pedaco aberto (chunkby)
+  Local fpb_1_0      // o valor testado a cada volta
+  Local frc_1_0      // o registro em que a area estava antes do percurso
+  Local fsn_0_0      // a chave vista nesta volta (chunkby)
+  Local fv_0_0       // o elemento em percurso
+  Local fv_1_0       // o elemento em percurso
+  Local ht_0_0       // o valor lido de um hash
+  Local ht_1_0       // o valor lido de um hash
+  Local pt_0_0       // o resultado de uma etapa que nao fundiu
+  Local s_1_usearea  // o local de bloco 'usearea'
+  Local s_1_useord   // o local de bloco 'useord'
+  Local s_1_userec   // o local de bloco 'userec'
+  Local s_2_usearea  // o local de bloco 'usearea'
+  Local s_2_useord   // o local de bloco 'useord'
+  Local s_2_userec   // o local de bloco 'userec'
+
+  // a string literal inside an interpolated expression
+  ht_0_0 := Nil
+  hCfg:Get('moeda', @ht_0_0)
+  cMsg := ("moeda " + cValToChar(ht_0_0) + " fim")
+
+  // nested using, both restored at an early return, with a hash in the key
+  s_1_usearea := Alias()
+  DbSelectArea("SA1")
+  s_1_userec := SA1->(RecNo())
+  s_1_useord := SA1->(IndexOrd())
+  SA1->(DbSetOrder(1))
+    s_2_usearea := Alias()
+    DbSelectArea("SC6")
+    s_2_userec := SC6->(RecNo())
+    s_2_useord := SC6->(IndexOrd())
+    SC6->(DbSetOrder(2))
+      ht_1_0 := Nil
+      hCfg:Get("chave", @ht_1_0)
+      frc_1_0 := SC6->(RecNo())
+      SC6->(DbSeek(ht_1_0))
+      fop_1_0 := .F.
+      fls_1_0 := Nil
+      fpb_1_0 := Nil
+      fo_1_0 := {}
+      While !SC6->(Eof())
+        If !(SC6->C6_NUM == cNum)
+          Exit
+        EndIf
+        fv_1_0 := SC6->C6_PRODUTO
+        fpb_1_0 := fv_1_0
+        If !(fop_1_0 .And. (fpb_1_0 == fls_1_0))
+          fop_1_0 := .T.
+          fls_1_0 := fpb_1_0
+          AAdd(fo_1_0, fv_1_0)
+        EndIf
+        SC6->(DbSkip())
+      EndDo
+      SC6->(DbGoto(frc_1_0))
+      aOut := fo_1_0  // split mid-chain // and a block comment
+
+      ht_1_0 := Nil
+      hCfg:Get("parar", @ht_1_0)
+      If ht_1_0
+        conout("saindo")
+        SC6->(DbSetOrder(s_2_useord))
+        SC6->(DbGoto(s_2_userec))
+        If !Empty(s_2_usearea)
+          DbSelectArea(s_2_usearea)
+        EndIf
+        SA1->(DbSetOrder(s_1_useord))
+        SA1->(DbGoto(s_1_userec))
+        If !Empty(s_1_usearea)
+          DbSelectArea(s_1_usearea)
+        EndIf
+        Return len(aOut)
+      EndIf
+
+      nT := SA1->A1_SALDO + SC6->C6_QUANT
+    SC6->(DbSetOrder(s_2_useord))
+    SC6->(DbGoto(s_2_userec))
+    If !Empty(s_2_usearea)
+      DbSelectArea(s_2_usearea)
+    EndIf
+  SA1->(DbSetOrder(s_1_useord))
+  SA1->(DbGoto(s_1_userec))
+
+  If !Empty(s_1_usearea)
+    DbSelectArea(s_1_usearea)
+  EndIf
+
+  // a chain inside a stage's own argument
+  flm_0_0 := len(u_xtpl_distinct(aRows))
+  fn_0_0 := 0
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    If fn_0_0 >= flm_0_0
+      Exit
+    EndIf
+    fn_0_0 := fn_0_0 + 1
+    fv_0_0 := fv_0_0:cCod
+    AAdd(fo_0_0, fv_0_0)
+  Next
+
+  aX := fo_0_0
+
+  // a terminal that is not the last stage
+  fch_0_0 := {}
+  fky_0_0 := Nil
+  fop_0_0 := .F.
+  fsn_0_0 := Nil
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fbg_0_0 := fv_0_0:aItens
+    For fj_0_0 := 1 To Len(fbg_0_0)
+      fv_0_0 := fbg_0_0[fj_0_0]
+      fsn_0_0 := fv_0_0:cGrupo
+      If !fop_0_0
+        fop_0_0 := .T.
+        fky_0_0 := fsn_0_0
+      ElseIf !(fsn_0_0 == fky_0_0)
+        AAdd(fo_0_0, fch_0_0)
+        fch_0_0 := {}
+        fky_0_0 := fsn_0_0
+      EndIf
+      AAdd(fch_0_0, fv_0_0)
+    Next
+  Next
+
+  If fop_0_0
+    AAdd(fo_0_0, fch_0_0)
+  EndIf
+
+  pt_0_0 := u_xtpl_map(fo_0_0, {|b_0_g| len(b_0_g)})
+  aQ := pt_0_0
+
+  // two chains on one line, and one in a postfix condition
+  nT := nT + len(u_xtpl_distinct(aRows)) + len(u_xtpl_reverse(aRows))
+
+  If len(u_xtpl_distinct(aRows)) > 3
+    nT := 99
+  EndIf
+
+  conout(cMsg + cValToChar(len(aX)) + cValToChar(len(aQ)))
+
+  conout("saindo")
+  return nT
+
+// --------------------------------------------------------------------------------
+// the end

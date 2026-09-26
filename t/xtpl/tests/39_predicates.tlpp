@@ -1,0 +1,94 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 39_predicates.tlpp -- does any / do all / does none of them match.
+//
+// There was no way to ask this without building a filtered array and testing
+// its length, which reads the whole collection to answer a question that is
+// usually settled by the first element.
+//
+// Fused, the loop leaves as soon as it knows -- and over rows() that means
+// the walk stops rather than reading the rest of the table.
+// --------------------------------------------------------------------------------
+
+user function testPredicates(aRows, aNums)
+
+  Local lAlguem := .F.
+  Local lTodos := .F.
+  Local lNenhum := .F.
+  Local lNegativo := .F.
+  Local lOrdenado := .F.
+
+  Local b_0_n    // o local de bloco 'n', fixado: tem armazenamento so dele
+  Local b_0_r    // o local de bloco 'r', fixado: tem armazenamento so dele
+  Local far_0_0  // a area que estava selecionada antes do percurso
+  Local fi_0_0   // o indice do percurso
+  Local fo_0_0   // o resultado da cadeia
+  Local frc_0_0  // o registro em que a area estava antes do percurso
+  Local fv_0_0   // o elemento em percurso
+  Local pt_0_0   // o resultado de uma etapa que nao fundiu
+  Local pt_0_1   // o resultado de uma etapa que nao fundiu
+
+  // one stage on its own stays a call -- the runtime version stops early too
+  pt_0_0 := u_xtpl_anyof(aRows, {|b_0_r| !b_0_r:lPago})
+  lAlguem := pt_0_0
+
+  // fused: map then the predicate, leaving at the first answer
+  fo_0_0 := .T.
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:nValor
+    If !(fv_0_0 > 0)
+      fo_0_0 := .F.
+      Exit
+    EndIf
+  Next
+
+  lTodos := fo_0_0
+
+  fo_0_0 := .T.
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:cCod
+    If empty(fv_0_0)
+      fo_0_0 := .F.
+      Exit
+    EndIf
+  Next
+
+  lNenhum := fo_0_0
+
+  // over a work area, and no map is needed: a predicate reads the record
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  SA1->(DbGoTop())
+  fo_0_0 := .F.
+
+  While !SA1->(Eof())
+    If SA1->A1_SALDO < 0
+      fo_0_0 := .T.
+      Exit
+    EndIf
+    SA1->(DbSkip())
+  EndDo
+
+  SA1->(DbGoto(frc_0_0))
+
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  lNegativo := fo_0_0
+
+  // sort cannot be fused, so the predicate runs as an ordinary call
+  pt_0_0 := u_xtpl_sort(aNums)
+  pt_0_1 := u_xtpl_noneof(pt_0_0, {|b_0_n| b_0_n == 0})
+  lOrdenado := pt_0_1
+
+  return lAlguem .and. lTodos .and. lNenhum .and. lNegativo .and. lOrdenado
+
+// --------------------------------------------------------------------------------
+// the end

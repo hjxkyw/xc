@@ -1,0 +1,57 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 58_while_assign.tlpp -- a atribuicao dobrada na condicao do while.
+//
+// ':=' e uma expressao em AdvPL e devolve o valor atribuido -- verificado
+// rodando. Entao 'while local x := prox(o), x != nil' cabe inteiro na
+// condicao, e o laco-e-meio some:
+//
+//    While (s_1_x := prox(o)) != nil
+//
+// So quando a primeira aparicao da variavel na condicao e alcancada sempre.
+// Atras de um '.and.' ou dentro de um 'iif' ela pode nao ser avaliada, e ai
+// a atribuicao -- que normalmente e o que avanca alguma coisa -- nao
+// aconteceria.
+// --------------------------------------------------------------------------------
+
+user function testWhileAssign(oQry, lQuero, aItens)
+
+  Local nTotal := 0
+  Local nConta := 0
+  Local nSoma := 0
+
+  Local s_1_0  // um slot, dividido por cNome, nX, nY, xItem
+
+  // dobra: a variavel abre a condicao
+  While (s_1_0 := proximo(oQry)) != nil
+    nTotal := nTotal + s_1_0
+  enddo
+
+  // dobra: a variavel esta dentro de uma chamada, mas avaliada sempre
+  While !empty((s_1_0 := proxNome(oQry)))
+    nConta := nConta + 1
+  enddo
+
+  // NAO dobra: atras de um '.and.', pode nunca ser avaliada
+  While .T.
+    s_1_0 := proxNum(oQry)
+    If !(lQuero .and. s_1_0 > 0)
+      Exit
+    EndIf
+    nSoma := nSoma + s_1_0
+  enddo
+
+  // NAO dobra: a condicao nem menciona a variavel
+  While .T.
+    s_1_0 := proxNum(oQry)
+    If !(nConta < 10)
+      Exit
+    EndIf
+    nSoma := nSoma + s_1_0
+  enddo
+
+  return nTotal + nConta + nSoma + len(aItens)
+
+// --------------------------------------------------------------------------------
+// the end

@@ -1,0 +1,190 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// somar.tlpp -- somar campo a campo as linhas correspondentes de dois arquivos.
+//
+// Cada arquivo tem linhas de campos numericos separados por virgula. A linha
+// N de um e somada com a linha N do outro, campo a campo:
+//
+//    A:  10, 20, 30          ->   11, 22, 33
+//    B:   1,  2,  3
+//
+// ----------------------------------------------------------------------------
+// O QUE 'zip' FAZ
+//
+// 'zip' e um ziper. Recebe duas colecoes, encosta uma na outra e casa os
+// elementos de mesma posicao:
+//
+//    zip({1, 2, 3}, {10, 20, 30})  ->  {{1, 10}, {2, 20}, {3, 30}}
+//
+// Sem mais nada, cada par sai como um array de dois. Com um bloco no fim, o
+// bloco recebe os dois e decide o que sai no lugar do par:
+//
+//    zip({1, 2, 3}, {10, 20, 30}, [nA, nB] nA + nB)  ->  {11, 22, 33}
+//
+// Se uma colecao for mais curta, 'zip' para nela e o resto e descartado --
+// EM SILENCIO. E por isso que este programa conta o que foi descartado e diz
+// em voz alta: perder metade de um arquivo sem avisar nao e resultado, e um
+// bug.
+//
+// ----------------------------------------------------------------------------
+// POR QUE DOIS 'zip'
+//
+// Ha dois niveis de emparelhamento, entao ha dois zips.
+//
+//    O de FORA casa LINHA com LINHA:
+//
+//       linha 1 de A  com  linha 1 de B
+//       linha 2 de A  com  linha 2 de B
+//
+//    O de DENTRO, para cada par de linhas, casa CAMPO com CAMPO:
+//
+//       "10" com "1"  ->  11
+//       "20" com "2"  ->  22
+//       "30" com "3"  ->  33
+//
+// Os nomes dizem em que nivel cada coisa esta:
+//
+//    aLinhasA   todas as linhas de A, cada uma ja separada -- array de arrays
+//    aCamposA   os campos de UMA linha              -- array de strings
+//    cCampoA    UM campo                            -- string
+//
+// O campo e string ate o 'val()' -- ele veio de um arquivo texto. E por isso
+// que ele se chama 'cCampoA' e nao 'nNumeroA': o nome diz o que a coisa e,
+// nao o que ela vai virar.
+//
+// Rode:  appserver.exe -env=SeuAmbiente -run=u_somar
+// --------------------------------------------------------------------------------
+
+using namespace tlpp.regex
+
+user function somar(cArqA, cArqB)
+
+  Local nLinhasA := 0
+  Local nLinhasB := 0
+  Local aLinhasA
+  Local aLinhasB
+  Local aSomas := {}
+  Local nDesiguais := 0
+  Local nSujas := 0
+  Local nX := 0
+
+  Local b_0_aCamposA  // o local de bloco 'aCamposA', fixado: tem armazenamento so dele
+  Local b_0_aCamposB  // o local de bloco 'aCamposB', fixado: tem armazenamento so dele
+  Local b_0_cCampoA   // o local de bloco 'cCampoA', fixado: tem armazenamento so dele
+  Local b_0_cCampoB   // o local de bloco 'cCampoB', fixado: tem armazenamento so dele
+  Local b_0_lIgual    // o local de bloco 'lIgual', fixado: tem armazenamento so dele
+  Local b_0_lLimpa    // o local de bloco 'lLimpa', fixado: tem armazenamento so dele
+  Local fo_0_0        // o resultado da cadeia
+  Local fok_0_0       // se o arquivo abriu
+  Local fv_0_0        // o elemento em percurso
+  Local pt_0_0        // o resultado de uma etapa que nao fundiu
+
+  fok_0_0 := File(cArqA)
+
+  If fok_0_0
+    FT_FUse(cArqA)
+    FT_FGoTop()
+  EndIf
+
+  fo_0_0 := {}
+
+  While fok_0_0 .And. !FT_FEof()
+    fv_0_0 := FT_FReadLn()
+    nLinhasA += 1
+    fv_0_0 := u_xtpl_split(alltrim(fv_0_0), ",")
+    AAdd(fo_0_0, fv_0_0)
+    FT_FSkip()
+  EndDo
+
+  If fok_0_0
+    FT_FUse()
+  EndIf
+
+  aLinhasA := fo_0_0
+
+  fok_0_0 := File(cArqB)
+
+  If fok_0_0
+    FT_FUse(cArqB)
+    FT_FGoTop()
+  EndIf
+
+  fo_0_0 := {}
+
+  While fok_0_0 .And. !FT_FEof()
+    fv_0_0 := FT_FReadLn()
+    nLinhasB += 1
+    fv_0_0 := u_xtpl_split(alltrim(fv_0_0), ",")
+    AAdd(fo_0_0, fv_0_0)
+    FT_FSkip()
+  EndDo
+
+  If fok_0_0
+    FT_FUse()
+  EndIf
+
+  aLinhasB := fo_0_0
+
+  // O zip de fora anda linha a linha; o de dentro, campo a campo.
+  aSomas := u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| u_xtpl_zip(b_0_aCamposA, b_0_aCamposB, {|b_0_cCampoA, b_0_cCampoB| val(b_0_cCampoA) + val(b_0_cCampoB)})})
+
+  // O que o zip descartou em silencio, dito em voz alta. Os dois de novo
+  // andam linha a linha, mas perguntam outra coisa de cada par.
+  pt_0_0 := u_xtpl_count(u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| len(b_0_aCamposA) == len(b_0_aCamposB)}), {|b_0_lIgual| !b_0_lIgual})
+  nDesiguais := pt_0_0
+
+  pt_0_0 := u_xtpl_count(u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| tudoNumero(b_0_aCamposA) .and. tudoNumero(b_0_aCamposB)}), {|b_0_lLimpa| !b_0_lLimpa})
+  nSujas := pt_0_0
+
+  conout("A: " + cValToChar(nLinhasA) + " linhas   B: " + cValToChar(nLinhasB) + " linhas")
+  conout("somadas: " + cValToChar(len(aSomas)) + "   linhas perdidas: " + cValToChar(max(nLinhasA, nLinhasB) - len(aSomas)))
+
+  conout("com numero de campos diferente: " + cValToChar(nDesiguais) + "   com campo nao numerico: " + cValToChar(nSujas))
+
+  for nX := 1 to len(aSomas)
+    conout(cValToChar(nX) + ": " + mostrar(aSomas[nX]))
+  next
+
+  return aSomas
+
+// ---- auxiliares ----------------------------------------------------------
+
+// 'allof' e o mesmo padrao de 'zip': um bloco que diz o que perguntar de
+// cada elemento. Aqui, de cada campo de uma linha.
+static function tudoNumero(aCampos)
+
+  Local b_0_it  // o local de bloco 'it', fixado: tem armazenamento so dele
+
+  return u_xtpl_allof(aCampos, {|b_0_it| ehNumero(b_0_it)})
+
+static function ehNumero(cTexto)
+
+  return Regex():matches("^-?[0-9]+(\.[0-9]+)?$", alltrim(cTexto))
+
+// Uma linha de numeros de volta em texto, para sair legivel.
+static function mostrar(aValores)
+
+  Local ffs_0_0  // o primeiro elemento que passou no teste
+  Local fi_0_0   // o indice do percurso
+  Local fo_0_0   // o resultado da cadeia
+  Local fv_0_0   // o elemento em percurso
+
+  ffs_0_0 := .T.
+  fo_0_0 := ""
+
+  For fi_0_0 := 1 To Len(aValores)
+    fv_0_0 := aValores[fi_0_0]
+    fv_0_0 := alltrim(str(fv_0_0))
+    If ffs_0_0
+      ffs_0_0 := .F.
+    Else
+      fo_0_0 := fo_0_0 + ", "
+    EndIf
+    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  Next
+
+  return fo_0_0
+
+// --------------------------------------------------------------------------------
+// the end

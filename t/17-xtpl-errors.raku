@@ -1,7 +1,7 @@
 use lib 'lib';
 use XC::Grammar;
 
-# The sources xtpl refuses, copied into t/errors/ (see t/errors/README.md).
+# The sources xtpl refuses, copied into t/xtpl/errors/ (see its README.md).
 # Each file is in one group:
 #
 #   syntax     the grammar refuses it -- and the source with its correction
@@ -54,7 +54,7 @@ sub check(Str $what, &test)
 }
 
 sub parses(Str $src) { XC::Grammar.parse($src).defined }
-sub source(Str $name) { slurp("t/errors/$name.xtpl") }
+sub source(Str $name) { slurp("t/xtpl/errors/$name.xtpl") }
 
 # ---- syntax: refused, and the correction parses ------------------------------------
 for %syntax.keys.sort -> $name
@@ -138,10 +138,10 @@ check 'xtpl refuses: reserved as a parameter',  { !parses("user function f(if)\n
 check 'xtpl accepts: generated as a parameter', {  parses("user function f(fo_0_0)\nreturn 1\n") };
 
 # ---- every file is in a group ---------------------------------------------------
-my @all = dir('t/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
+my @all = dir('t/xtpl/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
 my @known = (|%syntax.keys, |@analysis, |@decided, |%pending.keys);
 my @loose = @all.grep({ $_ !(elem) @known });
-check "every file in t/errors/ is in a group" ~ (@loose ?? " -- no group: {@loose.join(', ')}" !! ''),
+check "every file in t/xtpl/errors/ is in a group" ~ (@loose ?? " -- no group: {@loose.join(', ')}" !! ''),
 {
   !@loose
 };

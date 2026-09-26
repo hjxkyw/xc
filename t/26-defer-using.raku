@@ -68,7 +68,7 @@ for <19_defer_pinning 21_using> -> $t
 {
   check "$t: the same statements as xtpl's output",
   {
-    normalised(compile(slurp("t/xtpl-output/$t.xtpl"))) eqv normalised(slurp("t/xtpl-output/$t.tlpp"))
+    normalised(compile(slurp("t/xtpl/tests/$t.xtpl"))) eqv normalised(slurp("t/xtpl/tests/$t.tlpp"))
   };
 }
 
@@ -163,7 +163,7 @@ check 'a block local read by a defer, declared in more than one block',
 # ---- the output is plain TL++ -----------------------------------------------------------
 check 'the output compiles to itself',
 {
-  my $once = compile(slurp('t/xtpl-output/21_using.xtpl'));
+  my $once = compile(slurp('t/xtpl/tests/21_using.xtpl'));
   my $*GENERATED-OK = True;
   compile($once) eq $once
 };

@@ -1,0 +1,101 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 38_first_count.tlpp -- the first match, and how many match.
+//
+// Both replace 'filter(...) then look at the result', which builds an array
+// to answer a question that does not need one -- and in first's case keeps
+// searching after the answer is known.
+//
+// count reads the element, so a chain over rows() needs no map before it.
+// first does not: it hands the element back, and a work-area record is not a
+// value, so it needs something a map has made.
+// --------------------------------------------------------------------------------
+
+user function testFirstCount(aRows, cNum)
+
+  Local oAtrasado := Nil
+  Local nGrandes := 0
+  Local nItens := 0
+  Local nComSaldo := 0
+
+  Local fi_0_0       // o indice do percurso
+  Local fo_0_0       // o resultado da cadeia
+  Local fo_1_0       // o resultado da cadeia
+  Local frc_1_0      // o registro em que a area estava antes do percurso
+  Local fv_0_0       // o elemento em percurso
+  Local s_1_usearea  // o local de bloco 'usearea'
+  Local s_1_useord   // o local de bloco 'useord'
+  Local s_1_userec   // o local de bloco 'userec'
+
+  // stops at the first match instead of collecting every one
+  fo_0_0 := Nil
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:oPed
+    If fv_0_0:lAtraso
+      fo_0_0 := fv_0_0
+      Exit
+    EndIf
+  Next
+
+  oAtrasado := fo_0_0
+
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To Len(aRows)
+    fv_0_0 := aRows[fi_0_0]
+    fv_0_0 := fv_0_0:nValor
+    If fv_0_0 > 100
+      fo_0_0 := fo_0_0 + 1
+    EndIf
+  Next
+
+  nGrandes := fo_0_0
+
+  s_1_usearea := Alias()
+  DbSelectArea("SC6")
+  s_1_userec := SC6->(RecNo())
+  s_1_useord := SC6->(IndexOrd())
+  SC6->(DbSetOrder(1))
+    // how many items in this order, without building the array of them
+    frc_1_0 := SC6->(RecNo())
+    SC6->(DbSeek(xFilial("SC6") + cNum))
+    fo_1_0 := 0
+    While !SC6->(Eof())
+      If !(SC6->C6_NUM == cNum)
+        Exit
+      EndIf
+      fo_1_0 := fo_1_0 + 1
+      SC6->(DbSkip())
+    EndDo
+    SC6->(DbGoto(frc_1_0))
+    nItens := fo_1_0
+
+    // a predicate reads the record directly
+    frc_1_0 := SC6->(RecNo())
+    SC6->(DbGoTop())
+    fo_1_0 := 0
+    While !SC6->(Eof())
+      If SC6->C6_QUANT > 0
+        fo_1_0 := fo_1_0 + 1
+      EndIf
+      SC6->(DbSkip())
+    EndDo
+    SC6->(DbGoto(frc_1_0))
+    nComSaldo := fo_1_0
+
+  SC6->(DbSetOrder(s_1_useord))
+  SC6->(DbGoto(s_1_userec))
+
+  If !Empty(s_1_usearea)
+    DbSelectArea(s_1_usearea)
+  EndIf
+
+  conout(cValToChar(oAtrasado != Nil))
+
+  return nGrandes + nItens + nComSaldo
+
+// --------------------------------------------------------------------------------
+// the end

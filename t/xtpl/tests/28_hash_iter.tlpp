@@ -1,0 +1,63 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 28_hash_iter.tlpp -- keys, values and pairs.
+//
+// 'for' walks arrays, so a hash could not be iterated at all -- it was
+// invisible to the whole pipeline. These return arrays, so nothing else
+// needed changing: 'for', the chain, the verbs and interpolation all compose
+// with them as they stand.
+//
+// They go through THashMap:List(), which fills an array with one row per
+// entry, key in column 1 and value in column 2.
+// --------------------------------------------------------------------------------
+
+user function testHashIter(hCfg, hSaldos)
+
+  Local aMv := {}
+  Local nTotal := 0
+  Local cLista := ""
+  Local lVazio := .F.
+  Local aPares := {}
+
+  Local b_0_k       // o local de bloco 'k', fixado: tem armazenamento so dele
+  Local b_0_p       // o local de bloco 'p', fixado: tem armazenamento so dele
+  Local ht_1_0      // o valor lido de um hash
+  Local pt_0_0      // o resultado de uma etapa que nao fundiu
+  Local pt_0_1      // o resultado de uma etapa que nao fundiu
+  Local s_1_cChave  // o local de bloco 'cChave'
+  Local s_1_each    // o local de bloco 'each'
+  Local s_1_eachi   // o local de bloco 'eachi'
+
+  // a hash can be walked now
+  s_1_each := u_xtpl_keys(hCfg)
+
+  For s_1_eachi := 1 To Len(s_1_each)
+    s_1_cChave := s_1_each[s_1_eachi]
+    ht_1_0 := Nil
+    hCfg:Get(s_1_cChave, @ht_1_0)
+    conout((cValToChar(s_1_cChave) + " = " + cValToChar(ht_1_0)))
+
+  next
+
+  pt_0_0 := u_xtpl_asum(u_xtpl_values(hSaldos))
+  nTotal := pt_0_0
+
+  pt_0_0 := u_xtpl_filter(u_xtpl_keys(hCfg), {|b_0_k| u_xtpl_starts(b_0_k, "MV_")})
+  aMv := pt_0_0
+
+  pt_0_0 := u_xtpl_sort(u_xtpl_keys(hCfg))
+  pt_0_1 := u_xtpl_join(pt_0_0, ", ")
+  cLista := pt_0_1
+
+  pt_0_0 := u_xtpl_noneof(u_xtpl_keys(hCfg), {|b_0_k| .T.})
+  lVazio := pt_0_0
+
+  // pairs keeps them together: {chave, valor} per row
+  pt_0_0 := u_xtpl_reject(u_xtpl_pairs(hCfg), {|b_0_p| b_0_p[2] == Nil})
+  aPares := pt_0_0
+
+  return nTotal + len(aMv) + len(cLista) + len(aPares) + iif(lVazio, 1, 0)
+
+// --------------------------------------------------------------------------------
+// the end

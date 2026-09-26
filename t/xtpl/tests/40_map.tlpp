@@ -1,0 +1,39 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 40_map.tlpp -- --map: every emitted line says where it came from.
+//
+// One source line often becomes a dozen, so the marker goes on all of them.
+// Scanning upwards for the nearest one is exactly the work this removes.
+// --------------------------------------------------------------------------------
+
+user function testMap(aNums, hCfg)
+
+  Local nT := 0
+  Local cOut := ""
+
+  Local fi_0_0  // o indice do percurso
+  Local fo_0_0  // o resultado da cadeia
+  Local fv_0_0  // o elemento em percurso
+  Local ht_0_0  // o valor lido de um hash
+
+  fo_0_0 := 0  // xtpl:11
+
+  For fi_0_0 := 1 To Len(aNums)  // xtpl:11
+    fv_0_0 := aNums[fi_0_0]  // xtpl:11
+    If fv_0_0 > 1  // xtpl:11
+      fo_0_0 := fo_0_0 + fv_0_0  // xtpl:11
+    EndIf  // xtpl:11
+  Next  // xtpl:11
+
+  nT := fo_0_0  // xtpl:11
+
+  cOut := ("total " + cValToChar(nT))  // xtpl:12
+  ht_0_0 := Nil  // xtpl:13
+  hCfg:Get("extra", @ht_0_0)  // xtpl:13
+  nT := nT + ht_0_0  // xtpl:13
+
+  return nT  // xtpl:15
+
+// --------------------------------------------------------------------------------  // xtpl:17
+// the end  // xtpl:18

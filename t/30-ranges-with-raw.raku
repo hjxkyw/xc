@@ -69,7 +69,7 @@ for <57_range_source 20_object 26_raw> -> $t
 {
   check "$t: the same statements as xtpl's output",
   {
-    normalised(compile(slurp("t/xtpl-output/$t.xtpl"))) eqv normalised(slurp("t/xtpl-output/$t.tlpp"))
+    normalised(compile(slurp("t/xtpl/tests/$t.xtpl"))) eqv normalised(slurp("t/xtpl/tests/$t.tlpp"))
   };
 }
 
@@ -145,7 +145,7 @@ check "a comment in a raw line is left as it is",
 # ---- the output ---------------------------------------------------------------------------
 check 'the output compiles to itself (without raw: raw text is TL++ only after the preprocessor)',
 {
-  my $once = compile(slurp('t/xtpl-output/20_object.xtpl') ~ "\nuser function g()\n  return 1..5 |> asum\n");
+  my $once = compile(slurp('t/xtpl/tests/20_object.xtpl') ~ "\nuser function g()\n  return 1..5 |> asum\n");
   my $*GENERATED-OK = True;
   $once.defined && compile($once) eq $once
 };

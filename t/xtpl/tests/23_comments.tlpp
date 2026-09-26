@@ -1,0 +1,54 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 23_comments.tlpp -- a trailing comment on a transformed line.
+//
+// Masking turns a comment into one token that travels with the tail of the
+// line. Every pass here wraps that tail in generated syntax, so a comment
+// left in place lands inside it and comments out the closing bracket:
+// '... fallback 0  // note' produced '{|| 0  // note})'. The comment is
+// peeled once before the rewrites and put back once after.
+// --------------------------------------------------------------------------------
+
+user function testComments(aNums, nX, hCfg, oUser)
+
+  Local nSafe := 0
+  Local cOut := ""
+  Local nT := 0
+
+  Local et_0_0     // o valor testado por '?:'
+  Local ht_0_0     // o valor lido de um hash
+  Local pt_0_0     // o resultado de uma etapa que nao fundiu
+  Local pt_0_1     // o resultado de uma etapa que nao fundiu
+  Local s_1_times  // o local de bloco 'times'
+
+  nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})  // fallback wraps the tail in a block
+  et_0_0 := lookupName(1)
+  cOut := If(et_0_0 != Nil, et_0_0, "anonymous")  // elvis wraps it in an If()
+
+  pt_0_0 := u_xtpl_distinct(aNums)
+  pt_0_1 := u_xtpl_asum(pt_0_0)
+  nT := pt_0_1  // a chain lands in a temp
+
+  ht_0_0 := Nil
+  hCfg:Get("taxa", @ht_0_0)
+  nT := ht_0_0  // a hash read lifts to a Get
+
+  nT := (nX % 3) == 0  // divisible-by
+  cOut := If(oUser != Nil .And. oUser:oAddr != Nil, oUser:oAddr:cCity, Nil)  // optional chaining
+  conout("total=" + cValToChar(nT))  // xconout
+
+  For s_1_times := 1 To 3  // a loop header
+    nT := nT + 1
+  next
+
+  conout(cOut + cValToChar(nSafe))
+
+  If nT > 5  // a postfix modifier
+    Return nT
+  EndIf
+
+  return 0
+
+// --------------------------------------------------------------------------------
+// the end

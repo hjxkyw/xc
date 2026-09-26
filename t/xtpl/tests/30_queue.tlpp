@@ -1,0 +1,49 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 30_queue.tlpp -- a ring-buffer queue, and method names that collide.
+//
+// AdvPL arrays are already dynamic, so a stack is AAdd plus ATail plus aSize
+// and a linked list buys nothing. Taking from the FRONT is the gap: ADel then
+// aSize moves every remaining element, once per pop. A ring buffer moves
+// nothing.
+//
+// It also pins a bug the queue found: a method whose name matches a runtime
+// verb is not that verb. 'oFila:Count()' was being rewritten to
+// 'oFila:__xtpl_count()', and so was any object with a Map or First method.
+// --------------------------------------------------------------------------------
+
+user function testQueue(aPedidos, oModelo)
+
+  Local oFila
+  Local oGrande
+  Local nTotal := 0
+  Local xItem := Nil
+  Local nOutro := 0
+
+  Local s_1_each     // o local de bloco 'each'
+  Local s_1_eachi    // o local de bloco 'eachi'
+  Local s_1_oPedido  // o local de bloco 'oPedido'
+
+  oFila := u_xtpl_queue()
+  oGrande := u_xtpl_queue(256)
+
+  s_1_each := aPedidos
+
+  For s_1_eachi := 1 To Len(s_1_each)
+    s_1_oPedido := s_1_each[s_1_eachi]
+    oFila:Push(s_1_oPedido)
+  next
+
+  while !oFila:IsEmpty()
+    xItem := oFila:Pop()
+    nTotal := nTotal + iif(xItem == Nil, 0, 1)
+  enddo
+
+  // methods, not verbs
+  nOutro := oModelo:Count() + oModelo:First(1) + oFila:Count()
+
+  return nTotal + nOutro + oGrande:Count()
+
+// --------------------------------------------------------------------------------
+// the end

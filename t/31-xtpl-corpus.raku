@@ -1,0 +1,66 @@
+use lib 'lib';
+use XC::Grammar;
+use XC::Actions;
+use XC::Emit;
+
+# Every source of xtpl's test suite and every example program, in t/xtpl/,
+# compiles -- and what comes out is TL++: read back, it parses and compiles
+# to itself. The exceptions, each for a stated reason:
+#
+# - 51_legacy.xtpl exercises xtpl's --legacy mode, for old AdvPL, which xc
+#   does not have;
+# - a file with 'raw' is not read back: raw text is TL++ only once the
+#   preprocessor has applied its #xtranslate and #command rules.
+#
+# t/xtpl/errors/ holds what xtpl refuses; t/17-xtpl-errors.raku checks it.
+
+my %skip = '51_legacy.xtpl' => 'xtpl --legacy mode';
+
+sub compile(Str $src)
+{
+  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+  $m ?? emit($m.made, $src) !! Nil
+}
+
+my @files = |dir('t/xtpl/tests').grep(*.extension eq 'xtpl'),
+            |dir('t/xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') });
+
+my ($ok, $total) = 0, 0;
+sub check(Str $what, &test)
+{
+  $total++;
+  my $v = try test();
+  $ok++ if $v;
+  say(($v ?? '  ok    ' !! '  FAIL  '), $what);
+  say("        {$!.message.lines[0]}") if $! && !$v;
+}
+
+for @files.sort -> $f
+{
+  my $name = $f.basename;
+  next if %skip{$name}:exists;
+  my $label = $f.parent.basename eq 'tests' ?? $name !! "{$f.parent.basename}/$name";
+
+  # As bin/xc reads it: bytes, not 'slurp', so line ends stay as they are.
+  my $src = $f.slurp(:bin).decode('utf-8');
+  check "$label compiles, and the output compiles to itself", {
+    my $once = compile($src);
+    if $src ~~ m:i/ ^^ \h* 'raw' >> /
+    {
+      $once.defined                                # raw: not read back
+    }
+    else
+    {
+      my $*GENERATED-OK = True;
+      $once.defined && compile($once) eq $once
+    }
+  };
+}
+
+check "the skipped files are there, so skipping them still means something",
+{
+  so %skip.keys.all (elem) @files.map(*.basename).Set
+};
+
+say "\n  $ok of $total";
+exit($ok == $total ?? 0 !! 1);
