@@ -5,7 +5,7 @@ use XC::Emit;
 use XC::Check;
 
 # Every source of xtpl's test suite and every example program, in t/xtpl/,
-# passes the checks and compiles -- and what comes out is TL++: read back, it
+# passes the checks, with no warning, and compiles -- and what comes out is TL++: read back, it
 # parses and compiles to itself. The exceptions, each for a stated reason:
 #
 # - 51_legacy.xtpl exercises xtpl's --legacy mode, for old AdvPL, which xc
@@ -24,10 +24,13 @@ sub compile(Str $src, Bool :$checked = True)
 {
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   return Nil unless $m;
+  # xtpl compiled every one of these, declaring everything: no error, and no
+  # warning either -- a warning here would be a name xc fails to see declared.
   if $checked
   {
-    my @p = check-program($m.made);
-    die "the checks refuse it: line {@p[0].key}: {@p[0].value}" if @p;
+    my %c = check-all($m.made);
+    die "the checks refuse it: line {%c<errors>[0].key}: {%c<errors>[0].value}" if %c<errors>;
+    die "the checks warn: line {%c<warnings>[0].key}: {%c<warnings>[0].value}" if %c<warnings>;
   }
   emit($m.made, $src)
 }

@@ -60,10 +60,12 @@ unless $m
   fail-with("$in:$line: cannot parse this line: {$src.lines[$line - 1].trim}");
 }
 
-# What xtpl refuses although it parses: undeclared names, scopes, <const>,
-# the calls to this file's functions -- each with xtpl's message.
-my @refused = check-program($m.made);
-fail-with(@refused.map({ "$in:{.key}: {.value}" }).join("\n")) if @refused;
+# What xtpl refuses although it parses -- scopes, <const>, the calls to this
+# file's functions, ... -- each with xtpl's message; and what it warns about,
+# a name nothing declares among them, which does not stop the compile.
+my %checked = check-all($m.made);
+note "$in:{.key}: warning: {.value}" for %checked<warnings>.list;
+fail-with(%checked<errors>.map({ "$in:{.key}: {.value}" }).join("\n")) if %checked<errors>;
 
 my $tlpp = try emit($m.made, $src);
 if $! ~~ X::XC::NotLowered

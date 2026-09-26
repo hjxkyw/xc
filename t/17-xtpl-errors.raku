@@ -35,8 +35,15 @@ my @analysis = <
   arity_too_many call_form const_assign const_by_ref contained_captured
   contained_deferred distinct_adjacent_no_key external_assign fallback_over_source
   out_of_scope redeclared scalar_chain scalar_declared source_stranded
-  undeclared_read undeclared_write
 >;
+
+# A name nothing declares: xtpl refuses it, xc warns -- plain TL++ uses the
+# system's globals without declaring them. The warning is on xtpl's line, in
+# the words xtpl uses when it only warns (its legacy mode).
+my %warned =
+  undeclared_read  => "'nOutro' is not declared",
+  undeclared_write => "'nOutro' is not declared, so this creates a PRIVATE",
+  ;
 
 # A bare 'function': TL++ accepts it with a 'u_' name (and maybe other
 # prefixes), so xc does not refuse it -- xtpl refuses them all.
@@ -85,6 +92,19 @@ for @analysis -> $name
     my ($line, $msg) = (slurp("t/xtpl/errors/$name.err").trim ~~ / 'Line ' (\d+) ': ' (.*) $ /).list.map(~*);
     my @p = $m ?? check-program($m.made) !! ();
     $m && @p == 1 && @p[0].key == $line && @p[0].value eq $msg
+  };
+}
+
+# ---- warned instead ----------------------------------------------------------------
+for %warned.keys.sort -> $name
+{
+  check "warned   $name: a warning on xtpl's line, and no error", {
+    my $src = source($name);
+    my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+    my $line = (slurp("t/xtpl/errors/$name.err") ~~ / 'Line ' (\d+) /)[0].Int;
+    my %c = $m ?? check-all($m.made) !! %();
+    $m && !%c<errors> && %c<warnings> == 1
+      && %c<warnings>[0].key == $line && %c<warnings>[0].value eq %warned{$name}
   };
 }
 
@@ -149,7 +169,7 @@ check 'xtpl accepts: generated as a parameter', {  parses("user function f(fo_0_
 
 # ---- every file is in a group ---------------------------------------------------
 my @all = dir('t/xtpl/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
-my @known = (|%syntax.keys, |@analysis, |@decided, |%pending.keys);
+my @known = (|%syntax.keys, |@analysis, |%warned.keys, |@decided, |%pending.keys);
 my @loose = @all.grep({ $_ !(elem) @known });
 check "every file in t/xtpl/errors/ is in a group" ~ (@loose ?? " -- no group: {@loose.join(', ')}" !! ''),
 {

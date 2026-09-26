@@ -8,15 +8,19 @@ use XC::Check;
 # in t/xtpl/errors/ (t/17-xtpl-errors.raku). The whole of xtpl's corpus has to
 # pass too (t/31-xtpl-corpus.raku).
 
-sub problems(Str $src)
+# The errors and the warnings, as 'line: message'.
+sub result(Str $src)
 {
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   die "does not parse" unless $m;
-  check-program($m.made).map({ .key ~ ': ' ~ .value }).List
+  my %c = check-all($m.made);
+  %(errors   => %c<errors>.map({ .key ~ ': ' ~ .value }).List,
+    warnings => %c<warnings>.map({ .key ~ ': ' ~ .value }).List)
 }
+sub problems(Str $src) { result($src)<errors> }
 
 # A function around some lines; the lines start at line 2.
-sub in-function(Str $lines, Str $params = 'a') { problems("user function f($params)\n$lines\nreturn 1\n") }
+sub in-function(Str $lines, Str $params = 'a') { result("user function f($params)\n$lines\nreturn 1\n") }
 
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)
@@ -27,13 +31,19 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
+# Passes: no error, and no warning either.
 sub passes(Str $what, Str $lines, Str $params = 'a')
 {
-  check "passes: $what", { !in-function($lines, $params) };
+  check "passes: $what", { my %r = in-function($lines, $params); !%r<errors> && !%r<warnings> };
 }
 sub refuses(Str $what, Str $lines, Str $problem, Str $params = 'a')
 {
-  check "refuses: $what", { in-function($lines, $params) eqv ($problem,) };
+  check "refuses: $what", { in-function($lines, $params)<errors> eqv ($problem,) };
+}
+# Warns: compiles, with these warnings.
+sub warns(Str $what, Str $lines, *@warnings)
+{
+  check "warns: $what", { my %r = in-function($lines); !%r<errors> && %r<warnings> eqv @warnings.List };
 }
 
 # ---- declared ------------------------------------------------------------------------------
@@ -74,19 +84,32 @@ passes 'raw text is not read',
 passes "'recover using' writes a declared variable",
   "  local oErr\n  begin sequence\n    a := 1\n  recover using oErr\n    a := 2\n  end sequence";
 
-# ---- not declared -------------------------------------------------------------------------
-refuses 'a name read that nothing declares',
-  "  a := nX + 1", "2: 'nX' is not declared. Everything used in xtpl must be declared.";
-refuses 'a name written that nothing declares',
-  "  nX := 1", "2: Variable 'nX' used without declaration.";
-refuses "the counter of a plain 'for' that nothing declares",
-  "  for i := 1 to 3\n    a := a + 1\n  next", "2: Variable 'i' used without declaration.";
+# ---- not declared: a warning --------------------------------------------------------------
+# xtpl refuses these; xc warns, so plain TL++ that uses the system's globals
+# compiles unchanged. xtpl's words when it only warns (its legacy mode).
+warns 'a name read that nothing declares',
+  "  a := nX + 1", "2: 'nX' is not declared";
+warns 'a name written that nothing declares: AdvPL makes a PRIVATE of it',
+  "  nX := 1", "2: 'nX' is not declared, so this creates a PRIVATE";
+warns "the counter of a plain 'for' that nothing declares",
+  "  for i := 1 to 3\n    a := a + 1\n  next", "2: 'i' is not declared, so this creates a PRIVATE";
+warns 'a system global, as plain TL++ uses it',
+  "  a := cFilAnt + dDataBase", "2: 'cFilAnt' is not declared", "2: 'dDataBase' is not declared";
+warns 'once per name',
+  "  a := nX\n  a := nX + 1", "2: 'nX' is not declared";
+warns 'a PRIVATE made by a write is known from then on',
+  "  nX := 1\n  a := nX", "2: 'nX' is not declared, so this creates a PRIVATE";
 refuses 'a name used after its block, as out of scope',
   "  if a > 0\n    local nT := 5\n  endif\n  a := nT", "5: 'nT' is out of scope here (block local declared on line 3).";
-refuses "a lambda's parameter outside the lambda",
-  "  a := map(a, [x] x)\n  a := x", "3: 'x' is not declared. Everything used in xtpl must be declared.";
-refuses "a function's name read as a value, outside a verb that takes a block",
-  "  a := alltrim", "2: 'alltrim' is not declared. Everything used in xtpl must be declared.";
+warns "a lambda's parameter outside the lambda",
+  "  a := map(a, [x] x)\n  a := x", "3: 'x' is not declared";
+warns "a function's name read as a value, outside a verb that takes a block",
+  "  a := alltrim", "2: 'alltrim' is not declared";
+check "refuses: a name used after its block stays an error -- it is xtpl's block locals",
+{
+  in-function("  if a > 0\n    local nT := 5\n  endif\n  a := nT")<errors>
+    eqv ("5: 'nT' is out of scope here (block local declared on line 3).",)
+};
 
 # ---- const, contained, external ---------------------------------------------------------------
 refuses "a <const> assigned inside a lambda",
@@ -134,6 +157,23 @@ passes 'a parameter as a chain source: it says nothing about what it holds',
   "  a := a |> asum";
 passes "rows() and lines() where a source may stand alone",
   "  local x := lines(\"a.txt\")\n  a := lines(\"b.txt\")\n  for cL in lines(\"c.txt\")\n  next";
+
+# ---- the driver ----------------------------------------------------------------------------
+check 'bin/xc prints a warning with its file and line, and compiles',
+{
+  my $dir = $*TMPDIR.add("xc-check-$*PID");
+  mkdir $dir;
+  my $in = $dir.add('w.xtpl');
+  spurt $in, "user function f()\n  local n := 0\n  n := cFilAnt\nreturn n\n";
+  my $p = run $*EXECUTABLE, 'bin/xc', $in.Str, :out, :err;
+  my $err = $p.err.slurp(:close);
+  $p.out.slurp(:close);
+  my $done = $p.exitcode == 0 && $err.contains("w.xtpl:3: warning: 'cFilAnt' is not declared")
+             && $dir.add('w.tlpp').e;
+  .unlink for $dir.dir;
+  rmdir $dir;
+  $done
+};
 
 say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

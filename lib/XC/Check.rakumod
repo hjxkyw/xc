@@ -7,7 +7,7 @@
 #
 # NAMES
 #
-# Everything used must be declared, as in xtpl: a parameter, a 'local',
+# Everything used should be declared, as in xtpl: a parameter, a 'local',
 # 'static' or 'public', a 'private' anywhere in the function (it is dynamic), a
 # block local while its block lasts, a lambda's or code block's parameter, an
 # 'external', a '#define' of the file. A name is not a variable where it is a
@@ -16,6 +16,13 @@
 # a block ('map(alltrim)') is that function. A block local is in scope from
 # its declaration to the end of its block; after that its name is 'out of
 # scope', not 'not declared'.
+#
+# A name nothing declares is a warning, not an error -- a choice xtpl did not
+# make: plain TL++ uses the system's globals (cFilAnt, dDataBase, CRLF from
+# totvs.ch) without declaring them, and it compiles unchanged. The messages
+# are the ones xtpl gives when it only warns, in its legacy mode: once per
+# name and file, and a name an undeclared write has made a PRIVATE is known
+# from then on.
 
 use XC::AST;
 use XC::Grammar;
@@ -45,7 +52,10 @@ my class Scope
 
 my class Checker
 {
-  has @.found;                     # Pairs: line => message
+  has @.found;                     # Pairs: line => message -- errors
+  has @.warned;                    # Pairs: line => message -- warnings
+  has %!warned-names;              # 'read x' / 'write x' => True: each warned once
+  has %!implicit;                  # lower case => True: made a PRIVATE by a write
   has %!funcs;                     # lower case => %(name, kind, params, line)
   has %!externals;                 # lower case => the line of its 'external'
   has %!defines;                   # lower case => True
@@ -58,6 +68,7 @@ my class Checker
   has Bool $!in-defer = False;
 
   method !problem(Str $message) { @!found.push($!line => $message) }
+  method !warning(Str $message)  { @!warned.push($!line => $message) }
 
   # ---- the file ---------------------------------------------------------------
   method program(Program $p)
@@ -170,8 +181,8 @@ my class Checker
     }
     return self!problem("'$name' is out of scope here (block local declared on line {%!retired{$k}}).")
       if %!retired{$k}:exists;
-    return if self!exempt($name);
-    self!problem("'$name' is not declared. Everything used in xtpl must be declared.");
+    return if self!exempt($name) || %!implicit{$k};
+    self!warning("'$name' is not declared") unless %!warned-names{"read $k"}++;
   }
 
   method !write(Str $name)
@@ -187,8 +198,10 @@ my class Checker
       if %!retired{$k}:exists;
     return self!problem("'$name' is external (line {%!externals{$k}}) and cannot be assigned.")
       if %!externals{$k}:exists;
-    return if self!exempt($name);
-    self!problem("Variable '$name' used without declaration.");
+    return if self!exempt($name) || %!implicit{$k};
+    # AdvPL makes a PRIVATE of it; from here on it exists.
+    %!implicit{$k} = True;
+    self!warning("'$name' is not declared, so this creates a PRIVATE") unless %!warned-names{"write $k"}++;
   }
 
   # '@x': read and written, and handed over.
@@ -543,7 +556,14 @@ sub source-of($e)
 # that name.
 sub check-program(Program $p --> List) is export
 {
+  check-all($p)<errors>
+}
+
+# The same, with the warnings: %(errors => ..., warnings => ...).
+sub check-all(Program $p --> Hash) is export
+{
   my $c = Checker.new;
   $c.program($p);
-  $c.found.unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List
+  my &tidy = { .unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List };
+  %(errors => tidy($c.found), warnings => tidy($c.warned))
 }
