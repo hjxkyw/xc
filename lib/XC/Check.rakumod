@@ -414,6 +414,16 @@ my class Checker
       when ForInStmt
       {
         my $f = $_;
+        # A decision, not a gap: a loop body can move the table's position
+        # (DbSkip, DbSeek, a function that does), and a 'loop' in it would
+        # skip the advance and walk the same record forever. A chain's stages
+        # are expressions, and have neither problem.
+        if $f.source ~~ Call && $f.source.name.lc eq 'rows'
+        {
+          self!problem("'for ... in' over rows() is not supported: a loop body can move the table's position, "
+                       ~ "and 'loop' would skip the advance. Walk the area with a chain -- "
+                       ~ "rows(\"SA1\") |> tap([r] ...) -- or write the While loop yourself.");
+        }
         self!expr($f.source);
         self!in-block({
           self!declare($f.elem, $f.line, kind => 'loop');

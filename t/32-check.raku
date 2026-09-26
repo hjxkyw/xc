@@ -198,6 +198,11 @@ warns 'used before the line that opens it',
 passes 'an area held in a variable is not checked',
   "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
 
+# ---- decided: not supported -------------------------------------------------------------------
+refuses "'for ... in' over rows(): a loop body can move the table's position",
+  "  for r in rows(\"SA1\")\n    a := r:A1_COD\n  next",
+  "2: 'for ... in' over rows() is not supported: a loop body can move the table's position, and 'loop' would skip the advance. Walk the area with a chain -- rows(\"SA1\") |> tap([r] ...) -- or write the While loop yourself.";
+
 # ---- the driver ----------------------------------------------------------------------------
 check 'bin/xc prints a warning with its file and line, and compiles',
 {

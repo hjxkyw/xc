@@ -56,7 +56,7 @@ check '--check: a file that does not parse fails, with its line',
 check '--check: what the checks refuse, and what xc cannot lower, fail too',
 {
   spurt $dir.add('src/d.xtpl'), "user function d()\n  local nL <const> := 1\n  nL := 2\nreturn nL\n";
-  spurt $dir.add('src/e.xtpl'), "user function e()\n  for r in rows(\"SA1\")\n  next\nreturn 1\n";
+  spurt $dir.add('src/e.xtpl'), "user function e(a)\n  local h := \{=>\}\n  a := map(a, [k] h\{k\} := 1)\nreturn h\n";
   my %d = xc('--check', "$dir/src/d.xtpl");
   my %e = xc('--check', "$dir/src/e.xtpl");
   $dir.add('src/d.xtpl').unlink;

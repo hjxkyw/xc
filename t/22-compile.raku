@@ -195,9 +195,9 @@ check 'bin/xc: a block never closed',
 check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
-  spurt $in, "user function f()\n  for r in rows(\"SA1\")\n  next\nreturn 1\n";
+  spurt $in, "user function f(a)\n  local h := \{=>\}\n  a := map(a, [k] h\{k\} := 1)\nreturn h\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:2: 'for ... in' over rows() is not lowered yet") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:3: a hash write inside an expression is not lowered yet") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;
