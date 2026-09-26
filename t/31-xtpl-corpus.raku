@@ -1,3 +1,6 @@
+# slow: every file of xtpl's corpus, twice -- a few minutes under rakupp.
+# 'rakupp run-tests.raku' leaves it out; 'rakupp run-tests.raku --all' runs it.
+
 use lib 'lib';
 use XC::Grammar;
 use XC::Actions;
@@ -5,8 +8,9 @@ use XC::Emit;
 use XC::Check;
 
 # Every source of xtpl's test suite and every example program, in t/xtpl/,
-# passes the checks, with no warning, and compiles -- and what comes out is TL++: read back, it
-# parses and compiles to itself. The exceptions, each for a stated reason:
+# passes the checks -- with xtpl's own warnings, see below -- and compiles,
+# and what comes out is TL++: read back, it parses and compiles to itself.
+# The exceptions, each for a stated reason:
 #
 # - 51_legacy.xtpl exercises xtpl's --legacy mode, for old AdvPL, which xc
 #   does not have;

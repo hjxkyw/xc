@@ -196,8 +196,9 @@ my class Checker
   }
 
   # The declaration itself, to count its reads and writes. Held in a variable
-  # before '<reads>++': under rakupp 4.0.1, '++' on an element of a Hash a
-  # method returned changes a copy (Rakudo changes the Hash).
+  # before '<reads>++': under rakupp 4.0.1 a private method returns a copy of a
+  # Hash, so '++' on its element straight after the call is lost (Rakudo
+  # changes the Hash; a public method and a sub do on rakupp too).
   method !record(Str $k)
   {
     my $s = $!scope;

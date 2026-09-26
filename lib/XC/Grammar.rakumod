@@ -389,8 +389,8 @@ token rawst    { <rawblock> || <rawone> }
 token rawblock
 {
   :i 'raw' \h* <.linecomment>? <.rawnl>
-  # '<!ww>', not '>>': under rakupp 4.0.1 a '>>' just before the '>' that
-  # closes a lookahead makes the lookahead fail (Rakudo is fine).
+  # '<!ww>', not '>>': under rakupp 4.0.1 any '>>' inside a lookahead makes it
+  # give the wrong answer ('»' works too; Rakudo is fine).
   [ <!before \h* :i 'end' \h+ 'raw' <!ww> > <rawline> <.rawnl> ]*
   \h* :i 'end' \h+ 'raw' >>
 }

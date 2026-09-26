@@ -2,7 +2,8 @@
 #
 # Two things make this less simple than it looks:
 #
-# - rakupp 4.0.1 reports a match's '.from' and '.to' in UTF-8 BYTES; Rakudo in
+# - rakupp 4.0.1 reports a submatch's '.from' and '.to' in UTF-8 BYTES (and a
+#   grammar's top-level '.to', and '$/.to' in a code block); Rakudo in
 #   characters. A source with an accent anywhere before a node -- any real
 #   Protheus source -- puts every later byte offset past the character it
 #   means. The unit is probed once at run time rather than assumed, so this

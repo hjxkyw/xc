@@ -180,7 +180,7 @@ sub source-kind(Expr $src --> Str)
 
 # The stages split into the fused run, the terminal that may end it, and the
 # rest, which apply to the result. A Hash, not a List of Lists: rakupp 4.0.1
-# flattens the inner Lists when a returned List is destructured.
+# flattens a List inside any list assignment, even one itemized with '$( )'.
 sub split-stages(@stages --> Hash)
 {
   my (@fused, $terminal, @rest);
