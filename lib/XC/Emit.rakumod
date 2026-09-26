@@ -231,6 +231,10 @@ class Emitter
   # Statements rewritten already, by the prologue pass: the walk skips them.
   has %!done;
 
+  # A chain whose loop runs before its statement, by its WHICH: the text of
+  # its result, which stands where the chain stood (in an 'if' condition).
+  has %!result;
+
   # The subjects of the 'with object' blocks around the walk, innermost last:
   # ':x' is the last one's 'x'.
   has @!subjects;
@@ -295,6 +299,13 @@ class Emitter
         # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
         # as the source of a 'for'.
         my @tops = self!stream-values($s);
+        my %unsure;
+        with self!first-cond($s) -> $cond
+        {
+          my (@sure, @unsure);
+          self!cond-chains($cond, True, @sure, @unsure);
+          %unsure{source-call($_).WHICH} = True for @unsure;
+        }
         my $for = $s ~~ ForInStmt && is-source($s.source) ?? $s.source !! Expr;
         my %heads;                     # the source calls that head a chain
         for exprs-of($s) -> $e
@@ -320,6 +331,13 @@ class Emitter
               unless $ok
               {
                 my $what = $x ~~ Interval ?? 'a range' !! "{$x.name.lc}()";
+                if %unsure{$x.WHICH}
+                {
+                  # A noun phrase: the driver adds 'is not lowered yet'.
+                  @found.push($s.line => "a chain from $what that the condition may not reach (behind "
+                    ~ "'.and.', '.or.' or '?:', in iif or a lambda), whose loop would run all the same,");
+                  next;
+                }
                 @found.push($s.line => %heads{$x.WHICH}
                   ?? "a chain from $what where it cannot run as a loop first "
                      ~ "(it goes in 'x := ...', 'return ...' or a statement of its own)"
@@ -469,8 +487,58 @@ class Emitter
   {
     with self!stream-value($s) -> $c { return ($c,) }
     return $s.declarators.map(*.init).grep({ .defined && source-call($_).defined }).List
-      if $s ~~ Declaration && $s.scope eq 'local';
+      if $s ~~ Declaration && $s.scope (elem) <local private public>;
+    with self!first-cond($s) -> $cond
+    {
+      my (@sure, @unsure);
+      self!cond-chains($cond, True, @sure, @unsure);
+      return @sure.List;
+    }
     ()
+  }
+
+  # The chains from a source in a condition, split in two: those it always
+  # evaluates, whose loop can run before it, and those it may not -- behind
+  # '.and.', '.or.' or '?:', in a branch of iif, in a lambda -- where running
+  # the loop first would run it when the condition does not.
+  method !cond-chains(Expr $e, Bool $sure, @sure, @unsure)
+  {
+    return unless $e.defined;
+    if ($e ~~ Pipeline && is-source($e.source)) || is-source($e)
+    {
+      ($sure ?? @sure !! @unsure).push($e);
+      return;
+    }
+    given $e
+    {
+      # 'when { ... }': 'when T && ...' would match every T.
+      when { $_ ~~ Binary && .op (elem) <.and. .or. ?:> }
+      {
+        self!cond-chains(.left, $sure, @sure, @unsure);
+        self!cond-chains(.right, False, @sure, @unsure);
+      }
+      when Lambda | CodeBlock
+      {
+        self!cond-chains($_, False, @sure, @unsure) for .body;
+      }
+      when { $_ ~~ Call && .name.lc (elem) <iif if> }
+      {
+        self!cond-chains(.args[0], $sure, @sure, @unsure) if .args;
+        self!cond-chains($_, False, @sure, @unsure) for .args[1 .. *];
+      }
+      default
+      {
+        self!cond-chains($_, $sure, @sure, @unsure) for subexprs($_);
+      }
+    }
+  }
+
+  # The condition whose chains can run first: an 'if', or a postfix 'if'.
+  method !first-cond(Stmt $s --> Expr)
+  {
+    return $s.branches[0].cond if $s ~~ IfStmt;
+    return $s.cond if $s ~~ Modified && $s.op eq 'if';
+    Expr
   }
 
   # What stops a chain from a source from being lowered.
@@ -644,11 +712,11 @@ class Emitter
     %!done = ();
     my @prologue;
     for $f.body -> $s { last unless $s ~~ Declaration; @prologue.push($s) }
-    my $first = @prologue.first({ .scope eq 'local' && .declarators.first({ .init.defined && source-call(.init).defined }) }, :k);
+    my $first = @prologue.first({ .scope (elem) <local private public> && .declarators.first({ .init.defined && source-call(.init).defined }) }, :k);
     my @inits;
     if $first.defined
     {
-      for @prologue[$first .. *].grep(*.scope eq 'local') -> $d
+      for @prologue[$first .. *].grep(*.scope (elem) <local private public>) -> $d
       {
         %!done{$d.WHICH} = True;
         my $kw = split-comment(self!slice($d))[0].trim.words[0];
@@ -927,6 +995,15 @@ class Emitter
           }
           self!replace($s, False, @lines);
         }
+        # A 'private' or 'public' in a block, with a chain as its value: it is
+        # declared where it was, and gets its value after the loop.
+        when { $_ ~~ Declaration && !$top && .scope (elem) <private public>
+               && .declarators.first({ .init.defined && source-call(.init).defined }) }
+        {
+          my $kw = split-comment(self!slice($s))[0].trim.words[0];
+          self!replace($s, False, ("$kw " ~ .declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),
+                                   |.declarators.grep(*.init.defined).map({ |self!init-lines(.name, .init) })));
+        }
         when { needs-lowering($_) }
         {
           my ($block, @lines) = self!lower($s);
@@ -939,9 +1016,19 @@ class Emitter
           self!hoist($x, 'a block local');
           my $init = self!expr($d.init);
           self!in-scope($s, {
-            self!header($s, $s.branches[0].cond, 1, "$x := $init", "If {self!expr($s.branches[0].cond)}");
+            my @pre = self!cond-loops($s.branches[0].cond);
+            self!header($s, $s.branches[0].cond, 1 + @pre, "$x := $init", |@pre,
+                        "If {self!expr($s.branches[0].cond)}");
             self!expressions($s, $s.branches[1..*].map(*.cond));
           });
+        }
+        # A plain 'if' whose condition reads a chain from a source: the loop
+        # first, the 'if' on its result.
+        when { $_ ~~ IfStmt && !.header-decl.defined && self!stream-values($_) }
+        {
+          my @pre = self!cond-loops(.branches[0].cond);
+          self!header($s, .branches[0].cond, @pre.elems, |@pre, "If {self!expr(.branches[0].cond)}");
+          self!expressions($s, .branches[1..*].map(*.cond));
         }
         when { $_ ~~ WhileStmt && .header-decl.defined }
         {
@@ -1507,12 +1594,30 @@ class Emitter
     self!expr($e)
   }
 
+  # The loops of the chains a condition always evaluates: their lines, and
+  # each chain's result standing where the chain stood.
+  method !cond-loops(Expr $cond --> List)
+  {
+    my (@sure, @unsure);
+    self!cond-chains($cond, True, @sure, @unsure);
+    my @lines;
+    for @sure -> $chain
+    {
+      my @l = self!stream($chain, True);
+      %!result{$chain.WHICH} = @l.shift;
+      @lines.append(@l);
+    }
+    @lines.List
+  }
+
   # A whole statement replaced by lines; the comment goes back on the header
   # line of a block ($block), on the last line otherwise.
-  method !replace(Stmt $s, Bool $block, @lines is copy)
+  method !replace(Stmt $s, $block, @lines is copy)
   {
     my $comment = split-comment(self!slice($s))[1];
-    @lines[$block ?? 0 !! @lines.end] ~= "  $comment" if $comment;
+    # $block: True, the first line; False, the last; a number, that line.
+    my $at = $block ~~ Bool ?? ($block ?? 0 !! @lines.end) !! $block;
+    @lines[$at] ~= "  $comment" if $comment;
     @!edits.push([$s.src-from, $s.src-to, self!join-at($s.src-from, @lines)]);
   }
 
@@ -1577,6 +1682,7 @@ class Emitter
   # only -- the comments are the statement's business.
   method !expr(Expr $e --> Str)
   {
+    return %!result{$e.WHICH} if %!result{$e.WHICH}:exists;
     given $e
     {
       when Lambda
@@ -1690,6 +1796,7 @@ class Emitter
   # An expression that is rewritten itself, not just for what it holds.
   method !lowers-itself(Expr $e --> Bool)
   {
+    return True if %!result{$e.WHICH}:exists;
     return True if $e ~~ Lambda || $e ~~ Pipeline;
     return True if $e ~~ Call && VERBS{$e.name.lc}:exists;
     return True if $e ~~ Name && %!subst{$e.name.lc}:exists;
@@ -1792,10 +1899,11 @@ class Emitter
     {
       when Modified
       {
+        my @pre = .op eq 'if' ?? self!cond-loops(.cond) !! ();
         my @inner = self!lower-inner(.stmt).map({ "  $_" });
         .op eq 'while'
           ?? (True, "While {self!expr(.cond)}", |@inner, 'EndDo')
-          !! (True, "If {self!expr(.cond)}",    |@inner, 'EndIf')
+          !! ((@pre ?? @pre.elems !! True), |@pre, "If {self!expr(.cond)}", |@inner, 'EndIf')
       }
       when { $_ ~~ Assignment && .target ~~ HashIndex } { self!hash-set($_) }
       when Assignment

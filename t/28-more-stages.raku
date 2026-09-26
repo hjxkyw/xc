@@ -161,9 +161,9 @@ check 'the output compiles to itself',
 };
 
 # ---- what is still refused ------------------------------------------------------------------
-check "a chain as a 'private' value",
+check "a chain as a 'static' value: a static's value is a constant",
 {
-  problems("  private x := lines(cP) |> count").first(*.starts-with('a chain from lines() where it cannot run'))
+  problems("  static x := lines(cP) |> count").first(*.starts-with('a chain from lines() where it cannot run'))
 };
 check 'distinctAdjacent over rows() with no key: the record is not a value',
 {

@@ -153,7 +153,7 @@ check 'the output of a compile compiles to itself',
 # ---- what is not lowered yet ------------------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
-  my $src = "user function f(a, h)\n  private p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  a := map(a, [k] h\{k\} := 1)\nreturn a\n";
+  my $src = "user function f(a, h)\n  static p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  a := map(a, [k] h\{k\} := 1)\nreturn a\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
   !$out.defined && $! ~~ X::XC::NotLowered

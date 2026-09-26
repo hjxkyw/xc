@@ -261,7 +261,7 @@ my @refuse =
     => "'filter' over lines() without its lambda written in the stage",
   "  x := len(lines(cP))"
     => "'lines()' outside the head of a chain (it is a source)",
-  "  if (lines(cP) |> count) > 0\n    x := 1\n  endif"
+  "  while (lines(cP) |> count) > x\n    x := x + 1\n  enddo"
     => "a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own)",
   "  x := lines(cP) |> count if n > 0"
     => 'a chain from a source under a postfix modifier',
