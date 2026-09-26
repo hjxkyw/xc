@@ -135,21 +135,33 @@ check "a call with a trailer is something to assign to; a call alone is not",
   parses('GetObj():cNome := 1') && !parses('f() := 1') && !parses('x := f() {1}')
 };
 
-# ---- what has to be refused ---------------------------------------------------------------
-check 'a hash write inside an expression (Set is a statement)',
+# ---- a hash write inside an expression -----------------------------------------------------
+# A call that sets and gives back the value written, as ':=' does. xtpl emits
+# 'h:Set(b_0_k, 1}))' for the first one, which does not compile.
+lowers 'in a lambda: a call that gives back the value written',
+  '  aeval(a, [p] h{p[1]} := p[2])',
+  '  aeval(a, {|p| u_xtpl_hset(h, p[1], p[2])})';
+lowers "'+=' with a name and a name for key: read and written in line",
+  '  aeval(a, [x] h{x} += 1)',
+  '  aeval(a, {|x| u_xtpl_hset(h, x, u_xtpl_hget(h, x) + (1))})';
+lowers "'+=' with any other key: the hash, the key and the value each once, through a block",
+  '  aeval(a, [x] h{x:cCod} += x:nQtd)',
+  '  aeval(a, {|x| Eval({|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) + __v)}, h, x:cCod, x:nQtd)})';
+lowers 'as an argument, its value is the value written',
+  '  conout(h{"k"} := 5)',
+  '  conout(u_xtpl_hset(h, "k", 5))';
+check 'in a fused loop over lines(): the element as the key',
 {
-  my $src = "user function f(h, a)\n  local x\n  x := map(a, [k] h\{k\} := 1)\nreturn x\n";
-  my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-  my $out = try emit($m.made, $src);
-  !$out.defined && $!.problems.map(*.value).join eq 'a hash write inside an expression'
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(cP, h)\n  lines(cP) |> tap([l] h\{l\} += 1)\nreturn h\n]);
+  $out.contains('    u_xtpl_hset(h, fv_0_0, u_xtpl_hget(h, fv_0_0) + (1))')
 };
 
 # ---- the runtime, and the output ----------------------------------------------------------
-check 'the runtime has the three functions the output calls',
+check 'the runtime has the four functions the output calls',
 {
   my $rt = slurp('runtime/xtpl_runtime.tlpp');
   $rt.contains('User Function xtpl_hget(') && $rt.contains('User Function xtpl_hhas(')
-    && $rt.contains('User Function xtpl_hnew(')
+    && $rt.contains('User Function xtpl_hnew(') && $rt.contains('User Function xtpl_hset(')
 };
 check 'the output compiles to itself',
 {

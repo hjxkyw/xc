@@ -153,12 +153,12 @@ check 'the output of a compile compiles to itself',
 # ---- what is not lowered yet ------------------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
-  my $src = "user function f(a, h)\n  static p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  a := map(a, [k] h\{k\} := 1)\nreturn a\n";
+  my $src = "user function f(a, h)\n  static p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  while (lines(\"y.txt\") |> count) > a\n  enddo\nreturn a\n";
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   my $out = try emit($m.made, $src);
   !$out.defined && $! ~~ X::XC::NotLowered
     && $!.problems.map({ .key ~ ' ' ~ .value }).join(', ')
-       eq "2 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own), 3 'for ... in' over rows(), 5 a hash write inside an expression"
+       eq "2 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own), 3 'for ... in' over rows(), 5 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own)"
 };
 
 # ---- the driver ------------------------------------------------------------------------
@@ -195,9 +195,9 @@ check 'bin/xc: a block never closed',
 check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
-  spurt $in, "user function f(a)\n  local h := \{=>\}\n  a := map(a, [k] h\{k\} := 1)\nreturn h\n";
+  spurt $in, "user function f(a)\n  local n := 0\n  while (lines(\"y.txt\") |> count) > n\n    n := n + 1\n  enddo\nreturn n\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:3: a hash write inside an expression is not lowered yet") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:3: a chain from lines() where it cannot run as a loop first") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;

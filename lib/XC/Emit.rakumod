@@ -359,8 +359,6 @@ class Emitter
   {
     given $x
     {
-      # A write inside an expression ('[k] h{k} := 1'): Set is a statement.
-      when AssignExpr { .target ~~ HashIndex ?? 'a hash write inside an expression' !! Str }
       default         { Str }
     }
   }
@@ -1703,6 +1701,30 @@ class Emitter
       {
         @!subjects[*-1] ~ ':' ~ .name ~ ($_ ~~ MethodCall ?? '(' ~ .args.map({ self!part($_) }).join(', ') ~ ')' !! '')
       }
+      # 'h{k} := v' inside an expression ('[p] hMap{p[1]} := p[2]'): a call
+      # that sets and gives back the value written, as ':=' does. A write that
+      # also reads ('+=') names the hash and the key twice, so unless they are
+      # a name and a name or a literal, they go through a block, each evaluated
+      # once, as parameters -- the block captures nothing.
+      when { $_ ~~ AssignExpr && .target ~~ HashIndex }
+      {
+        my $t = .target;
+        my $h = self!expr($t.base);
+        my $k = self!expr($t.key);
+        my $v = self!expr(.value);
+        if .op (elem) (':=', '=')
+        {
+          "u_xtpl_hset($h, $k, $v)"
+        }
+        elsif $t.base ~~ Name && ($t.key ~~ Name || $t.key ~~ Literal)
+        {
+          "u_xtpl_hset($h, $k, u_xtpl_hget($h, $k) {.op.chop} ($v))"
+        }
+        else
+        {
+          "Eval(\{|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) {.op.chop} __v)\}, $h, $k, $v)"
+        }
+      }
       # 'h{k}': a call, right wherever it is (xtpl lifts a Get, which goes
       # wrong in a 'while' condition, an 'elseif' or a lambda).
       when HashIndex { "u_xtpl_hget({self!expr(.base)}, {self!expr(.key)})" }
@@ -1802,6 +1824,7 @@ class Emitter
     return True if $e ~~ Name && %!subst{$e.name.lc}:exists;
     return True if $e ~~ Member && $e.base ~~ Name && %!field{$e.base.name.lc}:exists;
     return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
+    return True if $e ~~ AssignExpr && $e.target ~~ HashIndex;
     return True if $e ~~ SafeMember || $e ~~ SafeCall;
     return True if ($e ~~ Member || $e ~~ MethodCall) && $e.base ~~ SubjectRef;
     return True if $e ~~ Binary && $e.op (elem) <in has %% ?:>;
