@@ -32,11 +32,25 @@
 # nothing on another, and a field of an area nothing in the function opened --
 # xtpl's, in xtpl's words. Not its fusion warnings: they are about fusing
 # chains over arrays, which xc does not do.
+#
+# THE DICTIONARY
+#
+# Given an exported SX3 (bin/xc --dict), a literal 'ALIAS->FIELD' -- and
+# 'r:FIELD' in a chain over rows("ALIAS") -- is checked against it: an alias
+# or a field it does not have ("Did you mean A1_NOME?"), a literal of the
+# wrong type assigned to a field or compared with it, a string too long for
+# the field it is assigned to (AdvPL cuts it silently). Warnings, as in xtpl:
+# a field being added may not be in an export yet. --dict-strict makes them
+# errors, for CI.
 
 use XC::AST;
 use XC::Grammar;
 
 unit module XC::Check;
+
+# The comparisons a field and a literal are checked in (AdvPL's '=' and '#'
+# among them).
+my constant COMPARE = set('==', '!=', '<>', '>=', '<=', '#', '=', '>', '<', '$');
 
 # The calls that open a work area, when given its name as a string.
 my constant OPENERS = set <dbselectarea dbusearea chkfile>;
@@ -83,6 +97,9 @@ my class Checker
   has %!warned-alias;              # upper case => True: 'not opened' said already
   has %!external-alias;            # upper case => True: 'external alias'
   has Int $.lines = 0;             # the file's length: where the last function ends
+  has %.dictionary;                # ALIAS => %(FIELD => [type letter, size])
+  has Bool $.strict = False;       # dictionary findings are errors
+  has %!dict-seen;                 # 'line alias field': said already
   has @!ends;                      # the lines the functions start on, sorted
 
   method !problem(Str $message) { @!found.push($!line => $message) }
@@ -352,7 +369,12 @@ my class Checker
           self!note-scalar($d);
         }
       }
-      when Assignment { self!expr(.value); self!target(.target, .op) }
+      when Assignment
+      {
+        self!dict-type(.target, .value, .op eq ':=') if .target ~~ AliasField;
+        self!expr(.value);
+        self!target(.target, .op);
+      }
       when CallStmt   { self!expr(.call) }
       when ReturnStmt { self!expr(.value) if .value.defined }
       when IfStmt
@@ -522,7 +544,18 @@ my class Checker
       when InAlias    { self!alias-base(.base) }
       when AliasField { self!field($_); self!alias-base(.base) }
       when Ref        { .target ~~ Name ?? self!by-ref(.target.name) !! self!expr(.target) }
-      when AssignExpr { self!expr(.value); self!target(.target, .op) }
+      when AssignExpr
+      {
+        self!dict-type(.target, .value, .op eq ':=') if .target ~~ AliasField;
+        self!expr(.value);
+        self!target(.target, .op);
+      }
+      # A field compared with a literal, either way round.
+      when { $_ ~~ Binary && .op (elem) COMPARE && (.left ~~ AliasField || .right ~~ AliasField) }
+      {
+        .left ~~ AliasField ?? self!dict-type(.left, .right, False) !! self!dict-type(.right, .left, False);
+        self!expr($_) for subexprs($_);
+      }
       when Call
       {
         self!call($_);
@@ -605,12 +638,71 @@ my class Checker
   # area. A variable holding the alias ('(cAlias)->x') cannot be checked.
   method !field(AliasField $f)
   {
-    my $word = $f.alias // ($f.base ~~ Name ?? $f.base.name !! Str);
-    return unless $word.defined && !self!find($word.lc).defined;
+    my $word = self!alias-word($f) // return;
     my $a = $word.uc;
-    return if %!opened{$a} || %!external-alias{$a} || $a.starts-with('__') || %!warned-alias{$a}++;
-    self!warning("nothing in this function opened $a. Wrap the use in 'using alias $a do', "
-                 ~ "or declare 'external alias $a' if the caller opens it.");
+    unless %!opened{$a} || %!external-alias{$a} || $a.starts-with('__') || %!warned-alias{$a}++
+    {
+      self!warning("nothing in this function opened $a. Wrap the use in 'using alias $a do', "
+                   ~ "or declare 'external alias $a' if the caller opens it.");
+    }
+    self!dict-field($word, $f.field);
+  }
+
+  # The area of 'SA1->x' as written, when it is a literal area and not a
+  # variable holding one.
+  method !alias-word(AliasField $f)
+  {
+    my $word = $f.alias // ($f.base ~~ Name ?? $f.base.name !! Str);
+    $word.defined && !self!find($word.lc).defined ?? $word !! Nil
+  }
+
+  # ---- the dictionary ---------------------------------------------------------------
+  method !dict(Str $message) { $!strict ?? self!problem($message) !! self!warning($message) }
+
+  # An alias or a field the dictionary does not have. Once per line and field.
+  method !dict-field(Str $alias, Str $field)
+  {
+    return unless %!dictionary;
+    my $a = $alias.uc;
+    my $f = $field.uc;
+    return if %!dict-seen{"$!line $a $f"}++;
+    unless %!dictionary{$a}:exists
+    {
+      return self!dict("alias '$alias' is not in the dictionary. A table that is missing usually means "
+                       ~ "the export is out of date.");
+    }
+    my %fields = %!dictionary{$a};
+    return if %fields{$f}:exists;
+    my $near = closest($f, %fields.keys);
+    my $hint = $near.defined ?? " Did you mean $near?" !! '';
+    # '{$a}.' -- in a string, '$a.{' would index $a.
+    self!dict("'$alias->$field' is not a field of {$a}.$hint");
+  }
+
+  # A field used with a literal: of its type, and -- a string assigned --
+  # not longer than it holds. $assigned: ':=', else a comparison.
+  method !dict-type(AliasField $ref, $lit, Bool $assigned)
+  {
+    return unless %!dictionary;
+    my $word = self!alias-word($ref) // return;
+    my $entry = %!dictionary{$word.uc}{$ref.field.uc} // return;
+    my $kind = $entry[0];
+    my $size = $entry[1];
+    return unless $kind;
+    my @seen = literal-kind($lit);
+    return unless @seen;
+    my $seen  = @seen[0];
+    my $value = @seen[1];
+    my %name = C => 'character', N => 'numeric', D => 'date', L => 'logical', M => 'memo';
+    my $wanted = $kind eq 'M' ?? 'C' !! $kind;
+    my $shown = "$word->{$ref.field}";
+    if $seen ne $wanted
+    {
+      return self!dict("$shown is {%name{$kind} // $kind}, {$assigned ?? 'assigned' !! 'compared with'} "
+                       ~ "a {%name{$seen} // $seen} value.");
+    }
+    self!dict("$shown holds $size characters, but is assigned {$value.chars}.")
+      if $assigned && $wanted eq 'C' && $size && $value.chars > $size;
   }
 
   method !alias-base($b)
@@ -623,6 +715,30 @@ my class Checker
   # A chain: a source it can walk.
   method !chain(Pipeline $p)
   {
+    # Over rows("SA1"), before a map, 'r:A1_COD' is SA1's field A1_COD.
+    my $src0 = $p.source;
+    if %!dictionary && $src0 ~~ Call && $src0.name.lc eq 'rows' && $src0.args
+       && $src0.args[0] ~~ Literal && $src0.args[0] !~~ Interp && $src0.args[0].type eq 'Character'
+    {
+      my $alias = $src0.args[0].text.substr(1, *-1);
+      for $p.stages -> $st
+      {
+        my $l = $st.args[0];
+        if $l ~~ Lambda && $l.params == 1
+        {
+          my $param = $l.params[0].lc;
+          for $l.body -> $b
+          {
+            walk-expr($b, -> $x
+            {
+              self!dict-field($alias, $x.name)
+                if $x ~~ Member && $x !~~ MethodCall && $x.base ~~ Name && $x.base.name.lc eq $param;
+            });
+          }
+        }
+        last if $st.name.lc (elem) <map expand>;
+      }
+    }
     my $src = $p.source;
     %!sources-ok{$src.WHICH} = True if $src ~~ Call;
     if $src ~~ Literal && is-scalar($src)
@@ -657,6 +773,132 @@ my class Checker
   }
 }
 
+# A literal's type letter and, for a string, its text: ('C', text),
+# ('N', text), ('L', text), or () -- not a literal, or Nil, which is ordinary
+# to assign.
+sub literal-kind($e --> List)
+{
+  return () unless $e.defined;
+  if $e ~~ Binary && $e.op eq 'neg' && $e.right ~~ Literal && $e.right.type eq 'Numeric'
+  {
+    return ('N', '-' ~ $e.right.text);
+  }
+  return () unless $e ~~ Literal && $e !~~ Interp;
+  given $e.type
+  {
+    when 'Character' { ('C', $e.text.substr(1, *-1)) }
+    when 'Numeric'   { ('N', $e.text) }
+    when 'Logical'   { ('L', $e.text) }
+    default          { () }
+  }
+}
+
+# difflib's ratio, as xtpl's hint uses it: twice the characters in the
+# matching blocks -- the longest common run, earliest first, then the same on
+# each side of it -- over the two lengths together.
+sub matching(Str $a, Str $b --> Int)
+{
+  return 0 unless $a && $b;
+  my $best = 0;
+  my $ai = 0;
+  my $bj = 0;
+  for ^$a.chars -> $i
+  {
+    for ^$b.chars -> $j
+    {
+      my $k = 0;
+      $k++ while $i + $k < $a.chars && $j + $k < $b.chars && $a.substr($i + $k, 1) eq $b.substr($j + $k, 1);
+      if $k > $best
+      {
+        $best = $k;
+        $ai = $i;
+        $bj = $j;
+      }
+    }
+  }
+  return 0 unless $best;
+  $best + matching($a.substr(0, $ai), $b.substr(0, $bj))
+        + matching($a.substr($ai + $best), $b.substr($bj + $best))
+}
+
+# The field most like $f, at 0.7 or more, as difflib.get_close_matches(f,
+# sorted(fields), 1, 0.7): the highest ratio, the greater name on a tie.
+sub closest(Str $f, @fields)
+{
+  my @scored = @fields.map({ (2 * matching($f, $_) / ($f.chars + .chars)) => $_ }).grep(*.key >= 0.7);
+  @scored ?? @scored.sort({ $^b.key <=> $^a.key || $^b.value cmp $^a.value })[0].value !! Nil
+}
+
+# An exported SX3, as %(ALIAS => %(FIELD => [type letter, size])). The
+# columns are found by their headers -- ARQUIVO/ALIAS/TABELA/TABLE,
+# CAMPO/FIELD, TIPO/TYPE, TAMANHO/SIZE/LEN -- as xtpl does; with no header it
+# recognises, the first two columns are the alias and the field. SX3 pads its
+# values, so all are trimmed.
+sub load-dictionary(Str $path --> Hash) is export
+{
+  my @rows = $path.IO.slurp(:bin).decode('utf-8', :replacement).lines.map({ csv-row($_) }).grep(*.elems);
+  die "$path: empty dictionary" unless @rows;
+  my @head = @rows[0].map(*.trim.uc);
+  my sub column(*@words)
+  {
+    for @head.kv -> $i, $h
+    {
+      return $i if @words.first({ $h.contains($_) });
+    }
+    Nil
+  }
+  my $alias-at = column(<ARQUIVO ALIAS TABELA TABLE>);
+  my $field-at = column(<CAMPO FIELD>);
+  my $type-at  = column(<TIPO TYPE>);
+  my $size-at  = column(<TAMANHO SIZE LEN>);
+  my @body = @rows[1 .. *];
+  unless $alias-at.defined && $field-at.defined
+  {
+    $alias-at = 0;
+    $field-at = 1;
+    $type-at  = Nil;
+    $size-at  = Nil;
+    @body = @rows;
+  }
+  my %dictionary;
+  for @body -> @row
+  {
+    next if @row.elems <= max($alias-at, $field-at);
+    my $alias = @row[$alias-at].trim.uc;
+    my $field = @row[$field-at].trim.uc;
+    next unless $alias && $field;
+    my $kind = $type-at.defined && @row.elems > $type-at ?? @row[$type-at].trim.uc.substr(0, 1) !! '';
+    my $digits = $size-at.defined && @row.elems > $size-at ?? @row[$size-at].trim !! '';
+    %dictionary{$alias}{$field} = [$kind, $digits ~~ / ^ \d+ $ / ?? +$digits !! 0];
+  }
+  %dictionary
+}
+
+# One CSV line: commas, and double quotes around a value that holds one.
+sub csv-row(Str $line --> List)
+{
+  my @out;
+  my $cell = '';
+  my $quoted = False;
+  my $i = 0;
+  while $i < $line.chars
+  {
+    my $c = $line.substr($i, 1);
+    if $quoted
+    {
+      if $c eq '"' && $line.substr($i + 1, 1) eq '"' { $cell ~= '"'; $i++ }
+      elsif $c eq '"' { $quoted = False }
+      else { $cell ~= $c }
+    }
+    elsif $c eq '"' { $quoted = True }
+    elsif $c eq ',' { @out.push($cell); $cell = '' }
+    else { $cell ~= $c }
+    $i++;
+  }
+  @out.push($cell);
+  @out.List
+}
+
 # A literal that holds one value: not an array, a hash, a JSON or a block.
 sub is-scalar(Literal $l --> Bool)
 {
@@ -680,9 +922,9 @@ sub check-program(Program $p --> List) is export
 }
 
 # The same, with the warnings: %(errors => ..., warnings => ...).
-sub check-all(Program $p, Int :$lines = 0 --> Hash) is export
+sub check-all(Program $p, Int :$lines = 0, :%dictionary, Bool :$strict = False --> Hash) is export
 {
-  my $c = Checker.new(:$lines);
+  my $c = Checker.new(:$lines, :%dictionary, :$strict);
   $c.program($p);
   my &tidy = { .unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List };
   %(errors => tidy($c.found), warnings => tidy($c.warned))

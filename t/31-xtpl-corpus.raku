@@ -21,15 +21,19 @@ use XC::Check;
 
 my %skip = '51_legacy.xtpl' => 'xtpl --legacy mode';
 
-# The warnings xc shares with xtpl -- never read, returns, areas not opened --
-# are xtpl's own, in the .warn next to each test: xc gives the same ones, no
-# more and no less (xtpl's other kinds, fusion and the dictionary, are not
-# xc's). But for these, where xc warns and xtpl does not: xtpl counts a
+# The warnings xc shares with xtpl -- never read, returns, areas not opened,
+# and, where a test has a <name>.dict.csv beside it, the dictionary's -- are
+# xtpl's own, in the .warn next to each test: xc gives the same ones, no more
+# and no less (xtpl's fusion warnings are not xc's). But for these, where xc warns and xtpl does not: xtpl counts a
 # variable's reads by matching its name in text, and sees one in a member of
 # the same name ('?.cCity') or in the lines it generated itself (for a
 # postfix 'if', a hash read, a fused chain, '?:'). The variables are only
 # ever assigned.
-my regex shared { 'never read' | 'never used' | 'returns nothing' | 'reach its end' | 'nothing in this function opened' }
+my regex shared
+{
+  'never read' | 'never used' | 'returns nothing' | 'reach its end' | 'nothing in this function opened'
+  | 'is not in the dictionary' | 'is not a field of' | 'assigned a ' | 'compared with a ' | 'characters, but is assigned'
+}
 my %extra =
   '13_operand_span.xtpl' => ("line 11: 'cCity' is assigned but never read",),
   '15_control.xtpl'      => ("line 6: 'cCity' is assigned but never read", "line 7: 'lDone' is assigned but never read"),
@@ -41,13 +45,13 @@ my %extra =
 # The checks, and then the emitter. Not on the output read back: that is
 # TL++, not xtpl -- its 'external' lines are gone, for one -- and xtpl's rules
 # for names do not apply to it. @expected: the warnings there have to be.
-sub compile(Str $src, :@expected, Bool :$checked = True)
+sub compile(Str $src, :@expected, :%dictionary, Bool :$checked = True)
 {
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   return Nil unless $m;
   if $checked
   {
-    my %c = check-all($m.made, lines => $src.lines.elems);
+    my %c = check-all($m.made, lines => $src.lines.elems, :%dictionary);
     die "the checks refuse it: line {%c<errors>[0].key}: {%c<errors>[0].value}" if %c<errors>;
     # Of any other kind -- a name nothing declares, say -- there are none.
     my @other = %c<warnings>.grep({ .value !~~ / <shared> / });
@@ -83,8 +87,10 @@ for @files.sort -> $f
   my $warn = $f.subst(/ '.xtpl' $ /, '.warn').IO;
   my @expected = |($warn.e ?? $warn.slurp.lines.grep(/ <shared> /).map({ .subst(/^ 'warning: ' /, '') }) !! ()),
                  |(%extra{$name} // ());
+  my $dict = $f.subst(/ '.xtpl' $ /, '.dict.csv').IO;
+  my %dictionary = $dict.e ?? load-dictionary(~$dict) !! ();
   check "$label compiles, xtpl's warnings with it, and the output compiles to itself", {
-    my $once = compile($src, :@expected);
+    my $once = compile($src, :@expected, :%dictionary);
     if $src ~~ m:i/ ^^ \h* 'raw' >> /
     {
       $once.defined                                # raw: not read back

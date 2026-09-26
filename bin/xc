@@ -3,8 +3,12 @@
 #   rakupp bin/xc file.xtpl              writes file.tlpp next to it
 #   rakupp bin/xc file.xtpl out.tlpp     writes out.tlpp
 #
-# Exits with 1 and says why when the file does not parse, or when it uses an
-# extension xc cannot lower yet -- the .tlpp is not written in either case.
+#   --dict sx3.csv      checks the fields used against an exported SX3
+#   --dict-strict       and what it finds is an error, not a warning
+#
+# Exits with 1 and says why when the file does not parse, when the checks
+# refuse it, or when it uses an extension xc cannot lower yet -- the .tlpp is
+# not written in any of these cases. Warnings are printed, and do not stop it.
 
 use lib $*PROGRAM.IO.absolute.IO.parent.parent.add('lib').Str;
 use XC::Grammar;
@@ -19,10 +23,25 @@ sub fail-with(Str $message)
   exit 1;
 }
 
-fail-with("usage: rakupp bin/xc file.xtpl [out.tlpp]") unless 1 <= @*ARGS <= 2;
-my $in  = @*ARGS[0];
-my $out = @*ARGS[1] // $in.subst(/ '.' <-[./]>* $ /, '') ~ '.tlpp';
+my $usage = "usage: rakupp bin/xc [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]";
+my @args = @*ARGS;
+my ($dict-path, $strict) = Str, False;
+my @files;
+while @args
+{
+  my $a = @args.shift;
+  if    $a eq '--dict'        { $dict-path = @args.shift // fail-with($usage) }
+  elsif $a eq '--dict-strict' { $strict = True }
+  elsif $a.starts-with('--')  { fail-with("$a: no such option\n$usage") }
+  else                        { @files.push($a) }
+}
+fail-with($usage) unless 1 <= @files <= 2;
+fail-with("--dict-strict needs --dict") if $strict && !$dict-path.defined;
+my $in  = @files[0];
+my $out = @files[1] // $in.subst(/ '.' <-[./]>* $ /, '') ~ '.tlpp';
 fail-with("$in: no such file") unless $in.IO.f;
+fail-with("$dict-path: no such file") if $dict-path.defined && !$dict-path.IO.f;
+my %dictionary = $dict-path.defined ?? load-dictionary($dict-path) !! ();
 
 # Read as bytes, not with 'slurp': 'slurp' turns every "\r\n" into "\n", and
 # a CRLF source has to come out CRLF. UTF-8 when the bytes are valid UTF-8,
@@ -63,7 +82,7 @@ unless $m
 # What xtpl refuses although it parses -- scopes, <const>, the calls to this
 # file's functions, ... -- each with xtpl's message; and what it warns about,
 # a name nothing declares among them, which does not stop the compile.
-my %checked = check-all($m.made, lines => $src.lines.elems);
+my %checked = check-all($m.made, lines => $src.lines.elems, :%dictionary, :$strict);
 note "$in:{.key}: warning: {.value}" for %checked<warnings>.list;
 fail-with(%checked<errors>.map({ "$in:{.key}: {.value}" }).join("\n")) if %checked<errors>;
 

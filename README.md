@@ -15,6 +15,8 @@ export PATH=$PWD/rakupp/bin:$PATH
 ```sh
 rakupp bin/xc file.xtpl              # writes file.tlpp
 rakupp bin/xc file.xtpl out.tlpp
+rakupp bin/xc --dict sx3.csv file.xtpl                  # checks the fields against an exported SX3
+rakupp bin/xc --dict sx3.csv --dict-strict file.xtpl    # and what it finds stops the compile
 ```
 
 The generated code calls xtpl's runtime, `runtime/xtpl_runtime.tlpp`, which
