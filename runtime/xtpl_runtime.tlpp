@@ -139,6 +139,13 @@ User Function xtpl_hget(oHash, xKey)
   oHash:Get(xKey, @xValue)
 Return xValue
 
+// xc: a hash write inside an expression -- '[p] hMap{p[1]} := p[2]'. Set is a
+// method call, and what it returns is THashMap's business; ':=' gives back the
+// value it assigned, and so does this.
+User Function xtpl_hset(oHash, xKey, xValue)
+  oHash:Set(xKey, xValue)
+Return xValue
+
 // xc: 'h has k' -- whether the key is in the hash: Get's own result.
 User Function xtpl_hhas(oHash, xKey)
   Local xValue := Nil
