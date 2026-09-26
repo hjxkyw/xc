@@ -23,7 +23,8 @@ has to be compiled into the RPO alongside it.
 ## Running the tests
 
 ```sh
-rakupp run-tests.raku
+rakupp run-tests.raku          # all but the slow tests
+rakupp run-tests.raku --all    # all of them, the whole xtpl corpus too: a few minutes
 ```
 
 A single test runs on its own too:
