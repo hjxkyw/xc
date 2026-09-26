@@ -1,5 +1,7 @@
 use lib 'lib';
 use XC::Grammar;
+use XC::Actions;
+use XC::Check;
 
 # The sources xtpl refuses, copied into t/xtpl/errors/ (see its README.md).
 # Each file is in one group:
@@ -73,9 +75,17 @@ for %syntax.keys.sort -> $name
 }
 
 # ---- analysis: the grammar accepts it ------------------------------------------------
+# The grammar accepts each; XC::Check refuses it with xtpl's message, on xtpl's
+# line, and with nothing else.
 for @analysis -> $name
 {
-  check "analysis $name: the grammar accepts it", { parses(source($name)) };
+  check "analysis $name: xtpl's message, on xtpl's line, and no other", {
+    my $src = source($name);
+    my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+    my ($line, $msg) = (slurp("t/xtpl/errors/$name.err").trim ~~ / 'Line ' (\d+) ': ' (.*) $ /).list.map(~*);
+    my @p = $m ?? check-program($m.made) !! ();
+    $m && @p == 1 && @p[0].key == $line && @p[0].value eq $msg
+  };
 }
 
 # ---- decided ---------------------------------------------------------------------

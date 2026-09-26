@@ -10,6 +10,7 @@ use lib $*PROGRAM.IO.absolute.IO.parent.parent.add('lib').Str;
 use XC::Grammar;
 use XC::Actions;
 use XC::Emit;
+use XC::Check;
 use XC::Source;
 
 sub fail-with(Str $message)
@@ -58,6 +59,11 @@ unless $m
   my $line = $pos.line($*FURTHEST);
   fail-with("$in:$line: cannot parse this line: {$src.lines[$line - 1].trim}");
 }
+
+# What xtpl refuses although it parses: undeclared names, scopes, <const>,
+# the calls to this file's functions -- each with xtpl's message.
+my @refused = check-program($m.made);
+fail-with(@refused.map({ "$in:{.key}: {.value}" }).join("\n")) if @refused;
 
 my $tlpp = try emit($m.made, $src);
 if $! ~~ X::XC::NotLowered

@@ -2,10 +2,11 @@ use lib 'lib';
 use XC::Grammar;
 use XC::Actions;
 use XC::Emit;
+use XC::Check;
 
 # Every source of xtpl's test suite and every example program, in t/xtpl/,
-# compiles -- and what comes out is TL++: read back, it parses and compiles
-# to itself. The exceptions, each for a stated reason:
+# passes the checks and compiles -- and what comes out is TL++: read back, it
+# parses and compiles to itself. The exceptions, each for a stated reason:
 #
 # - 51_legacy.xtpl exercises xtpl's --legacy mode, for old AdvPL, which xc
 #   does not have;
@@ -16,10 +17,19 @@ use XC::Emit;
 
 my %skip = '51_legacy.xtpl' => 'xtpl --legacy mode';
 
-sub compile(Str $src)
+# The checks find nothing in a source xtpl compiles, and then it is emitted.
+# Not on the output read back: that is TL++, not xtpl -- its 'external' lines
+# are gone, for one -- and xtpl's rules for names do not apply to it.
+sub compile(Str $src, Bool :$checked = True)
 {
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-  $m ?? emit($m.made, $src) !! Nil
+  return Nil unless $m;
+  if $checked
+  {
+    my @p = check-program($m.made);
+    die "the checks refuse it: line {@p[0].key}: {@p[0].value}" if @p;
+  }
+  emit($m.made, $src)
 }
 
 my @files = |dir('t/xtpl/tests').grep(*.extension eq 'xtpl'),
@@ -52,7 +62,7 @@ for @files.sort -> $f
     else
     {
       my $*GENERATED-OK = True;
-      $once.defined && compile($once) eq $once
+      $once.defined && compile($once, :!checked) eq $once
     }
   };
 }
