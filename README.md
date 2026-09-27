@@ -32,8 +32,8 @@ has to be compiled into the RPO alongside it.
 From the top of the repository:
 
 ```sh
-rakupp run-tests.raku          # all but the slow tests: about 20 seconds
-rakupp run-tests.raku --all    # all of them, xtpl's whole corpus too: a few minutes
+rakupp run-tests.raku          # every test, xtpl's whole corpus too: under half a minute
+rakupp run-tests.raku --all    # and any marked slow ('# slow:' near its top) -- none are now
 ```
 
 Each test file says `ok` or `FAIL` with its count, and the run ends with the
