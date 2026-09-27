@@ -1,0 +1,185 @@
+// xc_selftest.xtpl -- runs, in Protheus, what xc added to xtpl.
+//
+// xtpl's 54_selftest.xtpl runs what xtpl's fixtures only compile; this is its
+// companion for what xc brought: fusion over arrays and the stages it fuses,
+// aPick, aRoll and setMaxRoll, digit separators, hash writes inside
+// expressions, chains as a private's value and under a postfix modifier. Pure
+// computation, as 54 is: no table, no file, no screen, so a right or wrong
+// answer and not an environment.
+//
+// Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
+// prints a line per failure and a total, and returns how many failed.
+//
+//   xc_selftest: 44 ok, 0 failed
+//
+// 'rakupp run-protheus.raku' does all of that, for this and for 54.
+// --------------------------------------------------------------------------------
+
+user function xc_selftest()
+  local nOk := 0
+  local nBad := 0
+  local aNums := {3, 1, 4, 1, 5, 9, 2, 6}
+  local aRep := {1, 1, 2, 2, 2, 3, 1}
+  local aPal := {"beta", "alfa", "gama"}
+  local aDist := {10, 20, 30, 40, 50, 60, 70, 80}
+  local aPeople := {{"ana", 30}, {"bia", 25}, {"caio", 30}}
+  local aPairs := {{"x", 10}, {"y", 20}}
+  local hCount := {=>}
+  local hMap := {"a" => 1}
+  local hKeep := {=>}
+  local aTmp := {}
+  local aBig := {}
+  local aSeen := {}
+  local nTmp := 0
+  local nSeen := 0
+  local nOld := 0
+  local cTmp := ""
+  local lTmp := .F.
+  private pTotal := aNums |> filter([x] x > 0) |> asum
+
+  // ---- fusion over arrays: one loop, the stages inside it ---------------------
+  nTmp := aNums |> filter([x] x > 2) |> map([x] x * 10) |> asum
+  check("filter, map, asum", nTmp == 270, nTmp, @nOk, @nBad)
+
+  // A take stops the loop: the tap sees five elements, not all eight.
+  aTmp := aNums |> tap([x] nSeen := nSeen + 1) |> filter([x] x > 2) |> take(2)
+  check("take stops the loop", nSeen == 5 .and. len(aTmp) == 2 .and. aTmp[2] == 4, nSeen, @nOk, @nBad)
+
+  nTmp := aNums |> filter([x] x < 4) |> aprod
+  check("aprod", nTmp == 6, nTmp, @nOk, @nBad)
+  nTmp := aNums |> map([x] x * 2) |> amax
+  check("amax", nTmp == 18, nTmp, @nOk, @nBad)
+  nTmp := aNums |> map([x] x * 2) |> amin
+  check("amin", nTmp == 2, nTmp, @nOk, @nBad)
+
+  cTmp := aPal |> map([p] upper(p)) |> join(", ")
+  check("join", cTmp == "BETA, ALFA, GAMA", cTmp, @nOk, @nBad)
+
+  nTmp := aNums |> filter([x] x > 4) |> reduce([s, x] s + x, 100)
+  check("reduce", nTmp == 120, nTmp, @nOk, @nBad)
+  nTmp := aNums |> filter([x] x > 4) |> fold([s, x] s * x)
+  check("fold", nTmp == 270, nTmp, @nOk, @nBad)
+
+  aTmp := aPeople |> filter([p] p[2] > 0) |> maxby([p] p[2])
+  check("maxby: the first of the greatest", aTmp[1] == "ana", aTmp[1], @nOk, @nBad)
+  aTmp := aPeople |> filter([p] p[2] > 0) |> minby([p] p[2])
+  check("minby", aTmp[1] == "bia", aTmp[1], @nOk, @nBad)
+
+  aTmp := aRep |> map([x] x * 1) |> chunkby([x] x)
+  check("chunkby", len(aTmp) == 4 .and. len(aTmp[2]) == 3, len(aTmp), @nOk, @nBad)
+
+  aTmp := {1, 2, 3, 4} |> scan([s, x] s + x, 0) |> take(3)
+  check("scan", len(aTmp) == 3 .and. aTmp[3] == 6, len(aTmp), @nOk, @nBad)
+  aTmp := {1, 4, 9, 16} |> pairwise |> map([p] p[2] - p[1])
+  check("pairwise", len(aTmp) == 3 .and. aTmp[1] == 3 .and. aTmp[3] == 7, len(aTmp), @nOk, @nBad)
+  nTmp := aRep |> distinctAdjacent |> count
+  check("distinctAdjacent", nTmp == 4, nTmp, @nOk, @nBad)
+
+  nTmp := aNums |> map([x] x * 3) |> first([x] x > 10)
+  check("first", nTmp == 12, nTmp, @nOk, @nBad)
+  lTmp := aNums |> filter([x] x > 0) |> anyof([x] x > 8)
+  check("anyof", lTmp, lTmp, @nOk, @nBad)
+  lTmp := aNums |> filter([x] x > 0) |> allof([x] x < 10)
+  check("allof", lTmp, lTmp, @nOk, @nBad)
+  lTmp := aNums |> filter([x] x > 0) |> noneof([x] x > 100)
+  check("noneof", lTmp, lTmp, @nOk, @nBad)
+  nTmp := aNums |> filter([x] x > 0) |> count([x] x % 2 == 0)
+  check("count with a condition", nTmp == 3, nTmp, @nOk, @nBad)
+
+  nTmp := {{1, 2}, {3}} |> expand([x] x) |> asum
+  check("expand", nTmp == 6, nTmp, @nOk, @nBad)
+  nTmp := aNums |> dropwhile([x] x != 5) |> takewhile([x] x != 2) |> asum
+  check("dropwhile, takewhile", nTmp == 14, nTmp, @nOk, @nBad)
+  nTmp := aNums |> drop(6) |> asum
+  check("drop", nTmp == 8, nTmp, @nOk, @nBad)
+
+  // Run for its effects: the loop alone.
+  nTmp := 0
+  aNums |> tap([x] nTmp := nTmp + x)
+  check("a chain run for its effects", nTmp == 31, nTmp, @nOk, @nBad)
+
+  // Inside an expression a chain is calls, one per stage.
+  nTmp := len(aNums |> filter([x] x > 2) |> map([x] x))
+  check("a chain inside an expression", nTmp == 5, nTmp, @nOk, @nBad)
+
+  check("a chain as a private's value", pTotal == 31, pTotal, @nOk, @nBad)
+
+  nTmp := 0
+  nTmp := aNums |> filter([x] x > 0) |> asum if len(aNums) > 0
+  check("under a postfix if, taken", nTmp == 31, nTmp, @nOk, @nBad)
+  nTmp := 0
+  nTmp := aNums |> filter([x] x > 0) |> asum if len(aNums) > 100
+  check("under a postfix if, not taken", nTmp == 0, nTmp, @nOk, @nBad)
+
+  // ---- hash writes inside expressions ------------------------------------------
+  aeval(aRep, [x] hCount{x} := (hCount{x} ?: 0) + 1)
+  check("counting in a lambda", hCount{1} == 3 .and. hCount{2} == 3 .and. hCount{3} == 1, hCount{1}, @nOk, @nBad)
+  aeval({1, 2, 3}, [x] hMap{"a"} += x)
+  check("'+=' in a lambda", hMap{"a"} == 7, hMap{"a"}, @nOk, @nBad)
+  aeval(aPairs, [p] hKeep{p[1]} := p[2])
+  check("a hash from pairs", hKeep{"y"} == 20, hKeep{"y"}, @nOk, @nBad)
+  nTmp := same(hKeep{"z"} := 42)
+  check("a hash write gives the value written", nTmp == 42 .and. hKeep{"z"} == 42, nTmp, @nOk, @nBad)
+
+  // ---- digit separators, and a range beside another test ---------------------------
+  nTmp := 12'345 + 1'000.5
+  check("digit separators", nTmp == 13345.5, nTmp, @nOk, @nBad)
+  lTmp := .F.
+  if "alfa" in aPal .and. nTmp in 13'000..14'000
+    lTmp := .T.
+  endif
+  check("a range test beside another test", lTmp, lTmp, @nOk, @nBad)
+
+  // ---- aPick, aRoll, setMaxRoll ------------------------------------------------------
+  aTmp := aPick(aDist)
+  check("aPick: one element", len(aTmp) == 1 .and. aTmp[1] in aDist, len(aTmp), @nOk, @nBad)
+  aTmp := aPick(aDist, 5)
+  check("aPick: five, all different", len(aTmp) == 5 .and. len(aTmp |> distinct) == 5, len(aTmp), @nOk, @nBad)
+  aTmp := aPick(aDist, 20)
+  check("aPick: more than there is gives all", len(aTmp) == 8 .and. (aTmp |> asum) == 360, len(aTmp), @nOk, @nBad)
+  check("aPick: none", len(aPick(aDist, 0)) == 0 .and. len(aPick({}, 3)) == 0 .and. len(aPick(aDist, -1)) == 0, 0, @nOk, @nBad)
+
+  // Every value exactly once -- a true permutation -- and positions past
+  // 32,767, which Randomize() never reaches, included.
+  aBig := 1..40'000 |> map([x] x)
+  aTmp := aPick(aBig, 40'000)
+  aSeen := Array(40'000)
+  aeval(aTmp, [x] aSeen[x] := .T.)
+  nTmp := aSeen |> filter([s] ValType(s) == "L") |> count
+  check("aPick: a permutation of 40,000", len(aTmp) == 40000 .and. nTmp == 40000, nTmp, @nOk, @nBad)
+
+  aTmp := aRoll(aDist, 50)
+  check("aRoll: fifty, each one of a's", len(aTmp) == 50 .and. (aTmp |> allof([x] x in aDist)), len(aTmp), @nOk, @nBad)
+  aTmp := aRoll({7}, 5)
+  check("aRoll: the same element again", len(aTmp) == 5 .and. (aTmp |> asum) == 35, len(aTmp), @nOk, @nBad)
+  check("aRoll: one by default, none from nothing", len(aRoll(aDist)) == 1 .and. len(aRoll({}, 5)) == 0, 0, @nOk, @nBad)
+  nOld := setMaxRoll(10)
+  aTmp := aRoll(aDist, 50)
+  check("setMaxRoll: the maximum, and the one it replaced", len(aTmp) == 10 .and. nOld == 1000, len(aTmp), @nOk, @nBad)
+  nTmp := setMaxRoll(nOld)
+  check("setMaxRoll: put back", nTmp == 10 .and. len(aRoll(aDist, 50)) == 50, nTmp, @nOk, @nBad)
+
+  // The draws are random: 200 single picks from 8 do not all land on one.
+  aTmp := {}
+  for 200 times
+    aadd(aTmp, aPick(aDist)[1])
+  next
+  check("aPick draws at random", len(aTmp |> distinct) > 1, len(aTmp |> distinct), @nOk, @nBad)
+
+  conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
+
+return nBad
+
+// --------------------------------------------------------------------------------
+
+static function check(cName, lOk, xSeen, nOk, nBad)
+  if lOk
+    nOk := nOk + 1
+  else
+    nBad := nBad + 1
+    conout("FAILED  " + cName + "  (seen: " + cValToChar(xSeen) + ")")
+  endif
+return nil
+
+static function same(xValue)
+return xValue

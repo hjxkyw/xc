@@ -66,8 +66,11 @@ sub compile(Str $src, :@expected, :%dictionary, Bool :$checked = True)
   emit($m.made, $src)
 }
 
+# And xc's self-test for an AppServer (run-protheus.raku), which has to be as
+# clean as any of them: no error, no warning, the output read back.
 my @files = |dir('xtpl/tests').grep(*.extension eq 'xtpl'),
-            |dir('xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') });
+            |dir('xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') }),
+            't/protheus/xc_selftest.xtpl'.IO;
 
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)

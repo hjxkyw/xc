@@ -4,3 +4,4 @@ rakupp/
 *.tar.gz
 notes.md
 notes.txt
+build/
