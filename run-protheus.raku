@@ -12,6 +12,8 @@
 #    environment's RPO:
 #      appserver -compile -files=<file;file;file> -includes=<path> -env=<name>
 #                [-authorization=<file>]
+#    and says how it went in a line of its own, which is what this reads:
+#      [CMDLINE] Compilation Results .: Total sources(3) Success(3) Errors(0)
 # 3. It runs each one:
 #      appserver -run=u_selftest -env=<name>
 #      appserver -run=u_xc_selftest -env=<name>
@@ -108,9 +110,22 @@ if $compile
   my ($code, $text) = appserver('-compile', "-files={@files.join(';')}", "-includes={%opt<includes>}",
                                 "-env={%opt<env>}", |(%opt<authorization> ?? "-authorization={%opt<authorization>}" !! ()));
   print $text.lines.map({ "    $_\n" }).join;
-  if $code
+  # Its results line -- not the exit code alone -- says whether it compiled:
+  # every file given, none with an error.
+  my $results = $text ~~ / 'Compilation Results' \N*? 'Total sources(' (\d+) ')' \h* 'Success(' (\d+) ')'
+                           \h* 'Errors(' (\d+) ')' /;
+  my $why = do
   {
-    say "\n  the AppServer's compile ended with exit code $code";
+    if    !$results                   { "no 'Compilation Results' line from the AppServer: its compile did not finish" }
+    elsif +$results[2]                { "the AppServer compiled with {+$results[2]} error(s)" }
+    elsif +$results[0] != @files      { "{+@files} files given, the AppServer compiled {+$results[0]}" }
+    elsif +$results[1] != +$results[0] { "{+$results[1]} of {+$results[0]} sources compiled" }
+    elsif $code                       { "the AppServer's compile ended with exit code $code" }
+    else                              { Str }
+  };
+  with $why
+  {
+    say "\n  $_";
     exit 1;
   }
 }

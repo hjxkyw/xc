@@ -56,8 +56,9 @@ rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--author
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 ```
 
-It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`,
-then `appserver -run=u_selftest -env=...` and `-run=u_xc_selftest`. The
+It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
+and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`
+line, then `appserver -run=u_selftest -env=...` and `-run=u_xc_selftest`. The
 settings can come from `XC_APPSERVER`, `XC_ENV`, `XC_INCLUDES` and
 `XC_AUTHORIZATION` instead, so that once set a run is just
 `rakupp run-protheus.raku`. The AppServer defaults to `appserver.exe` on
