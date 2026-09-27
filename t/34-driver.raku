@@ -111,6 +111,27 @@ check 'a wrong command line exits with 2: --check with an output, an unknown opt
     && xc()<code> == 2
 };
 
+# ---- the test runner ------------------------------------------------------------------------
+# Only the refusals: running it for real would run this very suite.
+check "run-tests.raku: an option it does not know is refused before any test runs, '-all' with a hint",
+{
+  my $p = run $*EXECUTABLE, 'run-tests.raku', '-all', :out, :err;
+  my $out = $p.out.slurp(:close);
+  my $err = $p.err.slurp(:close);
+  my $q = run $*EXECUTABLE, 'run-tests.raku', '--quick', :out, :err;
+  $q.out.slurp(:close);
+  my $qerr = $q.err.slurp(:close);
+  $p.exitcode == 2 && !$out.contains('ok ') && $err.contains("-all: no such option -- '--all', with two dashes")
+    && $q.exitcode == 2 && $qerr.contains('--quick: no such option') && !$qerr.contains('two dashes')
+};
+check 'run-tests.raku --help: the usage, and 0',
+{
+  my $p = run $*EXECUTABLE, 'run-tests.raku', '--help', :out, :err;
+  my $out = $p.out.slurp(:close);
+  $p.err.slurp(:close);
+  $p.exitcode == 0 && $out.contains('usage: rakupp run-tests.raku [--all]')
+};
+
 run 'rm', '-rf', ~$dir;
 
 say "\n  $ok of $total";

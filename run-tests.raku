@@ -6,14 +6,36 @@
 # A test is slow when a line near its top says so: '# slow: <why>'. Left out,
 # it is named at the end, so a quick run never passes for a full one.
 #
+# Anything else on the command line is refused before a test runs, with exit
+# code 2: a mistyped '-all' used to be ignored, and a quick run passed for a
+# full one.
+#
 # Each test ends with a line "  N of M" and exits with 1 if N < M. A test
 # counts as failed if its tally does not add up, if it exits with a non-zero
 # code, or if it prints no tally at all -- that last one catches a test that
 # died halfway, or a new test that forgot to count.
 
+my $usage = 'usage: rakupp run-tests.raku [--all]';
+for @*ARGS -> $a
+{
+  next if $a eq '--all';
+  if $a eq '--help'
+  {
+    say $usage;
+    exit 0;
+  }
+  # '-all', 'all', '---all': what was meant, most likely.
+  my $hint = $a.subst(/ ^ '-'* /, '') eq 'all' ?? " -- '--all', with two dashes" !! '';
+  note "$a: no such option$hint\n$usage";
+  exit 2;
+}
 my $all = so @*ARGS.first('--all');
 my $root = $*PROGRAM.IO.absolute.IO.parent;
 my @tests = $root.add('t').dir.grep(*.extension eq 'raku').sort;
+
+# The names in a column as wide as the longest, slow ones included, so the
+# counts line up the same in a quick run and a full one.
+my $width = @tests.map(*.basename.chars).max + 2;
 
 # A '# slow: ...' line among the first ten.
 sub slow(IO::Path $t --> Bool)
@@ -43,7 +65,7 @@ for @tests -> $t
   my $count = $m.defined ?? "$n of $m" !! 'no tally';
   $count ~= " (exited with $code)" if $code != 0;
 
-  say(($passed ?? '  ok    ' !! '  FAIL  '), $t.basename.fmt('%-26s'), $count);
+  say(($passed ?? '  ok    ' !! '  FAIL  '), $t.basename.fmt("%-{$width}s"), $count);
 
   if $m.defined
   {
