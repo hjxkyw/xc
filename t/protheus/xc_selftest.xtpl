@@ -10,7 +10,7 @@
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 44 ok, 0 failed
+//   xc_selftest: 52 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // --------------------------------------------------------------------------------
@@ -30,6 +30,7 @@ user function xc_selftest()
   local aTmp := {}
   local aBig := {}
   local aSeen := {}
+  local aCalls := {}
   local nTmp := 0
   local nSeen := 0
   local nOld := 0
@@ -166,6 +167,28 @@ user function xc_selftest()
   next
   check("aPick draws at random", len(aTmp |> distinct) > 1, len(aTmp |> distinct), @nOk, @nBad)
 
+  // ---- the runtime: distinct, split, sortBy -----------------------------------------
+  // One pass, one search from where it stopped, one key per element -- and the
+  // same answers as before.
+  aTmp := aBig |> map([x] x % 1000)
+  aTmp := distinct(aTmp)
+  check("distinct: 1000 from 40,000, first seen first", len(aTmp) == 1000 .and. aTmp[1] == 1 .and. aTmp[1000] == 0, len(aTmp), @nOk, @nBad)
+  aTmp := distinct({3, "3", 3, "a", "a ", "a", .T., .T., Nil, Nil})
+  check("distinct: types kept apart, a trailing space kept", len(aTmp) == 6 .and. aTmp[2] == "3" .and. aTmp[4] == "a ", len(aTmp), @nOk, @nBad)
+  aTmp := split("one two  three", " ")
+  check("split on a space", len(aTmp) == 4 .and. aTmp[3] == "" .and. aTmp[4] == "three", len(aTmp), @nOk, @nBad)
+  aTmp := split("a::b::::c::", "::")
+  check("split on two characters, empty parts kept", len(aTmp) == 5 .and. aTmp[3] == "" .and. aTmp[4] == "c" .and. aTmp[5] == "", len(aTmp), @nOk, @nBad)
+  aTmp := split("aaa", "aa")
+  check("split: overlapping separators", len(aTmp) == 2 .and. aTmp[2] == "a", len(aTmp), @nOk, @nBad)
+  check("split: no separator, the whole text", len(split("abc", "")) == 1, 0, @nOk, @nBad)
+  aTmp := split(replicate("x;", 20'000), ";")
+  check("split: 20,000 parts", len(aTmp) == 20001 .and. aTmp[20000] == "x" .and. aTmp[20001] == "", len(aTmp), @nOk, @nBad)
+  aCalls := {0}
+  aTmp := aBig |> take(1000)
+  aTmp := sortBy(aTmp, [x] counted(aCalls, x), .T.)
+  check("sortBy: each key evaluated once", aCalls[1] == 1000 .and. aTmp[1] == 1000 .and. aTmp[1000] == 1, aCalls[1], @nOk, @nBad)
+
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
 
 return nBad
@@ -182,4 +205,9 @@ static function check(cName, lOk, xSeen, nOk, nBad)
 return nil
 
 static function same(xValue)
+return xValue
+
+// A key that counts how often it is asked for.
+static function counted(aCalls, xValue)
+  aCalls[1] := aCalls[1] + 1
 return xValue
