@@ -22,6 +22,10 @@
 // prefix that goes with it.
 // --------------------------------------------------------------------------------
 
+// xc: the most elements aRoll hands back, set with setMaxRoll. A static, so
+// per thread, as AdvPL's are.
+Static snMaxRoll := 1000
+
 User Function xtpl_map(aData, bExpr)
   Local aRes := Array(Len(aData))
   Local nX
@@ -718,3 +722,60 @@ Return XtplQueue():New(nSize)
 
 // --------------------------------------------------------------------------------
 // the end
+
+// xc: 'aPick(a[, n])' -- n elements of a (one by default), each from a
+// different position, in the order drawn; the elements themselves, not
+// copies. As take does, it gives what there is: all of them, shuffled, when n
+// is more than a has; none for n below 1.
+//
+// A Fisher-Yates shuffle that stops after n draws, keeping only the
+// positions it moved: picking 3 from a million costs 3 steps, not a million.
+// Random(), not Randomize(): Randomize reaches only 32,767 values, so from a
+// bigger array it would never pick the rest. Random covers the full integer
+// range, both ends included -- AppServer 19.3.1 or later.
+User Function xtpl_apick(aFrom, nCount)
+  Local aOut := {}
+  Local nLen := Len(aFrom)
+  Local oMoved := THashMap():New()
+  Local nWant
+  Local nI
+  Local nJ
+  Local nAtI
+  Local nAtJ
+  Default nCount := 1
+  nWant := Int(Min(nLen, Max(0, nCount)))
+  For nI := 1 To nWant
+    nJ := Random(nI, nLen)
+    If !oMoved:Get(nJ, @nAtJ)
+      nAtJ := nJ
+    EndIf
+    If !oMoved:Get(nI, @nAtI)
+      nAtI := nI
+    EndIf
+    // Position nI is done with; nJ now holds what nI held.
+    oMoved:Set(nJ, nAtI)
+    AAdd(aOut, aFrom[nAtJ])
+  Next
+Return aOut
+
+// xc: 'aRoll(a[, n])' -- n elements of a (one by default), each chosen on its
+// own, so one may come more than once. No more than setMaxRoll allows (1000
+// unless set); none from an empty array, or for n below 1.
+User Function xtpl_aroll(aFrom, nCount)
+  Local aOut := {}
+  Local nLen := Len(aFrom)
+  Local nWant
+  Local nI
+  Default nCount := 1
+  nWant := If(nLen == 0, 0, Int(Min(snMaxRoll, Max(0, nCount))))
+  For nI := 1 To nWant
+    AAdd(aOut, aFrom[Random(1, nLen)])
+  Next
+Return aOut
+
+// xc: 'setMaxRoll(n)' -- the most elements aRoll hands back from now on, in
+// this thread; the maximum it had, so it can be put back.
+User Function xtpl_setmaxroll(nMax)
+  Local nWas := snMaxRoll
+  snMaxRoll := Int(Max(0, nMax))
+Return nWas

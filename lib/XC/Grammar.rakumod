@@ -896,7 +896,11 @@ rule lvalue      { [ '(' ~ ')' <pexpr=expr> <trailer>+ ] || [ <call> <trailer>+ 
 
 # ---- terminals ----------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
-token number   { \d+ [ '.' \d+ ]? }
+# Digits may be grouped with an apostrophe, as C++14 does with the same
+# character: '12'345'678', '1'234.567'8'. Only between two digits -- never
+# first, last, doubled, beside the point, or before a space -- so it cannot be
+# taken for a string: a string straight after a number was never valid.
+token number   { \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? }
 # ---- strings, and xtpl's interpolation ----------------------------------------
 #
 #     "total = ${nTotal} items"       ("total = " + cValToChar(nTotal) + " items")

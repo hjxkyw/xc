@@ -35,6 +35,17 @@ class X::XC::NotLowered is Exception is export
 # Splits a piece of source into its code and its comments, outside strings.
 # The comments come back joined on one line, a block comment as its text: a
 # rewritten line has only its end to put them on.
+# A "'" between two digits groups them ('12'345'678') -- the grammar's rule --
+# and does not open a string. No valid program has a digit, a "'" and a digit
+# in a row otherwise: a string cannot follow a number.
+sub is-separator(Str $text, Int $i --> Bool)
+{
+  return False unless $i > 0 && $i + 1 < $text.chars;
+  my $before = $text.substr($i - 1, 1);
+  my $after  = $text.substr($i + 1, 1);
+  so '0' le $before le '9' && '0' le $after le '9'
+}
+
 sub split-comment(Str $text --> List) is export
 {
   my ($code, @comments) = '';
@@ -48,7 +59,7 @@ sub split-comment(Str $text --> List) is export
       $code ~= $c;
       $i++;
     }
-    elsif $c eq '"' || $c eq "'"
+    elsif $c eq '"' || ($c eq "'" && !is-separator($text, $i))
     {
       $quote = $c;
       $code ~= $c;
@@ -91,7 +102,7 @@ sub code-end(Str $text --> Int) is export
       $quote = '' if $c eq $quote;
       $end = ++$i;
     }
-    elsif $c eq '"' || $c eq "'"
+    elsif $c eq '"' || ($c eq "'" && !is-separator($text, $i))
     {
       $quote = $c;
       $end = ++$i;
@@ -129,6 +140,7 @@ my constant VERBS = set <
   enumerate chunks zip asum aprod amax amin anyof allof noneof keys values
   pairs takewhile dropwhile chunkby first count distinctadjacent maxby minby
   scan expand tap pairwise queue split join starts ends contains
+  apick aroll setmaxroll
 >;
 
 sub call-name(Str $name --> Str)
@@ -1702,7 +1714,7 @@ class Emitter
         $out ~= $text.substr($i);
         last;
       }
-      elsif $c eq '"' || $c eq "'"
+      elsif $c eq '"' || ($c eq "'" && !is-separator($text, $i))
       {
         my $close = $text.index($c, $i + 1) // $n - 1;
         my $str = $text.substr($i, $close - $i + 1);
@@ -1944,6 +1956,8 @@ class Emitter
                { $i == 0 ?? self!part($a) !! self!block-arg($call.name, $a) }).join(', ') ~ ')'
           !! self!with-edits($call, subexprs($call))
       }
+      # '12'345'678': TL++ has no digit separators.
+      when { $_ ~~ Literal && .type eq 'Numeric' } { .text.subst("'", '', :g) }
       default { self!with-edits($_, subexprs($_)) }
     }
   }
@@ -1958,6 +1972,7 @@ class Emitter
     return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
     return True if $e ~~ AssignExpr && $e.target ~~ HashIndex;
     return True if $e ~~ SafeMember || $e ~~ SafeCall;
+    return True if $e ~~ Literal && $e.type eq 'Numeric' && $e.text.contains("'");
     return True if ($e ~~ Member || $e ~~ MethodCall) && $e.base ~~ SubjectRef;
     return True if $e ~~ Binary && $e.op (elem) <in has %% ?:>;
     False
