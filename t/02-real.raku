@@ -22,7 +22,7 @@ sub check-file($path)
   return False;
 }
 
-my @files = @*ARGS || 'examples/saldo.xtpl';
+my @files = @*ARGS || 'xtpl/examples/saldo/saldo.xtpl';
 my $ok = 0;
 $ok++ for @files.grep({ check-file($_) });
 say "\n  $ok of {@files.elems}";

@@ -5,11 +5,11 @@ use XC::Grammar;
 #
 #   rakupp t/03-batch.raku /path/to/some/sources
 #
-# Without an argument it uses examples/.
+# Without an argument it uses xtpl/examples/saldo/, xc's own example.
 #
 # It reads .xtpl and also .tlpp and .prw: xtpl is TL++ with extensions, so
 # every valid TL++ file has to match here.
-my $dir = @*ARGS[0] // 'examples';
+my $dir = @*ARGS[0] // 'xtpl/examples/saldo';
 
 unless $dir.IO.d
 {

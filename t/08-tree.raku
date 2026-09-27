@@ -33,7 +33,7 @@ sub check(Str $what, &test)
 }
 
 # ---- the reference file --------------------------------------------------------
-my $p = tree(slurp('examples/saldo.xtpl'));
+my $p = tree(slurp('xtpl/examples/saldo/saldo.xtpl'));
 
 check 'saldo.xtpl: namespace, using, include',
 {

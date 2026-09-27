@@ -6,7 +6,10 @@ now only serves to bootstrap xc; this is its knowledge, kept at the top of
 xc's repository, apart from xc's own tests in `t/`, which read it.
 
 The files are byte for byte xtpl's -- line ends and encodings included -- and
-are not edited here: to take a newer version, copy the folders again. Most of
+are not edited here: to take a newer version, copy the folders again. One
+folder is not xtpl's: `examples/saldo/` is xc's own small source, written for
+xc's parser tests (`t/02`, `t/03`, `t/08`, `t/09`); xtpl never compiled it,
+and it has no `.tlpp` of xtpl's beside it. Most of
 the text in them is in Portuguese, as xtpl's was.
 
 | | | read by |

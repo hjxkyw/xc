@@ -147,7 +147,7 @@ check '{ : }, { => } and {}: the empty one of each kind',
 # 'nX' used to appear only inside 'aTitulos[nX]:nSaldo', which was text.
 check 'saldo.xtpl: every name appears in the tree, nX included',
 {
-  my $src = slurp('examples/saldo.xtpl');
+  my $src = slurp('xtpl/examples/saldo/saldo.xtpl');
   my $p = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src)).made;
   my %seen;
   walk($p.functions[0].body, -> $s

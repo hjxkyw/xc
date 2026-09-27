@@ -40,6 +40,9 @@ my %extra =
   '27_hash.xtpl'         => ("line 13: 'xValor' is assigned but never read",),
   '31_feed.xtpl'         => ("line 9: 'aCodes' is assigned but never read", "line 10: 'aTop' is assigned but never read"),
   '53_kitchen_sink.xtpl' => ("line 13: 'cName' is assigned but never read", "line 14: 'cPick' is assigned but never read"),
+  # Not xtpl's: xc's own example, written for its parser tests, which check
+  # its lines and statements as they are -- two locals are only assigned.
+  'saldo.xtpl'           => ("line 23: 'jResposta' is assigned but never read", "line 24: 'hCache' is assigned but never read"),
   ;
 
 # The checks, and then the emitter. Not on the output read back: that is
