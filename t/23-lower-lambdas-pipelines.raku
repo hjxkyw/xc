@@ -63,9 +63,11 @@ lowers 'queue() is a runtime verb too',
   'x := u_xtpl_queue(256)';
 
 # ---- pipelines ----------------------------------------------------------------------
-lowers 'filter |> map: nested calls, the value going first',
-  'x := aP |> filter([p] p:nV > 1000) |> map([p] p:cC)',
-  'x := u_xtpl_map(u_xtpl_filter(aP, {|p| p:nV > 1000}), {|p| p:cC})';
+# Inside an expression a chain is one call per stage: it is fused only as a
+# statement's whole value (t/36-array-fusion.raku).
+lowers 'filter |> map in an expression: nested calls, the value going first',
+  'x := len(aP |> filter([p] p:nV > 1000) |> map([p] p:cC))',
+  'x := len(u_xtpl_map(u_xtpl_filter(aP, {|p| p:nV > 1000}), {|p| p:cC}))';
 lowers 'a bare-name stage',
   'x := a |> distinct |> asum',
   'x := u_xtpl_asum(u_xtpl_distinct(a))';
@@ -132,6 +134,7 @@ check "a chain from a source in a static's value is reported, with where it can 
 check 'the output compiles to itself',
 {
   my $once = compile(with-includes("user function f(a)\n  local x := a |> filter([o] o > 1) |> asum  // n\n  aP |> tap([p] conout(p))\nreturn map(a, [o] o * 2)\n"));
+  my $*GENERATED-OK = True;          # the fused loops declare xc's own names
   $once.defined && compile($once) eq $once
 };
 

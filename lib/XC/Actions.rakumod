@@ -796,10 +796,21 @@ sub pipeline(Expr $source, $feeds)
   @stages ?? Pipeline.new(source => $source, stages => @stages) !! $source
 }
 
-# 'lo..hi' when there is a '..', otherwise just 'lo'.
+# 'lo..hi' when there is a '..', otherwise just 'lo'. The range spans from
+# its low end to its high one: without a span, the 'in' around it had none
+# either, and in a condition with something else to lower ('a in b .and. n in
+# 1..100') the emitter could not place its rewrite -- the range test was left
+# as written, which is not TL++.
 sub interval(Expr $lo, $hi)
 {
-  $hi ?? Interval.new(lo => $lo, hi => $hi.made) !! $lo
+  return $lo unless $hi;
+  my $i = Interval.new(lo => $lo, hi => $hi.made);
+  if $lo.src-from >= 0 && $hi.made.src-to >= 0
+  {
+    $i.src-from = $lo.src-from;
+    $i.src-to   = $hi.made.src-to;
+  }
+  $i
 }
 
 sub assign-expr(Assignment $a)

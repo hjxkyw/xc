@@ -74,6 +74,11 @@ for <57_range_source 20_object 26_raw> -> $t
 }
 
 # ---- ranges ---------------------------------------------------------------------------------
+check "a range test beside another rewrite in one condition: both rewritten",
+{
+  my $src = qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(a, b, n)\n  if a in b .and. n in 1..100\n    n := 1\n  endif\nreturn n\n];
+  compile($src).contains('  if u_xtpl_in(a, b) .and. (n >= 1 .And. n <= 100)')
+};
 lowers 'a range at the head of a chain counts; the element is a copy of the counter',
   "  n := 1..10 |> map([i] i * 2) |> asum",
   "  fo_0_0 := 0\n  For fi_0_0 := 1 To 10\n    fv_0_0 := fi_0_0\n    fv_0_0 := fv_0_0 * 2\n    fo_0_0 := fo_0_0 + fv_0_0\n  Next\n  n := fo_0_0";

@@ -142,8 +142,26 @@ sub call-name(Str $name --> Str)
 # loop over the work area or the file, with the stages inside it, and nothing
 # is materialised. These stages fuse into the loop; a terminal ends it; any
 # other stage applies, as an ordinary call, to what the loop collected.
-my constant FUSED        = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent>;
-my constant TERMINAL     = set <asum count anyof allof noneof first>;
+#
+# A chain over an ARRAY fuses the same way -- one loop, no array between the
+# stages, a 'take' that stops it -- when it is a statement's whole value and
+# at least two of its stages fuse (all of them, for a chain run for its
+# effects), as xtpl does. Anywhere else it stays one call per stage, which is
+# what a chain means; fusing only saves the work.
+my constant FUSED        = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent
+                                scan pairwise>;
+my constant TERMINAL     = set <asum count anyof allof noneof first aprod amax amin join reduce fold maxby minby
+                                chunkby>;
+
+# The stages a chain from a source has fused from the start. The others fuse
+# only when written to fuse -- scan with its two-parameter step and a seed --
+# and are an ordinary call on what the loop collected otherwise.
+my constant FIRST-FUSED = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent>;
+
+# The terminals a chain from a source has had from the start: a lambda missing
+# from one is an error there. The others fuse only when written to fuse, and
+# are an ordinary call otherwise.
+my constant FIRST-TERMINALS = set <asum count anyof allof noneof first>;
 my constant NEEDS-LAMBDA = set <filter reject map tap takewhile dropwhile expand anyof allof noneof>;
 
 # The stages that stop the walk with an 'Exit'. After an 'expand' that Exit
@@ -178,23 +196,6 @@ sub source-kind(Expr $src --> Str)
   $src ~~ Interval ?? 'range' !! $src.name.lc
 }
 
-# The stages split into the fused run, the terminal that may end it, and the
-# rest, which apply to the result. A Hash, not a List of Lists: rakupp 4.0.1
-# flattens a List inside any list assignment, even one itemized with '$( )'.
-sub split-stages(@stages --> Hash)
-{
-  my (@fused, $terminal, @rest);
-  my $expanded = False;
-  for @stages -> $st
-  {
-    my $n = $st.name.lc;
-    my $free = !@rest && !$terminal.defined && !($expanded && EXITS{$n});
-    if $free && FUSED{$n}            { @fused.push($st); $expanded ||= $n eq 'expand' }
-    elsif $free && TERMINAL{$n}      { $terminal = $st }
-    else                             { @rest.push($st) }
-  }
-  %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
-}
 
 class Emitter
 {
@@ -445,6 +446,104 @@ class Emitter
     @found
   }
 
+  # A chain's stages split into the fused run, the terminal that may end it,
+  # and the rest, which apply to the result. Over an array a stage fuses only
+  # when it can be written into the loop (its lambda in the stage); over a
+  # source a missing lambda is an error (chain-problems), so the stages from
+  # the start are taken as they come. A Hash, not a List of Lists: rakupp 4.0.1
+  # flattens a List inside any list assignment, even one itemized with '$( )'.
+  method !split(Expr $chain --> Hash)
+  {
+    my @stages = $chain ~~ Pipeline ?? $chain.stages.list !! ();
+    my $array = $chain ~~ Pipeline && !is-source($chain.source);
+    my (@fused, $terminal, @rest);
+    my $expanded = False;
+    for @stages -> $st
+    {
+      my $n = $st.name.lc;
+      my $free = !@rest && !$terminal.defined && !($expanded && EXITS{$n});
+      if $free && FUSED{$n} && ((!$array && FIRST-FUSED{$n}) || self!inlinable($st))
+      {
+        @fused.push($st);
+        $expanded ||= $n eq 'expand';
+      }
+      elsif $free && TERMINAL{$n} && ((!$array && FIRST-TERMINALS{$n}) || self!inlinable($st))
+      {
+        $terminal = $st;
+      }
+      else
+      {
+        @rest.push($st);
+      }
+    }
+    %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
+  }
+
+  # Whether a stage can be written into a loop: its block written in the stage
+  # (a function name is one too), with what it needs.
+  method !inlinable($st --> Bool)
+  {
+    my $n = $st.name.lc;
+    my @a = $st.args.list;
+    my $block = @a == 1 && (self!is-lambda(@a[0]) || self!is-function-name($n, @a[0]));
+    return @a == 1 if $n (elem) <take drop>;
+    return !@a || $block if $n (elem) <distinctadjacent count first>;
+    return !@a if $n (elem) <asum aprod amax amin pairwise>;
+    if $n eq 'scan'
+    {
+      my $l = @a[0];
+      return False unless @a == 2 && $l ~~ Lambda && $l.params == 2;
+      my @p = $l.params.map(*.lc);
+      my $writes = False;
+      walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
+      return !$writes;
+    }
+    return @a <= 1 if $n eq 'join';
+    if $n (elem) <reduce fold>
+    {
+      my $l = @a[0];
+      return False unless @a == ($n eq 'reduce' ?? 2 !! 1) && $l ~~ Lambda && $l.params == 2;
+      # A step that assigns its own parameters cannot have them written as
+      # the loop's variables: xtpl binds them, xc leaves it a call.
+      my @p = $l.params.map(*.lc);
+      my $writes = False;
+      walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
+      return !$writes;
+    }
+    $block
+  }
+
+  # An array chain fused where it stands: the whole value of a statement, with
+  # at least two stages fused -- or, run for its effects, all of them.
+  method !fusable-array($e, Bool $for-effect --> Bool)
+  {
+    return False unless $e ~~ Pipeline && !is-source($e.source);
+    my %split = self!split($e);
+    my $fused = %split<fused>.elems;
+    my $terminal = %split<terminal>.defined;
+    $for-effect ?? ($fused >= 1 && !$terminal && !%split<rest>) !! ($fused + $terminal) >= 2
+  }
+
+  # The chain a statement runs as a loop: one from a source, or an array chain
+  # that fuses.
+  method !fused-value(Stmt $s --> Expr)
+  {
+    with self!stream-value($s) -> $c { return $c }
+    given $s
+    {
+      when Assignment { return .value if .op eq ':=' && self!fusable-array(.value, False) }
+      when ReturnStmt { return .value if .value.defined && self!fusable-array(.value, False) }
+      when CallStmt   { return .call if self!fusable-array(.call, True) }
+    }
+    Expr
+  }
+
+  # A value that is a loop: a chain from a source, or an array chain that fuses.
+  method !loop-value($e --> Bool)
+  {
+    so $e.defined && (source-call($e).defined || self!fusable-array($e, False))
+  }
+
   # The chain from a source that a statement runs, when the statement is one
   # that can run the loop first: 'x := chain', 'return chain', or the chain
   # alone, for its effects.
@@ -476,7 +575,7 @@ class Emitter
     my $call = source-call($chain);
     my $kind = source-kind($call);
     # One by one: rakupp 4.0.1 flattens Lists inside a list assignment.
-    my %split = split-stages($chain ~~ Pipeline ?? $chain.stages.list !! ());
+    my %split = self!split($chain);
     my $fused    = %split<fused>;
     my $terminal = %split<terminal>;
     my $rest     = %split<rest>;
@@ -518,10 +617,12 @@ class Emitter
         {
           @p.push("over rows() 'distinctAdjacent' needs a key: the record is not a value to compare");
         }
+        @p.push("over rows() '{$st.name.lc}' needs a value -- map the record to one first")
+          if $st.name.lc (elem) <scan pairwise>;
         $mapped = True if $st.name.lc (elem) <map expand>;
       }
       my $t = $terminal.defined ?? $terminal.name.lc !! '';
-      my $needs-value = $t (elem) <asum first> || (!$t && ($rest || $s !~~ CallStmt));
+      my $needs-value = ($t && $t !(elem) <anyof allof noneof count>) || (!$t && ($rest || $s !~~ CallStmt));
       @p.push("over rows() nothing to collect before a 'map' makes the record a value")
         if $needs-value && !$mapped;
     }
@@ -640,7 +741,7 @@ class Emitter
     %!done = ();
     my @prologue;
     for $f.body -> $s { last unless $s ~~ Declaration; @prologue.push($s) }
-    my $first = @prologue.first({ .scope (elem) <local private public> && .declarators.first({ .init.defined && source-call(.init).defined }) }, :k);
+    my $first = @prologue.first({ .scope (elem) <local private public> && .declarators.first({ self!loop-value(.init) }) }, :k);
     my @inits;
     if $first.defined
     {
@@ -908,10 +1009,10 @@ class Emitter
         }
         # A chain from a source: the loop first, then the statement with its
         # result -- or the loop alone, for a chain run for its effects.
-        when { self!stream-value($_).defined }
+        when { self!fused-value($_).defined }
         {
           my $statement = $s ~~ CallStmt;
-          my ($result, @lines) = self!stream(self!stream-value($s), !$statement);
+          my ($result, @lines) = self!stream(self!fused-value($s), !$statement);
           if $s ~~ ReturnStmt
           {
             @lines.append(self!return-exits($s));
@@ -926,7 +1027,7 @@ class Emitter
         # A 'private' or 'public' in a block, with a chain as its value: it is
         # declared where it was, and gets its value after the loop.
         when { $_ ~~ Declaration && !$top && .scope (elem) <private public>
-               && .declarators.first({ .init.defined && source-call(.init).defined }) }
+               && .declarators.first({ self!loop-value(.init) }) }
         {
           my $kw = split-comment(self!slice($s))[0].trim.words[0];
           self!replace($s, False, ("$kw " ~ .declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),
@@ -1173,7 +1274,7 @@ class Emitter
   # A statement as the lines it becomes where it is spliced (a defer's body).
   method !stmt-lines(Stmt $s --> List)
   {
-    with self!stream-value($s) -> $chain
+    with self!fused-value($s) -> $chain
     {
       my $statement = $s ~~ CallStmt;
       my ($result, @lines) = self!stream($chain, !$statement);
@@ -1192,11 +1293,11 @@ class Emitter
   method !stream(Expr $chain, Bool $collect --> List)
   {
     my $call = source-call($chain);
-    my %split = split-stages($chain ~~ Pipeline ?? $chain.stages.list !! ());
+    my %split = self!split($chain);
     my $fused    = %split<fused>;
     my $terminal = %split<terminal>;
     my $rest     = %split<rest>;
-    my (@setup, @ahead, @body, @close, @teardown, $head, $advance, $read);
+    my (@setup, @ahead, @body, @close, @teardown, @finish, $head, $advance, $read);
     my ($elem, $prefix, $fv) = Str, Str, Str;
     my $end = 'EndDo';
 
@@ -1210,6 +1311,28 @@ class Emitter
       $fv    = self!gen('fv', 'the element walked');
       $head  = "For $fi := $lo To $hi";
       $read  = "$fv := $fi";
+      $end   = 'Next';
+      $elem  = $fv;
+    }
+    elsif !$call.defined
+    {
+      # An array: a name is walked as it is, anything else is bound once --
+      # as xtpl does.
+      my $src = $chain.source;
+      my $arr;
+      if $src ~~ Name
+      {
+        $arr = self!expr($src);
+      }
+      else
+      {
+        $arr = self!gen('fs', 'the array walked');
+        @setup.push("$arr := {self!expr($src)}");
+      }
+      my $fi = self!gen('fi', 'the position in the array walked');
+      $fv    = self!gen('fv', 'the element walked');
+      $head  = "For $fi := 1 To Len($arr)";
+      $read  = "$fv := {$arr}[$fi]";
       $end   = 'Next';
       $elem  = $fv;
     }
@@ -1342,6 +1465,32 @@ class Emitter
           $elem = $fv;
           $ind ~= '  ';
         }
+        when 'scan'
+        {
+          # A running value, carried from element to element: the seed once,
+          # before the loop; the element becomes the value so far.
+          my $fa = self!gen('fa', 'the running value of a scan');
+          @ahead.push("$fa := {self!expr($st.args[1])}");
+          $fv //= self!gen('fv', 'the element walked');
+          @body.append("{$ind}$fa := {self!bound2($st.args[0], $fa, $elem)}", "{$ind}$fv := $fa");
+          $elem = $fv;
+        }
+        when 'pairwise'
+        {
+          # Each element with the one before it, from the second on: the rest
+          # of the chain runs inside the If.
+          my $fpv = self!gen('fpv', 'the element pairwise saw last');
+          my $fhd = self!gen('fhd', 'whether pairwise has seen an element');
+          my $fol = self!gen('fol', 'the element before, for pairwise');
+          my $frd = self!gen('frd', 'whether pairwise has a pair');
+          @ahead.append("$fpv := Nil", "$fhd := .F.");
+          $fv //= self!gen('fv', 'the element walked');
+          @body.append("{$ind}$fol := $fpv", "{$ind}$frd := $fhd", "{$ind}$fpv := $elem", "{$ind}$fhd := .T.",
+                       "{$ind}If $frd", "{$ind}  $fv := \{$fol, $elem\}");
+          @close.unshift("{$ind}EndIf");
+          $elem = $fv;
+          $ind ~= '  ';
+        }
         when 'distinctadjacent'
         {
           # A key equal to the one before is skipped; the first always passes.
@@ -1362,7 +1511,7 @@ class Emitter
     if $t || $collect || $rest
     {
       $fo = self!gen('fo', 'the result of the chain');
-      my $cond = $terminal.defined && $terminal.args ?? lambda($terminal) !! Str;
+      my $cond = $terminal.defined && $terminal.args && $t !(elem) <reduce fold join> ?? lambda($terminal) !! Str;
       given $t
       {
         when 'asum'   { @ahead.push("$fo := 0");   @body.push("{$ind}$fo := $fo + $elem") }
@@ -1383,6 +1532,72 @@ class Emitter
             ?? ("{$ind}If $cond", "{$ind}  $fo := $elem", "{$ind}  Exit", "{$ind}EndIf")
             !! ("{$ind}$fo := $elem", "{$ind}Exit"));
         }
+        when 'aprod'  { @ahead.push("$fo := 1");   @body.push("{$ind}$fo := $fo * $elem") }
+        when 'amax' | 'amin'
+        {
+          @ahead.push("$fo := Nil");
+          @body.append("{$ind}If $fo == Nil", "{$ind}  $fo := $elem", "{$ind}Else",
+                       "{$ind}  $fo := {$t eq 'amax' ?? 'Max' !! 'Min'}($fo, $elem)", "{$ind}EndIf");
+        }
+        when 'join'
+        {
+          # A separator between the elements: a literal as it is, anything
+          # else bound once; a flag keeps it from the front.
+          if $terminal.args
+          {
+            my $sepx = $terminal.args[0];
+            my $sep;
+            if $sepx ~~ Literal && $sepx !~~ Interp { $sep = self!expr($sepx) }
+            else
+            {
+              $sep = self!gen('fsp', 'the separator of a join');
+              @ahead.push("$sep := {self!expr($sepx)}");
+            }
+            my $ffs = self!gen('ffs', 'whether join is at its first element');
+            @ahead.push("$ffs := .T.");
+            @body.append("{$ind}If $ffs", "{$ind}  $ffs := .F.", "{$ind}Else", "{$ind}  $fo := $fo + $sep", "{$ind}EndIf");
+          }
+          @ahead.push("$fo := \"\"");
+          @body.push("{$ind}$fo := $fo + cValToChar($elem)");
+        }
+        when 'reduce'
+        {
+          # The seed once, before the loop; the step with its parameters
+          # written as the result so far and the element.
+          @ahead.push("$fo := {self!expr($terminal.args[1])}");
+          @body.push("{$ind}$fo := {self!bound2($terminal.args[0], $fo, $elem)}");
+        }
+        when 'fold'
+        {
+          # No seed: the first element is the start.
+          @ahead.push("$fo := Nil");
+          @body.append("{$ind}If $fo == Nil", "{$ind}  $fo := $elem", "{$ind}Else",
+                       "{$ind}  $fo := {self!bound2($terminal.args[0], $fo, $elem)}", "{$ind}EndIf");
+        }
+        when 'chunkby'
+        {
+          # The runs of elements whose key is equal, each an array: a new one
+          # when the key changes, and the last one added after the loop.
+          my $fch = self!gen('fch', 'the chunk chunkby is filling');
+          my $fky = self!gen('fky', 'the key of the chunk chunkby is filling');
+          my $fop = self!gen('fop', 'whether chunkby has seen an element');
+          my $fsn = self!gen('fsn', 'the key of the element chunkby looks at');
+          @ahead.append("$fch := \{\}", "$fky := Nil", "$fop := .F.", "$fsn := Nil", "$fo := \{\}");
+          @body.append("{$ind}$fsn := $cond", "{$ind}If !$fop", "{$ind}  $fop := .T.", "{$ind}  $fky := $fsn",
+                       "{$ind}ElseIf !($fsn == $fky)", "{$ind}  AAdd($fo, $fch)", "{$ind}  $fch := \{\}",
+                       "{$ind}  $fky := $fsn", "{$ind}EndIf", "{$ind}AAdd($fch, $elem)");
+          @finish.append("If $fop", "  AAdd($fo, $fch)", 'EndIf');
+        }
+        when 'maxby' | 'minby'
+        {
+          # The element whose key is the greatest (least): the first of them.
+          my $fbs = self!gen('fbs', 'the best key maxby/minby has seen');
+          my $fop = self!gen('fop', 'whether maxby/minby has seen an element');
+          my $fpb = self!gen('fpb', 'the key of the element maxby/minby looks at');
+          @ahead.append("$fbs := Nil", "$fop := .F.", "$fpb := Nil", "$fo := Nil");
+          @body.append("{$ind}$fpb := $cond", "{$ind}If !$fop .Or. $fpb {$t eq 'maxby' ?? '>' !! '<'} $fbs",
+                       "{$ind}  $fop := .T.", "{$ind}  $fbs := $fpb", "{$ind}  $fo := $elem", "{$ind}EndIf");
+        }
         default       { @ahead.push("$fo := \{\}"); @body.push("{$ind}AAdd($fo, $elem)") }
       }
     }
@@ -1394,7 +1609,7 @@ class Emitter
     {
       $result = call-name($st.name) ~ '(' ~ ($result, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
     }
-    ($result, |@setup, |@ahead, |@loop, |@teardown).List
+    ($result, |@setup, |@ahead, |@loop, |@finish, |@teardown).List
   }
 
   # An end of a range: a number or a name as it is, anything else bound once
@@ -1422,11 +1637,28 @@ class Emitter
     $text
   }
 
+  # A two-parameter lambda's body -- reduce's and fold's step -- with its
+  # parameters written as the result so far and the element.
+  method !bound2(Lambda $l, Str $carried, Str $element --> Str)
+  {
+    my ($a, $b) = $l.params.map(*.lc);
+    my %s = %!subst;
+    my %f = %!field;
+    %!subst{$a} = $carried;
+    %!subst{$b} = $element;
+    %!field{$a}:delete;
+    %!field{$b}:delete;
+    my $text = self!expr($l.body[0]);
+    %!subst = %s;
+    %!field = %f;
+    $text
+  }
+
   # 'name := value' as lines: the loop first when the value is a chain from a
   # source.
   method !init-lines(Str $name, Expr $value --> List)
   {
-    return ("$name := {self!expr($value)}",) unless source-call($value).defined;
+    return ("$name := {self!expr($value)}",) unless self!loop-value($value);
     my @lines = self!stream($value, True);
     my $result = @lines.shift;
     (|@lines, "$name := $result").List
@@ -1858,7 +2090,7 @@ class Emitter
     # A chain from a source under a modifier ('x := lines(p) |> count if lOk'):
     # its loop inside the If -- run only when the condition holds -- or the
     # While, run every round, as the original.
-    with self!stream-value($s) -> $chain
+    with self!fused-value($s) -> $chain
     {
       my @l = self!stream($chain, $s !~~ CallStmt);
       my $result = @l.shift;
