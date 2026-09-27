@@ -3,7 +3,7 @@ use XC::Grammar;
 use XC::Actions;
 use XC::Check;
 
-# The sources xtpl refuses, copied into t/xtpl/errors/ (see its README.md).
+# The sources xtpl refuses, copied into xtpl/errors/ (see its README.md).
 # Each file is in one group:
 #
 #   syntax     the grammar refuses it -- and the source with its correction
@@ -63,7 +63,7 @@ sub check(Str $what, &test)
 }
 
 sub parses(Str $src) { XC::Grammar.parse($src).defined }
-sub source(Str $name) { slurp("t/xtpl/errors/$name.xtpl") }
+sub source(Str $name) { slurp("xtpl/errors/$name.xtpl") }
 
 # ---- syntax: refused, and the correction parses ------------------------------------
 for %syntax.keys.sort -> $name
@@ -89,7 +89,7 @@ for @analysis -> $name
   check "analysis $name: xtpl's message, on xtpl's line, and no other", {
     my $src = source($name);
     my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-    my ($line, $msg) = (slurp("t/xtpl/errors/$name.err").trim ~~ / 'Line ' (\d+) ': ' (.*) $ /).list.map(~*);
+    my ($line, $msg) = (slurp("xtpl/errors/$name.err").trim ~~ / 'Line ' (\d+) ': ' (.*) $ /).list.map(~*);
     my @p = $m ?? check-program($m.made) !! ();
     $m && @p == 1 && @p[0].key == $line && @p[0].value eq $msg
   };
@@ -101,7 +101,7 @@ for %warned.keys.sort -> $name
   check "warned   $name: a warning on xtpl's line, and no error", {
     my $src = source($name);
     my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-    my $line = (slurp("t/xtpl/errors/$name.err") ~~ / 'Line ' (\d+) /)[0].Int;
+    my $line = (slurp("xtpl/errors/$name.err") ~~ / 'Line ' (\d+) /)[0].Int;
     my %c = $m ?? check-all($m.made) !! %();
     $m && !%c<errors> && %c<warnings> == 1
       && %c<warnings>[0].key == $line && %c<warnings>[0].value eq %warned{$name}
@@ -168,10 +168,10 @@ check 'xtpl refuses: reserved as a parameter',  { !parses("user function f(if)\n
 check 'xtpl accepts: generated as a parameter', {  parses("user function f(fo_0_0)\nreturn 1\n") };
 
 # ---- every file is in a group ---------------------------------------------------
-my @all = dir('t/xtpl/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
+my @all = dir('xtpl/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
 my @known = (|%syntax.keys, |@analysis, |%warned.keys, |@decided, |%pending.keys);
 my @loose = @all.grep({ $_ !(elem) @known });
-check "every file in t/xtpl/errors/ is in a group" ~ (@loose ?? " -- no group: {@loose.join(', ')}" !! ''),
+check "every file in xtpl/errors/ is in a group" ~ (@loose ?? " -- no group: {@loose.join(', ')}" !! ''),
 {
   !@loose
 };

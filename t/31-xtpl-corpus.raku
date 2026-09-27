@@ -7,7 +7,7 @@ use XC::Actions;
 use XC::Emit;
 use XC::Check;
 
-# Every source of xtpl's test suite and every example program, in t/xtpl/,
+# Every source of xtpl's test suite and every example program, in xtpl/,
 # passes the checks -- with xtpl's own warnings, see below -- and compiles,
 # and what comes out is TL++: read back, it parses and compiles to itself.
 # The exceptions, each for a stated reason:
@@ -17,7 +17,7 @@ use XC::Check;
 # - a file with 'raw' is not read back: raw text is TL++ only once the
 #   preprocessor has applied its #xtranslate and #command rules.
 #
-# t/xtpl/errors/ holds what xtpl refuses; t/17-xtpl-errors.raku checks it.
+# xtpl/errors/ holds what xtpl refuses; t/17-xtpl-errors.raku checks it.
 
 my %skip = '51_legacy.xtpl' => 'xtpl --legacy mode';
 
@@ -63,8 +63,8 @@ sub compile(Str $src, :@expected, :%dictionary, Bool :$checked = True)
   emit($m.made, $src)
 }
 
-my @files = |dir('t/xtpl/tests').grep(*.extension eq 'xtpl'),
-            |dir('t/xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') });
+my @files = |dir('xtpl/tests').grep(*.extension eq 'xtpl'),
+            |dir('xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') });
 
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)

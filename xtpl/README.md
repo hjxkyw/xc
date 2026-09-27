@@ -2,8 +2,8 @@
 
 Everything xtpl had to show what the language is and what its compiler does,
 copied as it is from the xtpl repository (version 116). xtpl is deprecated and
-now only serves to bootstrap xc; this is its knowledge, kept where xc's tests
-can read it.
+now only serves to bootstrap xc; this is its knowledge, kept at the top of
+xc's repository, apart from xc's own tests in `t/`, which read it.
 
 The files are byte for byte xtpl's -- line ends and encodings included -- and
 are not edited here: to take a newer version, copy the folders again. Most of
@@ -18,10 +18,10 @@ the text in them is in Portuguese, as xtpl's was.
 
 ## Comparing with xtpl's output
 
-xc does not produce xtpl's text: it names its hidden locals differently, keeps
-the source's layout, and leaves chains over arrays as runtime calls where
-xtpl fuses them into loops. A comparison is of the statements, under a
-normalisation each test states. Where xc differs on purpose -- mostly where
+xc does not produce xtpl's text: it keeps the source's layout, names some
+hidden locals differently, and writes a chain that does not fuse as nested
+calls where xtpl lifts each stage into a temporary. A comparison is of the
+statements, under a normalisation each test states. Where xc differs on purpose -- mostly where
 xtpl's output is wrong -- the test says why.
 
 ## What the probes found that matters to xc

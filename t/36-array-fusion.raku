@@ -156,8 +156,8 @@ sub normalised(Str $text)
 }
 check "34_stream_stages -- map, scan, pairwise, expand, fused over arrays: xtpl's statements",
 {
-  normalised(compile(slurp('t/xtpl/tests/34_stream_stages.xtpl')))
-    eqv normalised(slurp('t/xtpl/tests/34_stream_stages.tlpp'))
+  normalised(compile(slurp('xtpl/tests/34_stream_stages.xtpl')))
+    eqv normalised(slurp('xtpl/tests/34_stream_stages.tlpp'))
 };
 
 check 'the output compiles to itself',

@@ -2,7 +2,7 @@
 #
 # Between the parse and the emitter: names and their scopes, '<const>' and
 # '<contained>', 'external', the calls to this file's own functions, and a few
-# shapes of chain. Each rule and each message is xtpl's (t/xtpl/errors/ has one
+# shapes of chain. Each rule and each message is xtpl's (xtpl/errors/ has one
 # case for each, with xtpl's message).
 #
 # NAMES

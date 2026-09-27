@@ -5,7 +5,7 @@ use XC::Check;
 
 # XC::Check, case by case: what has to pass (a name declared some way, or not
 # a variable at all) and what has to be refused, beyond the one case per rule
-# in t/xtpl/errors/ (t/17-xtpl-errors.raku). The whole of xtpl's corpus has to
+# in xtpl/errors/ (t/17-xtpl-errors.raku). The whole of xtpl's corpus has to
 # pass too (t/31-xtpl-corpus.raku).
 
 # The errors and the warnings, as 'line: message'.
