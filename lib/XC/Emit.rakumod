@@ -190,9 +190,88 @@ my constant TAKES-BLOCK  = set <map filter reject tap takewhile dropwhile expand
 
 # The source a chain starts from -- a rows()/lines() call or a range
 # 'lo..hi' -- or the source itself.
-sub is-source(Expr $e --> Bool)
+sub is-source(Expr $e --> Bool) is export
 {
   so ($e ~~ Call && $e.name.lc (elem) <rows lines>) || $e ~~ Interval
+}
+
+# Whether a name is one of the runtime's verbs, which the output calls as
+# u_xtpl_<name>.
+sub is-runtime-verb(Str $name --> Bool) is export { so VERBS{$name.lc} }
+
+# A chain's stages split into the fused run, the terminal that may end it,
+# and the rest, which apply to the result. Over an array a stage fuses only
+# when it can be written into the loop (its lambda in the stage); over a
+# source a missing lambda is an error (chain-problems), so the stages from the
+# start are taken as they come. A Hash, not a List of Lists: rakupp 4.0.1
+# flattens a List inside any list assignment, even one itemized with '$( )'.
+#
+# Shared with XC::Check, whose warnings say what does not fuse: one decision,
+# not two that could drift apart. &declared answers whether a name is a
+# variable of the function -- 'filter(bOk)' is a block held in one, not a
+# function to call.
+sub fusion-split(Expr $chain, &declared --> Hash) is export
+{
+  my @stages = $chain ~~ Pipeline ?? $chain.stages.list !! ();
+  my $array = $chain ~~ Pipeline && !is-source($chain.source);
+  my (@fused, $terminal, @rest);
+  my $expanded = False;
+  for @stages -> $st
+  {
+    my $n = $st.name.lc;
+    my $free = !@rest && !$terminal.defined && !($expanded && EXITS{$n});
+    if $free && FUSED{$n} && ((!$array && FIRST-FUSED{$n}) || stage-inlinable($st, &declared))
+    {
+      @fused.push($st);
+      $expanded ||= $n eq 'expand';
+    }
+    elsif $free && TERMINAL{$n} && ((!$array && FIRST-TERMINALS{$n}) || stage-inlinable($st, &declared))
+    {
+      $terminal = $st;
+    }
+    else
+    {
+      @rest.push($st);
+    }
+  }
+  %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
+}
+
+# Whether a stage can be written into a loop: its block written in the stage
+# (a function name is one too), with what it needs.
+sub stage-inlinable($st, &declared --> Bool)
+{
+  my $n = $st.name.lc;
+  my @a = $st.args.list;
+  # A lambda of one parameter, or a function's name -- a Name that is not a
+  # variable of the function, where the verb takes a block.
+  my $block = @a == 1 && ((@a[0] ~~ Lambda && @a[0].params == 1)
+                          || (TAKES-BLOCK{$n} && @a[0] ~~ Name && !declared(@a[0].name.lc)));
+  return @a == 1 if $n (elem) <take drop>;
+  return !@a || $block if $n (elem) <distinctadjacent count first>;
+  return !@a if $n (elem) <asum aprod amax amin pairwise>;
+  if $n eq 'scan'
+  {
+    my $l = @a[0];
+    return False unless @a == 2 && $l ~~ Lambda && $l.params == 2;
+    my @p = $l.params.map(*.lc);
+    my $writes = False;
+    walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
+    return !$writes;
+  }
+  return @a <= 1 if $n eq 'join';
+  if $n (elem) <reduce fold>
+  {
+    my $l = @a[0];
+    return False unless @a == ($n eq 'reduce' ?? 2 !! 1) && $l ~~ Lambda && $l.params == 2;
+    # A step that assigns its own parameters cannot have them written as
+    # the loop's variables: xtpl binds them, xc leaves it a call.
+    my @p = $l.params.map(*.lc);
+    my $writes = False;
+    walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
+    return !$writes;
+  }
+  $block
 }
 
 sub source-call(Expr $e --> Expr)
@@ -458,71 +537,14 @@ class Emitter
     @found
   }
 
-  # A chain's stages split into the fused run, the terminal that may end it,
-  # and the rest, which apply to the result. Over an array a stage fuses only
-  # when it can be written into the loop (its lambda in the stage); over a
-  # source a missing lambda is an error (chain-problems), so the stages from
-  # the start are taken as they come. A Hash, not a List of Lists: rakupp 4.0.1
-  # flattens a List inside any list assignment, even one itemized with '$( )'.
   method !split(Expr $chain --> Hash)
   {
-    my @stages = $chain ~~ Pipeline ?? $chain.stages.list !! ();
-    my $array = $chain ~~ Pipeline && !is-source($chain.source);
-    my (@fused, $terminal, @rest);
-    my $expanded = False;
-    for @stages -> $st
-    {
-      my $n = $st.name.lc;
-      my $free = !@rest && !$terminal.defined && !($expanded && EXITS{$n});
-      if $free && FUSED{$n} && ((!$array && FIRST-FUSED{$n}) || self!inlinable($st))
-      {
-        @fused.push($st);
-        $expanded ||= $n eq 'expand';
-      }
-      elsif $free && TERMINAL{$n} && ((!$array && FIRST-TERMINALS{$n}) || self!inlinable($st))
-      {
-        $terminal = $st;
-      }
-      else
-      {
-        @rest.push($st);
-      }
-    }
-    %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
+    fusion-split($chain, -> $n { so %!declared{$n} })
   }
 
-  # Whether a stage can be written into a loop: its block written in the stage
-  # (a function name is one too), with what it needs.
   method !inlinable($st --> Bool)
   {
-    my $n = $st.name.lc;
-    my @a = $st.args.list;
-    my $block = @a == 1 && (self!is-lambda(@a[0]) || self!is-function-name($n, @a[0]));
-    return @a == 1 if $n (elem) <take drop>;
-    return !@a || $block if $n (elem) <distinctadjacent count first>;
-    return !@a if $n (elem) <asum aprod amax amin pairwise>;
-    if $n eq 'scan'
-    {
-      my $l = @a[0];
-      return False unless @a == 2 && $l ~~ Lambda && $l.params == 2;
-      my @p = $l.params.map(*.lc);
-      my $writes = False;
-      walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
-      return !$writes;
-    }
-    return @a <= 1 if $n eq 'join';
-    if $n (elem) <reduce fold>
-    {
-      my $l = @a[0];
-      return False unless @a == ($n eq 'reduce' ?? 2 !! 1) && $l ~~ Lambda && $l.params == 2;
-      # A step that assigns its own parameters cannot have them written as
-      # the loop's variables: xtpl binds them, xc leaves it a call.
-      my @p = $l.params.map(*.lc);
-      my $writes = False;
-      walk-expr($_, { $writes = True if $_ ~~ AssignExpr && .target ~~ Name && .target.name.lc (elem) @p }) for $l.body;
-      return !$writes;
-    }
-    $block
+    stage-inlinable($st, -> $n { so %!declared{$n} })
   }
 
   # An array chain fused where it stands: the whole value of a statement, with

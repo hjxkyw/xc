@@ -119,7 +119,7 @@ sub compile(Str $in, Str $out --> Bool)
   # What xtpl refuses although it parses -- scopes, <const>, the calls to this
   # file's functions, ... -- each with xtpl's message; and what it warns about,
   # a name nothing declares among them, which does not stop the compile.
-  my %checked = check-all($m.made, lines => $src.lines.elems, :%dictionary, :$strict);
+  my %checked = check-all($m.made, lines => $src.lines.elems, :%dictionary, :$strict, source => $src);
   note "$in:{.key}: warning: {.value}" for %checked<warnings>.list;
   if %checked<errors>
   {

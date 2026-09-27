@@ -30,8 +30,11 @@
 # Besides a name nothing declares: a variable assigned but never read (or
 # declared and never used), a function that returns a value on one path and
 # nothing on another, and a field of an area nothing in the function opened --
-# xtpl's, in xtpl's words. Not its fusion warnings: they are about fusing
-# chains over arrays, which xc does not do.
+# xtpl's, in xtpl's words. And its warnings about fusion, now that xc fuses as
+# xtpl does: a chain whose stage stops the fusing ("this chain does not fuse
+# -- 'sort' stops it"), a 'fallback' that turns it off, and a left side of
+# '|>' that is more than was meant ('a > 1 |> f' feeds 'a > 1'). Which stages
+# fuse is XC::Emit's decision (fusion-split), not a copy of it.
 #
 # THE DICTIONARY
 #
@@ -45,6 +48,8 @@
 
 use XC::AST;
 use XC::Grammar;
+use XC::Emit;
+use XC::Source;
 
 unit module XC::Check;
 
@@ -101,6 +106,9 @@ my class Checker
   has %.dictionary;                # ALIAS => %(FIELD => [type letter, size])
   has Bool $.strict = False;       # dictionary findings are errors
   has %!dict-seen;                 # 'line alias field': said already
+  has Str $.source;                # the text, for what a warning quotes of it
+  has %!chain-at;                  # WHICH of a chain => 'statement' or 'effect'
+  has %!guarded;                   # WHICH of a chain under 'fallback'
   has @!ends;                      # the lines the functions start on, sorted
 
   method !problem(Str $message) { @!found.push($!line => $message) }
@@ -366,6 +374,14 @@ my class Checker
       %!sources-ok{$w.WHICH} = True if $w ~~ Call;
       %!chains-ok{$w.WHICH} = True if $w ~~ Pipeline;
     }
+    # A chain that is a statement's whole value, or the statement itself --
+    # run for its effects -- for the fusion warnings.
+    given $s
+    {
+      when CallStmt   { %!chain-at{.call.WHICH}  = 'effect'    if .call ~~ Pipeline }
+      when Assignment { %!chain-at{.value.WHICH} = 'statement' if .value ~~ Pipeline }
+      when ReturnStmt { %!chain-at{.value.WHICH} = 'statement' if .value ~~ Pipeline }
+    }
 
     given $s
     {
@@ -606,6 +622,7 @@ my class Checker
         }
         # Said once, in xtpl's words: not again by the rule for where a chain goes.
         %!chains-ok{.expr.WHICH} = True if .expr ~~ Pipeline && source-of(.expr).defined;
+        %!guarded{.expr.WHICH} = True if .expr ~~ Pipeline;
         self!expr(.expr);
         self!expr(.fallback);
       }
@@ -736,8 +753,70 @@ my class Checker
   }
 
   # A chain: a source it can walk.
+  # ---- fusion ------------------------------------------------------------------------
+  # xtpl's three warnings about it, on its conditions and in its words.
+  method !fusion(Pipeline $p)
+  {
+    my @stages = $p.stages.list;
+    return unless @stages;
+    my $at = %!chain-at{$p.WHICH} // 'value';
+    self!loose-left($p) if $at ne 'value' && !%!guarded{$p.WHICH};
+    my %split = fusion-split($p, -> $n { self!find($n).defined });
+    my $run  = %split<fused>.elems;
+    my $fold = %split<terminal>.defined;
+    my $taken = $run + ($fold ?? 1 !! 0);
+    # Run for its effects, a chain fuses whole or not at all: nothing to say.
+    return if $at eq 'effect' && ($fold || $run != @stages || $run < 1);
+    if %!guarded{$p.WHICH}
+    {
+      # Over a source it is an error already; over an array, a guard needs an
+      # expression, so a chain that would have fused does not.
+      self!warning("'fallback' turns off fusion for this chain -- a guard needs an expression and a fused "
+                   ~ "loop is not one, so each stage builds an array again. Guard the part that can fail "
+                   ~ "instead, and leave the chain outside it.")
+        if !is-source($p.source) && ($taken >= 2 || ($at eq 'effect' && $run >= 1));
+      return;
+    }
+    # A terminal ends the fused run by design: what follows it carries on from
+    # the array it built, and is not what stopped anything.
+    return if $fold || $taken >= @stages || @stages < 2;
+    my $stop = @stages[$taken];
+    my $why = is-runtime-verb($stop.name) ?? 'it needs the whole collection' !! 'xtpl cannot see inside it';
+    self!warning("this chain does not fuse -- '{$stop.name}' stops it, because $why, so it and every "
+                 ~ "stage after it builds an array");
+  }
+
+  # 'a > 1 |> f': the whole left side of '|>' is fed in. A comparison or a
+  # '.and.'/'.or.' outside any brackets there is almost always a mistake.
+  method !loose-left(Pipeline $p)
+  {
+    return unless $!source.defined;
+    my $h = $p.source;
+    return unless $h.src-from >= 0 && $h.src-to > $h.src-from;
+    my $pos  = XC::Source.new(text => $!source);
+    my $from = $pos.char($h.src-from);
+    my $text = $!source.substr($from, $pos.char($h.src-to) - $from).trim;
+    # What is outside brackets and strings; '->' is an alias, not a '>'.
+    my $bare = '';
+    my $depth = 0;
+    my $quote = '';
+    for $text.comb -> $c
+    {
+      if $quote             { $quote = '' if $c eq $quote }
+      elsif $c eq '"' | "'" { $quote = $c }
+      elsif $c eq '(' | '[' | '\{' { $depth++ }
+      elsif $c eq ')' | ']' | '}' { $depth-- }
+      elsif $depth == 0     { $bare ~= $c }
+    }
+    $bare .= subst('->', ' ', :g);
+    return unless $bare ~~ m:i/ '.and.' | '.or.' | '<=' | '>=' | '==' | '!=' | '<>' | '<' | '>' /;
+    self!warning("the whole left side of '|>' is the first argument, so '{$text.substr(0, 40)}' is what gets "
+                 ~ "fed in. Put brackets around the part you meant to chain.");
+  }
+
   method !chain(Pipeline $p)
   {
+    self!fusion($p);
     my $head = $p.source;
     if ($head ~~ Call && $head.name.lc (elem) <rows lines>) || $head ~~ Interval
     {
@@ -956,9 +1035,9 @@ sub check-program(Program $p --> List) is export
 }
 
 # The same, with the warnings: %(errors => ..., warnings => ...).
-sub check-all(Program $p, Int :$lines = 0, :%dictionary, Bool :$strict = False --> Hash) is export
+sub check-all(Program $p, Int :$lines = 0, :%dictionary, Bool :$strict = False, Str :$source --> Hash) is export
 {
-  my $c = Checker.new(:$lines, :%dictionary, :$strict);
+  my $c = Checker.new(:$lines, :%dictionary, :$strict, :$source);
   $c.program($p);
   my &tidy = { .unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List };
   %(errors => tidy($c.found), warnings => tidy($c.warned))

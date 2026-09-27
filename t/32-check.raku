@@ -13,7 +13,7 @@ sub result(Str $src)
 {
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   die "does not parse" unless $m;
-  my %c = check-all($m.made);
+  my %c = check-all($m.made, source => $src);
   %(errors   => %c<errors>.map({ .key ~ ': ' ~ .value }).List,
     warnings => %c<warnings>.map({ .key ~ ': ' ~ .value }).List)
 }
@@ -197,6 +197,32 @@ warns 'used before the line that opens it',
   "2: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.";
 passes 'an area held in a variable is not checked',
   "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
+
+# ---- fusion: xtpl's warnings --------------------------------------------------------------------
+# t/31 has every one of them in xtpl's corpus; these are the edges.
+my $sort = "this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array";
+warns "a verb that needs the whole collection stops the fusing",
+  "  a := a |> filter([x] x > 1) |> sort", "2: $sort";
+warns "even with nothing fused before it",
+  "  a := a |> sort |> take(3)", "2: $sort";
+warns "a function xtpl cannot see into",
+  "  a := a |> filter([x] x > 1) |> myHelper(3)",
+  "2: this chain does not fuse -- 'myHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
+warns "inside an expression too",
+  "  a := len(a |> filter([x] x > 1) |> sort)", "2: $sort";
+passes "one stage: nothing to fuse", "  a := a |> sort";
+passes "every stage fused", "  a := a |> filter([x] x > 1) |> map([x] x * 2) |> count";
+passes "after a terminal: the rest carries on from its array, nothing stopped", "  a := a |> map([x] x) |> chunkby([x] x) |> sort";
+passes "run for its effects: it fuses whole or not at all -- nothing to say", "  a |> tap([x] conout(x)) |> sort";
+warns "'fallback' around a chain that would have fused",
+  "  a := a |> filter([x] x > 1) |> asum fallback 0",
+  "2: 'fallback' turns off fusion for this chain -- a guard needs an expression and a fused loop is not one, so each stage builds an array again. Guard the part that can fail instead, and leave the chain outside it.";
+passes "'fallback' around one that would not have: nothing lost", "  a := a |> sort fallback \{\}";
+warns "the whole left side of '|>' is fed in: a comparison there",
+  "  a := a > 1 |> alltrim",
+  "2: the whole left side of '|>' is the first argument, so 'a > 1' is what gets fed in. Put brackets around the part you meant to chain.";
+passes "a comparison in brackets, or an alias's '->': not the left side's",
+  "  DbSelectArea(\"SA1\")\n  a := foo(a > 1) |> alltrim\n  a := SA1->A1_NOME |> alltrim";
 
 # ---- decided: not supported -------------------------------------------------------------------
 refuses "'for ... in' over rows(): a loop body can move the table's position",
