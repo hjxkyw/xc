@@ -644,14 +644,40 @@ User Function xtpl_split(cText, cSep)
   AAdd(aRes, SubStr(cText, nFrom))
 Return aRes
 
+// xc: whatever '+=' does with a string. Appended one by one, a text that
+// copies itself on each '+=' costs n copies of a growing string -- quadratic.
+// So the pieces -- each part with the separator in front, but the first --
+// are collected, then joined pairwise, level by level: 1 with 2, 3 with 4,
+// and again on the results, until one is left. Each character is copied once
+// a level, and there are log2(n) levels: 15 for 20,000 parts.
 User Function xtpl_join(aParts, cSep)
-  Local cRes := ""
+  Local aPieces := Array(Len(aParts))
   Local nX
   cSep := Iif(cSep == Nil, "", cSep)
   For nX := 1 To Len(aParts)
-    cRes += Iif(nX == 1, "", cSep) + cValToChar(aParts[nX])
+    aPieces[nX] := Iif(nX == 1, "", cSep) + cValToChar(aParts[nX])
   Next
-Return cRes
+Return xtpl_concat(aPieces)
+
+// xc: pieces of text joined pairwise, level by level (see xtpl_join).
+Static Function xtpl_concat(aLevel)
+  Local aNext
+  Local nX
+  If Len(aLevel) == 0
+    Return ""
+  EndIf
+  While Len(aLevel) > 1
+    aNext := Array(Int((Len(aLevel) + 1) / 2))
+    For nX := 1 To Len(aNext)
+      If 2 * nX <= Len(aLevel)
+        aNext[nX] := aLevel[2 * nX - 1] + aLevel[2 * nX]
+      Else
+        aNext[nX] := aLevel[2 * nX - 1]
+      EndIf
+    Next
+    aLevel := aNext
+  EndDo
+Return aLevel[1]
 
 User Function xtpl_starts(cText, cWhat)
 Return Len(cWhat) <= Len(cText) .And. SubStr(cText, 1, Len(cWhat)) == cWhat
