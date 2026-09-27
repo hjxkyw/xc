@@ -37,7 +37,8 @@ rakupp run-tests.raku --all    # all of them, xtpl's whole corpus too: a few min
 ```
 
 Each test file says `ok` or `FAIL` with its count, and the run ends with the
-total; the exit code is 0 only when everything passed. A single test runs on
+total; the exit code is 0 only when everything passed, and 2 for an option
+it does not know -- `-all` with one dash, say -- before any test runs. A single test runs on
 its own too:
 
 ```sh
