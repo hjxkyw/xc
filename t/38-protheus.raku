@@ -1,6 +1,3 @@
-# slow: compiles the self-tests with bin/xc -- about half a minute.
-# 'rakupp run-tests.raku --all' runs it.
-
 # run-protheus.raku. No AppServer here: a stand-in takes its place -- a shell
 # script that writes down how it was called and answers as the self-tests
 # would -- so what is checked is what the script asks of the AppServer and

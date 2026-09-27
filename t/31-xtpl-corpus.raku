@@ -1,6 +1,3 @@
-# slow: every file of xtpl's corpus, twice -- a few minutes under rakupp.
-# 'rakupp run-tests.raku' leaves it out; 'rakupp run-tests.raku --all' runs it.
-
 use lib 'lib';
 use XC::Grammar;
 use XC::Actions;

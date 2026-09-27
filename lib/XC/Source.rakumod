@@ -19,6 +19,9 @@ unit class XC::Source;
 
 has Str $.text;
 has @!rows;                    # per line: [char-start, byte-start, ascii?, text]
+has Bool $!bytes;              # match offsets are UTF-8 bytes (rakupp), not characters
+has Bool $!ascii;              # the whole text is ASCII: every byte a character
+has %!memo;                    # byte offset => character offset, once worked out
 
 # Whether grammar match offsets are bytes: after 'é' (one character, two
 # bytes), a match at the next character starts at 1 in characters and 2 in
@@ -39,9 +42,12 @@ sub offsets-in-bytes(--> Bool)
 submethod TWEAK()
 {
   my ($c, $b) = 0, 0;
+  $!bytes = offsets-in-bytes();
+  $!ascii = True;
   for $!text.lines(:!chomp) -> $line
   {
     my $ascii = $line.chars == $line.encode.bytes;
+    $!ascii &&= $ascii;
     @!rows.push([$c, $b, $ascii, $line]);
     $c += $line.chars;
     $b += $line.encode.bytes;
@@ -52,7 +58,7 @@ submethod TWEAK()
 # The row holding a match offset: the last one starting at or before it.
 method !row(Int $o --> Int)
 {
-  my $col = offsets-in-bytes() ?? 1 !! 0;
+  my $col = $!bytes ?? 1 !! 0;
   my ($lo, $hi) = 0, @!rows.end;
   while $lo < $hi
   {
@@ -62,10 +68,20 @@ method !row(Int $o --> Int)
   $lo
 }
 
-# A match offset as a character offset.
+# A match offset as a character offset. Every node the grammar builds asks
+# for two -- tens of thousands for a file of a few hundred lines, most of them
+# the same offsets again, as the grammar backtracks. So: nothing to do when
+# offsets are characters already, or when the text is ASCII, where a byte is
+# a character; otherwise each offset worked out once. (Asked every time, it was
+# nine tenths of the time xc took to compile a file.)
 method char(Int $o --> Int)
 {
-  return $o unless offsets-in-bytes();
+  return $o if !$!bytes || $!ascii;
+  %!memo{$o} //= self!char-of($o)
+}
+
+method !char-of(Int $o --> Int)
+{
   my ($c, $b, $ascii, $text) = @!rows[self!row($o)];
   return $c + ($o - $b) if $ascii;
   # A line with a multi-byte character: walk it to the byte.

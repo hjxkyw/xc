@@ -482,10 +482,48 @@ class Program is export
 
 # ---- walking --------------------------------------------------------------------
 
-# The expressions right below one, in reading order. Missing parts (the empty
-# side of a '!', the base of an 'SA1->') do not appear.
+# The expressions right below one, by class: a table, not a chain of 'when's.
+# Walks ask for them some thousands of times per file, and most nodes are
+# names and literals -- which the chain tested against every class, a
+# junction among them, before its default: over a third of the emitter's time.
+# The exact class, so subclasses (SafeMember, SafeCall, Lambda) are listed
+# with what they get from their parent.
+my %LEAVES = (Literal, Name, SelfRef, SubjectRef, Omitted).map({ .^name => True });
+my %KIDS =
+  Binary.^name     => -> $e { $e.left, $e.right },
+  Call.^name       => -> $e { |$e.args },
+  Index.^name      => -> $e { $e.base, |$e.indices },
+  Member.^name     => -> $e { $e.base },
+  SafeMember.^name => -> $e { $e.base },
+  MethodCall.^name => -> $e { $e.base, |$e.args },
+  SafeCall.^name   => -> $e { $e.base, |$e.args },
+  AliasField.^name => -> $e { $e.base },
+  InAlias.^name    => -> $e { $e.base, $e.expr },
+  Macro.^name      => -> $e { $e.target },
+  Ref.^name        => -> $e { $e.target },
+  AssignExpr.^name => -> $e { $e.target, $e.value },
+  ArrayLit.^name   => -> $e { |$e.items },
+  Interp.^name     => -> $e { |$e.parts.grep(Expr) },
+  JsonLit.^name    => -> $e { |$e.pairs.map({ .key, .value }).flat },
+  HashLit.^name    => -> $e { |$e.pairs.map({ .key, .value }).flat },
+  CodeBlock.^name  => -> $e { |$e.body },
+  Lambda.^name     => -> $e { |$e.body },
+  Pipeline.^name   => -> $e { $e.source, |$e.stages },
+  Guard.^name      => -> $e { $e.expr, $e.fallback },
+  HashIndex.^name  => -> $e { $e.base, $e.key },
+  Interval.^name   => -> $e { $e.lo, $e.hi };
+
+# Missing parts (the empty side of a '!', the base of an 'SA1->') do not
+# appear.
 sub subexprs(Expr $e --> List) is export
 {
+  my $class = $e.^name;
+  return () if %LEAVES{$class};
+  with %KIDS{$class} -> &kids
+  {
+    return kids($e).grep(*.defined).List;
+  }
+  # A class the table does not know: the long way.
   my @s = do given $e
   {
     when Binary     { .left, .right }

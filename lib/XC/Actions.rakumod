@@ -133,7 +133,7 @@ method function($/)
     name        => ~$<name>,
     params      => $<params><param>.map(*.made).list,
     annotations => $<annotation>.map(*.made).list,
-    body        => $<body>.made,
+    body        => $<funcbody>.made,
     line        => self!line($<funckind>),
   );
 }
@@ -200,7 +200,7 @@ method methodimpl($/)
     name       => ~$<mname>,
     params     => $<params><param>.map(*.made).list,
     returns    => $<ret> ?? ~$<ret> !! Str,
-    body       => $<body>.made,
+    body       => $<funcbody>.made,
     line       => self!line($/),
   );
 }
@@ -286,7 +286,7 @@ method execst($/)
 
 method returnst($/)
 {
-  make ReturnStmt.new(value => $<expr> ?? $<expr>.made !! Expr, line => self!line($/));
+  make ReturnStmt.new(value => $<guardexpr> ?? $<guardexpr>.made !! Expr, line => self!line($/));
 }
 
 method exitst($/) { make ExitStmt.new(line => self!line($/)) }
@@ -308,7 +308,7 @@ method assignment($/)
   make Assignment.new(
     target => $<lvalue>.made,
     op     => ~$<assignop>,
-    value  => $<expr>.made,
+    value  => $<guardexpr>.made,
     line   => self!line($/),
   );
 }
@@ -339,7 +339,7 @@ method callst($/)
 method ifst($/)
 {
   make IfStmt.new(
-    branches    => branches($<cond>, $<then>),
+    branches    => branches($<cond>, ($<then>, |$<thenc>)),
     otherwise   => $<else> ?? $<else>.made !! (),
     header-decl => $<hdrdecl> ?? $<hdrdecl>.made !! Declarator,
     line        => self!line($/),
@@ -355,7 +355,7 @@ method docasest($/)
     else            { $assign = .<assignment>.made }
   }
   make CaseStmt.new(
-    branches       => branches($<cond>, $<then>),
+    branches       => branches($<cond>, $<thenc>),
     otherwise      => $<else> ?? $<else>.made !! (),
     subject-decl   => $decl   // Declarator,
     subject-assign => $assign // Assignment,
@@ -427,7 +427,7 @@ method withst($/)
 {
   make WithObject.new(
     subject => $<subject>.made,
-    body    => $<block>.made,
+    body    => $<withblock>.made,
     line    => self!line($/),
   );
 }
@@ -469,7 +469,7 @@ method usingst($/)
 method seqst($/)
 {
   make SequenceStmt.new(
-    body        => $<block>.made,
+    body        => $<seqblock>.made,
     has-recover => ?$<recover>,
     error-var   => $<errvar> ?? ~$<errvar> !! Str,
     recover     => $<recover> ?? $<recover>.made !! (),
@@ -489,12 +489,15 @@ method declaration($/)
 
 method !make-declarator($/)
 {
+  # A declaration's value is a <guardexpr> (it may take 'fallback'); a block
+  # header's -- 'if local x := e, cond' -- a plain <expr>.
+  my $value = $<guardexpr> // $<expr>;
   Declarator.new(
-    type-first    => ?($<typespec> && $<expr> && $<typespec>.from < $<expr>.from),
+    type-first    => ?($<typespec> && $value && $<typespec>.from < $value.from),
     typespec-text => $<typespec> ?? (~$<typespec>).trim !! Str,
     name       => ~$<name>,
     attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
-    init       => $<expr> ?? $<expr>.made !! Expr,
+    init       => $value ?? $value.made !! Expr,
     declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
     line       => self!line($/),
   )
@@ -525,6 +528,24 @@ method elvis($/)
 
 # Without 'fallback' it is just the expression; most have none, and must not
 # gain a node.
+# The parts with a name: each makes what it holds.
+method cond($/)      { make $<expr>.made }
+method guarded($/)   { make $<expr>.made }
+method fallback($/)  { make $<expr>.made }
+method pexpr($/)     { make $<expr>.made }
+method key($/)       { make $<expr>.made }
+method source($/)    { make $<expr>.made }
+method lo($/)        { make $<addexpr>.made }
+method hi($/)        { make $<addexpr>.made }
+method lbody($/)     { make $<blockexpr>.made }
+method then($/)      { make $<body>.made }
+method thenc($/)     { make $<closedbody>.made }
+method else($/)      { make $<closedbody>.made }
+method block($/)     { make $<body>.made }
+method seqblock($/)  { make $<closedbody>.made }
+method withblock($/) { make $<withbody>.made }
+method recover($/)   { make $<closedbody>.made }
+
 method guardexpr($/)
 {
   make self!spanned($<fallback>
@@ -563,7 +584,7 @@ method cmpexpr($/)
   my $acc = $<rangeexpr>.made;
   for $<cmptail>.list -> $t
   {
-    $acc = joined(Binary.new(op => (~$t<op>).lc, left => $acc, right => $t<rhs>.made));
+    $acc = joined(Binary.new(op => (~$t<op>).lc, left => $acc, right => ($t<inrhs> // $t<rangeexpr>).made));
   }
   make $acc;
 }
@@ -651,7 +672,7 @@ method primary($/)
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Name.new(name => ~$<name>)
-      !! $<expr>         ?? $<expr>.made
+      !! $<guardexpr>    ?? $<guardexpr>.made
       !! $<macro>        ?? $<macro>.made
       !! $<aliasfield>   ?? $<aliasfield>.made
       !! $<jsonliteral>  ?? $<jsonliteral>.made

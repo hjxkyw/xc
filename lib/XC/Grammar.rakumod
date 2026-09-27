@@ -27,6 +27,121 @@
 
 unit grammar XC::Grammar;
 
+# ---- looking ahead, cheaply ---------------------------------------------------
+#
+# Several rules try an assignment first and fall back: a statement, an
+# argument, a lambda's body. The left side of an assignment is a whole
+# expression -- 'check(a, b, c)' is parsed in full before the missing ':='
+# says no -- and then again as what it is; a statement also tries '?=' and
+# '|>'. Under rakupp 4.0.1 each attempt runs its actions and leaves its nodes
+# behind (the '||' capture leak), so a call statement's arguments were built
+# four or five times over, and nested calls multiplied it.
+#
+# ahead() reads the text instead: from where the alternative starts to where
+# the statement -- or the argument -- ends, outside brackets, strings and
+# comments, is there an assignment operator ('assign') or a '|>' ('pipe')?
+# If not, the alternative cannot match and is not tried. It only ever skips
+# what would fail: when it cannot tell -- a bracket closed that it did not see
+# open, or no text to read -- it says yes, and the parse goes as before.
+
+# The text, in the units match offsets count: UTF-8 bytes under rakupp,
+# characters under Rakudo. Only ASCII punctuation is looked for, and UTF-8
+# never uses an ASCII byte inside a longer character.
+my grammar OffsetProbe
+{
+  token TOP { . <x> }
+  token x   { '!' }
+}
+my $offsets-in-bytes = OffsetProbe.parse('é!')<x>.from == 2;
+
+sub text-units(Str $t)
+{
+  $offsets-in-bytes ?? $t.encode.list.Array !! $t.ords.Array
+}
+
+# $item: an argument or a lambda's body, which also ends at a ',' or at a
+# bracket closing what it is in.
+sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
+{
+  my $u = $*UNITS // return True;
+  my $n = $u.elems;
+  my $depth = 0;
+  my $last = 0;                              # the last code character: ';' continues the line
+  my $i = $from;
+  while $i < $n
+  {
+    my $c = $u[$i];
+    my $next = $i + 1 < $n ?? $u[$i + 1] !! 0;
+    if $c == 34 || ($c == 39 && !($i > 0 && 48 <= $u[$i - 1] <= 57 && 48 <= $next <= 57))
+    {
+      # A string, to its closing quote or the end of the line. (A "'" between
+      # two digits groups them: '12'345'.)
+      $i++;
+      $i++ while $i < $n && $u[$i] != $c && $u[$i] != 10;
+      $last = $c;
+      $i++;
+      next;
+    }
+    if $c == 47 && $next == 47
+    {
+      $i++ while $i < $n && $u[$i] != 10;    # '//' to the end of the line
+      next;
+    }
+    if $c == 47 && $next == 42
+    {
+      $i += 2;                               # '/* ... */'
+      $i++ while $i + 1 < $n && !($u[$i] == 42 && $u[$i + 1] == 47);
+      $i += 2;
+      next;
+    }
+    if $c == 10
+    {
+      return False unless $last == 59;       # the end of the line: of the statement, unless ';' goes on
+      $last = 0;
+      $i++;
+      next;
+    }
+    if $c == 40 || $c == 91 || $c == 123     # ( [ {
+    {
+      $depth++;
+    }
+    elsif $c == 41 || $c == 93 || $c == 125  # ) ] }
+    {
+      return !$item if --$depth < 0;         # an item ends here; a statement cannot tell
+    }
+    elsif $depth == 0
+    {
+      return False if $item && $c == 44;     # ',' ends an item
+      if $what eq 'assign'
+      {
+        # ':=', '+=', '-=', '*=', '/=', '?=', or '=' on its own -- not '==',
+        # '<=', '>=', '!='.
+        return True if $next == 61 && ($c == 58 || $c == 43 || $c == 45 || $c == 42 || $c == 47 || $c == 63);
+        if $c == 61
+        {
+          if $next == 61 { $i += 2; $last = 61; next }
+          my $prev = $i > 0 ?? $u[$i - 1] !! 0;
+          return True unless $prev == 60 || $prev == 62 || $prev == 33;
+        }
+      }
+      elsif $c == 124 && $next == 62         # '|>'
+      {
+        return True;
+      }
+    }
+    $last = $c unless $c == 32 || $c == 9 || $c == 13;
+    $i++;
+  }
+  False
+}
+
+# The text for ahead(), in the units of the match offsets.
+method parse($target, |c)
+{
+  my $*UNITS = text-units($target);
+  callsame;
+}
+
 # ---- names that cannot be declared ------------------------------------------
 #
 # The same rules as xtpl, checked against it case by case:
@@ -138,7 +253,7 @@ rule function
 {
   [ <annotation> <.nl> ]*
   <funckind> <name> '(' ~ ')' <params> <.nl>
-  <body=funcbody>
+  <funcbody>
 }
 
 # A bare 'function' is accepted on purpose. AdvPL refuses it ("Regular
@@ -184,7 +299,7 @@ rule methodimpl
   :i 'method' <mname=name> '(' ~ ')' <params>
      [ :i 'as' <ret=name> ]?
      :i 'class' <cname=name> <.nl>
-  <body=funcbody>
+  <funcbody>
 }
 
 rule params
@@ -207,7 +322,7 @@ rule param
 # '<!modkw>' the 'if' became a name and the line stopped matching.
 rule returnst
 {
-  :i 'return' [ <!modkw> <expr=guardexpr> ]?
+  :i 'return' [ <!modkw> <guardexpr> ]?
 }
 
 rule exitst { :i 'exit' }
@@ -312,7 +427,8 @@ rule statement
 # eats the space, and '>>' would then demand a word end at the start of the
 # next word. <.ws> already refuses to split a word, so 'deferred' does not
 # match.
-rule deferst { :i 'defer' [ <assignment> || <pipest> || <callst> ] }
+rule deferst { :i 'defer' [ [ <?{ ahead($/.from, 'assign') }> <assignment> ]
+                          || [ <?{ ahead($/.from, 'pipe') }> <pipest> ] || <callst> ] }
 
 # ---- xtpl: 'using alias' -- a scoped work area ------------------------------
 #
@@ -330,7 +446,7 @@ rule deferst { :i 'defer' [ <assignment> || <pipest> || <callst> ] }
 rule usingst
 {
   :i 'using' 'alias' <area=name> [ :i 'order' <order=expr> ]? :i 'do' <.nl>
-     <block=body>
+     <block>
   :i 'end' 'using'
 }
 
@@ -352,7 +468,7 @@ rule usingst
 rule withst
 {
   :i 'with' 'object' <subject=expr> <.nl>
-     <block=withbody>
+     <withblock>
   :i 'end' 'with'
 }
 
@@ -403,9 +519,8 @@ rule simple
      <returnst>
   || <exitst>
   || <loopst>
-  || <assignment>
-  || <nilassign>
-  || <pipest>
+  || [ <?{ ahead($/.from, 'assign') }> [ <assignment> || <nilassign> ] ]
+  || [ <?{ ahead($/.from, 'pipe') }> <pipest> ]
   || <callst>
 }
 
@@ -433,7 +548,7 @@ rule pipest { <!stmtword> <elvis> <feed>+ }
 # The word comes through the 'modkw' token: captured as '$<kw>=[...]' inside
 # this 'rule', the space that :sigspace adds after it got into the capture
 # ("if ").
-rule modifier { <kw=modkw> <cond=expr> }
+rule modifier { <kw=modkw> <cond> }
 token modkw   { :i [ 'if' || 'while' ] >> }
 
 # 'exec <expr>' marks an expression as a statement. It does not exist without
@@ -479,19 +594,19 @@ rule declarator
   <!{ is-reserved(~$<name>) }>
   <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
   <attrs>?
-  [    [ ':=' <expr=guardexpr> <typespec>? ]
-    || [ <typespec> ':=' <expr=guardexpr> ]
+  [    [ ':=' <guardexpr> <typespec>? ]
+    || [ <typespec> ':=' <guardexpr> ]
     || [ <typespec> ]
     || <?> ]
-  <!{ $<attrs> && (~$<attrs>).lc.contains('const') && !$<expr> }>
+  <!{ $<attrs> && (~$<attrs>).lc.contains('const') && !$<guardexpr> }>
 }
 
 token attrs { '<' \s* <attr>+ % [ \s* ',' \s* ] \s* '>' }
 token attr  { :i [ 'const' || 'contained' ] >> }
 
-# The parts are named -- '<cond=expr>', '<then=body>' -- because repeated
-# ones come back as a list, and unnamed the 'else' body would be just the last
-# of a list that sometimes has one more.
+# The parts have names of their own -- <cond>, <then>, <thenc>, <else>, tokens
+# below -- because repeated ones come back as a list, and unnamed the 'else'
+# body would be just the last of a list that sometimes has one more.
 # 'if local x := f(), <cond>' declares a block local in the header itself, and
 # only then the condition. 'local' is a reserved word, so the comma separates
 # the declarator from the condition unambiguously: 'f()' stops at the comma,
@@ -499,17 +614,17 @@ token attr  { :i [ 'const' || 'contained' ] >> }
 # does not.
 rule ifst
 {
-  :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
-     <then=body>
-  [ :i 'elseif' <cond=expr> <.nl> <then=closedbody> ]*
-  [ :i 'else' <.nl> <else=closedbody> ]?
+  :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
+     <then>
+  [ :i 'elseif' <cond> <.nl> <thenc> ]*
+  [ :i 'else' <.nl> <else> ]?
   :i 'endif'
 }
 
 rule whilest
 {
-  :i 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond=expr> <.nl>
-     <block=body>
+  :i 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
+     <block>
   :i [ 'enddo' || 'end' ]
 }
 
@@ -520,7 +635,7 @@ rule forst
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
      <!{ $<varlocal> && is-reserved(~$<var>) }> ':=' <from=expr>
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
-     <block=body>
+     <block>
   :i 'next' <endname=name>?
 }
 
@@ -546,15 +661,15 @@ rule forinst
 {
   :i 'for' <elem=name> <!{ is-reserved(~$<elem>) }>
      [ ',' <idx=name> <!{ is-reserved(~$<idx>) }> ]?
-     :i 'in' [ <srange=forrange> || <source=expr> ] <.nl>
-     <block=body>
+     :i 'in' [ <srange=forrange> || <source> ] <.nl>
+     <block>
   :i 'next' <endname=name>?
 }
 
 rule fortimesst
 {
   :i 'for' <count=expr> :i 'times' <.nl>
-     <block=body>
+     <block>
   :i 'next'
 }
 
@@ -564,8 +679,8 @@ rule fortimesst
 rule docasest
 {
   :i 'do' 'case' [ :i 'with' <subject> ]? <.nl>
-  [ :i 'case' <cond=expr> <.nl> <then=closedbody> ]+
-  [ :i 'otherwise' <.nl> <else=closedbody> ]?
+  [ :i 'case' <cond> <.nl> <thenc> ]+
+  [ :i 'otherwise' <.nl> <else> ]?
   :i 'endcase'
 }
 
@@ -584,14 +699,14 @@ rule hdrdecl { <name> <!{ is-reserved(~$<name>) }> ':=' <expr> <typespec>? }
 rule seqst
 {
   :i 'begin' 'sequence' <.nl>
-     <block=closedbody>
-  [ :i 'recover' [ :i 'using' <errvar=name> ]? <.nl> <recover=closedbody> ]?
+     <seqblock>
+  [ :i 'recover' [ :i 'using' <errvar=name> ]? <.nl> <recover> ]?
   :i 'end' [ :i 'sequence' ]?
 }
 
 rule assignment
 {
-  <!stmtword> <lvalue> <assignop> <expr=guardexpr>
+  <!stmtword> <lvalue> <assignop> <guardexpr>
 }
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
@@ -611,7 +726,7 @@ token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 rule callst
 {
   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
-             || [ '(' ~ ')' <pexpr=expr> <trailer>+ ] ]
+             || [ '(' ~ ')' <pexpr> <trailer>+ ] ]
 }
 
 token stmtword
@@ -668,8 +783,33 @@ rule expr        { <elvis> <feed>* }
 #
 # Both parts are named: an <expr> and an <alt=expr> at the same level would
 # come back together as a list in $<expr>.
-rule guardexpr { <guarded=expr> [ <!{ $*IN-BLOCK // False }> <fbkw> <fallback=expr> ]? }
+rule guardexpr { <guarded> [ <!{ $*IN-BLOCK // False }> <fbkw> <fallback> ]? }
 token fbkw     { :i 'fallback' >> }
+
+# ---- parts with a name: tokens of their own, not aliases ---------------------------
+# Under rakupp 4.0.1 an alias -- '<cond=expr>' -- runs the actions of what it
+# names twice, and those of the whole tree under it, twice over (Rakudo:
+# once). On the way from a statement to a literal they multiplied: a function
+# body, an 'if' body, an assignment's value twice, a range's low end -- 32
+# times over for an expression in an 'if' in a function. A token of its own
+# for each part runs them once, and keeps the name the actions read. Tokens,
+# not rules: the part is exactly what it holds, not the space around it.
+token cond      { <expr> }
+token guarded   { <expr> }
+token fallback  { <expr> }
+token pexpr     { <expr> }
+token key       { <expr> }
+token source    { <expr> }
+token lo        { <addexpr> }
+token hi        { <addexpr> }
+token lbody     { <blockexpr> }
+token then      { <body> }              # an 'if''s: a new prologue may open it
+token thenc     { <closedbody> }        # an 'elseif''s, a 'case''s
+token else      { <closedbody> }
+token block     { <body> }
+token seqblock  { <closedbody> }
+token withblock { <withbody> }
+token recover   { <closedbody> }
 
 # ---- xtpl: '?:' -- elvis -----------------------------------------------------
 # The value on the left, unless it is Nil. Between '.or.' and '|>', and it
@@ -696,7 +836,7 @@ token negate   { '!' || [ :i '.not.' ] }
 # The right of 'in' is the only place, besides the source of a pipeline,
 # where a 'lo..hi' fits.
 rule cmpexpr   { <rangeexpr> <cmptail>* }
-rule cmptail   { [ <op=inop> <rhs=inrhs> ] || [ <op=cmpop> <rhs=rangeexpr> ] }
+rule cmptail   { [ <op=inop> <inrhs> ] || [ <op=cmpop> <rangeexpr> ] }
 # AdvPL's own two as well: '=' compares in an expression (the loose
 # equality; as a statement it is still an assignment, which <statement> tries
 # first), and '#' is not-equal. '==' before '=', '>=' and '<=' before '>' and
@@ -713,12 +853,12 @@ token inop     { :i 'in' >> }
 # Both ends are named: an aliased capture also lands under the original name
 # (that is Raku), so two <addexpr> at the same level would come back together
 # as a list in $<addexpr>.
-rule rangeexpr { <lo=addexpr> [ '..' <hi=addexpr> <?before <.ws> '|>'> ]? }
-rule inrhs     { <lo=addexpr> [ '..' <hi=addexpr> ]? }
+rule rangeexpr { <lo> [ '..' <hi> <?before <.ws> '|>'> ]? }
+rule inrhs     { <lo> [ '..' <hi> ]? }
 
 # 'for i in 1..n': a range as the source of a 'for'. xtpl takes it, and emits
 # 'x := 1..n' -- not TL++; xc counts.
-rule forrange  { <lo=addexpr> '..' <hi=addexpr> }
+rule forrange  { <lo> '..' <hi> }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
 rule mulexpr   { <unary> [ <mulop> <unary> ]* }
@@ -761,7 +901,7 @@ rule tmember  { ':' <member> }
 # 'hCfg{"k"}', 'getHash(){"k"}', 'aHashes[1]{"k"}', 'h{"a"}{"b"}'.
 # '<?after ...>' is the 'right after': a space before the '{' has already
 # been eaten by the caller's <.ws>, and then what lies behind is that space.
-rule thash    { <?after <[\w)\]}]>> '{' ~ '}' <key=expr> }
+rule thash    { <?after <[\w)\]}]>> '{' ~ '}' <key> }
 
 # ---- xtpl: '?.' -- safe access ----------------------------------------------
 # 'oUser?.oAddress?.cCity', 'oUser?.Method(1)': Nil when the base is Nil,
@@ -791,7 +931,7 @@ rule primary
   || <call>
   || <aliasfield>
   || <name>
-  || [ '(' ~ ')' <expr=guardexpr> ]
+  || [ '(' ~ ')' <guardexpr> ]
 }
 
 # A call qualified by a TL++ dotted path:
@@ -829,7 +969,7 @@ rule arglist     { <slot> [ ',' <slot> ]* }
 rule slot        { <arg>? }
 
 # An assignment is a valid argument too: 'If( c, a, cA := u )'.
-rule arg         { <byref> || <assignment> || <expr> }
+rule arg         { <byref> || [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
 rule byref       { '@' <name> }
 
 # 'SA1->A1_NOME' and 'SA1->( DbGoTop() )'. 'SA1' is the NAME of a work area,
@@ -858,7 +998,7 @@ rule codeblock
 }
 
 # Inside a code block an assignment IS an expression.
-rule blockexpr   { <assignment> || <expr> }
+rule blockexpr   { [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
 
 # ---- xtpl: lambda -------------------------------------------------------------
 #
@@ -879,7 +1019,7 @@ rule blockexpr   { <assignment> || <expr> }
 rule lambda
 {
   :my $*IN-BLOCK = True;
-  '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <lbody=blockexpr>
+  '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <lbody>
   <!before \h* '|>'>
 }
 
@@ -891,7 +1031,7 @@ rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 # '(cAlias)->A1_COD := x' and 'GetObj():cName := x' too: a parenthesised
 # expression or a call, with at least one trailer after it -- a bare '(x)'
 # or 'f()' is not something to assign to.
-rule lvalue      { [ '(' ~ ')' <pexpr=expr> <trailer>+ ] || [ <call> <trailer>+ ]
+rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ]
                 || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ----------------------------------------------------------------
