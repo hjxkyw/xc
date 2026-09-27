@@ -1,7 +1,7 @@
 # The runtime, runtime/xtpl_runtime.tlpp, is TL++: it runs in Protheus, not
 # here -- t/protheus/xc_selftest.xtpl checks what it answers, through
-# run-protheus.raku. What can be checked here is its shape: that the three
-# functions that were quadratic stay linear.
+# run-protheus.raku. What can be checked here is its shape: that the four
+# functions that were quadratic, or could be, stay linear (join: log-linear).
 
 my $rt = slurp('runtime/xtpl_runtime.tlpp');
 
@@ -45,6 +45,13 @@ check "sortBy: each key evaluated once, before the sort; the comparisons read th
   my $f = function('xtpl_sortby');
   $f.contains('aPairs[nX] := {Eval(bKey, aRes[nX]), aRes[nX]}')
     && $f.lines.grep(*.contains('aSort(')).grep(*.contains('Eval(')).elems == 0
+};
+check "join: nothing appended to a growing text in a loop -- the pieces joined pairwise",
+{
+  my $f = function('xtpl_join');
+  my $c = function('xtpl_concat');
+  !$f.contains('+=') && $f.contains('Return xtpl_concat(aPieces)')
+    && $c.contains('aLevel[2 * nX - 1] + aLevel[2 * nX]') && $c.contains('aLevel := aNext')
 };
 check "nowhere in the runtime is a string cut and assigned back to itself in a loop",
 {

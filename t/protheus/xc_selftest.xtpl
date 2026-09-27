@@ -10,7 +10,7 @@
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 52 ok, 0 failed
+//   xc_selftest: 55 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // --------------------------------------------------------------------------------
@@ -188,6 +188,13 @@ user function xc_selftest()
   aTmp := aBig |> take(1000)
   aTmp := sortBy(aTmp, [x] counted(aCalls, x), .T.)
   check("sortBy: each key evaluated once", aCalls[1] == 1000 .and. aTmp[1] == 1000 .and. aTmp[1000] == 1, aCalls[1], @nOk, @nBad)
+
+  // join: the parts joined pairwise, whatever '+=' costs.
+  cTmp := join(split(replicate("x;", 20'000), ";"), ";")
+  check("join: 20,000 parts put back as they were", cTmp == replicate("x;", 20'000), len(cTmp), @nOk, @nBad)
+  cTmp := aBig |> map([x] "y") |> join
+  check("join fused: 40,000 elements, one text", len(cTmp) == 40000 .and. right(cTmp, 1) == "y", len(cTmp), @nOk, @nBad)
+  check("join: none, one, numbers, no separator", join({}, ",") == "" .and. join({"a"}, ",") == "a" .and. join({1, 2.5, 3}, "-") == "1-2.5-3" .and. join({"a", "b"}) == "ab", 0, @nOk, @nBad)
 
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
 

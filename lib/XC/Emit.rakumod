@@ -1575,24 +1575,26 @@ class Emitter
         }
         when 'join'
         {
-          # A separator between the elements: a literal as it is, anything
-          # else bound once; a flag keeps it from the front.
+          # The elements collected, and joined once, after the loop, by the
+          # runtime -- not appended to a growing text inside it, as xtpl
+          # does: if '+=' copies the text, as it may, that is quadratic. The
+          # separator: a literal as it is, anything else bound once, before
+          # the loop, as before.
+          my $sep = '';
           if $terminal.args
           {
             my $sepx = $terminal.args[0];
-            my $sep;
-            if $sepx ~~ Literal && $sepx !~~ Interp { $sep = self!expr($sepx) }
+            if $sepx ~~ Literal && $sepx !~~ Interp { $sep = ", {self!expr($sepx)}" }
             else
             {
-              $sep = self!gen('fsp', 'the separator of a join');
-              @ahead.push("$sep := {self!expr($sepx)}");
+              my $fsp = self!gen('fsp', 'the separator of a join');
+              @ahead.push("$fsp := {self!expr($sepx)}");
+              $sep = ", $fsp";
             }
-            my $ffs = self!gen('ffs', 'whether join is at its first element');
-            @ahead.push("$ffs := .T.");
-            @body.append("{$ind}If $ffs", "{$ind}  $ffs := .F.", "{$ind}Else", "{$ind}  $fo := $fo + $sep", "{$ind}EndIf");
           }
-          @ahead.push("$fo := \"\"");
-          @body.push("{$ind}$fo := $fo + cValToChar($elem)");
+          @ahead.push("$fo := \{\}");
+          @body.push("{$ind}AAdd($fo, $elem)");
+          @finish.push("$fo := u_xtpl_join($fo$sep)");
         }
         when 'reduce'
         {
