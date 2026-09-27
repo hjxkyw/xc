@@ -53,7 +53,7 @@ check '--check: a file that does not parse fails, with its line',
   my %r = xc('--check', "$dir/src/sub/c.xtpl");
   %r<code> == 1 && %r<err>.contains('c.xtpl:2: cannot parse this line')
 };
-check '--check: what the checks refuse, and what xc cannot lower, fail too',
+check '--check: what the checks refuse fails, with its line: a <const> assigned, a chain where it cannot run',
 {
   spurt $dir.add('src/d.xtpl'), "user function d()\n  local nL <const> := 1\n  nL := 2\nreturn nL\n";
   spurt $dir.add('src/e.xtpl'), "user function e(a)\n  local n := 0\n  while (lines(\"y.txt\") |> count) > n\n    n := n + 1\n  enddo\nreturn n\n";
@@ -61,7 +61,7 @@ check '--check: what the checks refuse, and what xc cannot lower, fail too',
   my %e = xc('--check', "$dir/src/e.xtpl");
   $dir.add('src/d.xtpl').unlink;
   $dir.add('src/e.xtpl').unlink;
-  %d<code> == 1 && %d<err>.contains('<const>') && %e<code> == 1 && %e<err>.contains('is not lowered yet')
+  %d<code> == 1 && %d<err>.contains('<const>') && %e<code> == 1 && %e<err>.contains('runs as a loop, before its statement')
 };
 
 # ---- several sources, folders ------------------------------------------------------------------

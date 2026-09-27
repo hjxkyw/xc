@@ -192,12 +192,12 @@ check 'bin/xc: a block never closed',
   my ($code, $, $err) = xc($in.Str);
   $code == 1 && $err.contains('the file ends inside a block that was never closed')
 };
-check 'bin/xc: a construct not lowered yet names its line, and no .tlpp is written',
+check 'bin/xc: a chain where it cannot run first is refused with its line, and no .tlpp is written',
 {
   my $in = $dir.add('ext.xtpl');
   spurt $in, "user function f(a)\n  local n := 0\n  while (lines(\"y.txt\") |> count) > n\n    n := n + 1\n  enddo\nreturn n\n";
   my ($code, $, $err) = xc($in.Str);
-  $code == 1 && $err.contains("ext.xtpl:3: a chain from lines() where it cannot run as a loop first") && !$dir.add('ext.tlpp').e
+  $code == 1 && $err.contains("ext.xtpl:3: a chain from lines() runs as a loop, before its statement") && !$dir.add('ext.tlpp').e
 };
 
 .unlink for $dir.dir;

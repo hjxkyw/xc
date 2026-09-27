@@ -89,6 +89,7 @@ my class Checker
   has %!retired;                   # lower case => line: block locals whose block is over
   has %!scalar;                    # lower case => why a chain cannot walk it
   has %!sources-ok;                # WHICH of the rows()/lines() calls where a source may be
+  has %!chains-ok;                 # WHICH of the chains from a source where one may be
   has Scope $!scope;
   has Int  $!line = 0;
   has Bool $!in-defer = False;
@@ -344,17 +345,27 @@ my class Checker
   {
     $!line = $s.line if $s.line;
     %!sources-ok = ();
-    # Where a rows()/lines() call may stand alone: the whole value of an
-    # assignment, a declaration, a 'return', the source of a 'for'.
+    %!chains-ok  = ();
+    # THE RULE for rows(), lines() and 'lo..hi'. A chain from one of them is a
+    # loop, which runs before its statement; so it is only ever the whole
+    # value of 'x := ...', of a 'local', 'private' or 'public', of 'return', or
+    # a statement of its own -- and the source alone, the same, or the source
+    # of a 'for'. Anywhere else the loop would run at another time, or when the
+    # original does not run it at all: an error, not a gap.
     my @whole = do given $s
     {
-      when Assignment  { (.value,) }
+      when Assignment  { .op eq ':=' ?? (.value,) !! () }
       when ReturnStmt  { (.value // ()) }
-      when Declaration { .declarators.map(*.init).grep(*.defined) }
+      when CallStmt    { (.call,) }
+      when Declaration { .scope (elem) <local private public> ?? .declarators.map(*.init).grep(*.defined) !! () }
       when ForInStmt   { (.source,) }
       default          { () }
     };
-    %!sources-ok{.WHICH} = True for @whole.grep({ $_ ~~ Call });
+    for @whole -> $w
+    {
+      %!sources-ok{$w.WHICH} = True if $w ~~ Call;
+      %!chains-ok{$w.WHICH} = True if $w ~~ Pipeline;
+    }
 
     given $s
     {
@@ -593,6 +604,8 @@ my class Checker
                        ~ "and a walk is a loop. Assign the chain first, then guard what uses it.")
             if $_ ~~ Call;
         }
+        # Said once, in xtpl's words: not again by the rule for where a chain goes.
+        %!chains-ok{.expr.WHICH} = True if .expr ~~ Pipeline && source-of(.expr).defined;
         self!expr(.expr);
         self!expr(.fallback);
       }
@@ -725,6 +738,18 @@ my class Checker
   # A chain: a source it can walk.
   method !chain(Pipeline $p)
   {
+    my $head = $p.source;
+    if ($head ~~ Call && $head.name.lc (elem) <rows lines>) || $head ~~ Interval
+    {
+      %!sources-ok{$head.WHICH} = True;          # said here, not again as a bare source
+      unless %!chains-ok{$p.WHICH}
+      {
+        my $what = $head ~~ Interval ?? 'a range' !! "{$head.name.lc}()";
+        self!problem("a chain from $what runs as a loop, before its statement, so it is only the whole value "
+                     ~ "of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. "
+                     ~ "Assign it to a variable first, where it should run.");
+      }
+    }
     # Over rows("SA1"), before a map, 'r:A1_COD' is SA1's field A1_COD.
     my $src0 = $p.source;
     if %!dictionary && $src0 ~~ Call && $src0.name.lc eq 'rows' && $src0.args
@@ -750,7 +775,6 @@ my class Checker
       }
     }
     my $src = $p.source;
-    %!sources-ok{$src.WHICH} = True if $src ~~ Call;
     if $src ~~ Literal && is-scalar($src)
     {
       self!scalar-source($src.text, '');

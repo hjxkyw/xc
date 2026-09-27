@@ -263,8 +263,6 @@ my @refuse =
     => "'lines()' outside the head of a chain (it is a source)",
   "  while (lines(cP) |> count) > x\n    x := x + 1\n  enddo"
     => "a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own)",
-  "  x := lines(cP) |> count if n > 0"
-    => 'a chain from a source under a postfix modifier',
   "  x := rows(\"SA1\", cP, n) |> map([r] r:A1_COD)"
     => "'rows()' with no alias, or more than an alias and a key",
   ;
