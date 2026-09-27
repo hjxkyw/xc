@@ -1,0 +1,44 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 20_object.tlpp -- 'with object', for code that repeats the same subject
+//
+// The subject is evaluated once and bound to a hidden block local. Inside the
+// block, a ':' in a position where AdvPL could not have put one means "the
+// subject". Member access on anything else, '::' for self and ':=' for
+// assignment are all left alone.
+// --------------------------------------------------------------------------------
+
+user function testObject(oModel, oOutro, aRows)
+
+  Local cNome := ""
+  Local nTam := 0
+
+  Local s_1_obj  // o local de bloco 'obj'
+  Local s_2_obj  // o local de bloco 'obj'
+
+  s_1_obj := oModel:GetModel("SA1DETAIL")
+    s_1_obj:SetValue("A1_COD", "000001")
+    s_1_obj:SetValue("A1_NOME", "ACME")
+    cNome := s_1_obj:GetValue("A1_NOME")
+    nTam := len(s_1_obj:GetValue("A1_COD"))
+
+    // untouched: another object, an index, an assignment, self
+    cNome := oOutro:cRazao
+    nTam := aRows[1]
+    nTam := 5
+    cNome := ::cUltimo
+
+    // nesting: the innermost subject wins, then the outer resumes
+    s_2_obj := oOutro
+      s_2_obj:Ativa()
+      cNome := s_2_obj:cRazao
+
+    s_1_obj:Grava()
+
+  conout(cValToChar(nTam))
+
+  return cNome
+
+// --------------------------------------------------------------------------------
+// the end

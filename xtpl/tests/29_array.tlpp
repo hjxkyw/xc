@@ -1,0 +1,65 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 29_array.tlpp -- the runtime's array functions, as ordinary calls
+//
+// Collection first, matching aEval and aScan. A lambda is '[name] body',
+// with up to six names. Every function returns a new array and leaves its
+// input alone. Chaining them is a separate feature; see test_feed.tlpp.
+// --------------------------------------------------------------------------------
+
+user function testArray(aOrders, aNums, aCodes, aDesc)
+
+  Local aVals := {}
+  Local aBig := {}
+  Local aLive := {}
+  Local aPairs := {}
+  Local nTotal := 0
+
+  Local b_0_a    // o local de bloco 'a', fixado: tem armazenamento so dele
+  Local b_0_acc  // o local de bloco 'acc', fixado: tem armazenamento so dele
+  Local b_0_b    // o local de bloco 'b', fixado: tem armazenamento so dele
+  Local b_0_c    // o local de bloco 'c', fixado: tem armazenamento so dele
+  Local b_0_d    // o local de bloco 'd', fixado: tem armazenamento so dele
+  Local b_0_n    // o local de bloco 'n', fixado: tem armazenamento so dele
+  Local b_0_o    // o local de bloco 'o', fixado: tem armazenamento so dele
+  Local b_0_x    // o local de bloco 'x', fixado: tem armazenamento so dele
+
+  // transform, keep, discard
+  aVals := u_xtpl_map(aOrders, {|b_0_o| b_0_o:nValue})
+  aBig  := u_xtpl_filter(aOrders, {|b_0_o| b_0_o:nValue > 1000})
+  aLive := u_xtpl_reject(aOrders, {|b_0_o| b_0_o:lCancelled})
+
+  // fold with an explicit seed; fold() starts from the first element instead
+  nTotal := u_xtpl_reduce(aNums, {|b_0_acc, b_0_x| b_0_acc + b_0_x}, 0)
+  nTotal := u_xtpl_fold(aNums, {|b_0_acc, b_0_x| Max(b_0_acc, b_0_x)})
+
+  // slicing and reshaping
+  aVals := u_xtpl_take(aNums, 5)
+  aVals := u_xtpl_drop(aNums, 2)
+  aVals := u_xtpl_chunks(aNums, 3)
+  aVals := u_xtpl_reverse(aNums)
+  aVals := u_xtpl_flatten(aVals)
+  aVals := u_xtpl_enumerate(aNums)
+
+  // distinct keeps the first occurrence and the original order
+  aVals := u_xtpl_distinct(aNums)
+
+  // sorting copies first, so aOrders keeps its own order
+  aVals := u_xtpl_sort(aNums)
+  aVals := u_xtpl_sort(aOrders, {|b_0_a, b_0_b| b_0_a:nValue < b_0_b:nValue})
+  aVals := u_xtpl_sortby(aOrders, {|b_0_o| b_0_o:nValue})
+  aVals := u_xtpl_sortby(aOrders, {|b_0_o| b_0_o:nValue}, .T.)
+
+  // zip takes two to six arrays; a block in any position is the combiner
+  aPairs := u_xtpl_zip(aCodes, aDesc)
+  aPairs := u_xtpl_zip(aCodes, aDesc, aNums)
+  aPairs := u_xtpl_zip(aCodes, aDesc, {|b_0_c, b_0_d| b_0_c + " " + b_0_d})
+  aPairs := u_xtpl_zip(aCodes, aDesc, aNums, {|b_0_c, b_0_d, b_0_n| b_0_c + b_0_d + cValToChar(b_0_n)})
+
+  conout(cValToChar(len(aBig)) + cValToChar(len(aLive)) + cValToChar(len(aPairs)))
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

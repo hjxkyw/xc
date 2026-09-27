@@ -1,0 +1,74 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 27_hash.tlpp -- dictionaries over THashMap
+//
+// A brace group whose parts are all 'k => v' is a hash literal; anything
+// else is an array. A '{' directly after a name is a hash subscript, which
+// AdvPL never has, so arrays keep '[' and no type tracking is needed.
+// --------------------------------------------------------------------------------
+
+user function testHash(nBase, cChave)
+
+  Local hCfg
+  Local hVazio
+  Local aLista := {1, 2, 3}
+  Local nTotal := 0
+  Local xValor
+
+  Local ht_0_0  // o valor lido de um hash
+  Local ht_0_1  // o valor lido de um hash
+  Local ht_1_0  // o valor lido de um hash
+  Local ht_2_0  // o valor lido de um hash
+  Local ht_2_1  // o valor lido de um hash
+
+  hCfg := THashMap():New()
+  hCfg:Set("taxa", 0.05)
+  hCfg:Set("limite", 1000)
+
+  hVazio := THashMap():New()
+
+  // read: Get leaves the variable alone on a miss, so the temp is cleared
+  // first and an absent key reads back as Nil
+  ht_0_0 := Nil
+  hCfg:Get("taxa", @ht_0_0)
+  nTotal := nBase * ht_0_0
+
+  ht_0_0 := Nil
+  hCfg:Get(cChave, @ht_0_0)
+  xValor := ht_0_0
+
+  // write
+  hCfg:Set("limite", 2000)
+  hVazio:Set("novo", "valor")
+
+  // two reads in one statement need two temps
+  ht_0_0 := Nil
+  hCfg:Get("taxa", @ht_0_0)
+  ht_0_1 := Nil
+  hCfg:Get("limite", @ht_0_1)
+  nTotal := ht_0_0 + ht_0_1
+
+  // arrays are untouched
+  nTotal := nTotal + aLista[1]
+
+  // 'has' rides on Get's logical return
+  ht_1_0 := Nil
+
+  if hCfg:Get("taxa", @ht_1_0)
+
+    conout("tem taxa")
+  endif
+
+  ht_2_0 := Nil
+  ht_2_1 := Nil
+
+  if hCfg:Get("a", @ht_2_0) .and. hCfg:Get("b", @ht_2_1)
+
+    conout("tem as duas")
+  endif
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

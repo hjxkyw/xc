@@ -1,0 +1,109 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 02_reuse.tlpp -- when a block local shares a slot and when it cannot
+// --------------------------------------------------------------------------------
+
+user function testReuse(lFlag)
+
+  Local nTotal := 100
+  Local aHandlers := {}
+  Local aCarrier := {}
+
+  Local s_1_0        // um slot, dividido por aGiven, aInner, aLent, aRows, aScratch, aWork, cSecond, i, nFirst, nOuter
+  Local b_1_nFactor  // o local de bloco 'nFactor', fixado: tem armazenamento so dele
+  Local b_2_cBuffer  // o local de bloco 'cBuffer', fixado: tem armazenamento so dele
+  Local s_1_nSquare  // o local de bloco 'nSquare'
+  Local s_2_nInner   // o local de bloco 'nInner'
+
+  // Sibling blocks at the same depth reuse one slot: each writes before it
+  // reads, so nothing can leak across.
+  if nTotal > 0
+    s_1_0 := 1
+    conout("first: " + cValToChar(s_1_0))
+  endif
+
+  if nTotal > 0
+    s_1_0 := "same storage, different type"
+    conout("second: " + s_1_0)
+  endif
+
+  // Nesting is not sharing: the inner block is one level deeper.
+  if nTotal > 0
+    s_1_0 := 1
+    if nTotal > 1
+      s_2_nInner := 2
+      conout("sum: " + cValToChar(s_1_0 + s_2_nInner))
+    endif
+  endif
+
+  // A loop body re-enters its block on every pass, so the slot is cleared
+  // each time rather than carrying the previous iteration's value.
+  for s_1_0 := 1 to 3
+    s_1_nSquare := Nil
+    s_1_nSquare := s_1_0 * s_1_0
+    conout("square: " + cValToChar(s_1_nSquare))
+  next
+
+  // PINNED 1 -- captured by a code block, which outlives the block.
+  if nTotal > 0
+    b_1_nFactor := 10
+    aadd(aHandlers, {|| b_1_nFactor * 2})
+  endif
+
+  // PINNED 2 -- a reference handed to a function we cannot see into.
+  if nTotal > 0
+    s_1_0 := {}
+    processRows(s_1_0)
+  endif
+
+  // PINNED 3 -- escapes at the store, without ever being passed itself.
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(aCarrier, s_1_0)
+  endif
+
+  // NOT pinned, and CHECKED -- [contained] is a promise the compiler enforces:
+  // aWork may not be passed, captured or aliased anywhere in the function.
+  // Unlike , breaking it is a compile error rather than silent risk.
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(s_1_0, "contained")
+    conout("first row: " + s_1_0[1])
+  endif
+
+  // NOT pinned -- a reference built and read entirely in place.
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(s_1_0, "stays home")
+    conout("kept: " + cValToChar(len(s_1_0)))
+  endif
+
+  // NOT pinned --  is a promise that processRows will not keep aLent,
+  // so the slot can be shared. aLent stays usable to the end of the block.
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(s_1_0, "borrowed")
+    processRows(s_1_0)
+    conout("still ours: " + cValToChar(len(s_1_0)))
+  endif
+
+  // give it up: the reference is dropped and aGiven is dead for the rest of
+  // the block. Reading it below this line is a compile error.
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(s_1_0, "handed off")
+  endif
+
+  // NOT pinned -- a value passed by reference is copied back during the
+  // call, so the callee cannot keep the binding.
+  if nTotal > 0
+    b_2_cBuffer := ""
+    fillBuffer(@b_2_cBuffer)
+    conout("buffer: " + b_2_cBuffer)
+  endif
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

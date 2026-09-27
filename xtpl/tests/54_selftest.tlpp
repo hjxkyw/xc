@@ -1,0 +1,351 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 54_selftest.tlpp -- roda o que as outras fixtures apenas compilam.
+//
+// Cinquenta e tres fixtures passam pelo compilador. Nenhuma linha gerada foi
+// executada, e compilar nao e funcionar: se um laco fundido calcula o que a
+// cadeia disse, ninguem sabe.
+//
+// Esta e um programa so, sem tabelas e sem arquivos, que exercita o runtime e
+// as construcoes geradas e confere cada resposta. Compile e chame u_selftest():
+// ele imprime uma linha por falha e um total no fim.
+//
+//   u_selftest()
+//   selftest: 47 ok, 0 falhas
+//
+// Tudo aqui e computacao pura de proposito. Nada que dependa de area de
+// trabalho, arquivo ou tela entra, porque o objetivo e uma resposta certa ou
+// errada, nao um ambiente.
+// --------------------------------------------------------------------------------
+
+user function selftest()
+
+  Local nOk := 0
+  Local nBad := 0
+  Local aNums := {3, 1, 4, 1, 5, 9, 2, 6}
+  Local aRep := {1, 1, 2, 2, 2, 3, 1}
+  Local aPal := {"beta", "alfa", "gama"}
+  Local hCfg
+  Local oFila
+  Local aTmp := {}
+  Local nTmp := 0
+  Local cTmp := ""
+  Local lTmp := .F.
+
+  Local b_0_a       // o local de bloco 'a', fixado: tem armazenamento so dele
+  Local b_0_acc     // o local de bloco 'acc', fixado: tem armazenamento so dele
+  Local b_0_b       // o local de bloco 'b', fixado: tem armazenamento so dele
+  Local b_0_c       // o local de bloco 'c', fixado: tem armazenamento so dele
+  Local b_0_x       // o local de bloco 'x', fixado: tem armazenamento so dele
+  Local et_0_0      // o valor testado por '?:'
+  Local fhd_0_0     // se ja houve algum elemento
+  Local fi_0_0      // o indice do percurso
+  Local fn_0_0      // quantos elementos ja passaram
+  Local fo_0_0      // o resultado da cadeia
+  Local fol_0_0     // o elemento de duas posicoes atras
+  Local fpv_0_0     // o elemento anterior
+  Local frd_0_0     // se ja ha par para emitir (pairwise)
+  Local fs_0_0      // a colecao ou o caminho percorrido
+  Local fv_0_0      // o elemento em percurso
+  Local ht_0_0      // o valor lido de um hash
+  Local pt_0_0      // o resultado de uma etapa que nao fundiu
+  Local s_1_each    // o local de bloco 'each'
+  Local s_1_eachi   // o local de bloco 'eachi'
+  Local s_1_nCada   // o local de bloco 'nCada'
+  Local s_1_nDobro  // o local de bloco 'nDobro'
+
+  hCfg := THashMap():New()
+  hCfg:Set("taxa", 5)
+  hCfg:Set("limite", 10)
+
+  // ---- runtime: folds ----------------------------------------------------
+  nTmp := u_xtpl_asum(aNums)
+  check("asum", nTmp == 31, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_amax(aNums)
+  check("amax", nTmp == 9, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_amin(aNums)
+  check("amin", nTmp == 1, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_aprod({2, 3, 4})
+  check("aprod", nTmp == 24, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_asum({})
+  check("asum vazio", nTmp == 0, nTmp, @nOk, @nBad)
+  check("amax vazio", u_xtpl_amax({}) == Nil, 0, @nOk, @nBad)
+
+  // ---- runtime: transformacoes -------------------------------------------
+  aTmp := u_xtpl_map(aNums, {|b_0_x| b_0_x * 2})
+  check("map", len(aTmp) == 8 .and. aTmp[1] == 6, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_filter(aNums, {|b_0_x| b_0_x > 3})
+  check("filter", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_reject(aNums, {|b_0_x| b_0_x > 3})
+  check("reject", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_take(aNums, 3)
+  check("take", len(aTmp) == 3 .and. aTmp[3] == 4, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_drop(aNums, 6)
+  check("drop", len(aTmp) == 2 .and. aTmp[1] == 2, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_take(aNums, 99)
+  check("take demais", len(aTmp) == 8, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_reverse({1, 2, 3})
+  check("reverse", aTmp[1] == 3 .and. aTmp[3] == 1, aTmp[1], @nOk, @nBad)
+  aTmp := u_xtpl_distinct(aRep)
+  check("distinct", len(aTmp) == 3, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_distinctadjacent(aRep)
+  check("distinctAdjacent", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_flatten({1, {2, {3, 4}}, 5})
+  check("flatten", len(aTmp) == 5 .and. aTmp[4] == 4, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_enumerate({"a", "b"})
+  check("enumerate", aTmp[2][1] == 2 .and. aTmp[2][2] == "b", 0, @nOk, @nBad)
+  aTmp := u_xtpl_chunks({1, 2, 3, 4, 5}, 2)
+  check("chunks", len(aTmp) == 3 .and. len(aTmp[3]) == 1, len(aTmp), @nOk, @nBad)
+
+  // ---- sort copia antes de ordenar ---------------------------------------
+  aTmp := u_xtpl_sort(aPal)
+  check("sort", aTmp[1] == "alfa", 0, @nOk, @nBad)
+  check("sort nao mexe na entrada", aPal[1] == "beta", 0, @nOk, @nBad)
+  aTmp := u_xtpl_sortby(aPal, {|b_0_c| len(b_0_c)})
+  check("sortBy", len(aTmp) == 3, len(aTmp), @nOk, @nBad)
+
+  // ---- dobras com bloco --------------------------------------------------
+  nTmp := u_xtpl_reduce(aNums, {|b_0_acc, b_0_x| b_0_acc + b_0_x}, 100)
+  check("reduce com semente", nTmp == 131, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_fold({4, 9, 2}, {|b_0_acc, b_0_x| Iif(b_0_x > b_0_acc, b_0_x, b_0_acc)})
+  check("fold", nTmp == 9, nTmp, @nOk, @nBad)
+  check("fold vazio", u_xtpl_fold({}, {|b_0_acc, b_0_x| b_0_acc}) == Nil, 0, @nOk, @nBad)
+
+  // ---- zip ---------------------------------------------------------------
+  aTmp := u_xtpl_zip({1, 2, 3}, {"a", "b"})
+  check("zip corta no menor", len(aTmp) == 2, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_zip({1, 2}, {10, 20}, {|b_0_a, b_0_b| b_0_a + b_0_b})
+  check("zip com bloco", aTmp[2] == 22, aTmp[2], @nOk, @nBad)
+
+  // ---- pertinencia e divisibilidade --------------------------------------
+  check("in array", u_xtpl_in(5, aNums), 0, @nOk, @nBad)
+  check("in array ausente", !(u_xtpl_in(7, aNums)), 0, @nOk, @nBad)
+  check("in faixa", (5 >= 1 .And. 5 <= 10), 0, @nOk, @nBad)
+  check("divisivel", (9 % 3) == 0, 0, @nOk, @nBad)
+  check("nao divisivel", !((10 % 3) == 0), 0, @nOk, @nBad)
+
+  // ---- cadeia fundida: o resultado tem de bater com as etapas -------------
+  fo_0_0 := 0
+
+  For fi_0_0 := 1 To Len(aNums)
+    fv_0_0 := aNums[fi_0_0]
+    If fv_0_0 > 2
+      fv_0_0 := fv_0_0 * 10
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+
+  nTmp := fo_0_0
+
+  check("cadeia fundida", nTmp == 270, nTmp, @nOk, @nBad)
+  fn_0_0 := 0
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(aNums)
+    fv_0_0 := aNums[fi_0_0]
+    If fv_0_0 > 2
+      If fn_0_0 >= 2
+        Exit
+      EndIf
+      fn_0_0 := fn_0_0 + 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  aTmp := fo_0_0
+
+  check("take para o laco", len(aTmp) == 2 .and. aTmp[2] == 4, len(aTmp), @nOk, @nBad)
+  pt_0_0 := u_xtpl_count(aNums, {|b_0_x| b_0_x > 3})
+  nTmp := pt_0_0
+
+  check("count", nTmp == 4, nTmp, @nOk, @nBad)
+  pt_0_0 := u_xtpl_first(aNums, {|b_0_x| b_0_x > 4})
+  nTmp := pt_0_0
+
+  check("first", nTmp == 5, nTmp, @nOk, @nBad)
+  check("first sem acerto", (u_xtpl_first(aNums, {|b_0_x| b_0_x > 99})) == Nil, 0, @nOk, @nBad)
+  pt_0_0 := u_xtpl_anyof(aNums, {|b_0_x| b_0_x == 9})
+  lTmp := pt_0_0
+
+  check("anyof", lTmp, 0, @nOk, @nBad)
+  pt_0_0 := u_xtpl_allof(aNums, {|b_0_x| b_0_x > 0})
+  lTmp := pt_0_0
+
+  check("allof", lTmp, 0, @nOk, @nBad)
+  pt_0_0 := u_xtpl_noneof(aNums, {|b_0_x| b_0_x > 99})
+  lTmp := pt_0_0
+
+  check("noneof", lTmp, 0, @nOk, @nBad)
+  pt_0_0 := u_xtpl_maxby(aNums, {|b_0_x| -b_0_x})
+  nTmp := pt_0_0
+
+  check("maxby", nTmp == 1, nTmp, @nOk, @nBad)
+
+  // ---- etapas de fluxo ---------------------------------------------------
+  pt_0_0 := u_xtpl_scan({10, -3, 5}, {|b_0_acc, b_0_x| b_0_acc + b_0_x}, 0)
+  aTmp := pt_0_0
+
+  check("scan", len(aTmp) == 3 .and. aTmp[3] == 12, aTmp[3], @nOk, @nBad)
+  fs_0_0 := {1, 4, 9}
+  fpv_0_0 := Nil
+  fhd_0_0 := .F.
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(fs_0_0)
+    fv_0_0 := fs_0_0[fi_0_0]
+    fol_0_0 := fpv_0_0
+    frd_0_0 := fhd_0_0
+    fpv_0_0 := fv_0_0
+    fhd_0_0 := .T.
+    If frd_0_0
+      fv_0_0 := {fol_0_0, fv_0_0}
+      fv_0_0 := fv_0_0[2] - fv_0_0[1]
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  aTmp := fo_0_0
+
+  check("pairwise", len(aTmp) == 2 .and. aTmp[2] == 5, aTmp[2], @nOk, @nBad)
+  pt_0_0 := u_xtpl_expand({1, 2, 3}, {|b_0_x| {b_0_x, b_0_x}})
+  aTmp := pt_0_0
+
+  check("expand", len(aTmp) == 6, len(aTmp), @nOk, @nBad)
+  pt_0_0 := u_xtpl_chunkby(aRep, {|b_0_x| b_0_x})
+  aTmp := pt_0_0
+
+  check("chunkby", len(aTmp) == 4 .and. len(aTmp[3]) == 1, len(aTmp), @nOk, @nBad)
+  pt_0_0 := u_xtpl_takewhile(aNums, {|b_0_x| b_0_x < 5})
+  aTmp := pt_0_0
+
+  check("takewhile", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
+  pt_0_0 := u_xtpl_dropwhile(aNums, {|b_0_x| b_0_x < 5})
+  aTmp := pt_0_0
+
+  check("dropwhile", len(aTmp) == 4 .and. aTmp[1] == 5, len(aTmp), @nOk, @nBad)
+
+  // ---- strings -----------------------------------------------------------
+  aTmp := u_xtpl_split("a,b,c", ",")
+  check("split", len(aTmp) == 3 .and. aTmp[2] == "b", len(aTmp), @nOk, @nBad)
+  cTmp := u_xtpl_join({"a", "b", "c"}, "-")
+  check("join", cTmp == "a-b-c", 0, @nOk, @nBad)
+  check("starts", u_xtpl_starts("abcdef", "abc"), 0, @nOk, @nBad)
+  check("ends", u_xtpl_ends("abcdef", "def"), 0, @nOk, @nBad)
+  check("contains", u_xtpl_contains("abcdef", "cde"), 0, @nOk, @nBad)
+  cTmp := ("soma " + cValToChar(1 + 2) + " fim")
+  check("interpolacao", cTmp == "soma 3 fim", 0, @nOk, @nBad)
+
+  // ---- hash --------------------------------------------------------------
+  ht_0_0 := Nil
+  hCfg:Get("taxa", @ht_0_0)
+  check("hash leitura", ht_0_0 == 5, 0, @nOk, @nBad)
+
+  ht_0_0 := Nil
+  hCfg:Get("nada", @ht_0_0)
+  check("hash ausente", ht_0_0 == Nil, 0, @nOk, @nBad)
+
+  ht_0_0 := Nil
+  check("hash has", hCfg:Get("limite", @ht_0_0), 0, @nOk, @nBad)
+
+  hCfg:Set("taxa", 7)
+  ht_0_0 := Nil
+  hCfg:Get("taxa", @ht_0_0)
+  check("hash escrita", ht_0_0 == 7, 0, @nOk, @nBad)
+
+  aTmp := u_xtpl_keys(hCfg)
+  check("keys", len(aTmp) == 2, len(aTmp), @nOk, @nBad)
+  pt_0_0 := u_xtpl_asum(u_xtpl_values(hCfg))
+  nTmp := pt_0_0
+
+  check("values", nTmp == 17, nTmp, @nOk, @nBad)
+
+  // ---- operadores --------------------------------------------------------
+  cTmp := Nil
+
+  If cTmp == Nil
+    cTmp := "padrao"
+  EndIf
+
+  check("?= atribui quando Nil", cTmp == "padrao", 0, @nOk, @nBad)
+
+  If cTmp == Nil
+    cTmp := "outro"
+  EndIf
+
+  check("?= nao atribui depois", cTmp == "padrao", 0, @nOk, @nBad)
+  et_0_0 := Nil
+  nTmp := If(et_0_0 != Nil, et_0_0, 42)
+
+  check("?: pega a alternativa", nTmp == 42, nTmp, @nOk, @nBad)
+  et_0_0 := 7
+  nTmp := If(et_0_0 != Nil, et_0_0, 42)
+
+  check("?: pega o valor", nTmp == 7, nTmp, @nOk, @nBad)
+
+  // ---- fallback ----------------------------------------------------------
+  nTmp := u_xtpl_safe_pipe({|| aNums[99]}, {|| -1})
+  check("fallback pega o erro", nTmp == -1, nTmp, @nOk, @nBad)
+  nTmp := u_xtpl_safe_pipe({|| len({1, 2})}, {|| -1})
+  check("fallback nao atrapalha", nTmp == 2, nTmp, @nOk, @nBad)
+
+  // ---- fila --------------------------------------------------------------
+  // Construida aqui, e nao no prologo: se a classe falhar, so os testes da
+  // fila falham, e nao todos os que vem antes.
+  oFila := u_xtpl_queue()
+  oFila:Push("a")
+  oFila:Push("b")
+  check("fila conta", oFila:Count() == 2, oFila:Count(), @nOk, @nBad)
+  check("fila e FIFO", oFila:Pop() == "a", 0, @nOk, @nBad)
+  check("fila sobra", oFila:Peek() == "b", 0, @nOk, @nBad)
+  oFila:Pop()
+  check("fila vazia", oFila:IsEmpty(), 0, @nOk, @nBad)
+  check("pop vazio da Nil", oFila:Pop() == Nil, 0, @nOk, @nBad)
+
+  // ---- escopo de bloco e reciclagem de slot ------------------------------
+  nTmp := 0
+  s_1_each := {1, 2, 3}
+
+  For s_1_eachi := 1 To Len(s_1_each)
+    s_1_nCada := s_1_each[s_1_eachi]
+    s_1_nDobro := s_1_nCada * 2
+    nTmp := nTmp + s_1_nDobro
+  next
+
+  check("local de bloco em laco", nTmp == 12, nTmp, @nOk, @nBad)
+
+  // os defers rodam antes da linha do Return, em ordem inversa: 10 +2 +1
+  nTmp := defers()
+  check("defer roda na saida", nTmp == 13, nTmp, @nOk, @nBad)
+
+  conout("selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " falhas")
+
+return nBad
+
+// --------------------------------------------------------------------------------
+
+static function check(cNome, lOk, xVisto, nOk, nBad)
+
+  if lOk
+    nOk := nOk + 1
+  else
+    nBad := nBad + 1
+    conout("FALHA  " + cNome + "  (visto: " + cValToChar(xVisto) + ")")
+  endif
+
+return nil
+
+// Dois defers, ordem inversa, mais um return antecipado que nao e tomado.
+static function defers()
+
+  Local nTotal := 0
+
+
+  nTotal := 10
+
+nTotal := nTotal + 2
+nTotal := nTotal + 1
+return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

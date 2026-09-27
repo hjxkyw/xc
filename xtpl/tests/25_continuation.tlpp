@@ -1,0 +1,43 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 25_continuation.tlpp -- ';' continuations meeting the other passes.
+//
+// The lines are folded into one before any pass runs, so a construct may be
+// split across them. A comment on a continued line has nowhere to sit once
+// they are joined, so it moves to the end of the statement.
+// --------------------------------------------------------------------------------
+
+user function testContinuation(cUrl, cBody, aNums, hCfg)
+
+  Local nTimeout := 30
+  Local cReply := ""
+  Local aBig := {}
+  Local nT := 0
+  Local nA := 1
+  Local nB := 2
+
+  Local b_0_x   // o local de bloco 'x', fixado: tem armazenamento so dele
+  Local ht_0_0  // o valor lido de um hash
+  Local ht_0_1  // o valor lido de um hash
+  Local pt_0_0  // o resultado de uma etapa que nao fundiu
+  Local pt_0_1  // o resultado de uma etapa que nao fundiu
+
+  cReply := u_xtpl_safe_pipe({|| HttpPost(cUrl, "", cBody, nTimeout, {"Content-Type: application/json"})}, {|| ""})
+
+  pt_0_0 := u_xtpl_filter(aNums, {|b_0_x| b_0_x > 10})
+  pt_0_1 := u_xtpl_distinct(pt_0_0)
+  aBig := pt_0_1  // a comment on a continued line
+
+  ht_0_0 := Nil
+  hCfg:Get("a", @ht_0_0)
+  ht_0_1 := Nil
+  hCfg:Get("b", @ht_0_1)
+  nT := ht_0_0 + ht_0_1
+
+  conout(cReply + cValToChar(len(aBig)))
+
+  return nT + nA + nB
+
+// --------------------------------------------------------------------------------
+// the end

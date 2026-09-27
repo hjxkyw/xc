@@ -1,0 +1,54 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 33_effect_chains.tlpp -- uma cadeia executada só pelos efeitos.
+//
+// Sem atribuição, uma cadeia não tem resultado a construir -- e por isso se
+// funde SEM acumulador. Antes ela não se fundia de forma alguma, e uma
+// cadeia com 'tap' virava dois laços e um array intermediário, pior do que o
+// 'for' que ela substituía.
+//
+// Uma cadeia de funções comuns continua sem se fundir: nunca foi candidata.
+// --------------------------------------------------------------------------------
+
+user function testEffectChains(aCobertura, cAlvo, aPedidos)
+
+  // exatamente o laço que alguém escreveria à mão
+  Local far_0_0  // a area que estava selecionada antes do percurso
+  Local fi_0_0   // o indice do percurso
+  Local frc_0_0  // o registro em que a area estava antes do percurso
+  Local fv_0_0   // o elemento em percurso
+  Local pt_0_0   // o resultado de uma etapa que nao fundiu
+
+  For fi_0_0 := 1 To Len(aCobertura)
+    fv_0_0 := aCobertura[fi_0_0]
+    If upper(fv_0_0[1]) == cAlvo
+      VarInfo("COBERTURA", fv_0_0)
+    EndIf
+  Next
+
+  // sobre uma área de trabalho, também sem acumulador
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  SA1->(DbGoTop())
+
+  While !SA1->(Eof())
+    conout(SA1->A1_COD)
+    SA1->(DbSkip())
+  EndDo
+
+  SA1->(DbGoto(frc_0_0))
+
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  // funções comuns: continua uma chamada por etapa
+  pt_0_0 := valida(aPedidos)
+  grava(pt_0_0)
+
+  return
+
+// --------------------------------------------------------------------------------
+// the end

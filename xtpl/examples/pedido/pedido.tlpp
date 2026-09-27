@@ -1,0 +1,124 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// pedido.tlpp -- somar os itens de um pedido, parando quando ele acaba.
+//
+// Um caso comum: SC6 esta indexada por filial + numero do pedido, e os itens
+// de um pedido ficam juntos. Somar o valor deles e uma leitura curta -- desde
+// que se pare no primeiro item que ja e de outro pedido.
+//
+// ============================================================================
+// O QUE 'rows()' FAZ
+// ============================================================================
+//
+//    rows("SC6")              percorre a tabela inteira, do topo
+//    rows("SC6", cChave)      faz DbSeek(cChave) e percorre dali
+//
+// Cada volta entrega o REGISTRO CORRENTE, nao uma copia dele: 'r:C6_VALOR' le
+// o campo onde o cursor esta agora. Nao ha array nenhum -- nem no meio, nem no
+// fim, a menos que a cadeia termine num que construa um.
+//
+// No fim, o registro corrente e a area selecionada voltam ao que eram.
+//
+// ============================================================================
+// POR QUE 'takewhile' E NAO 'filter'
+// ============================================================================
+//
+// Os dois parecem a mesma coisa e sao muito diferentes:
+//
+//    filter      testa TODOS os registros e guarda os que passam
+//    takewhile   para no PRIMEIRO que nao passa
+//
+// Com a tabela na ordem certa, o primeiro item de outro pedido e a prova de
+// que nao ha mais nada deste. 'filter' leria a SC6 inteira para descobrir
+// isso -- um pedido de dez itens numa tabela de dois milhoes.
+//
+// E por isso que 'using alias SC6 order 1' vem junto: o 'takewhile' so esta
+// certo se a ordem garantir que os itens do pedido estao juntos. A ordem nao
+// e detalhe de performance aqui, e o que torna a leitura correta.
+//
+// ============================================================================
+// O QUE A CADEIA VIRA
+// ============================================================================
+//
+// Nenhuma etapa constroi array. As quatro viram um laco so:
+//
+//    DbSeek        entra no pedido
+//    While         enquanto nao e Eof
+//      takewhile     if mudou o pedido -> Exit
+//      filter        if nao esta cancelado
+//      map             pega o valor
+//      asum              soma
+//    DbSkip
+//
+// Compare com pedido_mao.tlpp.
+// ============================================================================
+
+user function pedido(cNumero)
+
+  Local nTotal := 0
+  Local nItens := 0
+  Local cChave
+
+  Local fo_1_0       // o resultado da cadeia
+  Local frc_1_0      // o registro em que a area estava antes do percurso
+  Local fv_1_0       // o elemento em percurso
+  Local s_1_usearea  // o local de bloco 'usearea'
+  Local s_1_useord   // o local de bloco 'useord'
+  Local s_1_userec   // o local de bloco 'userec'
+
+  cChave := xFilial("SC6") + cNumero
+
+  s_1_usearea := Alias()
+  DbSelectArea("SC6")
+  s_1_userec := SC6->(RecNo())
+  s_1_useord := SC6->(IndexOrd())
+  SC6->(DbSetOrder(1))
+
+    // Uma passada: para no primeiro item de outro pedido, ignora os
+    // cancelados, e soma o valor do resto.
+    frc_1_0 := SC6->(RecNo())
+    SC6->(DbSeek(cChave))
+    fo_1_0 := 0
+    While !SC6->(Eof())
+      If !(SC6->C6_NUM == cNumero)
+        Exit
+      EndIf
+      If empty(SC6->C6_BLQ)
+        fv_1_0 := SC6->C6_VALOR
+        fo_1_0 := fo_1_0 + fv_1_0
+      EndIf
+      SC6->(DbSkip())
+    EndDo
+    SC6->(DbGoto(frc_1_0))
+    nTotal := fo_1_0
+
+    // A segunda passada re-le os mesmos dez registros, nao a tabela.
+    frc_1_0 := SC6->(RecNo())
+    SC6->(DbSeek(cChave))
+    fo_1_0 := 0
+    While !SC6->(Eof())
+      If !(SC6->C6_NUM == cNumero)
+        Exit
+      EndIf
+      If empty(SC6->C6_BLQ)
+        fo_1_0 := fo_1_0 + 1
+      EndIf
+      SC6->(DbSkip())
+    EndDo
+    SC6->(DbGoto(frc_1_0))
+    nItens := fo_1_0
+
+  SC6->(DbSetOrder(s_1_useord))
+  SC6->(DbGoto(s_1_userec))
+
+  If !Empty(s_1_usearea)
+    DbSelectArea(s_1_usearea)
+  EndIf
+
+  conout("pedido " + cValToChar(cNumero) + ": " + cValToChar(nItens) + " itens, " + cValToChar(nTotal) + " em valor")
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

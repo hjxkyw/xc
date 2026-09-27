@@ -1,0 +1,32 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 19_defer_pinning.tlpp -- a defer keeps its variable alive.
+//
+// A deferred body runs at an exit from the function, long after the block
+// holding the variable has gone. Recycling that slot to a sibling block in
+// between left the defer reading whatever the sibling had put there -- and
+// the origin comment still said the original name.
+// --------------------------------------------------------------------------------
+
+user function testDeferPinning(nX)
+
+  Local nT := 0
+
+  Local b_1_nA  // o local de bloco 'nA', fixado: tem armazenamento so dele
+  Local s_1_cB  // o local de bloco 'cB'
+
+  if nX > 0
+    b_1_nA := 5
+  endif
+
+  if nX > 0
+    s_1_cB := "sibling"  // would have taken the same slot
+    nT := len(s_1_cB)
+  endif
+
+  logIt(b_1_nA)  // captured: nA gets private storage
+  return nT
+
+// --------------------------------------------------------------------------------
+// the end

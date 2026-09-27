@@ -1,0 +1,169 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// consulta.tlpp -- uma tela de consulta simples, com a parte de dados em xtpl.
+//
+// Um caso comum de verdade: a rotina tem uma tela feita com comandos de
+// Clipper-em-AdvPL -- '@ ... SAY ... GET', 'MsAguarde', 'MsgRun' -- e tem
+// logica de dados em volta. A tela nao vai mudar, e nao precisa.
+//
+// ============================================================================
+// O PROBLEMA
+// ============================================================================
+//
+//    @ 10, 5 SAY "Total" GET nTotal PICTURE "@E 999,999.99"
+//
+// Esta linha NAO e AdvPL. 'SAY', 'GET' e 'PICTURE' nao sao funcoes nem
+// variaveis -- sao palavras que um '#command' num header troca por chamadas
+// de verdade. Ela so vira AdvPL depois que o pre-processador roda, e o
+// pre-processador roda DEPOIS do xtpl.
+//
+// Para o xtpl, 'SAY' e um nome nao declarado. E ele esta certo: nao ha como
+// saber o que e, porque a definicao esta num '.ch' que ele nao le.
+//
+// ============================================================================
+// O QUE 'raw' FAZ
+// ============================================================================
+//
+//    raw @ 10, 5 SAY "Total" GET nTotal PICTURE "@E 999,999.99"
+//
+// Diz: nao tente entender esta linha. Ha a forma em bloco, para telas
+// inteiras:
+//
+//    raw
+//      @ 12, 5 SAY "Nome" GET cNome PICTURE "@!"
+//      @ 14, 5 SAY "Obs"  GET cObs  SIZE 60, 10
+//    end raw
+//
+// ============================================================================
+// O QUE 'raw' NAO DESLIGA
+// ============================================================================
+//
+// **As variaveis declaradas continuam sendo renomeadas ali dentro.** Um local
+// de bloco usado numa linha 'raw' sai com o nome gerado, como em qualquer
+// outro lugar. So a verificacao de nomes NAO declarados e relaxada, porque
+// 'SAY' e 'GET' sao comandos e nao variaveis.
+//
+// Isso importa: 'raw' e uma saida para a SINTAXE, nao para o escopo. Uma
+// linha raw nao vira terra de ninguem.
+//
+// ============================================================================
+// E O PRECO
+// ============================================================================
+//
+// Uma variavel mencionada numa linha 'raw' e FIXADA -- ganha armazenamento
+// proprio e nao divide slot com ninguem, do mesmo jeito que uma capturada por
+// um code block.
+//
+// O motivo e o mesmo: o transpilador nao enxerga o que o comando faz com ela,
+// e 'GET' em particular passa a variavel por REFERENCIA para um dialogo que
+// sobrevive ao bloco. Se o slot fosse reaproveitado depois, o dialogo estaria
+// escrevendo em cima de outra coisa.
+//
+// Entao 'raw' custa um slot por variavel citada. E o preco de nao poder ver.
+//
+// ============================================================================
+// COMO USAR
+// ============================================================================
+//
+// A tela em 'raw', os dados em xtpl. Nao ha ganho em converter a tela: ela ja
+// esta escrita, funciona, e as linhas '@ ... SAY ... GET' nao ficam melhores
+// de nenhum jeito.
+//
+// O ganho esta em volta dela -- na consulta, na validacao, no que se faz com
+// o que o usuario digitou.
+//
+// Compare com consulta_mao.tlpp, que e quase a mesma coisa. Este exemplo e o
+// unico da pasta em que a versao a mao quase nao perde: e de proposito.
+// ============================================================================
+
+
+user function consulta(cFilialDe, cFilialAte)
+
+  Local cNome
+  Local nTotal := 0
+  Local nDias := 30
+  Local lOk := .F.
+  Local aResumo := {}
+  Local oDlg := nil
+
+  Local s_1_0        // um slot, dividido por each, usearea
+  Local s_1_1        // um slot, dividido por oLinha, userec
+  Local s_1_2        // um slot, dividido por nPos, useord
+  Local fo_1_0       // o resultado da cadeia
+  Local frc_1_0      // o registro em que a area estava antes do percurso
+  Local fv_1_0       // o elemento em percurso
+  Local s_2_cFilial  // o local de bloco 'cFilial'
+  Local s_2_each     // o local de bloco 'each'
+  Local s_2_eachi    // o local de bloco 'eachi'
+
+  cNome := space(40)
+
+  // ---- a tela: entregue ao pre-processador ---------------------------------
+    @ 200, 010 TO 400, 600 DIALOG oDlg TITLE "Consulta de saldos"
+    @ 012, 010 SAY "Cliente" GET cNome PICTURE "@!"
+    @ 014, 010 SAY "Dias"    GET nDias PICTURE "@E 999"
+    @ 060, 200 BMPBUTTON TYPE 1 ACTION lOk := .T.
+    @ 060, 240 BMPBUTTON TYPE 2 ACTION lOk := .F.
+
+  ACTIVATE DIALOG oDlg CENTERED
+
+  If !lOk
+    Return {}
+  EndIf
+
+  // ---- e daqui para baixo, xtpl comum --------------------------------------
+
+  s_1_0 := Alias()
+  DbSelectArea("SE1")
+  s_1_1 := SE1->(RecNo())
+  s_1_2 := SE1->(IndexOrd())
+  SE1->(DbSetOrder(1))
+
+    s_2_each := filiaisEntre(cFilialDe, cFilialAte)
+    For s_2_eachi := 1 To Len(s_2_each)
+      s_2_cFilial := s_2_each[s_2_eachi]
+
+      SE1->(DbSeek(s_2_cFilial))
+
+      frc_1_0 := SE1->(RecNo())
+      SE1->(DbSeek(s_2_cFilial))
+      fo_1_0 := 0
+      While !SE1->(Eof())
+        If !(SE1->E1_FILIAL == s_2_cFilial)
+          Exit
+        EndIf
+        If SE1->E1_SALDO > 0
+          If date() - SE1->E1_VENCTO <= nDias
+            fv_1_0 := SE1->E1_SALDO
+            fo_1_0 := fo_1_0 + fv_1_0
+          EndIf
+        EndIf
+        SE1->(DbSkip())
+      EndDo
+      SE1->(DbGoto(frc_1_0))
+      nTotal := fo_1_0
+
+      aadd(aResumo, {s_2_cFilial, nTotal})
+
+    next
+
+  SE1->(DbSetOrder(s_1_2))
+  SE1->(DbGoto(s_1_1))
+
+  If !Empty(s_1_0)
+    DbSelectArea(s_1_0)
+  EndIf
+
+  // ---- e de volta a tela, para mostrar o resultado --------------------------
+  s_1_0 := aResumo
+
+  For s_1_2 := 1 To Len(s_1_0)
+    s_1_1 := s_1_0[s_1_2]
+    MsgInfo(("Filial " + cValToChar(s_1_1[1]) + ": " + cValToChar(s_1_1[2])), ("Resumo " + cValToChar(s_1_2)))
+  next
+
+  return aResumo
+
+// --------------------------------------------------------------------------------
+// the end

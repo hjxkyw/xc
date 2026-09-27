@@ -1,0 +1,64 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 45_foreach_lines.tlpp -- 'for' over the lines of a file.
+//
+// This works where 'for' over rows() would not: the element here IS a
+// value -- the line -- so it binds to a name in the ordinary way and the body
+// needs no rewriting. A work-area record is not a value, which is why the
+// same shape was refused there.
+//
+// FT_FSkip() sits straight after the read rather than at the foot of the
+// loop. The body is the programmer's, so it may contain a 'Loop', and a Loop
+// over a skip at the foot would never advance the file.
+//
+// Closing the file is an exit-path job, like restoring a work area: an early
+// return has to close it too.
+// --------------------------------------------------------------------------------
+
+user function testForeachLines(cPath)
+
+  Local nTotal := 0
+
+  Local s_1_cLinha   // o local de bloco 'cLinha'
+  Local s_1_each     // o local de bloco 'each'
+  Local s_1_nNumero  // o local de bloco 'nNumero'
+  Local s_1_opened   // o local de bloco 'opened'
+
+  s_1_each := cPath
+  s_1_opened := File(s_1_each)
+
+  If s_1_opened
+    FT_FUse(s_1_each)
+    FT_FGoTop()
+  EndIf
+
+  s_1_nNumero := 0
+
+  While s_1_opened .And. !FT_FEof()
+    s_1_nNumero := s_1_nNumero + 1
+    s_1_cLinha := FT_FReadLn()
+    FT_FSkip()
+    if empty(s_1_cLinha)
+      loop  // safe: the file has already advanced
+    endif
+
+    nTotal := nTotal + len(s_1_cLinha)
+
+    If nTotal > 1000  // closes the file on the way out
+      If s_1_opened
+        FT_FUse()
+      EndIf
+      Return s_1_nNumero
+    EndIf
+
+  EndDo
+
+  If s_1_opened
+    FT_FUse()
+  EndIf
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

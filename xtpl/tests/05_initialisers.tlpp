@@ -1,0 +1,91 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 05_initialisers.tlpp -- xtpl constructs in declarations and headers.
+//
+// Declarations and block headers are handled by branches that return to the
+// top of the main loop before the expression passes run, so their values used
+// to reach the undeclared-name check with nothing rewritten: '|>' reported
+// its verb as an undeclared function, '?.' reported the member, 'fallback'
+// reported itself, and 'h{key}', '?:', 'in' and '%%' were emitted with their
+// own syntax intact. They all go through the same passes now.
+// --------------------------------------------------------------------------------
+
+user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
+
+  Local nA
+  Local nB
+  Local cD
+  Local lE
+  Local lF
+  Local cG
+  Local nH
+  Local hM
+  Local nT := 0
+
+  Local s_1_0      // um slot, dividido por each, nD, nS, obj, times
+  Local s_1_1      // um slot, dividido por ntimes, oIt
+  Local et_0_0     // o valor testado por '?:'
+  Local ht_0_0     // o valor lido de um hash
+  Local ht_1_0     // o valor lido de um hash
+  Local ht_2_0     // o valor lido de um hash
+  Local pt_0_0     // o resultado de uma etapa que nao fundiu
+  Local s_1_eachi  // o local de bloco 'eachi'
+
+  ht_0_0 := Nil
+  hCfg:Get("id", @ht_0_0)
+  nA := ht_0_0  // a hash read lifts a Get above it
+
+  pt_0_0 := u_xtpl_distinct(aNums)
+  nB := u_xtpl_asum(pt_0_0)  // a chain, one temp per stage
+
+  et_0_0 := lookupName(1)
+  cD := If(et_0_0 != Nil, et_0_0, "anon")  // elvis
+
+  lE := (nX % 3) == 0  // divisible-by
+  lF := u_xtpl_in(cC, aC)  // membership
+  cG := If(oUser != Nil .And. oUser:oA != Nil, oUser:oA:cB, Nil)  // optional chaining
+  nH := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})  // guarded
+  hM := THashMap():New()
+  hM:Set("a", 1)  // a literal, with a comment after it
+
+  s_1_0 := u_xtpl_distinct(aRows)
+
+  For s_1_eachi := 1 To Len(s_1_0)  // a chain in the source
+    s_1_1 := s_1_0[s_1_eachi]
+    nT := nT + s_1_1:nValue
+  next
+
+  ht_1_0 := Nil
+  hCfg:Get("n", @ht_1_0)
+  s_1_1 := ht_1_0
+
+  For s_1_0 := 1 To s_1_1  // a hash read in the count
+    nT := nT + 1
+  next
+
+  s_1_0 := u_xtpl_asum(aNums)
+
+  If s_1_0 > 0  // a chain in a conditional binding
+    nT := nT + s_1_0
+  endif
+
+  s_1_0 := u_xtpl_amax(aNums)  // and in a do-case subject
+
+  Do Case
+    case s_1_0 > 5
+      nT := 1
+  endcase
+
+  ht_2_0 := Nil
+  hCfg:Get("id", @ht_2_0)
+  s_1_0 := oModel:GetModel(ht_2_0)  // and in a with-object subject
+    s_1_0:SetValue("A1_COD", nT)
+
+  conout(cValToChar(nA + nB + nH + len(hM)) + cD + cG)
+  conout(cValToChar(lE) + cValToChar(lF))
+
+  return nT
+
+// --------------------------------------------------------------------------------
+// the end

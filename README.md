@@ -29,13 +29,28 @@ has to be compiled into the RPO alongside it.
 
 ## Running the tests
 
+From the top of the repository:
+
 ```sh
-rakupp run-tests.raku          # all but the slow tests
-rakupp run-tests.raku --all    # all of them, the whole xtpl corpus too: a few minutes
+rakupp run-tests.raku          # all but the slow tests: about 20 seconds
+rakupp run-tests.raku --all    # all of them, xtpl's whole corpus too: a few minutes
 ```
 
-A single test runs on its own too:
+Each test file says `ok` or `FAIL` with its count, and the run ends with the
+total; the exit code is 0 only when everything passed. A single test runs on
+its own too:
 
 ```sh
 rakupp t/08-tree.raku
 ```
+
+## What is where
+
+| | |
+|---|---|
+| `bin/xc` | the compiler |
+| `lib/XC/` | the grammar, the tree, the checks, the emitter |
+| `runtime/` | the functions the generated code calls, compiled into the RPO with it |
+| `t/` | xc's tests |
+| `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte -- see `xtpl/README.md` |
+| `examples/` | an example of xc's |

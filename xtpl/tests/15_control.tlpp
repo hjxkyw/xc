@@ -1,0 +1,107 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 15_control.tlpp -- constructs that lower to plain AdvPL, no runtime needed
+// --------------------------------------------------------------------------------
+
+user function testControl(oUser, nLimit, aItens)
+
+  Local nTotal := 0
+  Local cCity
+  Local lDone
+
+  Local s_1_0  // um slot, dividido por cNode, each, i, lReady, nSubject, times
+  Local s_1_1  // um slot, dividido por ntimes, oItem
+  Local s_1_2  // um slot, dividido por eachi, nIndice
+
+  // conditional binding: the value is bound, then tested
+  s_1_0 := checkReady()
+
+  If s_1_0
+    conout("ready")
+  endif
+
+  While (s_1_0 := nextNode()) != Nil
+    conout("node: " + s_1_0)
+  enddo
+
+  for s_1_0 := 1 to 3
+    nTotal := nTotal + s_1_0
+  next
+
+  // 'for' binds the element; the index is optional and only generated
+  // when you name it. Both are ordinary block locals of the loop.
+  s_1_0 := aItens
+
+  For s_1_2 := 1 To Len(s_1_0)
+    s_1_1 := s_1_0[s_1_2]
+    nTotal := nTotal + s_1_1:nValor
+  next
+
+  s_1_0 := aItens
+
+  For s_1_2 := 1 To Len(s_1_0)
+    s_1_1 := s_1_0[s_1_2]
+    conout(cValToChar(s_1_2) + ": " + s_1_1:cCodigo)
+  next
+
+  // 'for <n> times' repeats without inventing a counter you never read
+  For s_1_0 := 1 To 3
+    conout("linha")
+  next
+
+  s_1_1 := len(aItens)
+
+  For s_1_0 := 1 To s_1_1
+    nTotal := nTotal + 1
+  next
+
+  // 'do case with' names the subject and evaluates it once. The conditions
+  // are ordinary AdvPL, and the variable is an ordinary block local.
+  s_1_0 := calcTotal(nTotal)
+
+  Do Case
+    case s_1_0 == 6
+      conout("exactly six")
+    case s_1_0 > 3
+      conout("more than three: " + cValToChar(s_1_0))
+    case isReady(s_1_0)
+      conout("ready")
+    otherwise
+      conout("small")
+  endcase
+
+  // plain 'do case' is untouched
+  do case
+    case nTotal == 0
+      conout("zero")
+  endcase
+
+  // optional chaining: a missing link yields Nil rather than crashing
+  cCity := If(oUser != Nil .And. oUser:oAddress != Nil, oUser:oAddress:cCity, Nil)
+
+  // postfix modifiers
+  If nTotal > 5
+    lDone := .T.
+  EndIf
+
+  If nTotal == 0
+    resetAll()
+  EndIf
+
+  While nTotal < 0
+    conout("counting")
+  EndDo
+
+  If nTotal > 100
+    logExit("finished")
+    closeCursor()
+    Return nTotal
+  EndIf
+
+  logExit("finished")
+  closeCursor()
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

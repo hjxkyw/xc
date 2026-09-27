@@ -1,0 +1,84 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 50_dictionary.tlpp -- field references checked against an exported SX3.
+//
+// SA1->A1_NMOE when the field is A1_NOME is a runtime error today, found in
+// production. It is invisible to AdvPL and to the preprocessor, and it is
+// exactly the shape a transpiler can catch.
+//
+// Checked on the emitted line rather than the source, so a field named
+// through a rows() chain is checked too: by then it has become an ordinary
+// SA1->A1_VALOR, and that is the one place the alias and the field are known
+// together beyond doubt.
+//
+// Warnings, not errors: a field being added may not be in an export yet, and
+// a stale dictionary should not stop a build. --dict-strict for CI.
+// --------------------------------------------------------------------------------
+
+
+user function testDictionary(cAlias)
+
+  Local nT := 0
+  Local aC := {}
+  Local aV := {}
+
+  Local fal_0_0  // o alias da area percorrida
+  Local far_0_0  // a area que estava selecionada antes do percurso
+  Local fo_0_0   // o resultado da cadeia
+  Local frc_0_0  // o registro em que a area estava antes do percurso
+  Local fv_0_0   // o elemento em percurso
+
+  nT := SA1->A1_SALDO  // known
+  nT := nT + SA1->A1_NMOE  // a typo for A1_NOME
+  nT := nT + SAX->X_QUALQUER  // no such table
+
+  // caught through the chain: r:A1_NMOE becomes SA1->A1_NMOE
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  SA1->(DbGoTop())
+  fo_0_0 := {}
+
+  While !SA1->(Eof())
+    If SA1->A1_SALDO > 0
+      fv_0_0 := SA1->A1_NMOE
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+    SA1->(DbSkip())
+  EndDo
+
+  SA1->(DbGoto(frc_0_0))
+
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  aC := fo_0_0
+
+  // the alias is a variable, so there is nothing to check it against
+  fal_0_0 := cAlias
+  far_0_0 := Alias()
+  DbSelectArea(fal_0_0)
+  frc_0_0 := (fal_0_0)->(RecNo())
+  (fal_0_0)->(DbGoTop())
+  fo_0_0 := {}
+
+  While !(fal_0_0)->(Eof())
+    fv_0_0 := (fal_0_0)->B1_DESC
+    AAdd(fo_0_0, fv_0_0)
+    (fal_0_0)->(DbSkip())
+  EndDo
+
+  (fal_0_0)->(DbGoto(frc_0_0))
+
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  aV := fo_0_0
+
+  return nT + len(aC) + len(aV)
+
+// --------------------------------------------------------------------------------
+// the end

@@ -1,0 +1,230 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 53_kitchen_sink.tlpp
+// --------------------------------------------------------------------------------
+
+user function testKitchenSink()
+
+  // 1. Function-level initialization (Unmangled, native declarations)
+  Local nTotal := 100
+  Local aHandlers := {}
+  Local nCount := 0
+  Local i
+  Local aList
+  Local aLoopList
+  Local cCache
+  Local cName
+  Local cPick
+
+  Local s_1_0        // um slot, dividido por aInner, aLocalOnly, aRows, cNode, cSlotB, conditionalList, idx, j, k, lReady, lSuccess, nCount, nDiscount, nOuter, nPlain, nRowCount, nScratch, nSlotA, subList
+  Local s_1_1        // um slot, dividido por aBatch, aCarrier, nSquare
+  Local b_1_nFactor  // o local de bloco 'nFactor', fixado: tem armazenamento so dele
+  Local b_2_cBuffer  // o local de bloco 'cBuffer', fixado: tem armazenamento so dele
+  Local et_0_0       // o valor testado por '?:'
+  Local s_2_nInner   // o local de bloco 'nInner'
+
+  // 2. Traditional for loop (Passes safety check because 'i' is declared above)
+  for i := 1 to 3
+    nCount := nCount + i
+  next
+
+  // 3. Block-scoped for loop (loop counter takes a depth-1 stack slot)
+  for s_1_0 := 1 to 5
+    conout("Index: " + cValToChar(s_1_0))
+  next
+
+  // 4. Block-scoped shadowing (First block)
+  if nTotal > 50
+    s_1_0 := 10
+    nTotal := nTotal - s_1_0
+    conout("Discount A: " + cValToChar(s_1_0))
+  endif
+
+  // 5. Block-scoped shadowing (Second block - isolated from the first)
+  if nTotal > 20
+    s_1_0 := 5
+    nTotal := nTotal - s_1_0
+    conout("Discount B: " + cValToChar(s_1_0))
+  endif
+
+  // 6. 'if local' conditional binding with explicit condition after comma
+  s_1_0 := myAction("param1, with comma")
+
+  If s_1_0 == .T.
+    conout("Action succeeded!")
+  endif
+
+  // 7. 'while local' loop binding with explicit condition after comma
+  While (s_1_0 := getNextNode()) != Nil
+    conout("Processing: " + s_1_0)
+  enddo
+
+  // 8. Block-scoped array built in place
+  if nTotal > 10
+    s_1_0 := {}
+    aadd(s_1_0, "X")
+    aadd(s_1_0, "Y")
+  endif
+
+  // 9. Function-level array (depth 0, so private storage)
+  aList := {}
+  aadd(aList, "A")
+  aadd(aList, "B")
+
+  if nTotal > 80
+    aadd(aList, "C")
+  endif
+
+  // 10. Conditional appends inside an 'if' block
+  if nTotal > 50
+    s_1_0 := {}
+    aadd(s_1_0, "DefaultItem")
+    if nTotal > 75
+      aadd(s_1_0, "HighValueItem")
+    endif
+  endif
+
+  // 11. Appends from inside a 'for' loop, some behind an inner 'if'
+  aLoopList := {}
+
+  for s_1_0 := 1 to 4
+    aadd(aLoopList, "Item_" + cValToChar(s_1_0))
+    if s_1_0 % 2 == 0
+      aadd(aLoopList, "EvenBonus_" + cValToChar(s_1_0))
+    endif
+  next
+
+  // 12. Block locals: two sibling blocks share one slot
+  if nTotal > 0
+    s_1_0 := 1
+    conout("Slot A: " + cValToChar(s_1_0))
+  endif
+
+  if nTotal > 0
+    s_1_0 := "reuses the same storage"
+    conout("Slot B: " + s_1_0)
+  endif
+
+  // 13. Shadowing: 'local' hides the function-level nCount inside the block only
+  if nTotal > 0
+    s_1_0 := 999
+    conout("Shadowed: " + cValToChar(s_1_0))
+  endif
+
+  conout("Restored: " + cValToChar(nCount))
+
+  // 14. Nesting: the inner block sits one level deeper, so it gets its own slot
+  if nTotal > 0
+    s_1_0 := 1
+    if nTotal > 1
+      s_2_nInner := 2
+      conout("Sum: " + cValToChar(s_1_0 + s_2_nInner))
+    endif
+  endif
+
+  // 15. 'for local' counter, plus a body slot recycled on every iteration
+  for s_1_0 := 1 to 3
+    s_1_1 := s_1_0 * s_1_0
+    conout("Square: " + cValToChar(s_1_1))
+  next
+
+  // 16. 'if local' binding, with an array built inside the block
+  s_1_0 := checkReady()
+
+  If s_1_0
+    s_1_1 := {}
+    aadd(s_1_1, "batch1")
+    aadd(s_1_1, "batch2")
+    conout("Batch: " + cValToChar(len(s_1_1)))
+  endif
+
+  // 17. Bare 'local' is cleared on entry so no sibling value leaks in
+  if nTotal > 0
+    s_1_0 := Nil
+    s_1_0 := nTotal * 2
+    conout("Scratch: " + cValToChar(s_1_0))
+  endif
+
+  // 18. Captured by a code block: nFactor outlives the block, so it keeps
+  //     private storage instead of a recycled slot
+  if nTotal > 0
+    b_1_nFactor := 10
+    aadd(aHandlers, {|| b_1_nFactor * 2})
+  endif
+
+  // 19. Value variable passed with @: the callee writes back during the call
+  //     and cannot keep the binding, so it still shares a slot
+  if nTotal > 0
+    b_2_cBuffer := ""
+    fillBuffer(@b_2_cBuffer)
+    conout("Buffer: " + b_2_cBuffer)
+  endif
+
+  // 20. Escapes: aRows is an array handed to a user function, which may keep it
+  if nTotal > 0
+    s_1_0 := {}
+    processRows(s_1_0)
+  endif
+
+  // 21. Contained: built up and read in place, so it still shares a slot
+  if nTotal > 0
+    s_1_0 := {}
+    aadd(s_1_0, "kept in the block")
+    conout("Rows: " + cValToChar(len(s_1_0)))
+  endif
+
+  // 22. Escapes transitively: aInner never reaches processRows directly, but
+  //     storing it into aCarrier is itself the escape -- no need to prove
+  //     where aCarrier goes afterwards
+  if nTotal > 0
+    s_1_0 := {}
+    s_1_1 := {}
+    aadd(s_1_1, s_1_0)
+    processRows(s_1_1)
+  endif
+
+  // 23. Scalar passed to a user function: copied, so sharing is safe
+  if nTotal > 0
+    s_1_0 := 5
+    processRows(s_1_0)
+  endif
+
+  // 24. Value variable, never captured, so it shares a slot
+  if nTotal > 0
+    s_1_0 := 42
+    conout("Plain: " + cValToChar(s_1_0))
+  endif
+
+  // 25. '?=' as an operator: fill in a value only if nothing landed there.
+  //     Not a declaration form -- a fresh local is always Nil.
+  if nTotal > 90
+    cCache := loadFromCache()
+  endif
+
+  If cCache == Nil
+    cCache := "empty"
+  EndIf
+
+  conout("Cache: " + cCache)
+
+  // 26. Elvis: same idea inline, with the left side evaluated exactly once
+  et_0_0 := lookupName(nTotal)
+  cName := If(et_0_0 != Nil, et_0_0, "anonymous")
+
+  // 27. Chained elvis: each fallback runs only if the one before came back Nil
+  et_0_0 := firstChoice()
+
+  If et_0_0 == Nil
+    et_0_0 := secondChoice()
+    If et_0_0 == Nil
+      et_0_0 := "last resort"
+    EndIf
+  EndIf
+
+  cPick := et_0_0
+
+  return nTotal
+
+// --------------------------------------------------------------------------------
+// the end

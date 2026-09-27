@@ -1,0 +1,58 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 41_fallback_shapes.tlpp -- what a guard can and cannot hold.
+//
+// 'fallback' folds everything the line generates into one code block, as
+// comma-separated expressions. A fused loop is not an expression, so a chain
+// under a guard goes unfused, back to the runtime calls -- which are.
+//
+// This was emitting 'For ... Next' inside a code block, and the golden file
+// agreed with it, because a golden records what was produced rather than what
+// AdvPL accepts.
+// --------------------------------------------------------------------------------
+
+user function testFallbackShapes(aNums, hCfg)
+
+  Local nSafe := 0
+  Local nHash := 0
+  Local aList := {}
+
+  Local b_0_x   // o local de bloco 'x', fixado: tem armazenamento so dele
+  Local fi_0_0  // o indice do percurso
+  Local fo_0_0  // o resultado da cadeia
+  Local fv_0_0  // o elemento em percurso
+  Local gt_0_0  // o valor protegido por 'fallback'
+  Local ht_0_0  // o valor lido de um hash
+  Local pt_0_0  // o resultado de uma etapa que nao fundiu
+  Local pt_0_1  // o resultado de uma etapa que nao fundiu
+  Local pt_0_2  // o resultado de uma etapa que nao fundiu
+
+  // a bare call
+  nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
+
+  // a chain: unfused under the guard, so every step is an expression -- and
+  // xtpl says so, because losing a pass is invisible in the source
+  nSafe := u_xtpl_safe_pipe({|| pt_0_0 := u_xtpl_filter(aNums, {|b_0_x| b_0_x > 100}), pt_0_1 := u_xtpl_map(pt_0_0, {|b_0_x| b_0_x * 2}), pt_0_2 := u_xtpl_asum(pt_0_1), pt_0_2}, {|| 0})
+
+  // the guard on the part that can fail, and the chain left to fuse
+  gt_0_0 := u_xtpl_safe_pipe({|| riskyCall(2)}, {|| {}})
+  fo_0_0 := {}
+
+  For fi_0_0 := 1 To Len(gt_0_0)
+    fv_0_0 := gt_0_0[fi_0_0]
+    If fv_0_0 > 1
+      fv_0_0 := fv_0_0 * 2
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+
+  aList := fo_0_0
+
+  // a hash read lifts statements, and they are expressions too
+  nHash := u_xtpl_safe_pipe({|| ht_0_0 := Nil, hCfg:Get("taxa", @ht_0_0), ht_0_0}, {|| 0})
+
+  return nSafe + nHash + len(aList)
+
+// --------------------------------------------------------------------------------
+// the end
