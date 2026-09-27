@@ -34,7 +34,12 @@ spurt $fake, q:to/END/;
   #!/bin/sh
   echo "$@" >> "$FAKE_LOG"
   case "$1" in
-    -compile) echo "compiling"; exit ${FAKE_COMPILE_EXIT:-0} ;;
+    -compile)
+      if [ -n "$FAKE_NO_RESULTS" ]; then echo "THREAD ERROR: include not found"
+      elif [ -n "$FAKE_ERRORS" ]; then echo "[CMDLINE] Compilation Results .: Total sources(3) Success(2) Errors(1)"
+      elif [ -n "$FAKE_FEWER" ]; then echo "[CMDLINE] Compilation Results .: Total sources(2) Success(2) Errors(0)"
+      else echo "[CMDLINE] Compilation Results .: Total sources(3) Success(3) Errors(0)"; fi
+      exit ${FAKE_COMPILE_EXIT:-0} ;;
     -run=u_selftest) echo "TOTVS AppServer"; echo "selftest: 47 ok, 0 falhas" ;;
     -run=u_xc_selftest)
       if [ -n "$FAKE_BAD" ]; then echo "FAILED  aPick: one element  (seen: 0)"; echo "xc_selftest: 43 ok, 1 failed"
@@ -115,7 +120,24 @@ check 'a self-test that stops before its total: what the AppServer said, and 1',
   %r<code> == 1 && %r<text>.contains('THREAD ERROR: variable does not exist')
     && %r<text>.contains('no total from u_xc_selftest')
 };
-check 'a compile that fails: nothing runs, and 1',
+check "the compile's results line: errors, even with exit code 0 -- nothing runs, and 1",
+{
+  my %r = protheus(|@base, FAKE_ERRORS => 1);
+  %r<code> == 1 && %r<calls>.elems == 1 && %r<text>.contains('compiled with 1 error(s)')
+    && %r<text>.contains('Total sources(3) Success(2) Errors(1)')
+};
+check 'no results line: the compile did not finish -- what it said, and 1',
+{
+  my %r = protheus(|@base, FAKE_NO_RESULTS => 1);
+  %r<code> == 1 && %r<calls>.elems == 1 && %r<text>.contains('THREAD ERROR: include not found')
+    && %r<text>.contains("no 'Compilation Results' line")
+};
+check 'fewer sources compiled than given: 1',
+{
+  my %r = protheus(|@base, FAKE_FEWER => 1);
+  %r<code> == 1 && %r<text>.contains('3 files given, the AppServer compiled 2')
+};
+check 'a clean results line but a failing exit code: 1',
 {
   my %r = protheus(|@base, FAKE_COMPILE_EXIT => 3);
   %r<code> == 1 && %r<calls>.elems == 1 && %r<text>.contains('exit code 3')
