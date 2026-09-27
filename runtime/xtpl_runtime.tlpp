@@ -184,22 +184,43 @@ User Function xtpl_drop(aData, nCount)
   Next
 Return aRes
 
+// xc: in one pass. Before, every element was compared with every value kept
+// so far -- 20,000 different values meant 200 million comparisons. Now each
+// value kept is filed under its type and its text, and a new one is compared,
+// with == as before, only against those filed under the same key: the same
+// test, so the same result, against a few values rather than all. Filed by
+// type, values of different types are never compared -- {1, "1"} used to stop
+// on a type mismatch. Arrays, objects and blocks share one key per type and
+// are compared among themselves, as before.
 User Function xtpl_distinct(aData)
   Local aRes := {}
-  Local nX, nY, lFound
+  Local oSeen := THashMap():New()
+  Local nX
   For nX := 1 To Len(aData)
-    lFound := .F.
-    For nY := 1 To Len(aRes)
-      If aRes[nY] == aData[nX]
-        lFound := .T.
-        Exit
-      EndIf
-    Next
-    If !lFound
+    If !xtpl_seen(oSeen, aData[nX])
       AAdd(aRes, aData[nX])
     EndIf
   Next
 Return aRes
+
+// xc: whether a value was seen before -- == to one filed under its key -- and
+// if not, filed from now on.
+Static Function xtpl_seen(oSeen, xValue)
+  Local cType := ValType(xValue)
+  Local cKey := cType + Iif(cType $ "CNDLM", cValToChar(xValue), "")
+  Local aSame := Nil
+  Local nX
+  If !oSeen:Get(cKey, @aSame)
+    oSeen:Set(cKey, {xValue})
+    Return .F.
+  EndIf
+  For nX := 1 To Len(aSame)
+    If aSame[nX] == xValue
+      Return .T.
+    EndIf
+  Next
+  AAdd(aSame, xValue)
+Return .F.
 
 // Copies first: every other function here leaves its input alone, and aSort
 // would otherwise reorder the caller's array -- and inside a '=>' chain, the
@@ -215,14 +236,27 @@ Return aRes
 
 // Sorts by an extracted key rather than a comparator, which is both the
 // commoner case and the harder one to get backwards.
+// xc: each key evaluated once. Before, aSort's comparison evaluated the keys
+// of both sides every time -- about 2 n log2(n) evaluations, 280,000 for
+// 10,000 rows, where 10,000 do. The keys are computed first, the pairs sorted
+// by them, and the elements taken back in that order: AClone's copies, as
+// before.
 User Function xtpl_sortby(aData, bKey, lDesc)
   Local aRes := AClone(aData)
+  Local aPairs := Array(Len(aRes))
+  Local nX
   lDesc := Iif(lDesc == Nil, .F., lDesc)
+  For nX := 1 To Len(aRes)
+    aPairs[nX] := {Eval(bKey, aRes[nX]), aRes[nX]}
+  Next
   If lDesc
-    aSort(aRes, , , {|x, y| Eval(bKey, x) > Eval(bKey, y)})
+    aSort(aPairs, , , {|x, y| x[1] > y[1]})
   Else
-    aSort(aRes, , , {|x, y| Eval(bKey, x) < Eval(bKey, y)})
+    aSort(aPairs, , , {|x, y| x[1] < y[1]})
   EndIf
+  For nX := 1 To Len(aPairs)
+    aRes[nX] := aPairs[nX][2]
+  Next
 Return aRes
 
 User Function xtpl_reverse(aData)
@@ -588,20 +622,26 @@ Return .T.
 
 // Splits on a separator of any length. An empty separator would loop, so it
 // returns the whole string rather than pretending.
+// xc: the search goes on from where it stopped -- At()'s third parameter --
+// where it used to cut the rest of the text off and search that: a copy of
+// what was left at every separator, gigabytes for a text of a few megabytes.
+// And a separator of spaces splits: Empty(" ") is .T. in AdvPL, so the test
+// for 'no separator' took one and returned the whole text. Only "" is none.
 User Function xtpl_split(cText, cSep)
   Local aRes := {}
+  Local nFrom := 1
   Local nAt, nWidth
-  If Empty(cSep)
+  If cSep == Nil .Or. Len(cSep) == 0
     Return {cText}
   EndIf
   nWidth := Len(cSep)
-  nAt := At(cSep, cText)
+  nAt := At(cSep, cText, nFrom)
   While nAt > 0
-    AAdd(aRes, SubStr(cText, 1, nAt - 1))
-    cText := SubStr(cText, nAt + nWidth)
-    nAt := At(cSep, cText)
+    AAdd(aRes, SubStr(cText, nFrom, nAt - nFrom))
+    nFrom := nAt + nWidth
+    nAt := At(cSep, cText, nFrom)
   EndDo
-  AAdd(aRes, cText)
+  AAdd(aRes, SubStr(cText, nFrom))
 Return aRes
 
 User Function xtpl_join(aParts, cSep)
