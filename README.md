@@ -52,5 +52,4 @@ rakupp t/08-tree.raku
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `t/` | xc's tests |
-| `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte -- see `xtpl/README.md` |
-| `examples/` | an example of xc's |
+| `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, and xc's example `saldo` -- see `xtpl/README.md` |
