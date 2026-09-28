@@ -23,6 +23,21 @@ if $*DISTRO.is-win
   exit($ok == $total ?? 0 !! 1);
 }
 
+# 'rm -rf' in Raku.
+sub remove-tree(IO::Path $p)
+{
+  return unless $p.e;
+  if $p.d
+  {
+    remove-tree($_) for $p.dir;
+    $p.rmdir;
+  }
+  else
+  {
+    $p.unlink;
+  }
+}
+
 my $dir = $*TMPDIR.add("xc-protheus-$*PID");
 mkdir $dir;
 my $log = $dir.add('calls.log');
@@ -158,7 +173,7 @@ check 'a wrong command line: 2 -- no environment, no includes to compile with, a
     && protheus(|@base, '--envv=X')<code> == 2
 };
 
-run 'rm', '-rf', ~$dir;
+remove-tree($dir);
 
 say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

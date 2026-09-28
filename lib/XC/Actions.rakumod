@@ -61,7 +61,11 @@ sub joined(Binary $b --> Binary)
 # ---- the file -------------------------------------------------------------------
 method TOP($/)
 {
-  my ($ns, @usings, @directives, @annotations, @functions, @classes, @methods, @externals);
+  # 'Str', not untyped: with no namespace it stays Str -- undefined, of the type
+  # the attribute takes. Untyped it would be Any, which Rakudo refuses there
+  # (rakupp takes it).
+  my Str $ns;
+  my (@usings, @directives, @annotations, @functions, @classes, @methods, @externals);
   for $<toplevel> -> $t
   {
     if $t<function>

@@ -114,7 +114,7 @@ check '{ || x := 1, y }: an assignment inside the block',
   my $e = expr('{ || x := 1, y }');
   !$e.params && $e.body[0] ~~ AssignExpr && names($e) eq 'x y'
 };
-check "&cVar reads cVar, &(cA + cB) reads both",
+check '&cVar reads cVar, &(cA + cB) reads both',
 {
   my $x = expr('&cVar');
   my $y = expr('&(cA + cB)');

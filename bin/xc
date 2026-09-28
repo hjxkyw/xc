@@ -89,11 +89,13 @@ sub compile(Str $in, Str $out --> Bool)
     $encoding = 'windows-1252';
     $src = $bytes.decode('windows-1252');
   }
+  # The byte-order mark, seen on the bytes: Rakudo's UTF-8 decoder drops it,
+  # rakupp's keeps it -- so taken off the text only if it is still there.
   my $bom = '';
-  if $src.starts-with("\x[FEFF]")
+  if $encoding eq 'utf-8' && $bytes.elems >= 3 && $bytes[0] == 0xEF && $bytes[1] == 0xBB && $bytes[2] == 0xBF
   {
     $bom = "\x[FEFF]";
-    $src = $src.substr(1);
+    $src = $src.substr(1) if $src.starts-with("\x[FEFF]");
   }
 
   # How far the parse got: the grammar records the end of every line it could

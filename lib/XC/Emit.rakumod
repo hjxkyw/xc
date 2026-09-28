@@ -1095,7 +1095,7 @@ class Emitter
         }
         # 'for local i', or a counter renamed with its block: the header written
         # out, and a 'next i' loses the name, which is no longer the counter's.
-        when { $_ ~~ ForStmt && (.var-local || %!subst{.var.lc}:exists) }
+        when { $_ ~~ ForStmt && (.var-local || (%!subst{.var.lc}:exists)) }
         {
           my $x = .var-local ?? self!nm($s, .var) !! self!local(.var);
           self!hoist($x, 'a block local') if .var-local;
@@ -1801,8 +1801,10 @@ class Emitter
   method !header-to(Stmt $s, Int $end, Int $at, *@lines)
   {
     my $comment = split-comment($!src.substr($s.src-from, $end - $s.src-from))[1];
-    @lines[$at] ~= "  $comment" if $comment;
-    @!edits.push([$s.src-from, $end, self!join-at($s.src-from, @lines)]);
+    # A copy to change: under Rakudo a slurpy's elements cannot be.
+    my @out = @lines;
+    @out[$at] ~= "  $comment" if $comment;
+    @!edits.push([$s.src-from, $end, self!join-at($s.src-from, @out)]);
   }
 
   # Expression edits in a statement that keeps its shape: only its lowered
@@ -1957,7 +1959,7 @@ class Emitter
       }
       when Member
       {
-        .base ~~ Name && %!field{.base.name.lc}:exists
+        .base ~~ Name && (%!field{.base.name.lc}:exists)
           ?? %!field{.base.name.lc} ~ .name
           !! self!with-edits($_, subexprs($_))
       }
@@ -1990,9 +1992,9 @@ class Emitter
   method !lowers-itself(Expr $e --> Bool)
   {
     return True if $e ~~ Lambda || $e ~~ Pipeline;
-    return True if $e ~~ Call && VERBS{$e.name.lc}:exists;
-    return True if $e ~~ Name && %!subst{$e.name.lc}:exists;
-    return True if $e ~~ Member && $e.base ~~ Name && %!field{$e.base.name.lc}:exists;
+    return True if $e ~~ Call && (VERBS{$e.name.lc}:exists);
+    return True if $e ~~ Name && (%!subst{$e.name.lc}:exists);
+    return True if $e ~~ Member && $e.base ~~ Name && (%!field{$e.base.name.lc}:exists);
     return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
     return True if $e ~~ AssignExpr && $e.target ~~ HashIndex;
     return True if $e ~~ SafeMember || $e ~~ SafeCall;
@@ -2053,9 +2055,10 @@ class Emitter
     my $v = self!expr($a.value);
     given $a.op
     {
-      when { $_ (elem) (':=', '=') } { (False, |@pre, "$h:Set($k, $v)") }
-      when '?='       { (!@pre, |@pre, "If u_xtpl_hget($h, $k) == Nil", "  $h:Set($k, $v)", 'EndIf') }
-      default         { (False, |@pre, "$h:Set($k, u_xtpl_hget($h, $k) {$a.op.chop} ($v))") }
+      # '{$h}:', not '$h:' -- in a string Rakudo reads '$h:Set' as one name.
+      when { $_ (elem) (':=', '=') } { (False, |@pre, "{$h}:Set($k, $v)") }
+      when '?='       { (!@pre, |@pre, "If u_xtpl_hget($h, $k) == Nil", "  {$h}:Set($k, $v)", 'EndIf') }
+      default         { (False, |@pre, "{$h}:Set($k, u_xtpl_hget($h, $k) {$a.op.chop} ($v))") }
     }
   }
 

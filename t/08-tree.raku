@@ -37,8 +37,10 @@ my $p = tree(slurp('xtpl/examples/saldo/saldo.xtpl'));
 
 check 'saldo.xtpl: namespace, using, include',
 {
-  $p.namespace eq 'exemplo.saldo' && $p.usings eqv ['tlpp.regex']
-    && $p.directives eqv ['#include "totvs.ch"']
+  # Compared as text: Rakudo keeps the attributes' element type (Array[Str]),
+  # which 'eqv' holds against a plain array.
+  $p.namespace eq 'exemplo.saldo' && $p.usings.join('|') eq 'tlpp.regex'
+    && $p.directives.join('|') eq '#include "totvs.ch"'
 };
 check 'saldo.xtpl: one user function, on line 20',
 {

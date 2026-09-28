@@ -56,7 +56,9 @@ my $offsets-in-bytes = OffsetProbe.parse('é!')<x>.from == 2;
 
 sub text-units(Str $t)
 {
-  $offsets-in-bytes ?? $t.encode.list.Array !! $t.ords.Array
+  # Rakudo counts graphemes, and "\r\n" is one: one unit each, the line end
+  # as a "\n" -- not .ords, which gives it two and shifts every later offset.
+  $offsets-in-bytes ?? $t.encode.list.Array !! $t.comb.map({ $_ eq "\r\n" ?? 10 !! .ord }).Array
 }
 
 # $item: an argument or a lambda's body, which also ends at a ',' or at a
@@ -236,7 +238,12 @@ token dottedname { <[A..Za..z_]> \w* [ '.' <[A..Za..z_]> \w* ]* }
 # corpus does. xtpl itself is laxer: it also takes 'external' inside a
 # function, and with no names at all (where it does nothing). xc follows the
 # doc.
-rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname=name> [ ',' <xname=name> ]* }
+# No name may be the word 'alias': 'external alias' with nothing after it
+# would otherwise declare one called that. (A reserved word is refused for
+# the 'for' counter the same way, 'local' or not. Both used to be refused only
+# because rakupp's '||' capture leak left the keyword's capture behind.)
+rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname=name> [ ',' <xname=name> ]*
+                  <!{ $<xname>.list.first({ .Str.trim.lc eq 'alias' }) }> }
 token kwalias   { :i 'alias' >> }
 
 # ---- TL++: annotations -----------------------------------------------------
@@ -633,7 +640,7 @@ rule whilest
 rule forst
 {
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
-     <!{ $<varlocal> && is-reserved(~$<var>) }> ':=' <from=expr>
+     <!{ is-reserved(~$<var>) }> ':=' <from=expr>
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
      <block>
   :i 'next' <endname=name>?

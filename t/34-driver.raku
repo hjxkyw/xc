@@ -6,9 +6,24 @@ use lib 'lib';
 # is wrong.
 
 my $dir = $*TMPDIR.add("xc-driver-$*PID");
+# 'rm -rf' in Raku, so it runs on Windows too.
+sub remove-tree(IO::Path $p)
+{
+  return unless $p.e;
+  if $p.d
+  {
+    remove-tree($_) for $p.dir;
+    $p.rmdir;
+  }
+  else
+  {
+    $p.unlink;
+  }
+}
+
 sub reset-dir()
 {
-  run 'rm', '-rf', ~$dir;
+  remove-tree($dir);
   mkdir $dir.add('src/sub');
   spurt $dir.add('src/a.xtpl'), "user function a()\n  local n := 1\nreturn n\n";
   spurt $dir.add('src/sub/b.xtpl'), "user function b()\n  local n := 0\n  n := cFilAnt\nreturn n\n";
@@ -132,7 +147,7 @@ check 'run-tests.raku --help: the usage, and 0',
   $p.exitcode == 0 && $out.contains('usage: rakupp run-tests.raku [--all]')
 };
 
-run 'rm', '-rf', ~$dir;
+remove-tree($dir);
 
 say "\n  $ok of $total";
 exit($ok == $total ?? 0 !! 1);

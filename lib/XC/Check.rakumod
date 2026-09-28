@@ -343,7 +343,7 @@ my class Checker
   {
     return self!expr($e) unless TAKES-BLOCK{$verb.lc} && $e ~~ Name;
     my $k = $e.name.lc;
-    self!read($e.name) if self!find($k).defined || %!retired{$k}:exists || self!exempt($e.name);
+    self!read($e.name) if self!find($k).defined || (%!retired{$k}:exists) || self!exempt($e.name);
   }
 
   # ---- statements -----------------------------------------------------------------
@@ -716,7 +716,7 @@ my class Checker
     my $near = closest($f, %fields.keys);
     my $hint = $near.defined ?? " Did you mean $near?" !! '';
     # '{$a}.' -- in a string, '$a.{' would index $a.
-    self!dict("'$alias->$field' is not a field of {$a}.$hint");
+    self!dict("'{$alias}->{$field}' is not a field of {$a}.$hint");
   }
 
   # A field used with a literal: of its type, and -- a string assigned --
@@ -735,7 +735,7 @@ my class Checker
     my $value = @seen[1];
     my %name = C => 'character', N => 'numeric', D => 'date', L => 'logical', M => 'memo';
     my $wanted = $kind eq 'M' ?? 'C' !! $kind;
-    my $shown = "$word->{$ref.field}";
+    my $shown = "{$word}->{$ref.field}";
     if $seen ne $wanted
     {
       return self!dict("$shown is {%name{$kind} // $kind}, {$assigned ?? 'assigned' !! 'compared with'} "
@@ -858,7 +858,7 @@ my class Checker
     {
       self!scalar-source($src.text, '');
     }
-    elsif $src ~~ Name && %!scalar{$src.name.lc}:exists
+    elsif $src ~~ Name && (%!scalar{$src.name.lc}:exists)
     {
       self!scalar-source($src.name, %!scalar{$src.name.lc});
     }
@@ -1031,7 +1031,9 @@ sub source-of($e)
 # that name.
 sub check-program(Program $p --> List) is export
 {
-  check-all($p)<errors>
+  # .List: a Hash's value is an item under Rakudo -- 'my @p = ...' would get
+  # the whole list as one element. (rakupp does not itemize it.)
+  check-all($p)<errors>.List
 }
 
 # The same, with the warnings: %(errors => ..., warnings => ...).
