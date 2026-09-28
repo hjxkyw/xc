@@ -4,6 +4,7 @@ rakupp/
 *.tar.gz
 notes.md
 notes.txt
+set-path.cmd
 build/
 bugs/
 bugs-sent/
