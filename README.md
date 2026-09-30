@@ -53,7 +53,7 @@ rakupp t/08-tree.raku
 ## Running in Protheus
 
 `run-protheus.raku` compiles two self-tests with xc -- xtpl's
-`xtpl/tests/54_selftest.xtpl` and xc's own `t/protheus/xc_selftest.xtpl` --
+`xtpl/tests/54_selftest.xtpl` and xc's own `protheus/xc_selftest.xtpl` --
 has an AppServer compile them with the runtime, runs each, and reads their
 totals:
 
@@ -84,5 +84,6 @@ and aRoll draw with `Random()`.
 | `bin/xc` | the compiler |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
-| `t/` | xc's tests; `t/lib/` what several of them share, `t/protheus/` xc's self-test for an AppServer |
+| `t/` | xc's tests, in Raku; `t/lib/` what several of them share |
+| `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, and xc's example `saldo` -- see `xtpl/README.md` |
