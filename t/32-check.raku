@@ -224,6 +224,16 @@ warns "the whole left side of '|>' is fed in: a comparison there",
 passes "a comparison in brackets, or an alias's '->': not the left side's",
   "  DbSelectArea(\"SA1\")\n  a := foo(a > 1) |> alltrim\n  a := SA1->A1_NOME |> alltrim";
 
+# ---- a private or public is a statement: the locals come first ---------------------------------
+refuses "a 'local' after a 'private'",
+  "  private nP := 1\n  local nL := 2\n  a := nP + nL",
+  "3: 'local' after 'private' (line 2): a private or a public is a statement, and every local and static comes before the first statement.";
+refuses "a 'static' after a 'public'",
+  "  local nL := 1\n  public nU := 2\n  static nS := 3\n  a := nL + nU + nS",
+  "4: 'static' after 'public' (line 3): a private or a public is a statement, and every local and static comes before the first statement.";
+passes "locals and statics, then privates and publics",
+  "  local nL := 1\n  static nS := 2\n  private nP := 3\n  public nU := 4\n  a := nL + nS + nP + nU";
+
 # ---- decided: not supported -------------------------------------------------------------------
 refuses "'for ... in' over rows(): a loop body can move the table's position",
   "  for r in rows(\"SA1\")\n    a := r:A1_COD\n  next",

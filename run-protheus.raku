@@ -5,7 +5,7 @@
 #                            [--compile-only | --run-only]
 #
 # 1. bin/xc compiles the two self-tests -- xtpl's xtpl/tests/54_selftest.xtpl
-#    and xc's own t/protheus/xc_selftest.xtpl -- into build/protheus/: each
+#    and xc's own protheus/xc_selftest.xtpl -- into build/protheus/: each
 #    only when its .tlpp is missing, or older than its source, bin/xc or
 #    anything in lib/XC/ (a few seconds each); --rebuild compiles both anyway.
 # 2. The AppServer compiles them, with runtime/xtpl_runtime.tlpp, into the
@@ -64,7 +64,7 @@ my $out = %opt<out>.IO.is-absolute ?? %opt<out>.IO !! $root.add(%opt<out>);
 # The self-tests: the source, the file bin/xc writes, the function to run.
 my @tests =
   %(source => 'xtpl/tests/54_selftest.xtpl', file => 'selftest.tlpp',    run => 'u_selftest'),
-  %(source => 't/protheus/xc_selftest.xtpl', file => 'xc_selftest.tlpp', run => 'u_xc_selftest');
+  %(source => 'protheus/xc_selftest.xtpl', file => 'xc_selftest.tlpp', run => 'u_xc_selftest');
 
 # The AppServer: a path is started from its own folder, a bare name from here.
 my $server = %opt<appserver>;

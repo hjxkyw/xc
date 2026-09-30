@@ -347,7 +347,31 @@ my class Checker
   }
 
   # ---- statements -----------------------------------------------------------------
-  method !body(@stmts) { self!stmt($_) for @stmts }
+  # Declarations are only in a body's prologue (the grammar sees to it); and
+  # there, every 'local' and 'static' comes before the first 'private' or
+  # 'public' -- those are statements in TL++, and Protheus refuses a local
+  # after a statement.
+  method !body(@stmts)
+  {
+    my $private;
+    for @stmts -> $s
+    {
+      if $s ~~ Declaration
+      {
+        if $s.scope (elem) <private public>
+        {
+          $private //= $s;
+        }
+        elsif $private.defined
+        {
+          $!line = $s.line;
+          self!problem("'{$s.scope}' after '{$private.scope}' (line {$private.line}): a private or a public is a "
+                       ~ "statement, and every local and static comes before the first statement.");
+        }
+      }
+      self!stmt($s);
+    }
+  }
 
   method !stmt(Stmt $s)
   {

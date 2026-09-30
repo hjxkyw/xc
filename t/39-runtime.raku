@@ -1,5 +1,5 @@
 # The runtime, runtime/xtpl_runtime.tlpp, is TL++: it runs in Protheus, not
-# here -- t/protheus/xc_selftest.xtpl checks what it answers, through
+# here -- protheus/xc_selftest.xtpl checks what it answers, through
 # run-protheus.raku. What can be checked here is its shape: that the four
 # functions that were quadratic, or could be, stay linear (join: log-linear).
 

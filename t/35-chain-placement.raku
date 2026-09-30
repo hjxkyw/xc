@@ -80,6 +80,23 @@ check "a private in a block: declared where it is, its value after the loop",
     eq "  if n > 0\n    private pB\n{count-loop('    ')}\n    pB := fo_0_0\n    n := pB\n  endif"
 };
 
+# A 'private' is a statement in TL++: every Local -- the ones xc adds among
+# them -- has to come before it. Protheus refuses a Local after a statement.
+sub line-of(Str $out, Str $starts --> Int)
+{
+  $out.lines.first(*.trim.starts-with($starts), :k) // -1
+}
+check "the Locals xc adds go before the first private, after the last local",
+{
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(cP, n)\n  local a := 1\n  private pT := lines(cP) |> count\n  n := pT + a\nreturn n\n]);
+  line-of($out, 'local a') < line-of($out, 'Local fok_0_0') < line-of($out, 'private pT')
+};
+check "and with no local at all, at the top of the body, still before it",
+{
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(cP, n)\n  private pT := lines(cP) |> count\n  n := pT\nreturn n\n]);
+  line-of($out, 'user function') < line-of($out, 'Local fok_0_0') < line-of($out, 'private pT')
+};
+
 # ---- under a postfix modifier --------------------------------------------------------------
 check "x := chain if c: the loop inside the If, so only when the condition holds",
 {

@@ -50,6 +50,37 @@ my %extra =
   'saldo.xtpl'           => ("line 23: 'jResposta' is assigned but never read", "line 24: 'hCache' is assigned but never read"),
   ;
 
+# The output as Protheus takes it: in TL++ every Local and Static of a
+# function comes before its first statement -- and a Private or a Public is a
+# statement. (xc once put the Locals it adds after a 'private'.) The first line of a
+# function's body that is neither a declaration nor a comment nor blank ends
+# its declarations. Returns the offending lines, 'line N: text'.
+sub late-locals(Str $out --> List)
+{
+  my @bad;
+  my $in-function = False;
+  my $past = False;
+  for $out.lines.kv -> $i, $l
+  {
+    my $t = $l.trim;
+    if $t ~~ m:i/ ^ [ [ user | static | main | public | private | protected ] \s+ ]* [ function | method | procedure ] >> /
+    {
+      ($in-function, $past) = True, False;
+      next;
+    }
+    if $t ~~ m:i/ ^ [ class | endclass ] >> / { $in-function = False; next }
+    next unless $in-function;
+    next if !$t || $t.starts-with('//') || $t.starts-with('#');
+    if $t ~~ m:i/ ^ [ local | static ] >> /
+    {
+      @bad.push("line {$i + 1}: $t") if $past;
+      next;
+    }
+    $past = True;
+  }
+  @bad.List
+}
+
 # The checks, and then the emitter. Not on the output read back: that is
 # TL++, not xtpl -- its 'external' lines are gone, for one -- and xtpl's rules
 # for names do not apply to it. @expected: the warnings there have to be.
@@ -100,6 +131,11 @@ sub corpus-check(@files, Bool :$skips = False) is export
     my %dictionary = $dict.e ?? load-dictionary(~$dict) !! ();
     check "$label compiles, xtpl's warnings with it, and the output compiles to itself", {
       my $once = compile($src, :@expected, :%dictionary);
+    with $once
+    {
+      my @late = late-locals($_);
+      die "a Local after a statement: {@late.head(2).join(' | ')}" if @late;
+    }
       if $src ~~ m:i/ ^^ \h* 'raw' >> /
       {
         $once.defined                                # raw: not read back

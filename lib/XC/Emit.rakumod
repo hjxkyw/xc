@@ -195,6 +195,21 @@ sub is-source(Expr $e --> Bool) is export
   so ($e ~~ Call && $e.name.lc (elem) <rows lines>) || $e ~~ Interval
 }
 
+# A body's prologue: its first declarations of locals and statics. A
+# 'private' or a 'public' is a statement in TL++ -- it creates the variable
+# when it runs -- so it ends the prologue: the Locals xc adds go before it,
+# never after, and Protheus refuses a Local after a statement.
+sub prologue-of(@body --> List)
+{
+  my @p;
+  for @body -> $s
+  {
+    last unless $s ~~ Declaration && $s.scope (elem) <local static>;
+    @p.push($s);
+  }
+  @p.List
+}
+
 # Whether a name is one of the runtime's verbs, which the output calls as
 # u_xtpl_<name>.
 sub is-runtime-verb(Str $name --> Bool) is export { so VERBS{$name.lc} }
@@ -788,13 +803,12 @@ class Emitter
     # assignments after the prologue, in the order written -- a later value
     # still sees an earlier one.
     %!done = ();
-    my @prologue;
-    for $f.body -> $s { last unless $s ~~ Declaration; @prologue.push($s) }
-    my $first = @prologue.first({ .scope (elem) <local private public> && .declarators.first({ self!loop-value(.init) }) }, :k);
+    my @prologue = prologue-of($f.body);
+    my $first = @prologue.first({ .scope eq 'local' && .declarators.first({ self!loop-value(.init) }) }, :k);
     my @inits;
     if $first.defined
     {
-      for @prologue[$first .. *].grep(*.scope (elem) <local private public>) -> $d
+      for @prologue[$first .. *].grep(*.scope eq 'local') -> $d
       {
         %!done{$d.WHICH} = True;
         my $kw = split-comment(self!slice($d))[0].trim.words[0];
@@ -962,8 +976,7 @@ class Emitter
   {
     my @body = $f.body;
     my $indent = @body ?? self!indent-at(@body[0].src-from) !! '  ';
-    my @decls;
-    for @body -> $s { last unless $s ~~ Declaration; @decls.push($s) }
+    my @decls = prologue-of(@body);
     my @lines = @!hoist.map(-> [$name, $comment] { "{$indent}Local $name  // $comment" });
     if @decls
     {
@@ -1073,13 +1086,15 @@ class Emitter
           }
           self!replace($s, False, @lines);
         }
-        # A 'private' or 'public' in a block, with a chain as its value: it is
-        # declared where it was, and gets its value after the loop.
-        when { $_ ~~ Declaration && !$top && .scope (elem) <private public>
+        # A 'private' or 'public' with a chain as its value -- a statement, in
+        # a block or not: it is declared where it was, and gets its value
+        # after the loop.
+        when { $_ ~~ Declaration && .scope (elem) <private public>
                && .declarators.first({ self!loop-value(.init) }) }
         {
           my $kw = split-comment(self!slice($s))[0].trim.words[0];
-          self!replace($s, False, ("$kw " ~ .declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),
+          # The comment stays with the declaration, as for a 'local'.
+          self!replace($s, True, ("$kw " ~ .declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),
                                    |.declarators.grep(*.init.defined).map({ |self!init-lines(.name, .init) })));
         }
         when { needs-lowering($_) }
