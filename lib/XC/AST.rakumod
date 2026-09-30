@@ -560,8 +560,31 @@ sub walk-expr(Expr $e, &f) is export
 # The expressions a statement holds, without going into its bodies -- 'walk'
 # does that. The variable of a 'for' is a name, not an expression, and is left
 # out.
+my %NO-EXPRS = (RawStmt, SequenceStmt, Deferred).map({ .^name => True });
+my %EXPRS =
+  Declaration.^name  => -> $s { |$s.declarators.map(*.init) },
+  Assignment.^name   => -> $s { $s.target, $s.value },
+  CallStmt.^name     => -> $s { $s.call },
+  ReturnStmt.^name   => -> $s { $s.value },
+  Annotation.^name   => -> $s { |$s.args },
+  Modified.^name     => -> $s { $s.cond },
+  IfStmt.^name       => -> $s { $s.header-decl.defined ?? ($s.header-decl.init, |$s.branches.map(*.cond))
+                                                        !! |$s.branches.map(*.cond) },
+  CaseStmt.^name     => -> $s { ($s.subject-decl.defined   ?? $s.subject-decl.init    !! Expr),
+                                ($s.subject-assign.defined ?? $s.subject-assign.value !! Expr),
+                                |$s.branches.map(*.cond) },
+  WhileStmt.^name    => -> $s { $s.header-decl.defined ?? ($s.header-decl.init, $s.cond) !! $s.cond },
+  ForStmt.^name      => -> $s { $s.from, $s.to, $s.step },
+  ForInStmt.^name    => -> $s { $s.source },
+  ForTimesStmt.^name => -> $s { $s.count },
+  UsingAlias.^name   => -> $s { $s.order },
+  WithObject.^name   => -> $s { $s.subject };
+
 sub exprs-of(Stmt $s --> List) is export
 {
+  my $class = $s.^name;
+  return () if %NO-EXPRS{$class};
+  with %EXPRS{$class} -> &exprs { return (exprs($s),).flat.grep(*.defined).List }
   my @s = do given $s
   {
     when Declaration { |.declarators.map(*.init) }
@@ -586,10 +609,32 @@ sub exprs-of(Stmt $s --> List) is export
   @s.grep(*.defined).List
 }
 
+# bodies-of and exprs-of by class, as subexprs: asked tens of thousands of
+# times in a run of the corpus, they tested each statement against a chain of
+# classes, junctions among them. No statement class has a subclass, so the
+# exact class is the whole answer; a class the tables do not know goes the
+# long way.
+my %NO-BODIES = (Declaration, Assignment, CallStmt, ReturnStmt, Annotation, RawStmt).map({ .^name => True });
+my %BODIES =
+  IfStmt.^name       => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },
+  CaseStmt.^name     => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },
+  WhileStmt.^name    => -> $s { ($s.body.List,).List },
+  ForStmt.^name      => -> $s { ($s.body.List,).List },
+  ForInStmt.^name    => -> $s { ($s.body.List,).List },
+  ForTimesStmt.^name => -> $s { ($s.body.List,).List },
+  SequenceStmt.^name => -> $s { ($s.body.List, $s.recover.List).List },
+  UsingAlias.^name   => -> $s { ($s.body.List,).List },
+  WithObject.^name   => -> $s { ($s.body.List,).List },
+  Modified.^name     => -> $s { (($s.stmt,).List,).List },
+  Deferred.^name     => -> $s { (($s.stmt,).List,).List };
+
 # The bodies a statement holds, in reading order. It is what any analysis
 # needs to go down the tree without knowing every kind of statement.
 sub bodies-of(Stmt $s --> List) is export
 {
+  my $class = $s.^name;
+  return ().List if %NO-BODIES{$class};
+  with %BODIES{$class} -> &bodies { return bodies($s) }
   given $s
   {
     when IfStmt | CaseStmt { (|.branches.map({ .body.List }), .otherwise.List).List }

@@ -32,14 +32,19 @@ has to be compiled into the RPO alongside it.
 From the top of the repository:
 
 ```sh
-rakupp run-tests.raku          # every test, xtpl's whole corpus too: under half a minute
+rakupp run-tests.raku          # every test, xtpl's whole corpus too
+rakupp run-tests.raku --jobs=1 # one file at a time -- by default, as many at once as there are cores
 rakupp run-tests.raku --all    # and any marked slow ('# slow:' near its top) -- none are now
+raku run-tests.raku            # the same under Rakudo, which must pass too
 ```
 
-Each test file says `ok` or `FAIL` with its count, and the run ends with the
-total; the exit code is 0 only when everything passed, and 2 for an option
-it does not know -- `-all` with one dash, say -- before any test runs. A single test runs on
-its own too:
+Each test file says `ok` or `FAIL` with its count and the time it took, and
+the run ends with the total, its time, and the three slowest files. The exit
+code is 0 only when everything passed, and 2 for an option it does not know
+-- `-all` with one dash, say -- before any test runs. xtpl's corpus is checked
+in three parts, `t/31-xtpl-corpus-1` to `-3`, so that they run at once; what
+they check is in `t/lib/XtplCorpus.rakumod`. A single test runs on its own
+too:
 
 ```sh
 rakupp t/08-tree.raku
@@ -79,5 +84,5 @@ and aRoll draw with `Random()`.
 | `bin/xc` | the compiler |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
-| `t/` | xc's tests; `t/protheus/` holds its self-test for an AppServer |
+| `t/` | xc's tests; `t/lib/` what several of them share, `t/protheus/` xc's self-test for an AppServer |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, and xc's example `saldo` -- see `xtpl/README.md` |

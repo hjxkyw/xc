@@ -1,9 +1,13 @@
-use lib 'lib';
+unit module XtplCorpus;
+
 use XC::Grammar;
 use XC::Actions;
 use XC::Emit;
 use XC::Check;
 
+# What t/31-xtpl-corpus-1, -2 and -3 check, each on its part of the corpus --
+# three files, so that the runner can run them at once.
+#
 # Every source of xtpl's test suite and every example program, in xtpl/,
 # passes the checks -- with xtpl's own warnings, see below -- and compiles,
 # and what comes out is TL++: read back, it parses and compiles to itself.
@@ -67,12 +71,6 @@ sub compile(Str $src, :@expected, :%dictionary, Bool :$checked = True)
   emit($m.made, $src)
 }
 
-# And xc's self-test for an AppServer (run-protheus.raku), which has to be as
-# clean as any of them: no error, no warning, the output read back.
-my @files = |dir('xtpl/tests').grep(*.extension eq 'xtpl'),
-            |dir('xtpl/examples').grep(*.d).map({ |dir($_).grep(*.extension eq 'xtpl') }),
-            't/protheus/xc_selftest.xtpl'.IO;
-
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)
 {
@@ -83,37 +81,45 @@ sub check(Str $what, &test)
   say("        {$!.message.lines[0]}") if $! && !$v;
 }
 
-for @files.sort -> $f
+# Each file of @files through the checks and the compiler, and back; with
+# $skips, that the files skipped are there. Prints the tally, and exits.
+sub corpus-check(@files, Bool :$skips = False) is export
 {
-  my $name = $f.basename;
-  next if %skip{$name}:exists;
-  my $label = $f.parent.basename eq 'tests' ?? $name !! "{$f.parent.basename}/$name";
+  for @files.sort -> $f
+  {
+    my $name = $f.basename;
+    next if %skip{$name}:exists;
+    my $label = $f.parent.basename eq 'tests' ?? $name !! "{$f.parent.basename}/$name";
 
-  # As bin/xc reads it: bytes, not 'slurp', so line ends stay as they are.
-  my $src = $f.slurp(:bin).decode('utf-8');
-  my $warn = $f.subst(/ '.xtpl' $ /, '.warn').IO;
-  my @expected = |($warn.e ?? $warn.slurp.lines.grep(/ <shared> /).map({ .subst(/^ 'warning: ' /, '') }) !! ()),
-                 |(%extra{$name} // ());
-  my $dict = $f.subst(/ '.xtpl' $ /, '.dict.csv').IO;
-  my %dictionary = $dict.e ?? load-dictionary(~$dict) !! ();
-  check "$label compiles, xtpl's warnings with it, and the output compiles to itself", {
-    my $once = compile($src, :@expected, :%dictionary);
-    if $src ~~ m:i/ ^^ \h* 'raw' >> /
+    # As bin/xc reads it: bytes, not 'slurp', so line ends stay as they are.
+    my $src = $f.slurp(:bin).decode('utf-8');
+    my $warn = $f.subst(/ '.xtpl' $ /, '.warn').IO;
+    my @expected = |($warn.e ?? $warn.slurp.lines.grep(/ <shared> /).map({ .subst(/^ 'warning: ' /, '') }) !! ()),
+                   |(%extra{$name} // ());
+    my $dict = $f.subst(/ '.xtpl' $ /, '.dict.csv').IO;
+    my %dictionary = $dict.e ?? load-dictionary(~$dict) !! ();
+    check "$label compiles, xtpl's warnings with it, and the output compiles to itself", {
+      my $once = compile($src, :@expected, :%dictionary);
+      if $src ~~ m:i/ ^^ \h* 'raw' >> /
+      {
+        $once.defined                                # raw: not read back
+      }
+      else
+      {
+        my $*GENERATED-OK = True;
+        $once.defined && compile($once, :!checked) eq $once
+      }
+    };
+  }
+
+  if $skips
+  {
+    check "the skipped files are there, so skipping them still means something",
     {
-      $once.defined                                # raw: not read back
-    }
-    else
-    {
-      my $*GENERATED-OK = True;
-      $once.defined && compile($once, :!checked) eq $once
-    }
-  };
+      so %skip.keys.all (elem) @files.map(*.basename).Set
+    };
+  }
+
+  say "\n  $ok of $total";
+  exit($ok == $total ?? 0 !! 1);
 }
-
-check "the skipped files are there, so skipping them still means something",
-{
-  so %skip.keys.all (elem) @files.map(*.basename).Set
-};
-
-say "\n  $ok of $total";
-exit($ok == $total ?? 0 !! 1);

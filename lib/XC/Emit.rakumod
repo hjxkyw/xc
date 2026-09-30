@@ -288,6 +288,21 @@ sub source-kind(Expr $src --> Str)
 }
 
 
+# For lowers-itself: what a class of expression needs checked to say whether
+# it is rewritten itself.
+my constant SELF-OPS = set <in has %% ?:>;
+my %LOWERS =
+  Lambda.^name     => 'yes',     Pipeline.^name => 'yes',    HashIndex.^name  => 'yes',
+  HashLit.^name    => 'yes',     Guard.^name    => 'yes',    Interp.^name     => 'yes',
+  SafeMember.^name => 'yes',     SafeCall.^name => 'yes',
+  Call.^name       => 'call',    Name.^name     => 'name',   Member.^name     => 'member',
+  MethodCall.^name => 'method',  AssignExpr.^name => 'assign',
+  Literal.^name    => 'literal', ArrayLit.^name => 'literal', JsonLit.^name   => 'literal',
+  CodeBlock.^name  => 'literal', Binary.^name   => 'binary',
+  Index.^name      => 'no',      SelfRef.^name  => 'no',     SubjectRef.^name => 'no',
+  Interval.^name   => 'no',      AliasField.^name => 'no',   InAlias.^name    => 'no',
+  Macro.^name      => 'no',      Ref.^name      => 'no',     Omitted.^name    => 'no';
+
 class Emitter
 {
   has Str $.src;
@@ -1988,9 +2003,25 @@ class Emitter
     }
   }
 
-  # An expression that is rewritten itself, not just for what it holds.
+  # An expression that is rewritten itself, not just for what it holds. By
+  # class first: most nodes are none of these, and it used to take them
+  # through a dozen type tests to say so. Subclasses are listed with what they
+  # got from the tests below (SafeMember a Member, Interp a Literal, ...); a
+  # class the table does not know goes the long way.
   method !lowers-itself(Expr $e --> Bool)
   {
+    given %LOWERS{$e.^name}
+    {
+      when 'no'      { return False }
+      when 'yes'     { return True }
+      when 'call'    { return so (VERBS{$e.name.lc}:exists) }
+      when 'name'    { return so (%!subst{$e.name.lc}:exists) }
+      when 'member'  { return so (($e.base ~~ Name && (%!field{$e.base.name.lc}:exists)) || $e.base ~~ SubjectRef) }
+      when 'method'  { return so $e.base ~~ SubjectRef }
+      when 'assign'  { return so $e.target ~~ HashIndex }
+      when 'literal' { return so ($e.type eq 'Numeric' && $e.text.contains("'")) }
+      when 'binary'  { return so SELF-OPS{$e.op} }
+    }
     return True if $e ~~ Lambda || $e ~~ Pipeline;
     return True if $e ~~ Call && (VERBS{$e.name.lc}:exists);
     return True if $e ~~ Name && (%!subst{$e.name.lc}:exists);

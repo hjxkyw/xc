@@ -128,7 +128,7 @@ check 'a wrong command line exits with 2: --check with an output, an unknown opt
 
 # ---- the test runner ------------------------------------------------------------------------
 # Only the refusals: running it for real would run this very suite.
-check "run-tests.raku: an option it does not know is refused before any test runs, '-all' with a hint",
+check "run-tests.raku: an option it does not know is refused before any test runs -- '-all' with a hint, '--jobs=0' too",
 {
   my $p = run $*EXECUTABLE, 'run-tests.raku', '-all', :out, :err;
   my $out = $p.out.slurp(:close);
@@ -136,8 +136,12 @@ check "run-tests.raku: an option it does not know is refused before any test run
   my $q = run $*EXECUTABLE, 'run-tests.raku', '--quick', :out, :err;
   $q.out.slurp(:close);
   my $qerr = $q.err.slurp(:close);
+  my $j = run $*EXECUTABLE, 'run-tests.raku', '--jobs=0', :out, :err;
+  $j.out.slurp(:close);
+  my $jerr = $j.err.slurp(:close);
   $p.exitcode == 2 && !$out.contains('ok ') && $err.contains("-all: no such option -- '--all', with two dashes")
     && $q.exitcode == 2 && $qerr.contains('--quick: no such option') && !$qerr.contains('two dashes')
+    && $j.exitcode == 2 && $jerr.contains('--jobs takes how many files at a time, 1 or more')
 };
 check 'run-tests.raku --help: the usage, and 0',
 {
