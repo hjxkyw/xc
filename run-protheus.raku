@@ -8,10 +8,14 @@
 #    and xc's own protheus/xc_selftest.xtpl -- into build/protheus/: each
 #    only when its .tlpp is missing, or older than its source, bin/xc or
 #    anything in lib/XC/ (a few seconds each); --rebuild compiles both anyway.
-# 2. The AppServer compiles them, with runtime/xtpl_runtime.tlpp, into the
-#    environment's RPO:
-#      appserver -compile -files=<file;file;file> -includes=<path> -env=<name>
+# 2. The AppServer compiles them, with runtime/xtpl_runtime.tlpp -- copied in
+#    beside them, so that build/protheus/ holds exactly the three -- into the
+#    environment's RPO, given the folder:
+#      appserver -compile -files=<folder> -includes=<path> -env=<name>
 #                [-authorization=<file>]
+#    (-files takes a file, a folder, or a .lst of one line with files and
+#    folders separated by ';'; a list with ';' on the command line does not
+#    work. -outreport is not used: the console says it all.)
 #    and says how it went in a line of its own, which is what this reads:
 #      [CMDLINE] Compilation Results .: Total sources(3) Success(3) Errors(0)
 # 3. It runs each one:
@@ -106,8 +110,19 @@ if $compile
   }
 
   say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}'";
-  my @files = $root.add('runtime/xtpl_runtime.tlpp').Str, |@tests.map({ $out.add(.<file>).Str });
-  my ($code, $text) = appserver('-compile', "-files={@files.join(';')}", "-includes={%opt<includes>}",
+  # The folder is what is compiled: the runtime goes in beside the two, and
+  # nothing else may be there -- the AppServer would compile it too.
+  my $runtime = $root.add('runtime/xtpl_runtime.tlpp');
+  my $copy = $out.add('xtpl_runtime.tlpp');
+  $runtime.copy($copy) if !$copy.e || $copy.modified < $runtime.modified || $copy.s != $runtime.s;
+  my %ours = (|@tests.map(*.<file>), 'xtpl_runtime.tlpp').map(* => True);
+  for $out.dir.grep({ .f && .extension.lc (elem) <tlpp prw prx tlh ch th lst> && !%ours{.basename} }) -> $stray
+  {
+    say "  removed {$stray.basename}: only the self-tests and the runtime are compiled from here";
+    $stray.unlink;
+  }
+  my @files = %ours.keys;
+  my ($code, $text) = appserver('-compile', "-files={$out.absolute}", "-includes={%opt<includes>}",
                                 "-env={%opt<env>}", |(%opt<authorization> ?? "-authorization={%opt<authorization>}" !! ()));
   print $text.lines.map({ "    $_\n" }).join;
   # Its results line -- not the exit code alone -- says whether it compiled:
@@ -118,7 +133,7 @@ if $compile
   {
     if    !$results                   { "no 'Compilation Results' line from the AppServer: its compile did not finish" }
     elsif +$results[2]                { "the AppServer compiled with {+$results[2]} error(s)" }
-    elsif +$results[0] != @files      { "{+@files} files given, the AppServer compiled {+$results[0]}" }
+    elsif +$results[0] != @files      { "{+@files} files in the folder, the AppServer compiled {+$results[0]}" }
     elsif +$results[1] != +$results[0] { "{+$results[1]} of {+$results[0]} sources compiled" }
     elsif $code                       { "the AppServer's compile ended with exit code $code" }
     else                              { Str }

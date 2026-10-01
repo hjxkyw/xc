@@ -87,14 +87,22 @@ sub protheus(*@args, *%env)
 }
 my @base = "--appserver=$fake", '--env=TST', '--includes=/inc', "--out=$out";
 
-check 'all passes: the AppServer compiles both with the runtime, then runs each',
+check 'all passes: the AppServer compiles the folder -- both, and the runtime copied in -- then runs each',
 {
   my %r = protheus(|@base);
-  my $files = ('runtime/xtpl_runtime.tlpp'.IO.absolute, $out.add('selftest.tlpp').Str, $out.add('xc_selftest.tlpp').Str).join(';');
+  my $files = $out.absolute;
   %r<code> == 0 && %r<calls> eqv ("-compile -files=$files -includes=/inc -env=TST",
                                   '-run=u_selftest -env=TST', '-run=u_xc_selftest -env=TST')
     && %r<text>.contains('selftest: 47 ok, 0 falhas') && %r<text>.contains('xc_selftest: 44 ok, 0 failed')
+    && $out.add('xtpl_runtime.tlpp').slurp eq 'runtime/xtpl_runtime.tlpp'.IO.slurp
     && %r<text>.contains('every check passed')
+};
+check 'another source in the folder is removed: the AppServer would compile it too',
+{
+  spurt $out.add('stray.prw'), "user function stray()\nreturn 1\n";
+  my %r = protheus(|@base, '--compile-only');
+  my $gone = !$out.add('stray.prw').e;
+  %r<code> == 0 && $gone && %r<text>.contains('removed stray.prw')
 };
 check 'up to date: bin/xc is not run, the files are left as they are',
 {
@@ -144,10 +152,10 @@ check 'no results line: the compile did not finish -- what it said, and 1',
   %r<code> == 1 && %r<calls>.elems == 1 && %r<text>.contains('THREAD ERROR: include not found')
     && %r<text>.contains("no 'Compilation Results' line")
 };
-check 'fewer sources compiled than given: 1',
+check 'fewer sources compiled than in the folder: 1',
 {
   my %r = protheus(|@base, FAKE_FEWER => 1);
-  %r<code> == 1 && %r<text>.contains('3 files given, the AppServer compiled 2')
+  %r<code> == 1 && %r<text>.contains('3 files in the folder, the AppServer compiled 2')
 };
 check 'a clean results line but a failing exit code: 1',
 {
