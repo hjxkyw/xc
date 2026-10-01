@@ -2,7 +2,9 @@
 #
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
-#                            [--compile-only | --run-only]
+#                            [--compile-only | --run-only | --corpus] [--verbose]
+#
+# The self-tests (the default):
 #
 # 1. bin/xc compiles the two self-tests -- xtpl's xtpl/tests/54_selftest.xtpl
 #    and xc's own protheus/xc_selftest.xtpl -- into build/protheus/: each
@@ -16,16 +18,25 @@
 #    (-files takes a file, a folder, or a .lst of one line with files and
 #    folders separated by ';'; a list with ';' on the command line does not
 #    work. -outreport is not used: the console says it all.)
-#    and says how it went in a line of its own, which is what this reads:
-#      [CMDLINE] Compilation Results .: Total sources(3) Success(3) Errors(0)
 # 3. It runs each one:
 #      appserver -run=u_selftest -env=<name>
 #      appserver -run=u_xc_selftest -env=<name>
 #    Each prints a line per failed check and a total; this shows those and
 #    reads the totals.
 #
-# Exit code: 0 when both ran and no check failed; 1 when something failed;
-# 2 when the command line is wrong.
+# The corpus (--corpus): bin/xc compiles every program of xtpl's corpus --
+# its tests and its examples, but 51_legacy (xtpl's legacy mode) and
+# 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
+# the AppServer compiles that folder, with the runtime, in one run too.
+# Nothing is run: what it checks is that Protheus takes all of xc's output.
+#
+# What the AppServer says goes whole into a log beside what it compiled --
+# compile.log, run-u_selftest.log, ... -- and only what matters is shown: the
+# sources that did not compile and why, the results line, each failed check,
+# the totals. --verbose shows all of it as it comes.
+#
+# Exit code: 0 when everything compiled and no check failed; 1 when something
+# failed; 2 when the command line is wrong.
 #
 # Every option can come from the environment instead, so that once set a run
 # is just 'rakupp run-protheus.raku': XC_APPSERVER, XC_ENV, XC_INCLUDES,
@@ -38,14 +49,15 @@ my %opt =
   env           => %*ENV<XC_ENV>,
   includes      => %*ENV<XC_INCLUDES>,
   authorization => %*ENV<XC_AUTHORIZATION>,
-  out           => 'build/protheus';
-my ($compile, $run, $rebuild) = True, True, False;
+  out           => Str;
+my ($compile, $run, $rebuild, $corpus, $verbose) = True, True, False, False, False;
 
 sub usage(Str $why)
 {
   note "$why\n"
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
-     ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild] [--compile-only | --run-only]";
+     ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
+     ~ "                                [--compile-only | --run-only | --corpus] [--verbose]";
   exit 2;
 }
 
@@ -54,16 +66,36 @@ for @*ARGS -> $a
   if $a eq '--compile-only'  { $run = False }
   elsif $a eq '--run-only'   { $compile = False }
   elsif $a eq '--rebuild'    { $rebuild = True }
+  elsif $a eq '--corpus'     { $corpus = True }
+  elsif $a eq '--verbose'    { $verbose = True }
   elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
+usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
+$run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
 usage("no include folder: --includes=PATH, or XC_INCLUDES") if $compile && !%opt<includes>;
 
 # Everything from the top of the repository, wherever this is run from.
 my $root = $*PROGRAM.IO.absolute.IO.parent;
+%opt<out> //= $corpus ?? 'build/corpus' !! 'build/protheus';
 my $out = %opt<out>.IO.is-absolute ?? %opt<out>.IO !! $root.add(%opt<out>);
+
+# A path as the system writes it: on Windows, '\' throughout -- not the
+# 'xc/build/protheus' a join leaves.
+sub native($p --> Str)
+{
+  my $s = $p.IO.absolute.Str;
+  $*DISTRO.is-win ?? $s.subst('/', '\\', :g) !! $s
+}
+
+# Relative inside the repository, whole outside it.
+sub shown($p --> Str)
+{
+  my $s = $p.IO.absolute.Str;
+  $s.starts-with($root.Str) ?? $p.IO.absolute.IO.relative($root) !! native($p)
+}
 
 # The self-tests: the source, the file bin/xc writes, the function to run.
 my @tests =
@@ -74,19 +106,126 @@ my @tests =
 my $server = %opt<appserver>;
 my $cwd = $server.contains('/') || $server.contains('\\') ?? $server.IO.absolute.IO.parent.Str !! $*CWD.Str;
 
-sub appserver(*@args)
+# The AppServer run with these arguments; all it says goes into $log, and is
+# shown too with --verbose.
+sub appserver(IO::Path $log, *@args)
 {
   say "  \$ {$server} {@args.join(' ')}";
   my $p = run $server, |@args, :cwd($cwd), :merge;
   my $text = $p.out.slurp(:close);
+  spurt $log, $text;
+  print $text.lines.map({ "    $_\n" }).join if $verbose;
   ($p.exitcode, $text)
 }
 
+# The lines of a compile worth showing: a source that failed, an error, the
+# results and the list of what failed. Not the start-up banner, the memory
+# pools, the threads stopping.
+sub worth-showing(Str $l --> Bool)
+{
+  return True if $l.contains('Compilation Results');
+  return so $l ~~ / ':' \h* \S / if $l.contains('Error List');
+  return False if $l ~~ / 'Errors(' | 'compile_errors.log' | 'compile_success.log' /;
+  so $l ~~ m:i/ error | fail | warning: /
+}
+
+# The folder compiled by the AppServer, $count sources in it. Shows what
+# matters, and returns why it failed -- or Str, when it did not.
+sub compile-folder(IO::Path $dir, Int $count --> Str)
+{
+  # The AppServer writes compile_errors.log where it runs; its time before
+  # tells a new one from an old one (a file's time against a file's time:
+  # 'now' may run on another scale).
+  my $errors = $cwd.IO.add('compile_errors.log');
+  my $before = $errors.e ?? $errors.modified !! Instant;
+  my $log = $dir.add('compile.log');
+  my ($code, $text) = appserver($log, '-compile', "-files={native($dir)}", "-includes={%opt<includes>}",
+                                "-env={%opt<env>}", |(%opt<authorization> ?? "-authorization={%opt<authorization>}" !! ()));
+  unless $verbose
+  {
+    say "    $_" for $text.lines.map(*.trim).grep({ worth-showing($_) });
+  }
+  say "    the AppServer's whole output: {shown($log)}";
+  # Its results line -- not the exit code alone -- says whether it compiled:
+  # every source in the folder, none with an error.
+  my $results = $text ~~ / 'Compilation Results' \N*? 'Total sources(' (\d+) ')' \h* 'Success(' (\d+) ')'
+                           \h* 'Errors(' (\d+) ')' /;
+  if $results && +$results[2]
+  {
+    # Why, from the file the AppServer writes in the folder it ran in -- if
+    # this run wrote it.
+    if $errors.e && (!$before.defined || $errors.modified != $before)
+    {
+      say "    {shown($errors)}:";
+      say "      $_" for $errors.lines.grep(*.trim);
+    }
+  }
+  if    !$results                    { "no 'Compilation Results' line from the AppServer: its compile did not finish" }
+  elsif +$results[2]                 { "the AppServer compiled with {+$results[2]} error(s)" }
+  elsif +$results[0] != $count       { "$count files in the folder, the AppServer compiled {+$results[0]}" }
+  elsif +$results[1] != +$results[0] { "{+$results[1]} of {+$results[0]} sources compiled" }
+  elsif $code                        { "the AppServer's compile ended with exit code $code" }
+  else                               { Str }
+}
+
+# The runtime goes into the folder beside the sources, and nothing else may
+# be there: the AppServer would compile it too.
+sub prepare-folder(IO::Path $dir, @ours)
+{
+  my $runtime = $root.add('runtime/xtpl_runtime.tlpp');
+  my $copy = $dir.add('xtpl_runtime.tlpp');
+  $runtime.copy($copy) if !$copy.e || $copy.modified < $runtime.modified || $copy.s != $runtime.s;
+  my %ours = (|@ours, 'xtpl_runtime.tlpp').map(*.lc => True);
+  for $dir.dir.grep({ .f && .extension.lc (elem) <tlpp prw prx tlh ch th lst> && !%ours{.basename.lc} }) -> $stray
+  {
+    say "  removed {$stray.basename}: only what xc wrote here, and the runtime, is compiled from here";
+    $stray.unlink;
+  }
+  %ours.elems
+}
+
+# ---- the corpus ---------------------------------------------------------------------------------
+if $corpus
+{
+  my @sources = |$root.add('xtpl/tests').dir.grep({ .extension eq 'xtpl'
+                                                    && .basename ne '51_legacy.xtpl' && .basename ne '54_selftest.xtpl' }),
+                |$root.add('xtpl/examples').dir.grep(*.d).map({ |.dir.grep(*.extension eq 'xtpl') });
+  @sources = @sources.sort;
+  say "xc: compiling {+@sources} programs of xtpl's corpus into {shown($out)}/";
+  mkdir $out;
+  my $p = run $*EXECUTABLE, $root.add('bin/xc').Str, "--outdir={$out.absolute}", |@sources.map(*.Str),
+              :cwd($root.Str), :merge;
+  my $text = $p.out.slurp(:close);
+  spurt $out.add('xc.log'), $text;
+  if $verbose || $p.exitcode
+  {
+    print $text.lines.map({ "  $_\n" }).join;
+  }
+  else
+  {
+    say "  {$text.lines.first(*.starts-with('xc:')) // ''}  (all it said: {shown($out.add('xc.log'))})";
+  }
+  if $p.exitcode
+  {
+    say "\n  xc could not compile all of them";
+    exit 1;
+  }
+
+  say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}', in one run";
+  my $count = prepare-folder($out, @sources.map({ .basename.subst(/ '.xtpl' $ /, '.tlpp') }));
+  with compile-folder($out, $count)
+  {
+    say "\n  $_";
+    exit 1;
+  }
+  say "\n  Protheus took all {$count - 1} programs, and the runtime";
+  exit 0;
+}
+
+# ---- the self-tests -------------------------------------------------------------------------------
 if $compile
 {
-  # Relative inside the repository, whole outside it.
-  my $shown = $out.Str.starts-with($root.Str) ?? $out.relative($root) !! $out.Str;
-  say "xc: compiling the self-tests into $shown/";
+  say "xc: compiling the self-tests into {shown($out)}/";
   mkdir $out;
   # The newest of what makes the output: bin/xc and the modules.
   my $xc-made = ($root.add('bin/xc'), |$root.add('lib/XC').dir).map(*.modified).max;
@@ -110,35 +249,8 @@ if $compile
   }
 
   say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}'";
-  # The folder is what is compiled: the runtime goes in beside the two, and
-  # nothing else may be there -- the AppServer would compile it too.
-  my $runtime = $root.add('runtime/xtpl_runtime.tlpp');
-  my $copy = $out.add('xtpl_runtime.tlpp');
-  $runtime.copy($copy) if !$copy.e || $copy.modified < $runtime.modified || $copy.s != $runtime.s;
-  my %ours = (|@tests.map(*.<file>), 'xtpl_runtime.tlpp').map(* => True);
-  for $out.dir.grep({ .f && .extension.lc (elem) <tlpp prw prx tlh ch th lst> && !%ours{.basename} }) -> $stray
-  {
-    say "  removed {$stray.basename}: only the self-tests and the runtime are compiled from here";
-    $stray.unlink;
-  }
-  my @files = %ours.keys;
-  my ($code, $text) = appserver('-compile', "-files={$out.absolute}", "-includes={%opt<includes>}",
-                                "-env={%opt<env>}", |(%opt<authorization> ?? "-authorization={%opt<authorization>}" !! ()));
-  print $text.lines.map({ "    $_\n" }).join;
-  # Its results line -- not the exit code alone -- says whether it compiled:
-  # every file given, none with an error.
-  my $results = $text ~~ / 'Compilation Results' \N*? 'Total sources(' (\d+) ')' \h* 'Success(' (\d+) ')'
-                           \h* 'Errors(' (\d+) ')' /;
-  my $why = do
-  {
-    if    !$results                   { "no 'Compilation Results' line from the AppServer: its compile did not finish" }
-    elsif +$results[2]                { "the AppServer compiled with {+$results[2]} error(s)" }
-    elsif +$results[0] != @files      { "{+@files} files in the folder, the AppServer compiled {+$results[0]}" }
-    elsif +$results[1] != +$results[0] { "{+$results[1]} of {+$results[0]} sources compiled" }
-    elsif $code                       { "the AppServer's compile ended with exit code $code" }
-    else                              { Str }
-  };
-  with $why
+  my $count = prepare-folder($out, @tests.map(*.<file>));
+  with compile-folder($out, $count)
   {
     say "\n  $_";
     exit 1;
@@ -146,21 +258,25 @@ if $compile
 }
 
 exit 0 unless $run;
+mkdir $out;                                  # for the logs, when nothing was compiled first
 
-# A total, as both self-tests print it: 'selftest: 47 ok, 0 falhas',
-# 'xc_selftest: 44 ok, 0 failed'.
+# A total, as both self-tests print it: 'selftest: 71 ok, 0 falhas',
+# 'xc_selftest: 55 ok, 0 failed'.
 my $failed = 0;
 for @tests -> %t
 {
   say "\nProtheus: running {%t<run>}";
-  my ($code, $text) = appserver("-run={%t<run>}", "-env={%opt<env>}");
+  my ($code, $text) = appserver($out.add("run-{%t<run>}.log"), "-run={%t<run>}", "-env={%opt<env>}");
   my @lines = $text.lines;
   my $total = @lines.first({ / \w+ ':' \h* \d+ ' ok, ' \d+ \h+ [ 'falhas' || 'failed' ] / });
   if $total.defined
   {
     # The failed checks, and the total.
-    say "    $_" for @lines.grep({ .starts-with('FALHA') || .starts-with('FAILED') });
-    say "    {$total.trim}";
+    unless $verbose
+    {
+      say "    $_" for @lines.grep({ .starts-with('FALHA') || .starts-with('FAILED') });
+      say "    {$total.trim}";
+    }
     my $bad = +($total ~~ / (\d+) \h+ [ 'falhas' || 'failed' ] /)[0];
     $failed += $bad;
   }

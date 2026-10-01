@@ -60,7 +60,16 @@ totals:
 ```sh
 rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--authorization=FILE]
 rakupp run-protheus.raku ... --compile-only     # or --run-only
+rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
+rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
 ```
+
+Only what matters is shown -- a source that did not compile and why, the
+results line, each failed check and the totals; all the AppServer said goes
+into a log beside what it compiled (`compile.log`, `run-u_selftest.log`,
+...). With `--corpus`, xc compiles every program of xtpl's corpus into
+`build/corpus/` and the AppServer compiles that folder: nothing runs, the
+point is that Protheus takes all of xc's output.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`

@@ -7,6 +7,8 @@
 #
 #   --check             checks, and writes nothing: everything that would stop
 #                       the compile is reported, the warnings too
+#   --outdir=DIR        each .tlpp into DIR, not next to its source -- many
+#                       sources in one run, as an AppServer compiles a folder
 #   --dict sx3.csv      checks the fields used against an exported SX3
 #   --dict-strict       and what it finds is an error, not a warning
 #
@@ -28,9 +30,9 @@ sub usage-error(Str $message)
 }
 
 my $usage = "usage: rakupp bin/xc [--check] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
-          ~ "       rakupp bin/xc [--check] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
+          ~ "       rakupp bin/xc [--check] [--outdir=DIR] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
 my @args = @*ARGS;
-my ($dict-path, $strict, $check) = Str, False, False;
+my ($dict-path, $strict, $check, $outdir) = Str, False, False, Str;
 my @given;
 while @args
 {
@@ -38,6 +40,7 @@ while @args
   if    $a eq '--dict'        { $dict-path = @args.shift // usage-error($usage) }
   elsif $a eq '--dict-strict' { $strict = True }
   elsif $a eq '--check'       { $check = True }
+  elsif $a ~~ / ^ '--outdir=' (.+) $ / { $outdir = ~$0 }
   elsif $a.starts-with('--')  { usage-error("$a: no such option\n$usage") }
   else                        { @given.push($a) }
 }
@@ -49,6 +52,7 @@ usage-error("$dict-path: no such file") if $dict-path.defined && !$dict-path.IO.
 # list of sources, a folder standing for every .xtpl under it.
 my $named-out = @given == 2 && @given[1] ~~ m:i/ '.tlpp' $ / && !@given[1].IO.d ?? @given.pop !! Str;
 usage-error("--check writes nothing: no output to name") if $check && $named-out.defined;
+usage-error("--outdir with an output named: one or the other") if $outdir.defined && $named-out.defined;
 usage-error("$named-out: a .tlpp is named only for a single source") if $named-out.defined && @given[0].IO.d;
 
 my %dictionary = $dict-path.defined ?? load-dictionary($dict-path) !! ();
@@ -154,10 +158,28 @@ sub compile(Str $in, Str $out --> Bool)
   True
 }
 
+# A source given twice -- itself and in its folder -- is compiled once.
+@sources = @sources.unique(:as({ .IO.absolute }));
+
+# --outdir: every .tlpp into one folder, named for its source -- two sources
+# of the same name would write the same file.
+sub stem(Str $in --> Str) { $in.IO.basename.subst(/ '.' <-[.]>* $ /, '') }
+with $outdir
+{
+  my %seen;
+  for @sources -> $in
+  {
+    usage-error("$in and {%seen{stem($in).lc}}: both would be {stem($in)}.tlpp in $outdir") if %seen{stem($in).lc}:exists;
+    %seen{stem($in).lc} = $in;
+  }
+  mkdir $outdir unless $check;
+}
+
 my $failed = $missing;
 for @sources -> $in
 {
-  my $out = $named-out // $in.subst(/ '.' <-[./\\]>* $ /, '') ~ '.tlpp';
+  my $out = $named-out // ($outdir.defined ?? $outdir.IO.add(stem($in) ~ '.tlpp').Str
+                                            !! $in.subst(/ '.' <-[./\\]>* $ /, '') ~ '.tlpp');
   $failed++ unless compile($in, $out);
 }
 

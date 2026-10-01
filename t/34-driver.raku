@@ -110,6 +110,30 @@ check 'a folder with no .xtpl in it',
   %r<code> == 1 && %r<err>.contains('empty: no .xtpl files in it')
 };
 
+# ---- --outdir: every output into one folder ----------------------------------------------------
+reset-dir;
+check '--outdir: sources and folders, every .tlpp into the folder, named for its source',
+{
+  my $od = $dir.add('od');
+  my %r = xc("--outdir=$od", "$dir/src/a.xtpl", "$dir/src/sub/b.xtpl");
+  %r<code> == 0 && $od.add('a.tlpp').e && $od.add('b.tlpp').e && written() eq ''
+};
+check '--outdir: two sources of the same name would write one file -- refused; with an output named too',
+{
+  mkdir $dir.add('src/other');
+  spurt $dir.add('src/other/a.xtpl'), "user function a2()\nreturn 1\n";
+  my $two = xc("--outdir=$dir/od", "$dir/src/a.xtpl", "$dir/src/other/a.xtpl");
+  my $named = xc("--outdir=$dir/od", "$dir/src/a.xtpl", "$dir/x.tlpp");
+  $dir.add('src/other/a.xtpl').unlink;
+  $dir.add('src/other').rmdir;
+  $two<code> == 2 && $two<err>.contains('both would be a.tlpp') && $named<code> == 2
+};
+check '--outdir: a source given twice, itself and in its folder, compiled once',
+{
+  my %r = xc("--outdir=$dir/od2", "$dir/src/sub/b.xtpl", "$dir/src/sub");
+  %r<code> == 1 && %r<out>.lines.grep(*.contains('b.xtpl ->')).elems == 1
+};
+
 # ---- one source and its output --------------------------------------------------------------
 reset-dir;
 check "'file.xtpl out.tlpp' still names the output",
