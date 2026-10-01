@@ -61,6 +61,24 @@ sub text-units(Str $t)
   $offsets-in-bytes ?? $t.encode.list.Array !! $t.comb.map({ $_ eq "\r\n" ?? 10 !! .ord }).Array
 }
 
+# Whether the text at $from, past spaces, is the word 'private' or 'public'.
+sub private-ahead(Int $from --> Bool)
+{
+  my $u = $*UNITS // return False;
+  my $i = $from;
+  $i++ while $i < $u.elems && ($u[$i] == 32 || $u[$i] == 9);
+  for 'private', 'public' -> $word
+  {
+    my $n = $word.chars;
+    next unless $i + $n <= $u.elems;
+    next unless (^$n).map({ $u[$i + $_] +| 0x20 }) eqv $word.ords.map(* +| 0x20);
+    my $after = $i + $n < $u.elems ?? $u[$i + $n] !! 0;
+    # Not part of a longer word: 'privateX' is a name.
+    return True unless 48 <= $after <= 57 || 65 <= $after <= 90 || 97 <= $after <= 122 || $after == 95;
+  }
+  False
+}
+
 # $item: an argument or a lambda's body, which also ends at a ',' or at a
 # bracket closing what it is in.
 sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
@@ -402,7 +420,10 @@ rule statement
   [
      <annotation>
   || <seqst>
-  || [ <!{ $*PAST-PROLOGUE // False }> <declaration> ]
+  # A 'private' or 'public' is a statement in TL++: allowed anywhere one is.
+  # It does not close the prologue here, though: a 'local' after it is then
+  # parsed, and the checks can say what is wrong with it.
+  || [ <?{ !($*PAST-PROLOGUE // False) || private-ahead($/.from) }> <declaration> ]
   || <ifst>
   || <whilest>
   || <forst>

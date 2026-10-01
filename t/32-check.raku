@@ -231,6 +231,8 @@ refuses "a 'local' after a 'private'",
 refuses "a 'static' after a 'public'",
   "  local nL := 1\n  public nU := 2\n  static nS := 3\n  a := nL + nU + nS",
   "4: 'static' after 'public' (line 3): a private or a public is a statement, and every local and static comes before the first statement.";
+passes "a private and a public after a statement: statements, where statements go",
+  "  local nL := 1\n  a := nL\n  private nP := 2\n  public nU := 3\n  a := nP + nU";
 passes "locals and statics, then privates and publics",
   "  local nL := 1\n  static nS := 2\n  private nP := 3\n  public nU := 4\n  a := nL + nS + nP + nU";
 

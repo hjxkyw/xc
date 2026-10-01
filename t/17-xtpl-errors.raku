@@ -131,7 +131,6 @@ my @xtpl =
   True,  'local at the start of a for body',    "  for local i := 1 to 3\n    local nY := i\n    conout(nY)\n  next",
   True,  'private in the prologue',             "  private nP := 0\n  conout(nP)",
   False, 'local after a statement',             "  conout(1)\n  local nL := 0",
-  False, 'private after a statement',           "  conout(1)\n  private nP := 0",
   False, 'local in the else body',              "  if n > 0\n    conout(1)\n  else\n    local nY := 1\n  endif",
   False, 'local in the else body, empty if',    "  if n > 0\n  else\n    local nY := 1\n  endif",
   False, 'local in the elseif body',            "  if n > 0\n    conout(1)\n  elseif n < 0\n    local nY := 1\n  endif",
@@ -165,6 +164,13 @@ for @xtpl -> $accepts, $what, $body
 # Parameters have a rule of their own: a reserved word is refused, a generated
 # shape is accepted.
 check 'xtpl refuses: reserved as a parameter',  { !parses("user function f(if)\nreturn 1\n") };
+
+# Decided otherwise: xtpl refuses a 'private' after a statement; xc takes it,
+# as TL++ does -- a private or public is a statement, and goes where one goes.
+check 'xc accepts what xtpl refuses: a private, and a public, after a statement',
+{
+  parses("user function f(n, a)\n  conout(1)\n  private nP := 0\n  public nU := 1\nreturn n\n")
+};
 check 'xtpl accepts: generated as a parameter', {  parses("user function f(fo_0_0)\nreturn 1\n") };
 
 # ---- every file is in a group ---------------------------------------------------

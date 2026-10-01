@@ -97,6 +97,13 @@ check "and with no local at all, at the top of the body, still before it",
   line-of($out, 'user function') < line-of($out, 'Local fok_0_0') < line-of($out, 'private pT')
 };
 
+check "a private after a statement, a chain its value: where it is, its loop after it, xc's Locals still at the top",
+{
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(cP, n)\n  local a := 1\n  n := a\n  private pT := lines(cP) |> count\n  n := pT\nreturn n\n]);
+  line-of($out, 'local a') < line-of($out, 'Local fok_0_0') < line-of($out, 'n := a') < line-of($out, 'private pT')
+    < line-of($out, 'fok_0_0 := File(cP)') < line-of($out, 'pT := fo_0_0')
+};
+
 # ---- under a postfix modifier --------------------------------------------------------------
 check "x := chain if c: the loop inside the If, so only when the condition holds",
 {
