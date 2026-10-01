@@ -171,6 +171,9 @@ class AssignExpr is Expr is export
   has Expr $.target;
   has Str  $.op;
   has Expr $.value;
+  # 'n++' is '+= 1' that gives the value before; '++n', the one after. ''
+  # for a plain assignment.
+  has Str  $.incdec = '';
 }
 
 # Literals with parts. Still Literal -- with the type and the text --, so

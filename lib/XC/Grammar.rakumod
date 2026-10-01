@@ -549,8 +549,13 @@ rule simple
   || <loopst>
   || [ <?{ ahead($/.from, 'assign') }> [ <assignment> || <nilassign> ] ]
   || [ <?{ ahead($/.from, 'pipe') }> <pipest> ]
+  || <incst>
   || <callst>
 }
+
+# 'n++', '++n', 'a[i]--': TL++'s increment and decrement, as a statement.
+rule incst  { [ <incop> <lvalue> ] || [ <lvalue> <incop> ] }
+token incop { '++' || '--' }
 
 # ---- xtpl: '?=' -- assign if Nil ----------------------------------------------
 # Only as a statement: 'cCache ?= "empty"'. Never in an expression --
@@ -892,7 +897,9 @@ token addop    { '+' || '-' }
 rule mulexpr   { <unary> [ <mulop> <unary> ]* }
 # '%%' -- divisible by -- before AdvPL's '%', which passes through untouched.
 token mulop    { '%%' || '*' || '/' || '%' }
-rule unary     { <sign>? <postfix> }
+# '++n' and '--n' in an expression: on a variable, an element, a field --
+# never a literal ('--5' is not one).
+rule unary     { [ <incop> <!before <.ws> <literal>> <postfix> ] || [ <sign>? <postfix> ] }
 token sign     { '-' || '+' }
 
 # A literal takes no trailer: strings and numbers have no members or indices.
@@ -902,7 +909,7 @@ token sign     { '-' || '+' }
 rule postfix
 {
      <literal>
-  || [ <primary> <trailer>* ]
+  || [ <primary> <trailer>* <incop>? ]
 }
 
 # One rule per form, so the tree knows which one matched.

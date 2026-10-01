@@ -55,7 +55,7 @@ sub count-loop(Str $in = '  ')
     fo_0_0 := 0
     While fok_0_0 .And. !FT_FEof()
       fv_0_0 := FT_FReadLn()
-      fo_0_0 := fo_0_0 + 1
+      fo_0_0++
       FT_FSkip()
     EndDo
     If fok_0_0

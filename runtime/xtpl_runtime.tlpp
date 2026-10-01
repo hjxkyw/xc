@@ -738,7 +738,7 @@ Method Push(xItem) Class XtplQueue
   EndIf
   ::nTail := Iif(::nTail == Len(::aBuf), 1, ::nTail + 1)
   ::aBuf[::nTail] := xItem
-  ::nUsed += 1
+  ::nUsed++
 Return Self
 
 // Nil when there is nothing to take. Ask IsEmpty() first if Nil is a value
@@ -752,7 +752,7 @@ Method Pop() Class XtplQueue
   // Released, or the buffer keeps the object alive after it has been taken.
   ::aBuf[::nHead] := Nil
   ::nHead := Iif(::nHead == Len(::aBuf), 1, ::nHead + 1)
-  ::nUsed -= 1
+  ::nUsed--
 Return xItem
 
 Method Peek() Class XtplQueue

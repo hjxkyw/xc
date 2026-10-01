@@ -598,8 +598,24 @@ method inrhs($/)     { make interval($<lo>.made, $<hi>) }
 method addexpr($/)   { make fold-ops($/, 'mulexpr', 'addop') }
 method mulexpr($/)   { make fold-ops($/, 'unary',   'mulop') }
 
+# An increment or decrement is an assignment of one more, or one less: what
+# handles '+=' handles it -- the checks, a hash element's lowering -- and the
+# rest is copied as written.
+sub incdec(Expr $target, Str $op, Str $where --> AssignExpr)
+{
+  AssignExpr.new(target => $target, op => ($op eq '++' ?? '+=' !! '-='),
+                 value => Literal.new(type => 'Numeric', text => '1'), incdec => $where)
+}
+
+method incst($/)
+{
+  make Assignment.new(target => $<lvalue>.made, op => (~$<incop> eq '++' ?? '+=' !! '-='),
+                      value => Literal.new(type => 'Numeric', text => '1'), line => self!line($/));
+}
+
 method unary($/)
 {
+  return make self!spanned(incdec($<postfix>.made, ~$<incop>, 'pre'), $/) if $<incop>;
   make $<sign> && ~$<sign> eq '-'
     ?? self!spanned(Binary.new(op => 'neg', left => Expr, right => $<postfix>.made), $/)
     !! $<postfix>.made;
@@ -609,6 +625,11 @@ method unary($/)
 # of a MethodCall on a Name.
 method postfix($/)
 {
+  if !$<literal> && $<incop>
+  {
+    my $operand = self!trailed($<primary>.made, $<primary>, $<trailer>, $/);
+    return make self!spanned(incdec($operand, ~$<incop>, 'post'), $/);
+  }
   make self!spanned($<literal> ?? $<literal>.made !! self!trailed($<primary>.made, $<primary>, $<trailer>, $/), $/);
 }
 

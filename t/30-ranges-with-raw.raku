@@ -60,6 +60,9 @@ sub normalised(Str $text)
     $l .= subst(/ << 's_' \d+ '_obj' >> /, 'fbs', :g);
     $l .= subst(/ << <[sb]> '_' \d+ '_' (<[A..Za..z]> \w*) >> /, { ~$0 }, :g);
     $l .= subst(/ '((' (\w+ ' % ' \w+) ') == 0)' /, { "({$0}) == 0" }, :g);
+    # 'x := x + 1' is 'x++': xc writes the one, xtpl the other.
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '+' \s* 1 $/, { "$0++" });
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '-' \s* 1 $/, { "$0--" });
     @out.push($l.lc);
   }
   @out
@@ -93,7 +96,7 @@ check 'a take stops the count',
 };
 lowers "'for x in lo..hi', with an index",
   "  for i, k in 5..n\n    x := x + i * k\n  next i",
-  "  k := 0\n  For fi_0_0 := 5 To n\n    i := fi_0_0\n    k := k + 1\n    x := x + i * k\n  next";
+  "  k := 0\n  For fi_0_0 := 5 To n\n    i := fi_0_0\n    k++\n    x := x + i * k\n  next";
 
 lowers "'x in lo..hi': a range test",
   "  n := x in 1..100",

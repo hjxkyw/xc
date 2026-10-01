@@ -1153,7 +1153,7 @@ class Emitter
           @h.push("$ix := 0") if $ix.defined;
           my $at = @h.elems;
           @h.append("For $fi := $lo To $hi", "  $el := $fi");
-          @h.push("  $ix := $ix + 1") if $ix.defined;
+          @h.push("  {$ix}++") if $ix.defined;
           self!header($s, .source.hi, $at, |@h);
           if .endname-from >= 0
           {
@@ -1178,7 +1178,7 @@ class Emitter
           @h.push("$ix := 0") if $ix.defined;
           my $while = @h.elems;
           @h.push("While $fok .And. !FT_FEof()");
-          @h.push("  $ix := $ix + 1") if $ix.defined;
+          @h.push("  {$ix}++") if $ix.defined;
           @h.append("  $el := FT_FReadLn()", '  FT_FSkip()');
           self!header($s, .source, $while, |@h);
 
@@ -1488,7 +1488,7 @@ class Emitter
             @ahead.push("$limit := {self!expr($n)}");
           }
           @ahead.push("$fn := 0");
-          @body.append("{$ind}If $fn >= $limit", "{$ind}  Exit", "{$ind}EndIf", "{$ind}$fn := $fn + 1");
+          @body.append("{$ind}If $fn >= $limit", "{$ind}  Exit", "{$ind}EndIf", "{$ind}{$fn}++");
         }
         when 'takewhile' { @body.append("{$ind}If !({lambda($st)})", "{$ind}  Exit", "{$ind}EndIf") }
         when 'drop'
@@ -1504,7 +1504,7 @@ class Emitter
             @ahead.push("$limit := {self!expr($n)}");
           }
           @ahead.push("$fn := 0");
-          @body.append("{$ind}If $fn < $limit", "{$ind}  $fn := $fn + 1", "{$ind}Else");
+          @body.append("{$ind}If $fn < $limit", "{$ind}  {$fn}++", "{$ind}Else");
           @close.unshift("{$ind}EndIf");
           $ind ~= '  ';
         }
@@ -1583,8 +1583,8 @@ class Emitter
         {
           @ahead.push("$fo := 0");
           @body.append($cond.defined
-            ?? ("{$ind}If $cond", "{$ind}  $fo := $fo + 1", "{$ind}EndIf")
-            !! ("{$ind}$fo := $fo + 1",));
+            ?? ("{$ind}If $cond", "{$ind}  {$fo}++", "{$ind}EndIf")
+            !! ("{$ind}{$fo}++",));
         }
         when 'anyof'  { @ahead.push("$fo := .F."); @body.append("{$ind}If $cond", "{$ind}  $fo := .T.", "{$ind}  Exit", "{$ind}EndIf") }
         when 'allof'  { @ahead.push("$fo := .T."); @body.append("{$ind}If !($cond)", "{$ind}  $fo := .F.", "{$ind}  Exit", "{$ind}EndIf") }
@@ -1909,6 +1909,7 @@ class Emitter
       # once, as parameters -- the block captures nothing.
       when { $_ ~~ AssignExpr && .target ~~ HashIndex }
       {
+        my $written = do {
         my $t = .target;
         my $h = self!expr($t.base);
         my $k = self!expr($t.key);
@@ -1925,6 +1926,10 @@ class Emitter
         {
           "Eval(\{|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) {.op.chop} __v)\}, $h, $k, $v)"
         }
+        };
+        # 'h{k}++' gives the value before: the one written, less one ('--':
+        # plus one) -- a number's or a date's alike.
+        .incdec eq 'post' ?? "($written) {.op eq '+=' ?? '-' !! '+'} 1" !! $written
       }
       # 'h{k}': a call, right wherever it is (xtpl lifts a Get, which goes
       # wrong in a 'while' condition, an 'elseif' or a lambda).

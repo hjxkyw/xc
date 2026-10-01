@@ -53,7 +53,7 @@ check 'drop: the rest of the chain in the Else, the first n pass by',
   loop-of(body-of("  local x := \{\}\n  x := lines(cP) |> drop(2)")) eq q:to/END/.chomp
     fv_0_0 := FT_FReadLn()
     If fn_0_0 < 2
-      fn_0_0 := fn_0_0 + 1
+      fn_0_0++
     Else
       AAdd(fo_0_0, fv_0_0)
     EndIf
@@ -133,7 +133,7 @@ check 'in the prologue: names kept, values after it, in the order written',
     fo_0_0 := 0
     While fok_0_0 .And. !FT_FEof()
       fv_0_0 := FT_FReadLn()
-      fo_0_0 := fo_0_0 + 1
+      fo_0_0++
       FT_FSkip()
     EndDo
     If fok_0_0

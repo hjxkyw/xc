@@ -75,10 +75,10 @@ lowers 'run for its effects, a stage that cannot fuse: calls',
 # ---- where -------------------------------------------------------------------------------------
 lowers 'under a postfix if: the loop inside the If',
   "  n := a |> filter([x] x > 0) |> count if l",
-  "  If l\n    fo_0_0 := 0\n    For fi_0_0 := 1 To Len(a)\n      fv_0_0 := a[fi_0_0]\n      If fv_0_0 > 0\n        fo_0_0 := fo_0_0 + 1\n      EndIf\n    Next\n    n := fo_0_0\n  EndIf";
+  "  If l\n    fo_0_0 := 0\n    For fi_0_0 := 1 To Len(a)\n      fv_0_0 := a[fi_0_0]\n      If fv_0_0 > 0\n        fo_0_0++\n      EndIf\n    Next\n    n := fo_0_0\n  EndIf";
 lowers 'in the prologue: declared there, the values after it, in order',
   "  local x := a |> filter([o] o > 1) |> count\n  local y := 5\n  n := x + y",
-  "  local x\n  local y\n  fo_0_0 := 0\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 1\n      fo_0_0 := fo_0_0 + 1\n    EndIf\n  Next\n  x := fo_0_0\n  y := 5\n  n := x + y";
+  "  local x\n  local y\n  fo_0_0 := 0\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 1\n      fo_0_0++\n    EndIf\n  Next\n  x := fo_0_0\n  y := 5\n  n := x + y";
 
 # ---- the terminals and stages now fused --------------------------------------------------------
 lowers 'aprod',
@@ -159,6 +159,9 @@ sub normalised(Str $text)
     $l .= subst(/ \s* '//' .* $ /, '');
     $l .= subst(/ << (f <[a..z]>+) '_0_' \d+ >> /, { ~$0 }, :g);
     $l .= subst(/ << <[sb]> '_' \d+ '_' (<[A..Za..z]> \w*) >> /, { ~$0 }, :g);
+    # 'x := x + 1' is 'x++': xc writes the one, xtpl the other.
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '+' \s* 1 $/, { "$0++" });
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '-' \s* 1 $/, { "$0--" });
     @out.push($l.lc);
   }
   @out

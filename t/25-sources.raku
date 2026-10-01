@@ -61,6 +61,9 @@ sub normalised(Str $text, %rename)
     $l .= subst(/ << (f <[a..z]>+) '_0_' \d+ >> /, { ~$0 }, :g);
     $l .= subst(/ << 's_1_' (<[A..Za..z]> \w*) >> /, { ~$0 }, :g);
     $l .= subst(/ << (\w+) >> /, { %rename{~$0} // ~$0 }, :g);
+    # 'x := x + 1' is 'x++': xc writes the one, xtpl the other.
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '+' \s* 1 $/, { "$0++" });
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '-' \s* 1 $/, { "$0--" });
     @out.push($l.lc);
   }
   # xtpl puts a stage that does not fuse into a temporary and then assigns
@@ -125,7 +128,7 @@ check 'a key seeks instead of starting at the top, and takewhile stops the walk'
 check 'count needs no value: a record is enough',
 {
   my $b = body-of("  x := rows(\"SA1\") |> filter([r] r:A1_SALDO > 0) |> count");
-  $b.contains("fo_0_0 := 0") && $b.contains("If SA1->A1_SALDO > 0\n      fo_0_0 := fo_0_0 + 1\n    EndIf")
+  $b.contains("fo_0_0 := 0") && $b.contains("If SA1->A1_SALDO > 0\n      fo_0_0++\n    EndIf")
 };
 check 'anyof stops at the first match',
 {
@@ -151,7 +154,7 @@ lowers 'filter, map and a literal take: one pass that stops after the tenth',
         If fn_0_0 >= 10
           Exit
         EndIf
-        fn_0_0 := fn_0_0 + 1
+        fn_0_0++
         AAdd(fo_0_0, fv_0_0)
       EndIf
       FT_FSkip()
@@ -211,7 +214,7 @@ check "for over lines(): opened if it exists, advanced at the top, 'next' closes
     EndIf
     nN := 0
     While fok_0_0 .And. !FT_FEof()
-      nN := nN + 1
+      nN++
       cL := FT_FReadLn()
       FT_FSkip()
       If empty(cL)

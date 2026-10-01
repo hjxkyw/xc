@@ -67,6 +67,10 @@ check "nowhere in the runtime is a string cut and assigned back to itself in a l
   }
   !$bad
 };
+check "increments are '++' and '--', not 'x := x + 1' or 'x += 1'",
+{
+  !$rt.lines.grep({ !/^ \s* '//' / }).first({ / (\w+ [ '[' <-[\]]>* ']' ]?) \s* ':=' \s* $0 \s* <[+-]> \s* 1 >> / || / [ '+=' | '-=' ] \s* 1 >> / })
+};
 check "the runtime is still plain ASCII",
 {
   so 'runtime/xtpl_runtime.tlpp'.IO.slurp(:bin).list.all < 128

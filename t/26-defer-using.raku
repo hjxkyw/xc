@@ -59,6 +59,9 @@ sub normalised(Str $text)
     $l .= subst(/ << (f <[a..z]>+) '_0_' \d+ >> /, { ~$0 }, :g);
     $l .= subst(/ << <[sb]> '_' \d+ '_' (<[A..Za..z]> \w*) >> /, { ~$0 }, :g);
     $l .= subst(/ << (\w+) >> /, { %rename{~$0} // ~$0 }, :g);
+    # 'x := x + 1' is 'x++': xc writes the one, xtpl the other.
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '+' \s* 1 $/, { "$0++" });
+    $l .= subst(/^ (\w+) \s* ':=' \s* $0 \s* '-' \s* 1 $/, { "$0--" });
     @out.push($l.lc);
   }
   @out
