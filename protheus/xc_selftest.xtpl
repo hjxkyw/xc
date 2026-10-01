@@ -43,7 +43,7 @@ user function xc_selftest()
   check("filter, map, asum", nTmp == 270, nTmp, @nOk, @nBad)
 
   // A take stops the loop: the tap sees five elements, not all eight.
-  aTmp := aNums |> tap([x] nSeen := nSeen + 1) |> filter([x] x > 2) |> take(2)
+  aTmp := aNums |> tap([x] nSeen++) |> filter([x] x > 2) |> take(2)
   check("take stops the loop", nSeen == 5 .and. len(aTmp) == 2 .and. aTmp[2] == 4, nSeen, @nOk, @nBad)
 
   nTmp := aNums |> filter([x] x < 4) |> aprod
@@ -204,9 +204,9 @@ return nBad
 
 static function check(cName, lOk, xSeen, nOk, nBad)
   if lOk
-    nOk := nOk + 1
+    nOk++
   else
-    nBad := nBad + 1
+    nBad++
     conout("FAILED  " + cName + "  (seen: " + cValToChar(xSeen) + ")")
   endif
 return nil
@@ -216,5 +216,5 @@ return xValue
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)
-  aCalls[1] := aCalls[1] + 1
+  aCalls[1]++
 return xValue
