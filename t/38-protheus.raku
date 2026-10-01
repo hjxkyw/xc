@@ -51,7 +51,10 @@ spurt $fake, q:to/END/;
   case "$1" in
     -compile)
       dir="${2#-files=}"
-      n=$(ls "$dir" | grep -ci '\.tlpp$')
+      # Every file in the folder: what the AppServer seemed to do with a log
+      # left there.
+      n=$(ls "$dir" | wc -l)
+      [ -n "$FAKE_EXTRA" ] && n=$((n + 1))
       echo "[INFO ][SERVER] TOTVS Application Server Initializing..."
       echo "    pooltString ...        0.12 MB. Count    625 Ok"
       echo "[CMDLINE] Starting source compilation [selftest.tlpp]"
@@ -166,9 +169,23 @@ check "the compile's results line: errors, even with exit code 0 -- what failed,
 check "only what matters is shown -- not the banner, not the memory pools -- and all of it goes to compile.log",
 {
   my %r = protheus(|@base, '--compile-only');
-  my $log = $out.add('compile.log');
+  my $log = $out.parent.add('logs').add($out.basename).add('compile.log');
   %r<code> == 0 && %r<text>.contains('Total sources(3) Success(3) Errors(0)') && !%r<text>.contains('pooltString')
     && !%r<text>.contains('Error List') && $log.e && $log.slurp.contains('pooltString')
+};
+check "the folder compiled holds the sources only: the logs go to build/logs/, an old one there is removed",
+{
+  spurt $out.add('compile.log'), 'from an earlier version';
+  my %r = protheus(|@base);
+  my @in = $out.dir.map(*.basename).sort;
+  my $logs = $out.parent.add('logs').add($out.basename);
+  %r<code> == 0 && @in eqv ['selftest.tlpp', 'xc_selftest.tlpp', 'xtpl_runtime.tlpp']
+    && $logs.add('compile.log').e && $logs.add('run-u_selftest.log').e && $logs.add('run-u_xc_selftest.log').e
+};
+check "two problems at once: both said -- an error, and a count that is off",
+{
+  my %r = protheus(|@base, FAKE_ERRORS => 1, FAKE_EXTRA => 1);
+  %r<code> == 1 && %r<text>.contains('compiled with 1 error(s)') && %r<text>.contains('3 sources in the folder, the AppServer counted 4')
 };
 check "--verbose shows all of it",
 {
@@ -183,7 +200,7 @@ check 'no results line: the compile did not finish -- what it said, and 1',
 check 'fewer sources compiled than in the folder: 1',
 {
   my %r = protheus(|@base, FAKE_FEWER => 1);
-  %r<code> == 1 && %r<text>.contains('3 files in the folder, the AppServer compiled 2')
+  %r<code> == 1 && %r<text>.contains('3 sources in the folder, the AppServer counted 2')
 };
 check 'a clean results line but a failing exit code: 1',
 {
@@ -201,7 +218,7 @@ check "--corpus: xc compiles xtpl's corpus into one folder, the AppServer compil
   my %r = protheus("--appserver=$fake", '--env=TST', '--includes=/inc', "--out=$c", '--corpus');
   my @made = $c.dir.grep(*.extension eq 'tlpp').map(*.basename);
   %r<code> == 0 && %r<calls> eqv ("-compile -files={$c.absolute} -includes=/inc -env=TST",)
-    && @made.elems == 74 && @made.grep('xtpl_runtime.tlpp') && !@made.grep('54_selftest.tlpp')
+    && @made.elems == 74 && $c.dir.elems == 74 && $dir.add('logs/corpus/xc.log').e && @made.grep('xtpl_runtime.tlpp') && !@made.grep('54_selftest.tlpp')
     && !@made.grep('51_legacy.tlpp') && %r<text>.contains('Protheus took all 73 programs, and the runtime')
 };
 check '--compile-only runs nothing; --run-only compiles nothing',
