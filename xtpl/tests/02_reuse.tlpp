@@ -16,8 +16,8 @@ user function testReuse(lFlag)
   Local s_1_nSquare  // o local de bloco 'nSquare'
   Local s_2_nInner   // o local de bloco 'nInner'
 
-  // Sibling blocks at the same depth reuse one slot: each writes before it
-  // reads, so nothing can leak across.
+  // Sibling blocks reuse one slot: each writes before it reads, so nothing
+  // can leak across.
   if nTotal > 0
     s_1_0 := 1
     conout("first: " + cValToChar(s_1_0))
@@ -51,21 +51,24 @@ user function testReuse(lFlag)
     aadd(aHandlers, {|| b_1_nFactor * 2})
   endif
 
-  // PINNED 2 -- a reference handed to a function we cannot see into.
+  // NOT pinned -- its value handed to a function we cannot see into: what
+  // processRows may keep is the array, not the variable, and the next block
+  // in the slot gives the slot a new array.
   if nTotal > 0
     s_1_0 := {}
     processRows(s_1_0)
   endif
 
-  // PINNED 3 -- escapes at the store, without ever being passed itself.
+  // NOT pinned -- stored in aCarrier: the array is stored, not the variable.
   if nTotal > 0
     s_1_0 := {}
     aadd(aCarrier, s_1_0)
   endif
 
-  // NOT pinned, and CHECKED -- [contained] is a promise the compiler enforces:
-  // aWork may not be passed, captured or aliased anywhere in the function.
-  // Unlike , breaking it is a compile error rather than silent risk.
+  // NOT pinned, and CHECKED -- <contained> is a promise the compiler checks:
+  // aWork cannot leave its block -- not captured by a code block, passed by
+  // reference or read by a defer. Breaking it is a compile error, not a
+  // silent risk.
   if nTotal > 0
     s_1_0 := {}
     aadd(s_1_0, "contained")
@@ -79,8 +82,9 @@ user function testReuse(lFlag)
     conout("kept: " + cValToChar(len(s_1_0)))
   endif
 
-  // NOT pinned --  is a promise that processRows will not keep aLent,
-  // so the slot can be shared. aLent stays usable to the end of the block.
+  // NOT pinned -- handed to processRows and used after: processRows gets the
+  // array, not the variable, so the slot can be shared. aLent stays usable to
+  // the end of the block.
   if nTotal > 0
     s_1_0 := {}
     aadd(s_1_0, "borrowed")
@@ -88,15 +92,14 @@ user function testReuse(lFlag)
     conout("still ours: " + cValToChar(len(s_1_0)))
   endif
 
-  // give it up: the reference is dropped and aGiven is dead for the rest of
-  // the block. Reading it below this line is a compile error.
+  // NOT pinned -- built and left: nothing reaches aGiven after its block.
   if nTotal > 0
     s_1_0 := {}
     aadd(s_1_0, "handed off")
   endif
 
-  // NOT pinned -- a value passed by reference is copied back during the
-  // call, so the callee cannot keep the binding.
+  // PINNED 2 -- passed by reference ('@'): the callee gets the variable
+  // itself, and xc does not assume it lets go, so it keeps a Local of its own.
   if nTotal > 0
     b_2_cBuffer := ""
     fillBuffer(@b_2_cBuffer)
