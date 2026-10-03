@@ -1,17 +1,18 @@
-// 03_pinning.xtpl -- pinning is decided per declaration, not per name
+// 03_pinning.xtpl -- handing on a value pins nothing
 //
-// Two blocks may each declare a variable called aTmp. They are different
-// variables that never coexist, so one of them escaping says nothing about
-// the other. Each declaration is checked only against the lines its own
-// variable is live for.
+// Two blocks may each declare a variable called aTmp: different variables
+// that never coexist. Handing on a value -- to a function that may keep it --
+// pins neither: the array goes, the variable stays, so all of them share
+// slots. Only what reaches the variable itself (a code block, '@', a defer,
+// raw text) pins one, and only that declaration (see 02_reuse; t/42 too).
 // -----------------------------------------------------------------------------
 
 user function testPinning(lFlag)
   local aKeep := {}
   local nTotal := 0
 
-  // ESCAPES -- keepIt receives this aTmp and may hold it past the block,
-  // so this declaration gets private storage.
+  // NOT pinned -- keepIt receives this aTmp's array and may hold it past the
+  // block; it holds the array, not the variable, so the slot is still shared.
   if nTotal > 0
     local aTmp := {}
     aadd(aTmp, "handed over")
@@ -40,8 +41,7 @@ user function testPinning(lFlag)
     conout("pass " + cValToChar(len(aTmp)))
   next
 
-  // A value variable named like the escaping one is unaffected either way,
-  // since values are copied when passed.
+  // A text handed on: the same -- a copy goes, the slot stays shared.
   if nTotal > 0
     local cTmp := "value"
     keepIt(aKeep, cTmp)

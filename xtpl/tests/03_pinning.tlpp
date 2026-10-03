@@ -1,12 +1,13 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 03_pinning.tlpp -- pinning is decided per declaration, not per name
+// 03_pinning.tlpp -- handing on a value pins nothing
 //
-// Two blocks may each declare a variable called aTmp. They are different
-// variables that never coexist, so one of them escaping says nothing about
-// the other. Each declaration is checked only against the lines its own
-// variable is live for.
+// Two blocks may each declare a variable called aTmp: different variables
+// that never coexist. Handing on a value -- to a function that may keep it --
+// pins neither: the array goes, the variable stays, so all of them share
+// slots. Only what reaches the variable itself (a code block, '@', a defer,
+// raw text) pins one, and only that declaration (see 02_reuse; t/42 too).
 // -----------------------------------------------------------------------------
 
 user function testPinning(lFlag)
@@ -17,8 +18,8 @@ user function testPinning(lFlag)
   Local s_1_0     // um slot, dividido por aOther, aTmp, cTmp, i
   Local s_1_aTmp  // o local de bloco 'aTmp'
 
-  // ESCAPES -- keepIt receives this aTmp and may hold it past the block,
-  // so this declaration gets private storage.
+  // NOT pinned -- keepIt receives this aTmp's array and may hold it past the
+  // block; it holds the array, not the variable, so the slot is still shared.
   if nTotal > 0
     s_1_0 := {}
     aadd(s_1_0, "handed over")
@@ -47,8 +48,7 @@ user function testPinning(lFlag)
     conout("pass " + cValToChar(len(s_1_aTmp)))
   next
 
-  // A value variable named like the escaping one is unaffected either way,
-  // since values are copied when passed.
+  // A text handed on: the same -- a copy goes, the slot stays shared.
   if nTotal > 0
     s_1_0 := "value"
     keepIt(aKeep, s_1_0)

@@ -96,6 +96,12 @@ check 'two pinned of one name in sibling blocks: a Local each -- one would hand 
     && $o.contains("aadd(aH, \{|| b_1_x\})") && $o.contains("aadd(aH, \{|| b_2_x\})")
 };
 
+check 'pinning is per declaration: one aTmp captured, another of the name in a slot',
+{
+  my $o = out-of("  if a > 0\n    local aTmp := \{\}\n    aadd(aH, \{|| aTmp\})\n  endif\n  if a > 1\n    local aTmp := \{\}\n    conout(len(aTmp))\n  endif\n  if a > 2\n    local aOther := \{\}\n    conout(len(aOther))\n  endif");
+  locals($o) eqv ("b_1_aTmp  // the block local 'aTmp'", "s_0_0  // a slot: the block locals 'aTmp', 'aOther'")
+};
+
 # ---- names ----------------------------------------------------------------------
 check 'one name in sibling blocks: one slot, which goes by the name',
 {
