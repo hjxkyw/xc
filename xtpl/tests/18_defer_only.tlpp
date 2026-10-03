@@ -15,6 +15,7 @@ user function testDeferOnly(nX)
   nCount := nX
   logExit(nCount)
   closeCursor()
+  return
 
 // --------------------------------------------------------------------------------
 // the end

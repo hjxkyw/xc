@@ -177,7 +177,10 @@ my class Checker
   }
 
   # A function that returns a value on one path and nothing on another hands
-  # its caller a Nil, found out somewhere else and later.
+  # its caller a Nil, found out somewhere else and later. And one whose last
+  # statement is not a 'return' -- not even 'return x if y', which ends in an
+  # EndIf -- Protheus warns about (W0019, 'statement unbalanced function'),
+  # and says it will refuse it.
   method !returns($f)
   {
     my (@valued, @bare);
@@ -185,20 +188,31 @@ my class Checker
     {
       if $s ~~ ReturnStmt { ($s.value.defined ?? @valued !! @bare).push($s) }
     });
-    return unless @valued;
+    # On the function's last line, as xtpl does: the one before the next
+    # function, or the file's last.
+    my $last = $f.body.tail;
+    my $next = @!ends.first(* > $f.line);
+    my $end = $next.defined ?? $next - 1 !! ($!lines || ($last andthen .line) || $f.line);
+    my $ends-without = $last !~~ ReturnStmt;
+    unless @valued
+    {
+      @!warned.push($end => "the function ends without a 'return': Protheus warns about it (W0019), and will refuse it")
+        if $ends-without;
+      return;
+    }
     my $first = @valued.map(*.line).min;
     for @bare -> $b
     {
       @!warned.push($b.line => "this returns nothing, but the function returns a value on line $first");
     }
-    my $last = $f.body[*-1];
-    unless $last ~~ ReturnStmt || ($last ~~ Modified && $last.stmt ~~ ReturnStmt)
+    if $last !~~ ReturnStmt && !($last ~~ Modified && $last.stmt ~~ ReturnStmt)
     {
-      # On the function's last line, as xtpl does: the one before the next
-      # function, or the file's last.
-      my $next = @!ends.first(* > $f.line);
-      my $end = $next.defined ?? $next - 1 !! ($!lines || $last.line);
+      # xtpl's warning: it says the end is reached without a return already.
       @!warned.push($end => "the function can reach its end without a return, but returns a value on line $first");
+    }
+    elsif $ends-without
+    {
+      @!warned.push($end => "the function ends without a 'return': Protheus warns about it (W0019), and will refuse it");
     }
   }
 

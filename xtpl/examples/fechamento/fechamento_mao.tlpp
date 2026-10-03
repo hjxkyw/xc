@@ -48,7 +48,7 @@
 //
 // ============================================================================
 
-User Function FechamentoMao(cFilial, aAcoes)
+User Function FechamentoMao(cFil, aAcoes)
 
   Local nTotal  := 0
   Local cResumo := ""
@@ -61,8 +61,8 @@ User Function FechamentoMao(cFilial, aAcoes)
   Local nX      := 0
 
   // ---- secao 1: vendas -------------------------------------------------------
-  If !Empty(cFilial)
-    aVendas := U_BuscaVendas(cFilial)
+  If !Empty(cFil)
+    aVendas := U_BuscaVendas(cFil)
     nSoma1  := 0
     For nX := 1 To Len(aVendas)
       nSoma1 += aVendas[nX]:nValor
@@ -72,8 +72,8 @@ User Function FechamentoMao(cFilial, aAcoes)
   EndIf
 
   // ---- secao 2: custos -------------------------------------------------------
-  If !Empty(cFilial)
-    aCustos := U_BuscaCustos(cFilial)
+  If !Empty(cFil)
+    aCustos := U_BuscaCustos(cFil)
     nSoma2  := 0
     For nX := 1 To Len(aCustos)
       nSoma2 += aCustos[nX]:nValor
@@ -84,7 +84,7 @@ User Function FechamentoMao(cFilial, aAcoes)
 
   // ---- secao 3 ---------------------------------------------------------------
   If nTotal > 0
-    aLinha := {cFilial, nTotal}
+    aLinha := {cFil, nTotal}
     AAdd(aAcoes, aLinha)
   EndIf
 
@@ -93,14 +93,14 @@ User Function FechamentoMao(cFilial, aAcoes)
   // reusada depois -- mas nada no codigo diz isso, e nada impede que passe a
   // ser na proxima alteracao.
   If nTotal > 0
-    nMeta := U_CalculaMeta(cFilial)
-    AAdd(aAcoes, {|| U_AvisaMeta(cFilial, nMeta)})
+    nMeta := U_CalculaMeta(cFil)
+    AAdd(aAcoes, {|| U_AvisaMeta(cFil, nMeta)})
   EndIf
 
   // Daqui, aVendas, aCustos, nSoma1, nSoma2 e nMeta continuam todas visiveis
   // e todas com o ultimo valor que receberam.
 
-  ConOut("fechamento " + cFilial + ": " + cValToChar(nTotal))
+  ConOut("fechamento " + cFil + ": " + cValToChar(nTotal))
 
 Return cResumo
 

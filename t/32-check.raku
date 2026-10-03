@@ -178,6 +178,16 @@ check "warns: the end reached without a return, on the function's last line",
   result("user function f(a)\n  return 1 if a > 0\n  a := 2\n\nuser function g()\nreturn 1\n")<warnings>
     eqv ("4: the function can reach its end without a return, but returns a value on line 2",)
 };
+check "warns: a function whose last statement is not a 'return' -- Protheus' W0019",
+{
+  result("user function f(a)\n  a := 1\n\nuser function g()\nreturn 1\n")<warnings>
+    eqv ("3: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it",)
+};
+check "warns: nor is 'return x if y' at the end -- its If closes after it",
+{
+  result("user function f(a)\n  a := 2\n  return 1 if a > 0\n")<warnings>
+    eqv ("3: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it",)
+};
 check "passes: every path returns a value",
 {
   !result("user function f(a)\n  if a > 0\n    return 1\n  endif\nreturn 2\n")<warnings>

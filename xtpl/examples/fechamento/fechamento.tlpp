@@ -79,7 +79,7 @@
 // ============================================================================
 
 
-user function fechamento(cFilial, aAcoes)
+user function fechamento(cFil, aAcoes)
 
   Local nTotal := 0
   Local cResumo := ""
@@ -95,8 +95,8 @@ user function fechamento(cFilial, aAcoes)
   Local s_1_nSoma  // o local de bloco 'nSoma'
 
   // ---- secao 1: vendas ---------------------------------------------------
-  if !empty(cFilial)
-    s_1_0 := buscaVendas(cFilial)
+  if !empty(cFil)
+    s_1_0 := buscaVendas(cFil)
     fo_1_0 := 0
     For fi_1_0 := 1 To Len(s_1_0)
       fv_1_0 := s_1_0[fi_1_0]
@@ -110,8 +110,8 @@ user function fechamento(cFilial, aAcoes)
   endif
 
   // ---- secao 2: custos. Mesmo slot da secao 1 ----------------------------
-  if !empty(cFilial)
-    s_1_0 := buscaCustos(cFilial)
+  if !empty(cFil)
+    s_1_0 := buscaCustos(cFil)
     fo_2_0 := 0
     For fi_2_0 := 1 To Len(s_1_0)
       fv_2_0 := s_1_0[fi_2_0]
@@ -126,7 +126,7 @@ user function fechamento(cFilial, aAcoes)
 
   // ---- secao 3: entregue a uma funcao, e ainda divide o slot -------------
   if nTotal > 0
-    s_1_0 := {cFilial, nTotal}
+    s_1_0 := {cFil, nTotal}
 
     // aadd entrega o array. Quem recebeu ficou com ele, e reaproveitar o
     // nome depois nao alcanca o que foi entregue.
@@ -135,15 +135,15 @@ user function fechamento(cFilial, aAcoes)
 
   // ---- secao 4: capturada por um bloco, e ai NAO divide -------------------
   if nTotal > 0
-    b_3_nMeta := calculaMeta(cFilial)
+    b_3_nMeta := calculaMeta(cFil)
 
     // O bloco le nMeta quando rodar, la na frente. Por isso nMeta ganha
     // armazenamento proprio: se dividisse, leria o que a proxima secao
     // tivesse posto ali.
-    aadd(aAcoes, {|| avisaMeta(cFilial, b_3_nMeta)})
+    aadd(aAcoes, {|| avisaMeta(cFil, b_3_nMeta)})
   endif
 
-  conout("fechamento " + cValToChar(cFilial) + ": " + cValToChar(nTotal))
+  conout("fechamento " + cValToChar(cFil) + ": " + cValToChar(nTotal))
 
   return cResumo
 

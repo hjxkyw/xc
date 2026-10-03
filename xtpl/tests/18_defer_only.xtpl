@@ -1,7 +1,9 @@
-// 18_defer_only.xtpl -- a function whose body is only defers.
+// 18_defer_only.xtpl -- a function whose body is only defers, and its return.
 //
 // Declarations are hoisted, so a body of declarations and defers leaves no
 // statement to insert after. The defers used to be dropped without a word.
+// (The return was added for xc: Protheus warns about a function that ends
+// without one, W0019, and will refuse it. The case without is in t/26.)
 // --------------------------------------------------------------------------------
 
 user function testDeferOnly(nX)
@@ -9,6 +11,8 @@ user function testDeferOnly(nX)
 
   defer closeCursor()
   defer logExit(nCount)
+
+  return
 
 // --------------------------------------------------------------------------------
 // the end
