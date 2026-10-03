@@ -110,6 +110,15 @@ check 'a folder with no .xtpl in it',
   %r<code> == 1 && %r<err>.contains('empty: no .xtpl files in it')
 };
 
+# ---- where a parse fails ---------------------------------------------------
+check "a file that fails before its first function: the line that failed, not line 1",
+{
+  spurt $dir.add('top.xtpl'), "#include \"totvs.ch\"\n\n// a comment\nNotAThing x y z\n\nuser function f()\nreturn 1\n";
+  my %r = xc('--check', "$dir/top.xtpl");
+  $dir.add('top.xtpl').unlink;
+  %r<code> == 1 && %r<err>.contains('top.xtpl:4: cannot parse this line: NotAThing x y z')
+};
+
 # ---- --outdir: every output into one folder ----------------------------------
 reset-dir;
 check '--outdir: sources and folders, every .tlpp into the folder, named for its source',

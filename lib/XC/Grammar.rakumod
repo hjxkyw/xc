@@ -209,9 +209,12 @@ our sub is-generated(Str $n --> Bool)
 # So '<.ws>' does not cross lines, and every place a line may end says so with
 # '<.nl>'. Blank and comment-only lines live inside '<.nl>'; they are not
 # statements.
+# <.mark> after each toplevel item: how far the parse got, so that a file
+# that fails before its first function is reported at the line that failed,
+# not at line 1.
 rule TOP
 {
-  ^ <.gap> [ <toplevel> <.gap> ]* $
+  ^ <.gap> <.mark> [ <toplevel> <.gap> <.mark> ]* $
 }
 
 # The function first: it starts with its annotations, and only when what
@@ -1127,3 +1130,4 @@ token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 # message: the first line it could not continue past. 'try', because the
 # grammar is also used without a driver, where '$*FURTHEST' does not exist.
 token nl  { <.eol> <.gap> { try $*FURTHEST = $/.to if $/.to > $*FURTHEST } }
+token mark { <?> { try $*FURTHEST = $/.to if $/.to > $*FURTHEST } }
