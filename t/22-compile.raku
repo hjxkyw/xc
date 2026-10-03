@@ -132,9 +132,9 @@ lowers 'the type first: swapped back, comment on the only line',
   "user function f()\n  local nX as Numeric := 1   // typed\nreturn nX\n",
   "user function f()\n  local nX := 1 as Numeric  // typed\nreturn nX\n";
 
-lowers 'attributes dropped, the other declarators kept',
+lowers 'attributes dropped, the other declarators kept -- and said in a comment',
   "user function f()\n  local a <const> := 1, b := 2, c <contained> as A := \{\}\nreturn a\n",
-  "user function f()\n  local a := 1, b := 2, c := \{\} as A\nreturn a\n";
+  "user function f()\n  local a := 1, b := 2, c := \{\} as A  // a [const], c [contained]\nreturn a\n";
 
 lowers 'a string holding // in a rewritten line keeps its text',
   "user function f(n)\n  c := \"http://x\" if n > 0\nreturn c\n",

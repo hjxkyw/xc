@@ -39,16 +39,23 @@ sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out }
 # ---- prologue locals ---------------------------------------------------------
 lowers "a prologue local: renamed in the body, not in the block's condition",
   "  if x > 0\n    local x := 999\n    conout(x)\n  endif\n  conout(x)",
-  "  if x > 0\n    s_1_x := 999\n    conout(s_1_x)\n  endif\n  conout(x)";
+  "  if x > 0\n    s_1_x := 999  // x\n    conout(s_1_x)\n  endif\n  conout(x)";
 
 lowers 'the same name in sibling blocks shares one renamed Local',
   "  if n > 0\n    local x := 1\n    n := x\n  endif\n  if n > 1\n    local x := 2\n    n := x\n  endif",
-  "  if n > 0\n    s_1_x := 1\n    n := s_1_x\n  endif\n  if n > 1\n    s_1_x := 2\n    n := s_1_x\n  endif";
+  "  if n > 0\n    s_1_x := 1  // x\n    n := s_1_x\n  endif\n  if n > 1\n    s_1_x := 2  // x\n    n := s_1_x\n  endif";
 
 check 'three levels: each takes the innermost',
 {
   my $b = body-of("  if n > 0\n    local x := 1\n    if n > 1\n      local x := 2\n      n := x\n    endif\n    n := x\n  endif");
-  $b.contains("      s_2_x := 2\n      n := s_2_x\n    endif\n    n := s_1_x\n")
+  $b.contains("      s_2_x := 2  // x\n      n := s_2_x\n    endif\n    n := s_1_x\n")
+};
+
+check "a renamed block local's Local names it, with its attributes; its value's line too, the comment kept",
+{
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(a)\n  local x := 0\n  if a > 0\n    local x <const> := 1   // the one\n    local aW <contained> := \{\}\n    aadd(aW, x)\n  endif\nreturn x\n]);
+  $out.contains("  Local s_1_x  // the block local 'x' [const]\n") && $out.contains("  Local aW  // a block local [contained]\n")
+    && $out.contains("    s_1_x := 1  // x [const] -- the one\n") && $out.contains("    aW := \{\}  // [contained]\n")
 };
 
 # ---- header locals -----------------------------------------------------------
@@ -70,7 +77,7 @@ lowers "'for local x': the counter renamed, and 'next x' loses the name",
 
 lowers "a plain 'for' over a renamed counter follows it",
   "  if n > 0\n    local x := 0\n    for x := 1 to 3\n      n := x\n    next x\n  endif",
-  "  if n > 0\n    s_1_x := 0\n    For s_1_x := 1 To 3\n      n := s_1_x\n    next\n  endif";
+  "  if n > 0\n    s_1_x := 0  // x\n    For s_1_x := 1 To 3\n      n := s_1_x\n    next\n  endif";
 
 lowers "'do case with local': the cases see it",
   "  do case with local x := n * 2\n    case x > 5\n      n := x\n  endcase",

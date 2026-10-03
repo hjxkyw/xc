@@ -195,6 +195,35 @@ sub is-source(Expr $e --> Bool) is export
   so ($e ~~ Call && $e.name.lc (elem) <rows lines>) || $e ~~ Interval
 }
 
+# What a declarator was, for a comment where xc writes it: the name it had,
+# when xc renamed it, and its attributes -- 'nB [const]', '[contained]'; ''
+# when there is nothing to say.
+sub note-of(Declarator $d, Str $shown --> Str)
+{
+  my @w;
+  @w.push($d.name) if $shown.lc ne $d.name.lc;
+  @w.push("[{$d.attributes.join(', ')}]") if $d.attributes;
+  @w.join(' ')
+}
+
+# The same for a declaration kept where it is: one declarator, its
+# attributes; several, each with its name.
+sub notes-of(Declaration $d --> Str)
+{
+  my @with = $d.declarators.grep(*.attributes);
+  return '' unless @with;
+  return "[{@with[0].attributes.join(', ')}]" if $d.declarators == 1;
+  @with.map({ "{.name} [{.attributes.join(', ')}]" }).join(', ')
+}
+
+# The comment of a block local's Local: which one, when renamed, and its
+# attributes.
+sub block-local-comment(Declarator $d, Str $shown --> Str)
+{
+  ($shown.lc ne $d.name.lc ?? "the block local '{$d.name}'" !! 'a block local')
+    ~ ($d.attributes ?? " [{$d.attributes.join(', ')}]" !! '')
+}
+
 # A body's prologue: its first declarations of locals and statics. A
 # 'private' or a 'public' is a statement in TL++ -- it creates the variable
 # when it runs -- so it ends the prologue: the Locals xc adds go before it,
@@ -812,7 +841,8 @@ class Emitter
       {
         %!done{$d.WHICH} = True;
         my $kw = split-comment(self!slice($d))[0].trim.words[0];
-        self!replace($d, False, ("$kw " ~ $d.declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),));
+        self!replace($d, False, ("$kw " ~ $d.declarators.map({ .name ~ (.typespec-text.defined ?? " {.typespec-text}" !! '') }).join(', '),),
+                     :notes((notes-of($d),)));
         @inits.append(self!init-lines(.name, .init)) for $d.declarators.grep(*.init.defined);
       }
     }
@@ -1006,8 +1036,22 @@ class Emitter
         # would return the type itself, and every T would match.
         when { $_ ~~ Declaration && !$top && .scope eq 'local' }
         {
-          self!hoist(self!local($_), 'a block local') for .declarators.map(*.name);
-          self!replace($s, False, .declarators.map({ .init.defined ?? |self!init-lines(self!local(.name), .init) !! "{self!local(.name)} := Nil" }));
+          # What each was, where it gets its value and at its Local: the name
+          # it had when renamed, its attributes ('s_1_nB := 2  // nB [const]').
+          my (@lines, @notes);
+          for .declarators -> $dc
+          {
+            my $nm = self!local($dc.name);
+            # Its Local first: a chain in its value adds Locals of its own.
+            self!hoist($nm, block-local-comment($dc, $nm));
+            my @l = $dc.init.defined ?? self!init-lines($nm, $dc.init) !! ("$nm := Nil",);
+            # One note per line, the declarator's on its last -- pushed one by
+            # one: an empty 'xx' given to append was taken as an element.
+            @notes.push('') for 1 ..^ @l.elems;
+            @notes.push(note-of($dc, $nm));
+            @lines.append(@l);
+          }
+          self!replace($s, False, @lines, :@notes);
         }
         # A 'defer' leaves where it is written; its body runs at the exits.
         when Deferred
@@ -1100,7 +1144,13 @@ class Emitter
         when { needs-lowering($_) }
         {
           my ($block, @lines) = self!lower($s);
-          self!replace($s, $block, @lines);
+          my @notes;
+          if $s ~~ Declaration
+          {
+            @notes.push('') for 1 ..^ @lines.elems;
+            @notes.push(notes-of($s));
+          }
+          self!replace($s, $block, @lines, :@notes);
         }
         when { $_ ~~ IfStmt && .header-decl.defined }
         {
@@ -1812,10 +1862,23 @@ class Emitter
 
   # A whole statement replaced by lines; the comment goes back on the header
   # line of a block ($block), on the last line otherwise.
-  method !replace(Stmt $s, Bool $block, @lines is copy)
+  # @notes: a word per line, or '' -- what a declaration was ('nB [const]');
+  # on the line that takes the statement's comment, the two are one.
+  method !replace(Stmt $s, Bool $block, @lines is copy, :@notes)
   {
     my $comment = split-comment(self!slice($s))[1];
-    @lines[$block ?? 0 !! @lines.end] ~= "  $comment" if $comment;
+    my $at = $block ?? 0 !! @lines.end;
+    for @notes.kv -> $i, $n
+    {
+      @lines[$i] ~= "  // $n" if $n && !($i == $at && $comment);
+    }
+    if $comment
+    {
+      my $n = @notes[$at] // '';
+      @lines[$at] ~= !$n                       ?? "  $comment"
+                  !! $comment.starts-with('//') ?? "  // $n -- {$comment.substr(2).trim}"
+                  !!                                 "  // $n  $comment";
+    }
     @!edits.push([$s.src-from, $s.src-to, self!join-at($s.src-from, @lines)]);
   }
 
