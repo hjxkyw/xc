@@ -17,7 +17,7 @@
 // Tudo aqui e computacao pura de proposito. Nada que dependa de area de
 // trabalho, arquivo ou tela entra, porque o objetivo e uma resposta certa ou
 // errada, nao um ambiente.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function selftest()
 
@@ -322,7 +322,7 @@ user function selftest()
 
 return nBad
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 static function check(cNome, lOk, xVisto, nOk, nBad)
 
@@ -347,5 +347,5 @@ nTotal := nTotal + 2
 nTotal := nTotal + 1
 return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

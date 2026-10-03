@@ -194,7 +194,7 @@ sub prepare-folder(IO::Path $dir, @ours)
   %ours.elems
 }
 
-# ---- the corpus ---------------------------------------------------------------------------------
+# ---- the corpus --------------------------------------------------------------
 if $corpus
 {
   my @sources = |$root.add('xtpl/tests').dir.grep({ .extension eq 'xtpl'
@@ -233,7 +233,7 @@ if $corpus
   exit 0;
 }
 
-# ---- the self-tests -------------------------------------------------------------------------------
+# ---- the self-tests ----------------------------------------------------------
 if $compile
 {
   say "xc: compiling the self-tests into {shown($out)}/";

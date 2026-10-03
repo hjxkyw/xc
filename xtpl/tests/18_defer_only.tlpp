@@ -5,7 +5,7 @@
 //
 // Declarations are hoisted, so a body of declarations and defers leaves no
 // statement to insert after. The defers used to be dropped without a word.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testDeferOnly(nX)
 
@@ -17,5 +17,5 @@ user function testDeferOnly(nX)
   closeCursor()
   return
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

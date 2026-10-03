@@ -47,7 +47,7 @@ sub check(Str $what, &test)
 
 sub says(Str $what, Str $lines, *@found) { check $what, { found($lines) eqv @found.List } }
 
-# ---- loading -------------------------------------------------------------------------------
+# ---- loading -----------------------------------------------------------------
 check 'the columns found by their headers, the type by its first letter, the size as a number',
 {
   %sx3<SA1><A1_NOME> eqv ['C', 40] && %sx3<SA1><A1_OBS> eqv ['M', 10] && %sx3<SA1>.elems == 5
@@ -67,7 +67,7 @@ check 'no header it knows: the first two columns are the alias and the field, no
   %d<SC5>.keys.sort.join(' ') eq 'C5_CLIENTE C5_NUM' && %d<SC5><C5_NUM> eqv ['', 0]
 };
 
-# ---- names ----------------------------------------------------------------------------------
+# ---- names -------------------------------------------------------------------
 says 'a known field: nothing', "  x := SA1->A1_NOME";
 says 'a field in another case: nothing', "  x := sa1->a1_nome";
 says 'an alias the dictionary does not have',
@@ -93,7 +93,7 @@ check 'a chain over rows("SA1"): the record\'s fields before the map, not after'
 says 'a chain over rows() of a variable is not checked',
   "  x := rows(cAl) |> map([r] r:A1_NMOE)";
 
-# ---- types and sizes ------------------------------------------------------------------------
+# ---- types and sizes ---------------------------------------------------------
 says 'a literal of the wrong type, assigned',
   "  SA1->A1_NOME := 5",
   "4: SA1->A1_NOME is character, assigned a numeric value.";
@@ -113,7 +113,7 @@ says "'=' as a statement counts as a comparison, as in xtpl",
   "  SA1->A1_SALDO = \"x\"",
   "4: SA1->A1_SALDO is numeric, compared with a character value.";
 
-# ---- strict, and without a dictionary --------------------------------------------------------
+# ---- strict, and without a dictionary ----------------------------------------
 check '--dict-strict: the same findings are errors',
 {
   found("  SA1->A1_COD := \"1234567\"", :strict) eqv ("4: SA1->A1_COD holds 6 characters, but is assigned 7.",)
@@ -123,7 +123,7 @@ check 'no dictionary: nothing to check against',
   found("  x := SA1->A1_NMOE\n  SA1->A1_COD := 5", dictionary => %()) eqv ()
 };
 
-# ---- the driver ------------------------------------------------------------------------------
+# ---- the driver --------------------------------------------------------------
 sub xc(*@args)
 {
   my $p = run $*EXECUTABLE, 'bin/xc', |@args, :out, :err;

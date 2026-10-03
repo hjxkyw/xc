@@ -12,7 +12,7 @@
 // O arquivo tambem fixa 'map(alltrim)': um nome solto onde se espera um bloco
 // vira '[x] alltrim(x)'. Um nome que E uma variavel em escopo passa intacto,
 // porque um bloco guardado numa variavel e argumento legitimo.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testInitialiserChain(cArquivo, aNums, bMeu)
   local aTudo := lines(cArquivo) |> map(alltrim)
@@ -37,5 +37,5 @@ static function dobro(nX)
 static function dobroEhPar(nX)
   return (nX * 2) %% 2
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

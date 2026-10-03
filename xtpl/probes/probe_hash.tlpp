@@ -19,7 +19,7 @@
 //   - Como se pergunta se a chave existe?
 //   - O que acontece quando ela nao existe?
 //   - O que List() devolve, e em que ordem?
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 Static Function tenta(cNome, bBloco)
   Local xResposta
@@ -71,5 +71,5 @@ User Function probeHash()
 
 Return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

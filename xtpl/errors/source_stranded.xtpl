@@ -3,7 +3,7 @@
 // 'lines' and 'rows' name something to walk. There is no function of that
 // name to call, so anywhere but the head of a chain is refused rather than
 // emitted as a call that cannot link.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function sourceStranded(cPath)
   local nCount := 0
@@ -12,5 +12,5 @@ user function sourceStranded(cPath)
 
   return nCount
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

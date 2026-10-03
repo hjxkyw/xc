@@ -7,7 +7,7 @@
 //
 // They go through THashMap:List(), which fills an array with one row per
 // entry, key in column 1 and value in column 2.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testHashIter(hCfg, hSaldos)
   local aMv := {}
@@ -31,5 +31,5 @@ user function testHashIter(hCfg, hSaldos)
 
   return nTotal + len(aMv) + len(cLista) + len(aPares) + iif(lVazio, 1, 0)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

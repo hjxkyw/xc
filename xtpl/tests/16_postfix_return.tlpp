@@ -6,7 +6,7 @@
 // 'return(x) if c' is a return, not a plain statement that happens to start
 // with the word. Getting that wrong loses the pending defers, and the line
 // reached the output untouched.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testPostfixReturn(nX, lSkip)
 
@@ -41,5 +41,5 @@ user function testPostfixReturn(nX, lSkip)
   closeCursor()
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

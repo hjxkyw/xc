@@ -6,7 +6,7 @@
 // 'a ?: b' yields a when a is not Nil, otherwise b. The left side is bound to
 // a temp first, so it is evaluated exactly once even though the result
 // mentions it twice.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testElvis(oUser)
 
@@ -67,5 +67,5 @@ user function testElvis(oUser)
 
   return cName
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

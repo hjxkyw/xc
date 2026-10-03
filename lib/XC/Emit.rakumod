@@ -148,7 +148,7 @@ sub call-name(Str $name --> Str)
   VERBS{$name.lc}:exists ?? "u_xtpl_{$name.lc}" !! $name
 }
 
-# ---- sources ---------------------------------------------------------------------
+# ---- sources -----------------------------------------------------------------
 #
 # rows() and lines() are sources, not functions: a chain from one becomes a
 # loop over the work area or the file, with the stages inside it, and nothing
@@ -394,7 +394,7 @@ class Emitter
     (@lines[0], |@lines[1..*].map({ $indent ~ $_ })).join($!nl)
   }
 
-  # ---- what is not lowered yet --------------------------------------------------
+  # ---- what is not lowered yet -----------------------------------------------
   method not-lowered(Program $p --> List)
   {
     my @found;
@@ -719,7 +719,7 @@ class Emitter
     $misused
   }
 
-  # ---- the whole file ----------------------------------------------------------
+  # ---- the whole file --------------------------------------------------------
   method emit(Program $p --> Str)
   {
     my @problems = self.not-lowered($p);
@@ -991,7 +991,7 @@ class Emitter
     }
   }
 
-  # ---- statements --------------------------------------------------------------
+  # ---- statements ------------------------------------------------------------
   method !collect(@body, Bool $top)
   {
     for @body -> $s

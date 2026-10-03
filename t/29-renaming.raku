@@ -36,7 +36,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- prologue locals ----------------------------------------------------------------------
+# ---- prologue locals ---------------------------------------------------------
 lowers "a prologue local: renamed in the body, not in the block's condition",
   "  if x > 0\n    local x := 999\n    conout(x)\n  endif\n  conout(x)",
   "  if x > 0\n    s_1_x := 999\n    conout(s_1_x)\n  endif\n  conout(x)";
@@ -51,7 +51,7 @@ check 'three levels: each takes the innermost',
   $b.contains("      s_2_x := 2\n      n := s_2_x\n    endif\n    n := s_1_x\n")
 };
 
-# ---- header locals ------------------------------------------------------------------------
+# ---- header locals -----------------------------------------------------------
 lowers "'if local': the condition sees it, its value does not",
   "  if local x := x + 1, x > 5\n    n := x\n  endif\n  n := x",
   "  s_1_x := x + 1\n  If s_1_x > 5\n    n := s_1_x\n  endif\n  n := x";
@@ -76,7 +76,7 @@ lowers "'do case with local': the cases see it",
   "  do case with local x := n * 2\n    case x > 5\n      n := x\n  endcase",
   "  s_1_x := n * 2\n  Do Case\n    case s_1_x > 5\n      n := s_1_x\n  endcase";
 
-# ---- uses -------------------------------------------------------------------------------------
+# ---- uses --------------------------------------------------------------------
 check 'a lambda parameter of the same name is its own',
 {
   body-of("  if n > 0\n    local x := 1\n    a := map(a, [x] x + 1)\n    n := x\n  endif").contains(
@@ -105,7 +105,7 @@ check 'a return inside the block reads the renamed one',
   body-of("  if n > 0\n    local x := 5\n    return x\n  endif").contains("    return s_1_x")
 };
 
-# ---- no clash, no rename ----------------------------------------------------------------------
+# ---- no clash, no rename -----------------------------------------------------
 check 'a block local with a name of its own keeps it',
 {
   body-of("  if n > 0\n    local nY := 1\n    n := nY\n  endif").contains("    nY := 1\n    n := nY")

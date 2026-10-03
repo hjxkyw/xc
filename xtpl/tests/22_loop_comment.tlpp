@@ -6,7 +6,7 @@
 // Masking turns a comment into one token, so a construct anchored to the end
 // of its line stops seeing the end as soon as one is written. 'for N times'
 // failed outright before this, reporting 'times' as an undeclared variable.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testLoopComment(aItems, oDoc)
 
@@ -42,5 +42,5 @@ user function testLoopComment(aItems, oDoc)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

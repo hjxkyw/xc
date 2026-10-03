@@ -41,7 +41,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- against xtpl's own output -------------------------------------------------------
+# ---- against xtpl's own output -----------------------------------------------
 # The statements, compared line by line, lower case, without comments, blank
 # lines and Local lines. xtpl reuses one set of hidden locals across loops
 # (fo_0_0 again and again) where xc numbers them, so a hidden name is compared
@@ -92,7 +92,7 @@ for '43_rows' => {}, '44_lines' => {}, '45_foreach_lines' => { each => 'fs', ope
   };
 }
 
-# ---- rows() ------------------------------------------------------------------------------
+# ---- rows() ------------------------------------------------------------------
 lowers 'a literal alias written out; the area and record put back',
   "  x := rows(\"SA1\") |> map([r] r:A1_COD)",
   q:to/END/.chomp;
@@ -136,7 +136,7 @@ check 'anyof stops at the first match',
   $b.contains("fo_0_0 := .F.") && $b.contains("If SA1->A1_BLOQ == \"1\"\n      fo_0_0 := .T.\n      Exit\n    EndIf")
 };
 
-# ---- lines() ------------------------------------------------------------------------------
+# ---- lines() -----------------------------------------------------------------
 lowers 'filter, map and a literal take: one pass that stops after the tenth',
   "  x := lines(cP) |> filter([l] !empty(l)) |> map([l] alltrim(l)) |> take(10)",
   q:to/END/.chomp;
@@ -201,7 +201,7 @@ check 'a chain on its own, for its effects: the loop and nothing collected',
   $b.contains("  conout(fv_0_0)") && !$b.contains('AAdd') && !$b.contains('fo_0_0')
 };
 
-# ---- for x in lines() -------------------------------------------------------------------
+# ---- for x in lines() --------------------------------------------------------
 check "for over lines(): opened if it exists, advanced at the top, 'next' closes it",
 {
   my $b = body-of("  for cL, nN in lines(cP)\n    loop if empty(cL)\n    x := x + nN\n  next cL");
@@ -244,7 +244,7 @@ check 'a return after the walk does not close anything',
   $out.lines[*-1] eq '  return 1'
 };
 
-# ---- the output is plain TL++ --------------------------------------------------------------
+# ---- the output is plain TL++ ------------------------------------------------
 check 'the output compiles to itself',
 {
   my $once = compile(slurp('xtpl/tests/43_rows.xtpl'));
@@ -252,7 +252,7 @@ check 'the output compiles to itself',
   compile($once) eq $once
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   "  x := rows(\"SA1\") |> filter([r] isOk(r)) |> map([r] r:A1_COD)"
     => 'over rows() the element is the current record, so it can only name a field',

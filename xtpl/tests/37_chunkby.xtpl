@@ -8,7 +8,7 @@
 // A flag marks whether a group is open, rather than comparing the key against
 // Nil: Nil is a legitimate key, and the first element has to open the first
 // group either way.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testChunkby(aRows, cNum)
   local aPedidos := {}
@@ -31,5 +31,5 @@ user function testChunkby(aRows, cNum)
 
   return len(aPedidos) + len(aGrupos) + len(aTamanhos)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

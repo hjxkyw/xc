@@ -32,7 +32,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- with object ------------------------------------------------------------------
+# ---- with object -------------------------------------------------------------
 check 'with object: the subject and the body',
 {
   my $w = body(q:to/END/.chomp)[0];
@@ -95,7 +95,7 @@ check 'walk goes into the body; exprs-of gives the subject',
   @seen.join(' ') eq 'WithObject CallStmt' && @n.join eq 'oM'
 };
 
-# ---- raw --------------------------------------------------------------------------
+# ---- raw ---------------------------------------------------------------------
 check 'a raw line: the text after raw, as written',
 {
   my $r = body("  raw MOSTRE cValToChar(nTotal) QUANDO nTotal > 0")[0];
@@ -135,7 +135,7 @@ check 'raw as a variable name: local raw := 1',
   body("  local raw := 1")[0] ~~ Declaration
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   "  with object o\n    :Ativa()\n  endwith"                     => 'with closed by endwith',
   "  with object o\n    :Ativa()\n  end"                         => 'with closed by a bare end (xtpl emits a stray end)',

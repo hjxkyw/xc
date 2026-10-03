@@ -6,7 +6,7 @@
 // tomam sao reservadas explicitamente.
 //
 // Uma colisao seria silenciosa: duas variaveis diferentes, um slot so.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function generatedName(nX)
   local fo_0_0 := 0
@@ -15,5 +15,5 @@ user function generatedName(nX)
 
   return fo_0_0
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

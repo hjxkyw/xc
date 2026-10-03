@@ -41,7 +41,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- against xtpl's own output -------------------------------------------------------
+# ---- against xtpl's own output -----------------------------------------------
 # As in t/25-sources.raku: statements only, lower case; hidden names by kind;
 # xtpl's slots (s_1_x, s_2_x, and b_1_x for the ones a defer pins) as the
 # variable; and the names xtpl gives a using's hidden locals mapped to xc's.
@@ -75,7 +75,7 @@ for <19_defer_pinning 21_using> -> $t
   };
 }
 
-# ---- defer --------------------------------------------------------------------------------
+# ---- defer -------------------------------------------------------------------
 lowers "before each 'return', the last one first; the 'defer' lines leave no trace",
   "  local nC := 0\n  defer closeIt()          // first\n  defer logIt(nC)          // second\n  nC := 99\n  return nC if n > 100\n  return 0",
   "  local nC := 0\n  nC := 99\n  If n > 100\n    logIt(nC)  // second\n    closeIt()  // first\n    return nC\n  EndIf\n  logIt(nC)  // second\n  closeIt()  // first\n  return 0";
@@ -106,7 +106,7 @@ check 'a chain from lines() in a defer body is its loop, spliced',
   $b.contains("While fok_0_0 .And. !FT_FEof()") && $b.contains("conout(fv_0_0)") && $b.ends-with("EndIf\n  return 1")
 };
 
-# ---- using alias ----------------------------------------------------------------------------
+# ---- using alias -------------------------------------------------------------
 lowers 'a literal alias with an order: saved, selected, put back',
   "  using alias SA1 order 1 do\n    n := SA1->A1_SALDO\n  end using   // done\n  return n",
   "  far_0_0 := Alias()\n  DbSelectArea(\"SA1\")\n  frc_0_0 := SA1->(RecNo())\n  fol_0_0 := SA1->(IndexOrd())\n  SA1->(DbSetOrder(1))\n    n := SA1->A1_SALDO\n  SA1->(DbSetOrder(fol_0_0))\n  SA1->(DbGoto(frc_0_0))\n  If !Empty(far_0_0)\n    DbSelectArea(far_0_0)\n  EndIf   // done\n  return n";
@@ -144,7 +144,7 @@ check "an 'exit' from a loop inside the block leaves the area alone",
     "      If n > 5\n        exit\n      EndIf")
 };
 
-# ---- files ---------------------------------------------------------------------------------
+# ---- files -------------------------------------------------------------------
 check "a 'return' inside a walk over lines(): the defers, then the file",
 {
   body-of("  defer bye()\n  for cL in lines(cP)\n    return 1\n  next\n  return 0").contains(
@@ -156,14 +156,14 @@ check "an 'exit' from the walk leaves the closing to the end of the loop",
   $b.contains("    If empty(cL)\n      exit\n    EndIf") && $b.contains("EndDo\n  If fok_0_0\n    FT_FUse()\n  EndIf")
 };
 
-# ---- what has to be refused ---------------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 check 'a block local read by a defer, declared in more than one block',
 {
   problems("  if n > 0\n    local nA := 5\n    defer logIt(nA)\n  endif\n  if n > 1\n    local nA := 6\n    conout(nA)\n  endif\n  return n")
     eqv ("block local 'nA', read by a defer and declared in more than one block,",)
 };
 
-# ---- the output is plain TL++ -----------------------------------------------------------
+# ---- the output is plain TL++ ------------------------------------------------
 check 'the output compiles to itself',
 {
   my $once = compile(slurp('xtpl/tests/21_using.xtpl'));

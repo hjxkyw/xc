@@ -2,7 +2,7 @@
 #include "tlpp-core.th"
 
 // 10_operators.tlpp -- in, %%, the folds, and external
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // CRLF and the STR constants come from headers this transpiler cannot read
 
@@ -69,5 +69,5 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

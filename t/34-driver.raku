@@ -51,7 +51,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- --check ------------------------------------------------------------------------------
+# ---- --check -----------------------------------------------------------------
 reset-dir;
 check '--check: a clean file is ok, and nothing is written',
 {
@@ -79,7 +79,7 @@ check '--check: what the checks refuse fails, with its line: a <const> assigned,
   %d<code> == 1 && %d<err>.contains('<const>') && %e<code> == 1 && %e<err>.contains('runs as a loop, before its statement')
 };
 
-# ---- several sources, folders ------------------------------------------------------------------
+# ---- several sources, folders ------------------------------------------------
 check 'a folder: every .xtpl under it, a bad one reported, the others compiled, a summary',
 {
   my %r = xc("$dir/src");
@@ -110,7 +110,7 @@ check 'a folder with no .xtpl in it',
   %r<code> == 1 && %r<err>.contains('empty: no .xtpl files in it')
 };
 
-# ---- --outdir: every output into one folder ----------------------------------------------------
+# ---- --outdir: every output into one folder ----------------------------------
 reset-dir;
 check '--outdir: sources and folders, every .tlpp into the folder, named for its source',
 {
@@ -134,7 +134,7 @@ check '--outdir: a source given twice, itself and in its folder, compiled once',
   %r<code> == 1 && %r<out>.lines.grep(*.contains('b.xtpl ->')).elems == 1
 };
 
-# ---- one source and its output --------------------------------------------------------------
+# ---- one source and its output -----------------------------------------------
 reset-dir;
 check "'file.xtpl out.tlpp' still names the output",
 {
@@ -142,7 +142,7 @@ check "'file.xtpl out.tlpp' still names the output",
   %r<code> == 0 && $dir.add('out.tlpp').e && written() eq ''
 };
 
-# ---- the command line itself -----------------------------------------------------------------
+# ---- the command line itself -------------------------------------------------
 check 'a wrong command line exits with 2: --check with an output, an unknown option, nothing given',
 {
   xc('--check', "$dir/src/a.xtpl", "$dir/x.tlpp")<code> == 2
@@ -150,7 +150,7 @@ check 'a wrong command line exits with 2: --check with an output, an unknown opt
     && xc()<code> == 2
 };
 
-# ---- the test runner ------------------------------------------------------------------------
+# ---- the test runner ---------------------------------------------------------
 # Only the refusals: running it for real would run this very suite.
 check "run-tests.raku: an option it does not know is refused before any test runs -- '-all' with a hint, '--jobs=0' too",
 {

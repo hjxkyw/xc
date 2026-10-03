@@ -31,7 +31,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- using alias --------------------------------------------------------------
+# ---- using alias -------------------------------------------------------------
 check 'using alias SA1 order 1 do: area, order and body',
 {
   my $u = body("  using alias SA1 order 1 do\n    nT := SA1->A1_SALDO\n    conout(nT)\n  end using")[0];
@@ -75,7 +75,7 @@ check 'walk goes into the body; exprs-of gives the order',
   @seen.join(' ') eq 'UsingAlias CallStmt' && @n.join eq 'nOrd'
 };
 
-# ---- external -------------------------------------------------------------------
+# ---- external ----------------------------------------------------------------
 my $ext = program(qq:to/END/);
 #include "totvs.ch"
 external CRLF, dDataBase
@@ -105,7 +105,7 @@ check 'external aliasX: a name that merely starts with alias',
   !$e.alias && $e.names.join eq 'aliasX'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse-body =
   "  using alias SA1 do\n    conout(1)\n  endusing"   => 'using closed by endusing',
   "  using alias SA1 do\n    conout(1)\n  end"        => 'using closed by a bare end',

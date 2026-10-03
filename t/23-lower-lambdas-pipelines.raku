@@ -33,7 +33,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { line-of($in) eq "  $out" } }
 
-# ---- lambdas and verbs ------------------------------------------------------------------
+# ---- lambdas and verbs -------------------------------------------------------
 lowers 'a lambda becomes a code block, and map the runtime verb',
   'x := map(a, [o] o:nValue)',
   'x := u_xtpl_map(a, {|o| o:nValue})';
@@ -62,7 +62,7 @@ lowers 'queue() is a runtime verb too',
   'x := queue(256)',
   'x := u_xtpl_queue(256)';
 
-# ---- pipelines ----------------------------------------------------------------------
+# ---- pipelines ---------------------------------------------------------------
 # Inside an expression a chain is one call per stage: it is fused only as a
 # statement's whole value (t/36-array-fusion.raku).
 lowers 'filter |> map in an expression: nested calls, the value going first',
@@ -90,7 +90,7 @@ lowers 'an omitted argument in a stage stays omitted',
   'x := a |> f(, 1)',
   'x := f(a, , 1)';
 
-# ---- comments ---------------------------------------------------------------------------
+# ---- comments ----------------------------------------------------------------
 lowers 'the line keeps its comment and spacing where the statement keeps its shape',
   'x := a |> asum          // the total',
   'x := u_xtpl_asum(a)          // the total';
@@ -104,7 +104,7 @@ check "a pipeline over ';' continuations becomes one call, the comment kept",
     && $out.lines[5] eq 'return x'
 };
 
-# ---- inside other rewrites --------------------------------------------------------------
+# ---- inside other rewrites ---------------------------------------------------
 # The parentheses were there for the '|>'; the call it becomes needs none.
 check 'a pipeline in the condition of a postfix modifier',
 {
@@ -117,7 +117,7 @@ check 'a lambda in the value of a ?=',
   $out.lines[4..6].join("\n") eq "  If x == Nil\n    x := u_xtpl_map(a, \{|o| o\})\n  EndIf"
 };
 
-# ---- chains from sources ------------------------------------------------------------------
+# ---- chains from sources -----------------------------------------------------
 # A chain from rows() or lines() runs as a loop before its statement, so it
 # only goes where that is the same thing: t/25-sources.raku has the rest.
 # A 'local', 'private' or 'public' can take one; a 'static' cannot: its value
@@ -130,7 +130,7 @@ check "a chain from a source in a static's value is reported, with where it can 
   !$out.defined && $!.problems[0].value.starts-with('a chain from rows() where it cannot run as a loop first')
 };
 
-# ---- the output is plain TL++ -------------------------------------------------------------
+# ---- the output is plain TL++ ------------------------------------------------
 check 'the output compiles to itself',
 {
   my $once = compile(with-includes("user function f(a)\n  local x := a |> filter([o] o > 1) |> asum  // n\n  aP |> tap([p] conout(p))\nreturn map(a, [o] o * 2)\n"));
@@ -138,7 +138,7 @@ check 'the output compiles to itself',
   $once.defined && compile($once) eq $once
 };
 
-# ---- against xtpl's own output --------------------------------------------------------------
+# ---- against xtpl's own output -----------------------------------------------
 # The lines xtpl lowers the same way, from its test 29_array.
 check "29_array's three lambda lines match xtpl's output, but for its slot names",
 {

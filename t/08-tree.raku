@@ -32,7 +32,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the reference file --------------------------------------------------------
+# ---- the reference file ------------------------------------------------------
 my $p = tree(slurp('xtpl/examples/saldo/saldo.xtpl'));
 
 check 'saldo.xtpl: namespace, using, include',
@@ -76,7 +76,7 @@ check 'saldo.xtpl: the last return is on line 63 and returns nTotal',
   $r ~~ ReturnStmt && $r.line == 63 && $r.value ~~ Name && $r.value.name eq 'nTotal'
 };
 
-# ---- the shape of each statement -----------------------------------------------
+# ---- the shape of each statement ---------------------------------------------
 check 'if / elseif / elseif / else: three branches and an otherwise',
 {
   my @s = body("  if a\n    x()\n  elseif b\n    y()\n  elseif c\n    z()\n  else\n    w()\n  endif");
@@ -138,7 +138,7 @@ check 'an annotation with no function after it stays in the program',
   $q.annotations.map(*.name).List eqv ('Deprecated',) && !$q.functions
 };
 
-# ---- where the line ends ---------------------------------------------------------
+# ---- where the line ends -----------------------------------------------------
 check 'return without a value does not take the next line',
 {
   my @s = body("  return\n  conout(1)");
@@ -188,7 +188,7 @@ check 'CRLF line endings',
   kinds(body("  n := 1\r\n  return n\r")) eq 'Assignment ReturnStmt'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   "  n := 1  m := 2"                   => 'two statements on one line',
   "  if x n := 1 endif"                => 'a whole if on one line',

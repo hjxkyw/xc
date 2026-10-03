@@ -114,7 +114,7 @@ my class Checker
   method !problem(Str $message) { @!found.push($!line => $message) }
   method !warning(Str $message)  { @!warned.push($!line => $message) }
 
-  # ---- the file ---------------------------------------------------------------
+  # ---- the file --------------------------------------------------------------
   method program(Program $p)
   {
     for $p.functions -> $f
@@ -216,7 +216,7 @@ my class Checker
     }
   }
 
-  # ---- scopes -------------------------------------------------------------------
+  # ---- scopes ----------------------------------------------------------------
   # $kind: 'local' (a local or a static: reported if never read), 'param',
   # 'loop' (what a loop header declares) or 'public'. $written: it has a value.
   method !declare(Str $name, Int $line, :@attributes = (), Str :$kind = 'local', Bool :$written = False)
@@ -286,7 +286,7 @@ my class Checker
        || %!externals{$k} || %!defines{$k} || %!privates{$k}
   }
 
-  # ---- names ----------------------------------------------------------------------
+  # ---- names -----------------------------------------------------------------
   # A '<contained>' variable cannot leave its block: not captured by a lambda
   # or a code block, not passed by reference, not read by a 'defer' (which
   # runs at the end of the function), not given to a 'raw' command.
@@ -360,7 +360,7 @@ my class Checker
     self!read($e.name) if self!find($k).defined || (%!retired{$k}:exists) || self!exempt($e.name);
   }
 
-  # ---- statements -----------------------------------------------------------------
+  # ---- statements ------------------------------------------------------------
   # Declarations are only in a body's prologue (the grammar sees to it); and
   # there, every 'local' and 'static' comes before the first 'private' or
   # 'public' -- those are statements in TL++, and Protheus refuses a local
@@ -595,7 +595,7 @@ my class Checker
     }
   }
 
-  # ---- expressions ------------------------------------------------------------------
+  # ---- expressions -----------------------------------------------------------
   method !expr($e)
   {
     return unless $e.defined && $e ~~ Expr;
@@ -734,7 +734,7 @@ my class Checker
     $word.defined && !self!find($word.lc).defined ?? $word !! Nil
   }
 
-  # ---- the dictionary ---------------------------------------------------------------
+  # ---- the dictionary --------------------------------------------------------
   method !dict(Str $message) { $!strict ?? self!problem($message) !! self!warning($message) }
 
   # An alias or a field the dictionary does not have. Once per line and field.
@@ -791,7 +791,7 @@ my class Checker
   }
 
   # A chain: a source it can walk.
-  # ---- fusion ------------------------------------------------------------------------
+  # ---- fusion ----------------------------------------------------------------
   # xtpl's three warnings about it, on its conditions and in its words.
   method !fusion(Pipeline $p)
   {

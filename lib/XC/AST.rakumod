@@ -41,7 +41,7 @@ sub type-of-name(Str $name --> Str) is export
   }
 }
 
-# ---- expressions --------------------------------------------------------------
+# ---- expressions -------------------------------------------------------------
 # 'src-from' and 'src-to' are source offsets: the emitter copies the source through and
 # edits only what it lowers, so it needs to know where each piece came from.
 # Set for every full expression (an argument, a condition, a value); -1 when
@@ -100,7 +100,7 @@ class Member is Expr is export            # o:nX  (and ::nX, based on SelfRef)
   has Str  $.name;
 }
 
-# ---- xtpl: operators with a node of their own -----------------------------------
+# ---- xtpl: operators with a node of their own --------------------------------
 # The ones that are an ordinary binary operator -- 'in', 'has', '%%', '?:' --
 # are a Binary with their own 'op'; the 'op' is what marks the extension.
 # These three have a shape of their own.
@@ -150,7 +150,7 @@ class InAlias is Expr is export
   has Expr $.expr;
 }
 
-# ---- the rest -------------------------------------------------------------------
+# ---- the rest ----------------------------------------------------------------
 # '&cVar' and '&(cA + cB)'. The 'target' is what yields the string -- the Name
 # 'cVar' is READ. What the string does at run time, nothing here knows.
 class Macro is Expr is export
@@ -228,7 +228,7 @@ class Pipeline is Expr is export
   has Call @.stages;
 }
 
-# ---- statements -----------------------------------------------------------------
+# ---- statements --------------------------------------------------------------
 #
 # A body is an array of Stmt. The optional parts that are missing hold the type
 # object -- 'Expr' with no value --, which is what '.defined' answers false to.
@@ -349,7 +349,7 @@ class ForTimesStmt is Stmt is export
   has Stmt @.body;
 }
 
-# ---- xtpl: postfix modifier -----------------------------------------------------
+# ---- xtpl: postfix modifier --------------------------------------------------
 # 'x := 1 if c', 'return n if c', 'f() while c', 'exec f() if c'. The inner
 # statement is what runs; 'op' says how: 'if' becomes a one-branch If,
 # 'while' a While. Lowering is just that -- the statement stays the same,
@@ -406,7 +406,7 @@ class SequenceStmt is Stmt is export
   has Stmt @.recover;
 }
 
-# ---- the file -------------------------------------------------------------------
+# ---- the file ----------------------------------------------------------------
 class Param is export
 {
   has Str $.name;
@@ -483,7 +483,7 @@ class Program is export
   has External    @.externals;
 }
 
-# ---- walking --------------------------------------------------------------------
+# ---- walking -----------------------------------------------------------------
 
 # The expressions right below one, by class: a table, not a chain of 'when's.
 # Walks ask for them some thousands of times per file, and most nodes are

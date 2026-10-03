@@ -85,5 +85,5 @@ user function parametros(cCliente, nPrazoParam, nDescParam)
   // E num return.
   return hCfg{"perfil"} ?: "padrao"
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

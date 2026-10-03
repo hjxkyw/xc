@@ -64,7 +64,7 @@ sub count-loop(Str $in = '  ')
     END
 }
 
-# ---- private and public -----------------------------------------------------------------
+# ---- private and public ------------------------------------------------------
 check "a private's value at the top: declared there, given after the loop",
 {
   body-of("  private pT := lines(cP) |> count   // how many\n  n := pT")
@@ -104,7 +104,7 @@ check "a private after a statement, a chain its value: where it is, its loop aft
     < line-of($out, 'fok_0_0 := File(cP)') < line-of($out, 'pT := fo_0_0')
 };
 
-# ---- under a postfix modifier --------------------------------------------------------------
+# ---- under a postfix modifier ------------------------------------------------
 check "x := chain if c: the loop inside the If, so only when the condition holds",
 {
   body-of("  n := lines(cP) |> count if l   // maybe")
@@ -119,7 +119,7 @@ check "a chain on its own under 'while': the loop inside, every round",
   body-of("  lines(cP) |> tap([x] conout(x)) while n > 0").starts-with("  While n > 0\n    fok_0_0 := File(cP)")
 };
 
-# ---- the rule --------------------------------------------------------------------------------
+# ---- the rule ----------------------------------------------------------------
 my $rule = "a chain from lines() runs as a loop, before its statement, so it is only the whole value "
          ~ "of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. "
          ~ "Assign it to a variable first, where it should run.";

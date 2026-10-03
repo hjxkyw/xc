@@ -15,7 +15,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the script, against a stand-in AppServer ----------------------------------------------------
+# ---- the script, against a stand-in AppServer --------------------------------
 if $*DISTRO.is-win
 {
   say '  (the stand-in AppServer is a shell script: its cases are for Linux)';

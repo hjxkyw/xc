@@ -32,7 +32,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- return ---------------------------------------------------------------------
+# ---- return ------------------------------------------------------------------
 check 'return if lSkip: no value -- the if is not the value',
 {
   my $s = stmt('return if lSkip');
@@ -60,7 +60,7 @@ check 'return without a modifier is still a ReturnStmt',
   $s ~~ ReturnStmt && $s.value.name eq 'nX'
 };
 
-# ---- the other simple statements ---------------------------------------------------
+# ---- the other simple statements ---------------------------------------------
 check 'lDone := .T. if nTotal > 5: assignment',
 {
   my $s = stmt('lDone := .T. if nTotal > 5');
@@ -97,7 +97,7 @@ check 'a comment at the end of the line',
   stmt('exit if nX == 0   // not a block word').stmt ~~ ExitStmt
 };
 
-# ---- words that merely start with if/while -------------------------------------------
+# ---- words that merely start with if/while -----------------------------------
 check 'iif(...) is not a modifier',
 {
   my $s = stmt('x := iif(a, b, c)');
@@ -118,7 +118,7 @@ check 'x := 1 if ifood: a condition starting with if',
   stmt('x := 1 if ifood').cond.name eq 'ifood'
 };
 
-# ---- walking ---------------------------------------------------------------------
+# ---- walking -----------------------------------------------------------------
 check 'walk visits the Modified and the statement inside',
 {
   my @seen;
@@ -132,7 +132,7 @@ check 'exprs-of a Modified is the condition',
   @n.join(' ') eq 'nB nC'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   'exec resetAll()'           => 'exec without a modifier',
   'local x := 1 if c'         => 'a declaration with a modifier',

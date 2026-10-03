@@ -9,7 +9,7 @@
 // -- which is the defer machinery, so the two have to agree on order:
 // deferred statements first, since they may still want the area, then the
 // work areas, innermost block first.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testUsing(cAlias, nX)
 
@@ -85,5 +85,5 @@ user function testUsing(cAlias, nX)
 
   return nT + len(aC)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

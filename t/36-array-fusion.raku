@@ -45,7 +45,7 @@ sub check(Str $what, &test)
 }
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- what fuses, and what stays calls ------------------------------------------------------
+# ---- what fuses, and what stays calls ----------------------------------------
 lowers 'filter |> map |> sort: one loop, and the sort applies to what it built',
   "  n := a |> filter([x] x > 0) |> map([x] x * 2) |> sort",
   "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 0\n      fv_0_0 := fv_0_0 * 2\n"
@@ -72,7 +72,7 @@ lowers 'run for its effects, a stage that cannot fuse: calls',
   "  a |> tap([x] conout(x)) |> sort",
   "  u_xtpl_sort(u_xtpl_tap(a, \{|x| conout(x)\}))";
 
-# ---- where -------------------------------------------------------------------------------------
+# ---- where -------------------------------------------------------------------
 lowers 'under a postfix if: the loop inside the If',
   "  n := a |> filter([x] x > 0) |> count if l",
   "  If l\n    fo_0_0 := 0\n    For fi_0_0 := 1 To Len(a)\n      fv_0_0 := a[fi_0_0]\n      If fv_0_0 > 0\n        fo_0_0++\n      EndIf\n    Next\n    n := fo_0_0\n  EndIf";
@@ -80,7 +80,7 @@ lowers 'in the prologue: declared there, the values after it, in order',
   "  local x := a |> filter([o] o > 1) |> count\n  local y := 5\n  n := x + y",
   "  local x\n  local y\n  fo_0_0 := 0\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 1\n      fo_0_0++\n    EndIf\n  Next\n  x := fo_0_0\n  y := 5\n  n := x + y";
 
-# ---- the terminals and stages now fused --------------------------------------------------------
+# ---- the terminals and stages now fused --------------------------------------
 lowers 'aprod',
   "  n := a |> map([x] x * 2) |> aprod",
   "  fo_0_0 := 1\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    fv_0_0 := fv_0_0 * 2\n    fo_0_0 := fo_0_0 * fv_0_0\n  Next\n  n := fo_0_0";
@@ -132,7 +132,7 @@ lowers 'a join with a separator held in a variable, alone: one stage, a call',
   "  n := a |> join(cS)",
   "  n := u_xtpl_join(a, cS)";
 
-# ---- over the sources too ----------------------------------------------------------------------
+# ---- over the sources too ----------------------------------------------------
 check 'rows() |> map |> amax: the table walked once, no array of it',
 {
   my $b = body-of("  n := rows(\"SA1\") |> map([r] r:A1_SALDO) |> amax");
@@ -144,7 +144,7 @@ check "over rows(), maxby hands back the record: a map first, as for 'first'",
     eqv ("over rows() nothing to collect before a 'map' makes the record a value",)
 };
 
-# ---- against xtpl ------------------------------------------------------------------------------
+# ---- against xtpl ------------------------------------------------------------
 # Normalised as in t/30-ranges-with-raw.raku: statements, lower case, hidden
 # names by kind.
 sub normalised(Str $text)

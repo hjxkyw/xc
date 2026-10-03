@@ -8,7 +8,7 @@
 // It also pins a bug the queue found: a method whose name matches a runtime
 // verb is not that verb. 'oFila:Count()' was being rewritten to
 // 'oFila:__xtpl_count()', and so was any object with a Map or First method.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testQueue(aPedidos, oModelo)
   local oFila := queue()
@@ -31,5 +31,5 @@ user function testQueue(aPedidos, oModelo)
 
   return nTotal + nOutro + oGrande:Count()
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

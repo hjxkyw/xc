@@ -23,7 +23,7 @@
 //
 // Se imprimir 'inerte: sim', a forma plana atual esta certa. Se imprimir
 // 'inerte: nao', tanto a abertura quanto o fechamento precisam de guarda.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 User Function probeFtUse()
 
@@ -79,5 +79,5 @@ User Function probeFtUse()
 
 Return 0
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -3,7 +3,7 @@
 // A brace group whose parts are all 'k => v' is a hash literal; anything
 // else is an array. A '{' directly after a name is a hash subscript, which
 // AdvPL never has, so arrays keep '[' and no type tracking is needed.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testHash(nBase, cChave)
   local hCfg := {"taxa" => 0.05, "limite" => 1000}
@@ -38,5 +38,5 @@ user function testHash(nBase, cChave)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -15,7 +15,7 @@
 // O contador e o elemento sao variaveis DIFERENTES. Fazer o contador ser o
 // elemento economizava uma atribuicao e quebrava o laco: um 'map' escreve no
 // elemento, e escrever no contador de um For muda o que ele percorre.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testRangeSource(nLo, nHi)
 
@@ -98,5 +98,5 @@ user function testRangeSource(nLo, nHi)
 
   return nEuler + len(aDobros) + nQuantos + nCalculado + len(aPrimeiros)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

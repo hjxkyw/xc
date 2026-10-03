@@ -35,7 +35,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { lowered($in) eq $out } }
 
-# ---- hashes ------------------------------------------------------------------------------
+# ---- hashes ------------------------------------------------------------------
 lowers 'a read is a call',
   '  x := 10 * h{"taxa"}',
   '  x := 10 * u_xtpl_hget(h, "taxa")';
@@ -70,7 +70,7 @@ lowers 'has',
   '  x := h has "taxa"',
   '  x := u_xtpl_hhas(h, "taxa")';
 
-# ---- where lifting goes wrong --------------------------------------------------------------
+# ---- where lifting goes wrong ------------------------------------------------
 lowers "in a 'while' condition: read on every round",
   "  while h\{\"k\"\} > x\n    x := x + 1\n  enddo",
   "  while u_xtpl_hget(h, \"k\") > x\n    x := x + 1\n  enddo";
@@ -81,7 +81,7 @@ lowers 'in a lambda: read inside it, with its parameter',
   '  x := map(a, [k] h{k})',
   '  x := u_xtpl_map(a, {|k| u_xtpl_hget(h, k)})';
 
-# ---- operators -----------------------------------------------------------------------------
+# ---- operators ---------------------------------------------------------------
 lowers "'in' is the runtime's",
   '  x := 3 in a',
   '  x := u_xtpl_in(3, a)';
@@ -104,7 +104,7 @@ lowers "a chain of '?.'",
   '  x := o?.oA?.cNome',
   '  x := Eval({|__v| If(__v != Nil, __v:cNome, Nil)}, If(o != Nil, o:oA, Nil))';
 
-# ---- fallback and interpolation ----------------------------------------------------------
+# ---- fallback and interpolation ----------------------------------------------
 lowers "'fallback' is the runtime's safe_pipe",
   '  x := calc(a) fallback 0',
   '  x := u_xtpl_safe_pipe({|| calc(a)}, {|| 0})';
@@ -118,14 +118,14 @@ lowers 'a hash read inside an interpolation',
   q[  x := "taxa ${h{'t'}} fim"],
   q[  x := ("taxa " + cValToChar(u_xtpl_hget(h, 't')) + " fim")];
 
-# ---- external -------------------------------------------------------------------------------
+# ---- external ----------------------------------------------------------------
 check "'external' emits nothing: its line goes, but for its comment",
 {
   my $src = qq[#include "totvs.ch"\n#include "tlpp-core.th"\nexternal CRLF      // from totvs.ch\nexternal alias SA1\nuser function f()\nreturn CRLF\n];
   compile($src) eq qq[#include "totvs.ch"\n#include "tlpp-core.th"\n// from totvs.ch\nuser function f()\nreturn CRLF\n]
 };
 
-# ---- the grammar -------------------------------------------------------------------------
+# ---- the grammar -------------------------------------------------------------
 check q<'{' right after ')' or ']' is a hash access too>,
 {
   parses('x := getHash(){"k"}') && parses('x := a[1]{"k"}') && parses('getHash(){"k"} := 1')
@@ -135,7 +135,7 @@ check "a call with a trailer is something to assign to; a call alone is not",
   parses('GetObj():cNome := 1') && !parses('f() := 1') && !parses('x := f() {1}')
 };
 
-# ---- a hash write inside an expression -----------------------------------------------------
+# ---- a hash write inside an expression ---------------------------------------
 # A call that sets and gives back the value written, as ':=' does. xtpl emits
 # 'h:Set(b_0_k, 1}))' for the first one, which does not compile.
 lowers 'in a lambda: a call that gives back the value written',
@@ -156,7 +156,7 @@ check 'in a fused loop over lines(): the element as the key',
   $out.contains('    u_xtpl_hset(h, fv_0_0, u_xtpl_hget(h, fv_0_0) + (1))')
 };
 
-# ---- the runtime, and the output ----------------------------------------------------------
+# ---- the runtime, and the output ---------------------------------------------
 check 'the runtime has the four functions the output calls',
 {
   my $rt = slurp('runtime/xtpl_runtime.tlpp');

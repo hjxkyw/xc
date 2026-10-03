@@ -10,7 +10,7 @@
 // This was emitting 'For ... Next' inside a code block, and the golden file
 // agreed with it, because a golden records what was produced rather than what
 // AdvPL accepts.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testFallbackShapes(aNums, hCfg)
 
@@ -54,5 +54,5 @@ user function testFallbackShapes(aNums, hCfg)
 
   return nSafe + nHash + len(aList)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

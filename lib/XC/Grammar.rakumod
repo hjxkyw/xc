@@ -27,7 +27,7 @@
 
 unit grammar XC::Grammar;
 
-# ---- looking ahead, cheaply ---------------------------------------------------
+# ---- looking ahead, cheaply --------------------------------------------------
 #
 # Several rules try an assignment first and fall back: a statement, an
 # argument, a lambda's body. The left side of an assignment is a whole
@@ -410,7 +410,7 @@ token typename
   ]
 }
 
-# ---- statements ---------------------------------------------------------------
+# ---- statements --------------------------------------------------------------
 # Block statements and declarations take no modifier; simple ones take one,
 # optionally, at the end of the line: 'x := 1 if c', 'return n if c',
 # 'exit if c', 'f() while c'. 'exec' is a simple statement that only exists
@@ -511,7 +511,7 @@ rule withbody
 # ':member' or ':method(...)' on the subject of the enclosing 'with object'.
 rule subjacc { <?{ $*IN-WITH // False }> ':' <member> [ '(' ~ ')' <arglist> ]? }
 
-# ---- xtpl: 'raw' -- a line for the preprocessor ---------------------------------
+# ---- xtpl: 'raw' -- a line for the preprocessor ------------------------------
 #
 #     raw @ 10, 5 SAY "Total" GET nTotal PICTURE "@E 999,999.99"
 #
@@ -557,7 +557,7 @@ rule simple
 rule incst  { [ <incop> <lvalue> ] || [ <lvalue> <incop> ] }
 token incop { '++' || '--' }
 
-# ---- xtpl: '?=' -- assign if Nil ----------------------------------------------
+# ---- xtpl: '?=' -- assign if Nil ---------------------------------------------
 # Only as a statement: 'cCache ?= "empty"'. Never in an expression --
 # '(f() ?= {})' is refused, xtpl's doc says to use '?:' --, nor in a
 # declaration: 'local x ?= v' could never fail the test, and is refused.
@@ -819,7 +819,7 @@ rule expr        { <elvis> <feed>* }
 rule guardexpr { <guarded> [ <!{ $*IN-BLOCK // False }> <fbkw> <fallback> ]? }
 token fbkw     { :i 'fallback' >> }
 
-# ---- parts with a name: tokens of their own, not aliases ---------------------------
+# ---- parts with a name: tokens of their own, not aliases ---------------------
 # Under rakupp 4.0.1 an alias -- '<cond=expr>' -- runs the actions of what it
 # names twice, and those of the whole tree under it, twice over (Rakudo:
 # once). On the way from a statement to a literal they multiplied: a function
@@ -858,7 +858,7 @@ token andop    { :i '.and.' }
 rule notexpr   { <negate>? <cmpexpr> }
 token negate   { '!' || [ :i '.not.' ] }
 
-# ---- comparison, with xtpl's 'in' and 'has' -----------------------------------
+# ---- comparison, with xtpl's 'in' and 'has' ----------------------------------
 #
 #     cCode in aCodes       u_xtpl_in(cCode, aCodes)
 #     nValue in 1..100      (nValue >= 1 .And. nValue <= 100)
@@ -1035,7 +1035,7 @@ rule codeblock
 # Inside a code block an assignment IS an expression.
 rule blockexpr   { [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
 
-# ---- xtpl: lambda -------------------------------------------------------------
+# ---- xtpl: lambda ------------------------------------------------------------
 #
 #     map(aOrders, [o] o:nValue)                      {|o| o:nValue}
 #     reduce(aNums, [acc, x] acc + x, 0)              {|acc, x| acc + x}
@@ -1069,14 +1069,14 @@ rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ]
                 || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
-# ---- terminals ----------------------------------------------------------------
+# ---- terminals ---------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
 # Digits may be grouped with an apostrophe, as C++14 does with the same
 # character: '12'345'678', '1'234.567'8'. Only between two digits -- never
 # first, last, doubled, beside the point, or before a space -- so it cannot be
 # taken for a string: a string straight after a number was never valid.
 token number   { \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? }
-# ---- strings, and xtpl's interpolation ----------------------------------------
+# ---- strings, and xtpl's interpolation ---------------------------------------
 #
 #     "total = ${nTotal} items"       ("total = " + cValToChar(nTotal) + " items")
 #     'rate ${hCfg{"t"}} end'         both quote styles interpolate

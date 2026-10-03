@@ -32,7 +32,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- block locals -----------------------------------------------------------------------
+# ---- block locals ------------------------------------------------------------
 lowers 'a local in a block: an assignment there, a Local at the top',
   "  local nT := 0\n  if n > 0\n    local nX := 1\n    local cY\n    nT := nX\n  endif",
   "  local nT := 0\n  Local nX  // a block local\n  Local cY  // a block local\n  if n > 0\n    nX := 1\n    cY := Nil\n    nT := nX\n  endif";
@@ -45,7 +45,7 @@ lowers 'several declarators in one block declaration',
   "  local nT := 0\n  while n > 0\n    local a1 := 1, a2   // two\n    n := n - a1\n  enddo",
   "  local nT := 0\n  Local a1  // a block local\n  Local a2  // a block local\n  while n > 0\n    a1 := 1\n    a2 := Nil  // two\n    n := n - a1\n  enddo";
 
-# ---- header forms ---------------------------------------------------------------------
+# ---- header forms ------------------------------------------------------------
 lowers 'if local x := e, cond: bound, then tested; the comment on the If',
   "  local nT := 0\n  if local lR := check(), lR   // bound\n    nT := 1\n  endif",
   "  local nT := 0\n  Local lR  // a block local\n  lR := check()\n  If lR  // bound\n    nT := 1\n  endif";
@@ -86,7 +86,7 @@ lowers 'do case with an assignment: nothing to hoist',
   "  local nT := 0\n  do case with nT := calc(n)\n    case nT == 6\n      conout(1)\n  endcase",
   "  local nT := 0\n  nT := calc(n)\n  Do Case\n    case nT == 6\n      conout(1)\n  endcase";
 
-# ---- names ----------------------------------------------------------------------------
+# ---- names -------------------------------------------------------------------
 lowers 'the same name in sibling blocks shares one Local',
   "  local nT := 0\n  for o in a\n    nT := nT + 1\n  next\n  for o in a\n    nT := nT + 1\n  next",
   "  local nT := 0\n  Local o  // a block local\n  Local fs_0_0  // the source of a 'for ... in'\n  Local fi_0_0  // the counter of a 'for ... in'\n  Local fs_0_1  // the source of a 'for ... in'\n  Local fi_0_1  // the counter of a 'for ... in'\n  fs_0_0 := a\n  For fi_0_0 := 1 To Len(fs_0_0)\n    o := fs_0_0[fi_0_0]\n    nT := nT + 1\n  next\n  fs_0_1 := a\n  For fi_0_1 := 1 To Len(fs_0_1)\n    o := fs_0_1[fi_0_1]\n    nT := nT + 1\n  next";
@@ -125,7 +125,7 @@ check 'the output compiles to itself',
   compile($once) eq $once
 };
 
-# ---- the driver: line ends and encodings ------------------------------------------------
+# ---- the driver: line ends and encodings -------------------------------------
 my $dir = $*TMPDIR.add("xc-hoist-$*PID");
 mkdir $dir;
 my $src = "user function f(a)\r\n  // ção\r\n  local n := 0\r\n  for o in a\r\n    n := n + 1\r\n  next\r\nreturn n\r\n";

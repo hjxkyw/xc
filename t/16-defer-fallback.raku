@@ -30,7 +30,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- fallback ---------------------------------------------------------------------
+# ---- fallback ----------------------------------------------------------------
 check 'in the value of an assignment: a Guard with the expression and the fallback',
 {
   my $g = stmt('cResposta := chamaServico(cUrl, cChave) fallback ""').value;
@@ -86,7 +86,7 @@ check 'names read: both sides',
   @n.join(' ') eq 'nA nB'
 };
 
-# ---- defer ------------------------------------------------------------------------
+# ---- defer -------------------------------------------------------------------
 check 'defer closeCursor(): a Deferred holding the call',
 {
   my $d = stmt('defer closeCursor()');
@@ -126,7 +126,7 @@ check 'deferred := 1 is an ordinary assignment',
   stmt('deferred := 1') ~~ Assignment
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   'f(a fallback 0)'                         => 'fallback in an argument',
   'x := a fallback b fallback c'            => 'two fallbacks',

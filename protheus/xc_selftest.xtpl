@@ -13,7 +13,7 @@
 //   xc_selftest: 55 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function xc_selftest()
   local nOk := 0
@@ -38,7 +38,7 @@ user function xc_selftest()
   local lTmp := .F.
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
-  // ---- fusion over arrays: one loop, the stages inside it ---------------------
+  // ---- fusion over arrays: one loop, the stages inside it -------------------
   nTmp := aNums |> filter([x] x > 2) |> map([x] x * 10) |> asum
   check("filter, map, asum", nTmp == 270, nTmp, @nOk, @nBad)
 
@@ -112,7 +112,7 @@ user function xc_selftest()
   nTmp := aNums |> filter([x] x > 0) |> asum if len(aNums) > 100
   check("under a postfix if, not taken", nTmp == 0, nTmp, @nOk, @nBad)
 
-  // ---- hash writes inside expressions ------------------------------------------
+  // ---- hash writes inside expressions ---------------------------------------
   aeval(aRep, [x] hCount{x} := (hCount{x} ?: 0) + 1)
   check("counting in a lambda", hCount{1} == 3 .and. hCount{2} == 3 .and. hCount{3} == 1, hCount{1}, @nOk, @nBad)
   aeval({1, 2, 3}, [x] hMap{"a"} += x)
@@ -122,7 +122,7 @@ user function xc_selftest()
   nTmp := same(hKeep{"z"} := 42)
   check("a hash write gives the value written", nTmp == 42 .and. hKeep{"z"} == 42, nTmp, @nOk, @nBad)
 
-  // ---- digit separators, and a range beside another test ---------------------------
+  // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5
   check("digit separators", nTmp == 13345.5, nTmp, @nOk, @nBad)
   lTmp := .F.
@@ -131,7 +131,7 @@ user function xc_selftest()
   endif
   check("a range test beside another test", lTmp, lTmp, @nOk, @nBad)
 
-  // ---- aPick, aRoll, setMaxRoll ------------------------------------------------------
+  // ---- aPick, aRoll, setMaxRoll ---------------------------------------------
   aTmp := aPick(aDist)
   check("aPick: one element", len(aTmp) == 1 .and. aTmp[1] in aDist, len(aTmp), @nOk, @nBad)
   aTmp := aPick(aDist, 5)
@@ -167,7 +167,7 @@ user function xc_selftest()
   next
   check("aPick draws at random", len(aTmp |> distinct) > 1, len(aTmp |> distinct), @nOk, @nBad)
 
-  // ---- the runtime: distinct, split, sortBy -----------------------------------------
+  // ---- the runtime: distinct, split, sortBy ---------------------------------
   // One pass, one search from where it stopped, one key per element -- and the
   // same answers as before.
   aTmp := aBig |> map([x] x % 1000)
@@ -200,7 +200,7 @@ user function xc_selftest()
 
 return nBad
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 static function check(cName, lOk, xSeen, nOk, nBad)
   if lOk

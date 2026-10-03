@@ -47,7 +47,7 @@ sub loop-of(Str $body)
   @l[$w + 1 .. $e - 2].map(*.substr(4)).join("\n")
 }
 
-# ---- the stages -----------------------------------------------------------------------------
+# ---- the stages --------------------------------------------------------------
 check 'drop: the rest of the chain in the Else, the first n pass by',
 {
   loop-of(body-of("  local x := \{\}\n  x := lines(cP) |> drop(2)")) eq q:to/END/.chomp
@@ -105,7 +105,7 @@ check 'after an expand, a stage that stops the walk applies to what was collecte
   !$b.contains('Exit') && $b.ends-with("x := u_xtpl_take(fo_0_0, 3)")
 };
 
-# ---- a function name for a block -------------------------------------------------------------
+# ---- a function name for a block ---------------------------------------------
 check 'map(alltrim) in a fused loop calls the function with the element',
 {
   loop-of(body-of("  local x := \{\}\n  x := lines(cP) |> map(alltrim)")).contains("fv_0_0 := alltrim(fv_0_0)")
@@ -117,7 +117,7 @@ check 'map(alltrim) elsewhere is the block that calls it; a variable stays a var
     && $b.contains("x := u_xtpl_map(a, \{|__it| upper(__it)\})")
 };
 
-# ---- a chain as the value of a 'local' ------------------------------------------------------
+# ---- a chain as the value of a 'local' ---------------------------------------
 check 'in the prologue: names kept, values after it, in the order written',
 {
   body-of("  local nA := 1\n  local aT := lines(cP) |> count   // lines\n  local nB := aT + nA\n  static nS := 0\n  n := nB") eq q:to/END/.chomp
@@ -160,7 +160,7 @@ check 'the output compiles to itself',
   $once.defined && compile($once) eq $once
 };
 
-# ---- what is still refused ------------------------------------------------------------------
+# ---- what is still refused ---------------------------------------------------
 check "a chain as a 'static' value: a static's value is a constant",
 {
   problems("  static x := lines(cP) |> count").first(*.starts-with('a chain from lines() where it cannot run'))

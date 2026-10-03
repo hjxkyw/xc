@@ -29,7 +29,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- trailers -------------------------------------------------------------------
+# ---- trailers ----------------------------------------------------------------
 check "o:x(1)[2]: an Index of a MethodCall on a Name",
 {
   my $e = expr('o:x(1)[2]');
@@ -59,7 +59,7 @@ check "(a):x: the parenthesized primary is the base",
   $e ~~ Member && $e.base ~~ Name && $e.base.name eq 'a'
 };
 
-# ---- work areas -------------------------------------------------------------------
+# ---- work areas --------------------------------------------------------------
 check "SA1->A1_NOME: the area is a name, not a variable",
 {
   my $e = expr('SA1->A1_NOME');
@@ -82,7 +82,7 @@ check "(cAlias)->( DbGoTop() )",
   $e ~~ InAlias && $e.base ~~ Name && $e.expr ~~ Call
 };
 
-# ---- arguments ------------------------------------------------------------------
+# ---- arguments ---------------------------------------------------------------
 check "f( , 1, , ): four positions, the empty ones as Omitted",
 {
   my @a = expr('f( , 1, , )').args;
@@ -103,7 +103,7 @@ check "If(c, a, cA := u): an assignment as an argument",
   $a ~~ AssignExpr && $a.target.name eq 'cA' && $a.value.name eq 'u'
 };
 
-# ---- blocks, macros, literals -----------------------------------------------------
+# ---- blocks, macros, literals ------------------------------------------------
 check '{ |a, b| a + b, c }: parameters and two expressions',
 {
   my $e = expr('{ |a, b| a + b, c }');
@@ -142,7 +142,7 @@ check '{ : }, { => } and {}: the empty one of each kind',
   expr('{ : }') ~~ JsonLit && expr('{ => }') ~~ HashLit && expr('{}') ~~ ArrayLit
 };
 
-# ---- the reference file -------------------------------------------------------------
+# ---- the reference file ------------------------------------------------------
 # Every name read or written in saldo.xtpl, through the statements' expressions.
 # 'nX' used to appear only inside 'aTitulos[nX]:nSaldo', which was text.
 check 'saldo.xtpl: every name appears in the tree, nX included',
@@ -157,7 +157,7 @@ check 'saldo.xtpl: every name appears in the tree, nX included',
   %seen.keys.sort.join(' ') eq 'aTitulos cCliente jResposta nLimite nTotal nX'
 };
 
-# ---- TL++ dotted path -------------------------------------------------------------
+# ---- TL++ dotted path --------------------------------------------------------
 check 'totvs.tools.Alguma.Coisa(): the whole path is the name, no reads',
 {
   my $e = expr('totvs.tools.Alguma.Coisa()');
@@ -191,7 +191,7 @@ check 'nA .and. foo(): the operator wins, with the call on one side',
   $e ~~ Binary && $e.right ~~ Call && $e.right.name eq 'foo'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   'a[]'       => 'empty index',
   'o:'        => 'member with no name',

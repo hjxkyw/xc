@@ -40,7 +40,7 @@ sub check(Str $what, &test)
 }
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- read, and copied as written ---------------------------------------------------------------
+# ---- read, and copied as written ---------------------------------------------
 lowers 'statements: after and before, up and down',
   "  n++\n  ++n\n  n--\n  --n", "  n++\n  ++n\n  n--\n  --n";
 lowers 'on an element, a member, a field',
@@ -52,7 +52,7 @@ lowers 'in a lambda: the code block takes it as it is',
 lowers "and 'n := n + 1' written so stays so: xc does not rewrite what is written",
   "  n := n + 1", "  n := n + 1";
 
-# ---- a hash element: TL++ has no h{k}, so it is lowered --------------------------------------------
+# ---- a hash element: TL++ has no h{k}, so it is lowered ----------------------
 lowers 'statements: a Set of the value, plus or minus one',
   "  h\{\"k\"\}++\n  --h\{\"k\"\}",
   "  h:Set(\"k\", u_xtpl_hget(h, \"k\") + (1))\n  h:Set(\"k\", u_xtpl_hget(h, \"k\") - (1))";
@@ -64,7 +64,7 @@ lowers "with a key that may be a method: hash and key once each, through a block
   "  x := h\{o:cK\}--",
   "  x := (Eval(\{|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) - __v)\}, h, o:cK, 1)) + 1";
 
-# ---- the checks ---------------------------------------------------------------------------------
+# ---- the checks --------------------------------------------------------------
 check "a <const> cannot be incremented; an external neither",
 {
   result("  local nC <const> := 1\n  nC++\n  a := nC")<errors>[0].contains("'nC' is <const>")
@@ -75,7 +75,7 @@ check "an increment reads what it changes: no 'never read'",
   !result("  local nK := 0\n  nK++")<warnings>
 };
 
-# ---- what xc writes -------------------------------------------------------------------------------
+# ---- what xc writes ----------------------------------------------------------
 check "its own counters: 'fo_0_0++', not 'fo_0_0 := fo_0_0 + 1'",
 {
   my $b = body-of("  n := a |> filter([e] e > 1) |> take(2) |> count");

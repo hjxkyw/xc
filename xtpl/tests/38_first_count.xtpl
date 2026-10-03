@@ -7,7 +7,7 @@
 // count reads the element, so a chain over rows() needs no map before it.
 // first does not: it hands the element back, and a work-area record is not a
 // value, so it needs something a map has made.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testFirstCount(aRows, cNum)
   local oAtrasado := Nil
@@ -34,5 +34,5 @@ user function testFirstCount(aRows, cNum)
 
   return nGrandes + nItens + nComSaldo
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

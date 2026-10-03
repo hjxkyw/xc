@@ -6,7 +6,7 @@
 // Um método com parâmetro tipado, o tipo depois do inicializador, e uma
 // expressão avaliada na área de trabalho de outro alias. Nenhuma delas tinha
 // surgido em setenta e cinco fixtures.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 class MinhaTool
   public method process(jPayLoad as json) as json
@@ -36,5 +36,5 @@ method process(jPayLoad as json) as json class MinhaTool
 
 return jResp
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

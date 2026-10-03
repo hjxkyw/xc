@@ -3,7 +3,7 @@
 // The lines are folded into one before any pass runs, so a construct may be
 // split across them. A comment on a continued line has nowhere to sit once
 // they are joined, so it moves to the end of the statement.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testContinuation(cUrl, cBody, aNums, hCfg)
   local nTimeout := 30
@@ -27,5 +27,5 @@ user function testContinuation(cUrl, cBody, aNums, hCfg)
 
   return nT + nA + nB
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

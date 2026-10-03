@@ -5,7 +5,7 @@
 // left in place lands inside it and comments out the closing bracket:
 // '... fallback 0  // note' produced '{|| 0  // note})'. The comment is
 // peeled once before the rewrites and put back once after.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testComments(aNums, nX, hCfg, oUser)
   local nSafe := 0
@@ -30,5 +30,5 @@ user function testComments(aNums, nX, hCfg, oUser)
   return 0
 
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

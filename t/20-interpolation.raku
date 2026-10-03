@@ -40,7 +40,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the parts ----------------------------------------------------------------------
+# ---- the parts ---------------------------------------------------------------
 check 'text, an expression, text',
 {
   my $i = expr(q["total = ${nTotal} itens"]);
@@ -77,7 +77,7 @@ check 'no escapes: a backslash is text, and ${ still interpolates',
   parts(expr(q["x \${n} y"])) eq '[x \\]<Name>[ y]'
 };
 
-# ---- what can go inside ------------------------------------------------------------
+# ---- what can go inside ------------------------------------------------------
 check 'a hash read, with the other quote: "taxa ${hCfg{\'t\'}} fim"',
 {
   my $i = expr(q["taxa ${hCfg{'t'}} fim"]);
@@ -111,7 +111,7 @@ check 'names read inside an interpolation are visible to the walk',
   names(expr(q["${cTabela} tem ${len(aCampos)} campos"])) eq 'cTabela aCampos'
 };
 
-# ---- in statements --------------------------------------------------------------
+# ---- in statements -----------------------------------------------------------
 check "in a local initializer too (xtpl leaves that one uninterpolated)",
 {
   my $src = qq[user function f(n)\n  local c := "total \$\{n\}"\nreturn c\n];
@@ -119,7 +119,7 @@ check "in a local initializer too (xtpl leaves that one uninterpolated)",
   $p.functions[0].body[0].declarators[0].init ~~ Interp
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   q["a ${} b"]              => 'an empty ${}',
   q["x ${h{"k"}} y"]        => 'the same quote inside the expression',

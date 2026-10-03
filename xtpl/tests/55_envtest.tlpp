@@ -17,7 +17,7 @@
 //
 // A tabela se chama ZXTPL e o texto ZXTPL.TXT, nomes que nao devem colidir
 // com nada. Os dois sao apagados no fim, inclusive se algo falhar no meio.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 #xtranslate ANOTE <x> => envNota(<x>)
 
@@ -515,7 +515,7 @@ user function envtest()
 envLimpa(cDir)
 return nBad
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 static function check(cNome, lOk, xVisto, nOk, nBad)
 
@@ -693,5 +693,5 @@ static function envLimpa(cDir)
   TCUnlink()
 return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

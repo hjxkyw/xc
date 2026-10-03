@@ -38,7 +38,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the shape --------------------------------------------------------------------
+# ---- the shape ---------------------------------------------------------------
 check 'filter |> map: the source, and the stages without their first argument',
 {
   my $p = stmt('  aC := aPedidos |> filter([o] o:nValor > 1000) |> map([o] o:cCodigo)').value;
@@ -63,7 +63,7 @@ check 'a qualified stage: |> pkg.util.f(1)',
   expr('a |> pkg.util.f(1)').stages[0].name eq 'pkg.util.f'
 };
 
-# ---- where the pipeline sits ---------------------------------------------------------
+# ---- where the pipeline sits -------------------------------------------------
 check 'inside an argument: len(aNums |> distinct)',
 {
   my $e = stmt('  nTotal := len(aNums |> distinct)').value;
@@ -105,7 +105,7 @@ check "over several lines, with ';'",
   $p ~~ Pipeline && stages($p) eq 'filter/1 map/1'
 };
 
-# ---- precedence ----------------------------------------------------------------
+# ---- precedence --------------------------------------------------------------
 check '|> is the loosest: a + b |> f has the sum as its source',
 {
   my $p = expr('a + b |> f');
@@ -121,7 +121,7 @@ check 'a literal as the source: {1, 2, 3} |> asum',
   expr('{1, 2, 3} |> asum').source ~~ ArrayLit
 };
 
-# ---- walking ---------------------------------------------------------------------
+# ---- walking -----------------------------------------------------------------
 check 'names read: the source and the lambda bodies; a stage name is not a read',
 {
   my @n;
@@ -129,7 +129,7 @@ check 'names read: the source and the lambda bodies; a stage name is not a read'
   @n.join(' ') eq 'aP o nLim'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   '  aOut := map(aNums, [x] x |> triplica)'    => 'a pipeline in the body of a lambda',
   '  aOut := map(aNums, {|x| x |> triplica})'  => 'a pipeline in a code block',

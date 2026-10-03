@@ -7,7 +7,7 @@
 // the value is the binding. For an array or object it is shallow: the name
 // cannot be pointed somewhere else, but the contents are still open -- the
 // same guarantee as const in JavaScript or final in Java.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testConst(aH)
 
@@ -44,7 +44,7 @@ user function testConst(aH)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Rejected at compile time:
 //
 //   nLimite := 2000            assignment

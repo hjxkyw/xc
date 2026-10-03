@@ -4,7 +4,7 @@
 // chains inside arguments and conditions, comments and continuations cutting
 // constructs in half, and a source inside a defer. Six bugs came out of
 // writing it, and each line below is one of the shapes that found one.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testTorture(hCfg, cNum, aRows, cPath, nX)
   local nT := 0
@@ -44,5 +44,5 @@ user function testTorture(hCfg, cNum, aRows, cPath, nX)
 
   return nT
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -20,7 +20,7 @@
 // inside its own compilation unit and generated files elsewhere would fail to
 // link. So every one of these is a User Function, and the names carry the u_
 // prefix that goes with it.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // xc: the most elements aRoll hands back, set with setMaxRoll. A static, so
 // per thread, as AdvPL's are.
@@ -368,7 +368,7 @@ User Function xtpl_zip(xA, xB, xC, xD, xE, xF)
   Next
 Return aRes
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Hashes.
 //
 // THashMap:List() fills an array by reference with one row per entry. The
@@ -380,7 +380,7 @@ Return aRes
 // That is an inference from an example rather than something documented,
 // which is why keys() and values() both go through here: if it turns out to
 // be the other way round, this is the only function to correct.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 User Function xtpl_pairs(oHash)
   Local aList := {}
@@ -611,14 +611,14 @@ User Function xtpl_noneof(aData, bCond)
   Next
 Return .T.
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Strings.
 //
 // Only what AdvPL does not already have. Upper, Lower, AllTrim, PadL, PadR,
 // StrTran and the rest are one-argument-first functions already, so they
 // compose with '|>' as they stand -- 'cNome |> alltrim |> upper' needs
 // nothing from here, and wrapping them would only shadow the originals.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // Splits on a separator of any length. An empty separator would loop, so it
 // returns the whole string rather than pretending.
@@ -690,7 +690,7 @@ Return Len(cWhat) <= Len(cText) .And. Right(cText, Len(cWhat)) == cWhat
 User Function xtpl_contains(cText, cWhat)
 Return cWhat $ cText
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // A queue.
 //
 // The one data structure worth adding: AdvPL arrays are already dynamic, so a
@@ -703,7 +703,7 @@ Return cWhat $ cText
 //
 // The name is taken, like the runtime verbs. A class of your own called
 // XtplQueue would collide.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 Class XtplQueue
   // PUBLIC on every one of them. Without it a method is private to the class
@@ -786,7 +786,7 @@ Return Self
 User Function xtpl_queue(nSize)
 Return XtplQueue():New(nSize)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end
 
 // xc: 'aPick(a[, n])' -- n elements of a (one by default), each from a

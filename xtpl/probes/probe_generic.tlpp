@@ -14,7 +14,7 @@
 // Aqui estao quatro variantes. Descomente UMA de cada vez e compile, para
 // descobrir se alguma aceita a forma generica. Se nenhuma aceitar, uma regra
 // por nome fica, e nao ha perda -- so mais linhas.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // (1) espaco depois do marcador
 #translate <name> ~1~0 => __stk_1_0
@@ -40,5 +40,5 @@ User Function probeGeneric()
 
 Return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

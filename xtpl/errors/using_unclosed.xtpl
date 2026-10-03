@@ -2,7 +2,7 @@
 //
 // Left alone it swallows the rest of the function and the area is never put
 // back, which is the bug the construct exists to prevent.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function usingUnclosed()
   local nT := 0
@@ -12,5 +12,5 @@ user function usingUnclosed()
 
   return nT
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

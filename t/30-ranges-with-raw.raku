@@ -41,7 +41,7 @@ sub check(Str $what, &test)
 
 sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out } }
 
-# ---- against xtpl's own output --------------------------------------------------------
+# ---- against xtpl's own output -----------------------------------------------
 # As in t/25-sources.raku: statements, lower case; hidden names by kind; xtpl's
 # slots as the variable, its subject slot as xc's hidden 'fbs'. xc also wraps
 # '%%' whole -- '((fv % 3) == 0)', where xtpl writes '(fv % 3) == 0' -- since
@@ -76,7 +76,7 @@ for <57_range_source 20_object 26_raw> -> $t
   };
 }
 
-# ---- ranges ---------------------------------------------------------------------------------
+# ---- ranges ------------------------------------------------------------------
 check "a range test beside another rewrite in one condition: both rewritten",
 {
   my $src = qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(a, b, n)\n  if a in b .and. n in 1..100\n    n := 1\n  endif\nreturn n\n];
@@ -110,7 +110,7 @@ check 'a range anywhere else does not parse',
   !compile("user function f()\n  local a := len(1..10)\nreturn a\n").defined
 };
 
-# ---- with object ------------------------------------------------------------------------
+# ---- with object -------------------------------------------------------------
 lowers "'with object': the subject once, ':x' its 'x', the 'end with' line gone",
   "  with object o:GetModel(\"M\")   // the model\n    :SetValue(\"A\", 1)\n    x := :GetValue(\"B\") + :nTam\n    :cNome := \"z\"\n  end with",
   "  fbs_0_0 := o:GetModel(\"M\")  // the model\n    fbs_0_0:SetValue(\"A\", 1)\n    x := fbs_0_0:GetValue(\"B\") + fbs_0_0:nTam\n    fbs_0_0:cNome := \"z\"";
@@ -127,7 +127,7 @@ lowers "':x' followed by more, and inside other rewrites",
   "  with object o\n    x := :GetModel(\"M\"):GetValue(1)\n    n := 1 if :lOk\n  end with",
   "  fbs_0_0 := o\n    x := fbs_0_0:GetModel(\"M\"):GetValue(1)\n    If fbs_0_0:lOk\n      n := 1\n    EndIf";
 
-# ---- raw -----------------------------------------------------------------------------------
+# ---- raw ---------------------------------------------------------------------
 lowers 'a raw line, as written',
   "  raw @ 10, 5 SAY \"Total\" GET x PICTURE \"@E 999\"",
   "  @ 10, 5 SAY \"Total\" GET x PICTURE \"@E 999\"";
@@ -150,7 +150,7 @@ check "a comment in a raw line is left as it is",
   body-of("  raw ANOTE x   // \"\$\{x\}\"").ends-with("ANOTE x   // \"\$\{x\}\"")
 };
 
-# ---- the output ---------------------------------------------------------------------------
+# ---- the output --------------------------------------------------------------
 check 'the output compiles to itself (without raw: raw text is TL++ only after the preprocessor)',
 {
   my $once = compile(slurp('xtpl/tests/20_object.xtpl') ~ "\nuser function g()\n  return 1..5 |> asum\n");

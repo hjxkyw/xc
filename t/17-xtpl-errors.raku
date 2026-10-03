@@ -65,7 +65,7 @@ sub check(Str $what, &test)
 sub parses(Str $src) { XC::Grammar.parse($src).defined }
 sub source(Str $name) { slurp("xtpl/errors/$name.xtpl") }
 
-# ---- syntax: refused, and the correction parses ------------------------------------
+# ---- syntax: refused, and the correction parses ------------------------------
 for %syntax.keys.sort -> $name
 {
   my $src = source($name);
@@ -81,7 +81,7 @@ for %syntax.keys.sort -> $name
   check "syntax   $name: corrected, it parses", { $replaced && parses($fixed) };
 }
 
-# ---- analysis: the grammar accepts it ------------------------------------------------
+# ---- analysis: the grammar accepts it ----------------------------------------
 # The grammar accepts each; XC::Check refuses it with xtpl's message, on xtpl's
 # line, and with nothing else.
 for @analysis -> $name
@@ -95,7 +95,7 @@ for @analysis -> $name
   };
 }
 
-# ---- warned instead ----------------------------------------------------------------
+# ---- warned instead ----------------------------------------------------------
 for %warned.keys.sort -> $name
 {
   check "warned   $name: a warning on xtpl's line, and no error", {
@@ -108,19 +108,19 @@ for %warned.keys.sort -> $name
   };
 }
 
-# ---- decided ---------------------------------------------------------------------
+# ---- decided -----------------------------------------------------------------
 for @decided -> $name
 {
   check "decided  $name: accepted on purpose", { parses(source($name)) };
 }
 
-# ---- pending -----------------------------------------------------------------------
+# ---- pending -----------------------------------------------------------------
 for %pending.keys.sort -> $name
 {
   say "  skip   pending $name: uses %pending{$name}, which xc cannot read yet";
 }
 
-# ---- what xtpl decides, case by case ---------------------------------------------
+# ---- what xtpl decides, case by case -----------------------------------------
 # Each line was run on xtpl itself ('--check'), and its verdict is what is
 # expected here. Several are not obvious: 'else' opens no prologue, 'begin
 # sequence' is not a scope, and the generated-name shape is only refused at
@@ -173,7 +173,7 @@ check 'xc accepts what xtpl refuses: a private, and a public, after a statement'
 };
 check 'xtpl accepts: generated as a parameter', {  parses("user function f(fo_0_0)\nreturn 1\n") };
 
-# ---- every file is in a group ---------------------------------------------------
+# ---- every file is in a group ------------------------------------------------
 my @all = dir('xtpl/errors').grep(*.extension eq 'xtpl').map(*.basename.subst('.xtpl', '')).sort;
 my @known = (|%syntax.keys, |@analysis, |%warned.keys, |@decided, |%pending.keys);
 my @loose = @all.grep({ $_ !(elem) @known });

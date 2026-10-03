@@ -3,7 +3,7 @@
 // '=>' has exactly one rule: the value on the left becomes the first
 // argument of the stage on the right. It knows nothing about the runtime,
 // so it composes runtime functions and your own helpers identically.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testFeed(aOrders, aNums)
   local aCodes := {}
@@ -52,5 +52,5 @@ user function testFeed(aOrders, aNums)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

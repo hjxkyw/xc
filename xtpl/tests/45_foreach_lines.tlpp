@@ -14,7 +14,7 @@
 //
 // Closing the file is an exit-path job, like restoring a work area: an early
 // return has to close it too.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testForeachLines(cPath)
 
@@ -60,5 +60,5 @@ user function testForeachLines(cPath)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

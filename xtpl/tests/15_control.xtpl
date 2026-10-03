@@ -1,5 +1,5 @@
 // 15_control.xtpl -- constructs that lower to plain AdvPL, no runtime needed
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testControl(oUser, nLimit, aItens)
   local nTotal := 0
@@ -72,5 +72,5 @@ user function testControl(oUser, nLimit, aItens)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

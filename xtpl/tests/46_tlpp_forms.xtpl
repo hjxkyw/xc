@@ -10,7 +10,7 @@
 //
 // Um namespace pontuado se distingue de 'nA.And.nB' — lexicamente idênticos —
 // por o caminho inteiro terminar em uma chamada.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function tlppForms(nX)
   local oTool as object
@@ -33,5 +33,5 @@ static function auxiliar()
 user function tambem()
   return auxiliar()
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -4,7 +4,7 @@
 // at the same level ends it; a comma inside braces does not. The scanner
 // these replace looked ahead by position, so 'f(cCod in aCodes, nX)' took the
 // sibling argument into the collection and emitted a three-argument call.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testOperandSpan(aCodes, cCod, nValor, oUser, aOut)
   local lHit := .F.
@@ -35,5 +35,5 @@ user function testOperandSpan(aCodes, cCod, nValor, oUser, aOut)
 
   return nR
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

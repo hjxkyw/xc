@@ -28,7 +28,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- positions ---------------------------------------------------------------------
+# ---- positions ---------------------------------------------------------------
 grammar Marker { token TOP { .*? <m> .* }; token m { 'XX' } }
 sub at(Str $s) { my $m = Marker.parse($s); my $p = XC::Source.new(text => $s); ($p.char($m<m>.from), $p.line($m<m>.from)) }
 
@@ -48,7 +48,7 @@ check 'the line of every statement holds its text, with accents and CRLF',
   $p.functions[0].body.map({ @l[.line - 1].contains($src.substr(.src-from, 6)) }).all.so
 };
 
-# ---- the comment splitter ------------------------------------------------------------
+# ---- the comment splitter ----------------------------------------------------
 check 'code and a trailing comment',
 {
   split-comment('x := 1   // note') eqv ('x := 1', '// note')
@@ -62,7 +62,7 @@ check 'a block comment in the middle joins the trailing one',
   split-comment('x := /* mid */ 1 // end') eqv ('x :=   1', '// mid // end')
 };
 
-# ---- identity: plain TL++ comes out as it went in ---------------------------------------
+# ---- identity: plain TL++ comes out as it went in ----------------------------
 my $plain = with-includes(q:to/END/);
 // a header comment
 /* a block comment
@@ -98,7 +98,7 @@ check 'only the missing include is added',
   compile($src) eq qq[#include "tlpp-core.th"\n\n$src]
 };
 
-# ---- lowering ------------------------------------------------------------------------
+# ---- lowering ----------------------------------------------------------------
 sub lowers(Str $what, Str $in, Str $out)
 {
   check $what, { compile(with-includes($in)) eq with-includes($out) };
@@ -150,7 +150,7 @@ check 'the output of a compile compiles to itself',
   compile($once) eq $once
 };
 
-# ---- what is not lowered yet ------------------------------------------------------------
+# ---- what is not lowered yet -------------------------------------------------
 check 'every construct not lowered yet is reported with its line, and nothing is emitted',
 {
   my $src = "user function f(a, h)\n  static p := lines(\"x.txt\") |> count\n  for r in rows(\"SA1\")\n  next\n  while (lines(\"y.txt\") |> count) > a\n  enddo\nreturn a\n";
@@ -161,7 +161,7 @@ check 'every construct not lowered yet is reported with its line, and nothing is
        eq "2 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own), 3 'for ... in' over rows(), 5 a chain from lines() where it cannot run as a loop first (it goes in 'x := ...', 'return ...' or a statement of its own)"
 };
 
-# ---- the driver ------------------------------------------------------------------------
+# ---- the driver --------------------------------------------------------------
 my $dir = $*TMPDIR.add("xc-test-$*PID");
 mkdir $dir;
 sub xc(*@args)

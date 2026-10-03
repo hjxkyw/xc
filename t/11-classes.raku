@@ -32,7 +32,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the reference file (xtpl's 48_real_shapes) ---------------------------------
+# ---- the reference file (xtpl's 48_real_shapes) ------------------------------
 my $ref = q:to/END/;
 class MinhaTool
   public method process(jPayLoad as json) as json
@@ -66,7 +66,7 @@ check '48: the implementation -- class, return type, and the body',
     && $m.body.grep(* ~~ ReturnStmt) == 1
 };
 
-# ---- the Class ... EndClass block ---------------------------------------------------
+# ---- the Class ... EndClass block --------------------------------------------
 my $block = q:to/END/;
 Class Fila From Base
   Public Data aBuf as array
@@ -102,7 +102,7 @@ check 'a class with no From and no members',
   $c.name eq 'Vazia' && !$c.supers && !$c.members && !$c.methods
 };
 
-# ---- '::' -- access to the object itself --------------------------------------------
+# ---- '::' -- access to the object itself -------------------------------------
 check '::aBuf is a Member whose base is the object itself',
 {
   my $e = expr('::aBuf');
@@ -138,7 +138,7 @@ check 'Self is still an ordinary name, and ::x uses the object without a variabl
   expr('Self') ~~ Name && !expr('::x').base.isa(Name)
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   "class C\n  data x"                          => 'class without endclass',
   "method f(x) class"                          => 'implementation without the class name',

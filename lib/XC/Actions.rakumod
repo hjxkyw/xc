@@ -58,7 +58,7 @@ sub joined(Binary $b --> Binary)
   $b
 }
 
-# ---- the file -------------------------------------------------------------------
+# ---- the file ----------------------------------------------------------------
 method TOP($/)
 {
   # 'Str', not untyped: with no namespace it stays Str -- undefined, of the type
@@ -150,7 +150,7 @@ method param($/)
   );
 }
 
-# ---- TL++: classes --------------------------------------------------------------
+# ---- TL++: classes -----------------------------------------------------------
 method classdecl($/)
 {
   my (@members, @methods);
@@ -228,7 +228,7 @@ method annotation($/)
   );
 }
 
-# ---- statements -----------------------------------------------------------------
+# ---- statements --------------------------------------------------------------
 method body($/)       { make $<statement>.map(*.made).list }
 method funcbody($/)   { make $<statement>.map(*.made).list }
 method closedbody($/) { make $<statement>.map(*.made).list }
@@ -481,7 +481,7 @@ method seqst($/)
   );
 }
 
-# ---- declarations ---------------------------------------------------------------
+# ---- declarations ------------------------------------------------------------
 method declaration($/)
 {
   make Declaration.new(
@@ -510,7 +510,7 @@ method !make-declarator($/)
 method declarator($/) { make self!make-declarator($/) }
 method hdrdecl($/)    { make self!make-declarator($/) }
 
-# ---- expressions: down the precedence -------------------------------------------
+# ---- expressions: down the precedence ----------------------------------------
 #
 # Each level with a single child passes the child on. An 'orexpr' that is just
 # an 'andexpr' is not an 'or' of anything, and must not become an 'or' node.
@@ -812,7 +812,7 @@ method string($/)
     !! Literal.new(type => 'Character', text => ~$/);
 }
 
-# ---- helpers --------------------------------------------------------------------
+# ---- helpers -----------------------------------------------------------------
 
 
 # The trailers, in order, over a base.

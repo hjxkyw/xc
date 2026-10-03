@@ -46,7 +46,7 @@ sub warns(Str $what, Str $lines, *@warnings)
   check "warns: $what", { my %r = in-function($lines); !%r<errors> && %r<warnings> eqv @warnings.List };
 }
 
-# ---- declared ------------------------------------------------------------------------------
+# ---- declared ----------------------------------------------------------------
 passes 'a parameter, a local, a static, a public',
   "  local nL := a\n  static nS := 0\n  public nP := 1\n  nL := nS + nP\n  a := nL";
 passes 'a private, even in a function the file calls: it is dynamic',
@@ -84,7 +84,7 @@ passes 'raw text is not read',
 passes "'recover using' writes a declared variable",
   "  local oErr\n  begin sequence\n    a := 1\n  recover using oErr\n    a := oErr\n  end sequence";
 
-# ---- not declared: a warning --------------------------------------------------------------
+# ---- not declared: a warning -------------------------------------------------
 # xtpl refuses these; xc warns, so plain TL++ that uses the system's globals
 # compiles unchanged. xtpl's words when it only warns (its legacy mode).
 warns 'a name read that nothing declares',
@@ -111,7 +111,7 @@ check "refuses: a name used after its block stays an error -- it is xtpl's block
     eqv ("5: 'nT' is out of scope here (block local declared on line 3).",)
 };
 
-# ---- const, contained, external ---------------------------------------------------------------
+# ---- const, contained, external ----------------------------------------------
 refuses "a <const> assigned inside a lambda",
   "  local nL <const> := 1\n  a := map(a, [x] nL := x)", "3: 'nL' is <const> (declared on line 2) and cannot be assigned.";
 refuses "a <const> as a plain 'for' counter",
@@ -128,7 +128,7 @@ check "refuses: an external written",
     eqv ("3: 'dDataBase' is external (line 1) and cannot be assigned.",)
 };
 
-# ---- calls to the file's functions ---------------------------------------------------------
+# ---- calls to the file's functions -------------------------------------------
 my $two = "static function s(x, y)\nreturn x\nuser function u(x)\nreturn x\n";
 check 'passes: the right forms, and fewer arguments than parameters',
 {
@@ -149,7 +149,7 @@ check 'passes: an omitted argument does not count',
   !problems($two ~ "user function f()\n  local a := s(1, , )\nreturn a\n")
 };
 
-# ---- chains --------------------------------------------------------------------------------
+# ---- chains ------------------------------------------------------------------
 refuses "a variable declared 'as numeric' as a chain's source",
   "  local nN as numeric := 0\n  a := nN |> asum",
   "3: nN is a single value -- it is declared 'as numeric', and a chain walks a collection. Write \{nN\} for a one-element array, or 'lo..hi' for a range.";
@@ -158,7 +158,7 @@ passes 'a parameter as a chain source: it says nothing about what it holds',
 passes "rows() and lines() where a source may stand alone",
   "  local x := lines(\"a.txt\")\n  a := lines(\"b.txt\")\n  a := x\n  for cL in lines(\"c.txt\")\n  next";
 
-# ---- xtpl's warnings: never read, returns, areas ---------------------------------------------
+# ---- xtpl's warnings: never read, returns, areas -----------------------------
 warns 'a variable assigned but never read, on its declaration',
   "  local nX := 0\n  nX := a", "2: 'nX' is assigned but never read";
 warns 'a variable declared and never used',
@@ -208,7 +208,7 @@ warns 'used before the line that opens it',
 passes 'an area held in a variable is not checked',
   "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
 
-# ---- fusion: xtpl's warnings --------------------------------------------------------------------
+# ---- fusion: xtpl's warnings -------------------------------------------------
 # t/31 has every one of them in xtpl's corpus; these are the edges.
 my $sort = "this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array";
 warns "a verb that needs the whole collection stops the fusing",
@@ -234,7 +234,7 @@ warns "the whole left side of '|>' is fed in: a comparison there",
 passes "a comparison in brackets, or an alias's '->': not the left side's",
   "  DbSelectArea(\"SA1\")\n  a := foo(a > 1) |> alltrim\n  a := SA1->A1_NOME |> alltrim";
 
-# ---- a private or public is a statement: the locals come first ---------------------------------
+# ---- a private or public is a statement: the locals come first ---------------
 refuses "a 'local' after a 'private'",
   "  private nP := 1\n  local nL := 2\n  a := nP + nL",
   "3: 'local' after 'private' (line 2): a private or a public is a statement, and every local and static comes before the first statement.";
@@ -246,12 +246,12 @@ passes "a private and a public after a statement: statements, where statements g
 passes "locals and statics, then privates and publics",
   "  local nL := 1\n  static nS := 2\n  private nP := 3\n  public nU := 4\n  a := nL + nS + nP + nU";
 
-# ---- decided: not supported -------------------------------------------------------------------
+# ---- decided: not supported --------------------------------------------------
 refuses "'for ... in' over rows(): a loop body can move the table's position",
   "  for r in rows(\"SA1\")\n    a := r:A1_COD\n  next",
   "2: 'for ... in' over rows() is not supported: a loop body can move the table's position, and 'loop' would skip the advance. Walk the area with a chain -- rows(\"SA1\") |> tap([r] ...) -- or write the While loop yourself.";
 
-# ---- the driver ----------------------------------------------------------------------------
+# ---- the driver --------------------------------------------------------------
 check 'bin/xc prints a warning with its file and line, and compiles',
 {
   my $dir = $*TMPDIR.add("xc-check-$*PID");

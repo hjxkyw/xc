@@ -28,7 +28,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- for x in ... -----------------------------------------------------------------
+# ---- for x in ... ------------------------------------------------------------
 check 'for oItem in aItems: element, no index, source and body',
 {
   my $f = body("  for oItem in aItems\n    nT := nT + oItem:nValue\n  next")[0];
@@ -71,7 +71,7 @@ check 'the classic for is still a ForStmt',
   body("  for i := 1 to 3\n    conout(i)\n  next")[0] ~~ ForStmt
 };
 
-# ---- for n times ---------------------------------------------------------------
+# ---- for n times -------------------------------------------------------------
 check 'for 3 times: a literal count',
 {
   my $f = body("  for 3 times\n    conout(1)\n  next")[0];
@@ -94,7 +94,7 @@ check 'a trailing comment on the header',
   body("  for 3 times                // a loop header\n    conout(1)\n  next")[0] ~~ ForTimesStmt
 };
 
-# ---- walking ---------------------------------------------------------------------
+# ---- walking -----------------------------------------------------------------
 # (the helper adds the 'return 1' that closes the function)
 check 'walk goes into both bodies; exprs-of gives the source and the count',
 {
@@ -106,7 +106,7 @@ check 'walk goes into both bodies; exprs-of gives the source and the count',
   @seen.join(' ') eq 'ForInStmt CallStmt ForTimesStmt CallStmt ReturnStmt' && @n.join(' ') eq 'aSrc nCnt'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 # Each verdict is xtpl's, except 'enddo': xtpl takes it and would emit
 # 'For ... EndDo', which is not AdvPL.
 my @refuse =

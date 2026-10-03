@@ -60,7 +60,7 @@ User Function FechamentoMao(cFil, aAcoes)
   Local nMeta   := 0
   Local nX      := 0
 
-  // ---- secao 1: vendas -------------------------------------------------------
+  // ---- secao 1: vendas ------------------------------------------------------
   If !Empty(cFil)
     aVendas := U_BuscaVendas(cFil)
     nSoma1  := 0
@@ -71,7 +71,7 @@ User Function FechamentoMao(cFil, aAcoes)
     cResumo += "vendas: " + cValToChar(nSoma1) + CRLF
   EndIf
 
-  // ---- secao 2: custos -------------------------------------------------------
+  // ---- secao 2: custos ------------------------------------------------------
   If !Empty(cFil)
     aCustos := U_BuscaCustos(cFil)
     nSoma2  := 0
@@ -82,13 +82,13 @@ User Function FechamentoMao(cFil, aAcoes)
     cResumo += "custos: " + cValToChar(nSoma2) + CRLF
   EndIf
 
-  // ---- secao 3 ---------------------------------------------------------------
+  // ---- secao 3 --------------------------------------------------------------
   If nTotal > 0
     aLinha := {cFil, nTotal}
     AAdd(aAcoes, aLinha)
   EndIf
 
-  // ---- secao 4 ---------------------------------------------------------------
+  // ---- secao 4 --------------------------------------------------------------
   // nMeta e capturada pelo bloco. Aqui isso e seguro porque nMeta nao e
   // reusada depois -- mas nada no codigo diz isso, e nada impede que passe a
   // ser na proxima alteracao.
@@ -104,5 +104,5 @@ User Function FechamentoMao(cFil, aAcoes)
 
 Return cResumo
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

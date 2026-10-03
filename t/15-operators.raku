@@ -41,7 +41,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- hash -----------------------------------------------------------------------
+# ---- hash --------------------------------------------------------------------
 check 'hCfg{"taxa"}: a HashIndex, base and key',
 {
   my $e = expr('hCfg{"taxa"}');
@@ -68,7 +68,7 @@ check 'has, and with .and.: (h has "a") .and. (h has "b")',
   $e.op eq '.and.' && $e.left.op eq 'has' && $e.right.op eq 'has'
 };
 
-# ---- in and lo..hi -------------------------------------------------------------------
+# ---- in and lo..hi -----------------------------------------------------------
 check 'cCod in aCodigos',
 {
   my $e = expr('cCod in aCodigos');
@@ -108,7 +108,7 @@ check 'index and inList are names, not the in operator',
   expr('index') ~~ Name && expr('f(inList)').args[0].name eq 'inList'
 };
 
-# ---- %% ----------------------------------------------------------------------------
+# ---- %% ----------------------------------------------------------------------
 check '(nX * 2) %% 2',
 {
   my $e = expr('(nX * 2) %% 2');
@@ -124,7 +124,7 @@ check "AdvPL's % is still %",
   expr('5 % 2').op eq '%'
 };
 
-# ---- ?: and ?. -------------------------------------------------------------------------
+# ---- ?: and ?. ---------------------------------------------------------------
 check 'a ?: b ?: c chains to the right',
 {
   my $e = expr('a ?: b ?: c');
@@ -169,7 +169,7 @@ check 'oUser?.cCity ?: "x"',
   $e.op eq '?:' && $e.left ~~ SafeMember
 };
 
-# ---- ?= -----------------------------------------------------------------------------
+# ---- ?= ----------------------------------------------------------------------
 check 'cCache ?= "vazio": an Assignment with op ?=',
 {
   my $s = stmt('cCache ?= "vazio"');
@@ -181,7 +181,7 @@ check '?= with a modifier',
   $s ~~ Modified && $s.stmt.op eq '?='
 };
 
-# ---- attributes ---------------------------------------------------------------------------
+# ---- attributes --------------------------------------------------------------
 check 'local v1 <const, contained> := 0, v2 := 1',
 {
   my $d = stmt('local v1 <const, contained> := 0, v2 := 1');
@@ -202,7 +202,7 @@ check 'an attribute with a type: local n <const> := 1 as N',
   $d.attributes.join eq 'const' && $d.declared eq 'Numeric'
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   'x := hCfg {"taxa"}'        => 'a space between the name and {',
   'x := 1..10'                => 'a loose interval',

@@ -5,7 +5,7 @@
 //
 // Each pass was right on its own. These are the cases where an earlier pass
 // changed the line out from under a later one.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testCrossPass(hCfg, aNums, lFlag, nX)
 
@@ -43,5 +43,5 @@ user function testCrossPass(hCfg, aNums, lFlag, nX)
 
   return 0
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

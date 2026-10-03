@@ -10,7 +10,7 @@
 //
 // Declared variables are still renamed inside raw, so block locals work.
 // Every other word is left alone instead of being reported as undeclared.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 #xtranslate MOSTRE <x> QUANDO <c> => If <c> ; conout(<x>) ; EndIf
 #xtranslate ANOTE <x> => conout("nota: " + <x>)
@@ -50,5 +50,5 @@ user function testRaw(oDlg)
 
   return cNome
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

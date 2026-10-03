@@ -7,7 +7,7 @@
 //
 // Unlike rows(), the element here IS a value -- the line -- so a lambda
 // parameter binds to it in the ordinary way.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testLines(cPath)
   local aTop := {}
@@ -29,5 +29,5 @@ user function testLines(cPath)
 
   return nBytes + len(aTop) + len(aAll) + len(aSorted)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

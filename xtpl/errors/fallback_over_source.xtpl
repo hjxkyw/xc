@@ -2,7 +2,7 @@
 //
 // A source has no unfused form, so there is no way to express the walk as an
 // expression for the guard to hold.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function fallbackOverSource()
   local nTotal := 0
@@ -11,5 +11,5 @@ user function fallbackOverSource()
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

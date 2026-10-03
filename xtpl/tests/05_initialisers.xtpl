@@ -6,7 +6,7 @@
 // its verb as an undeclared function, '?.' reported the member, 'fallback'
 // reported itself, and 'h{key}', '?:', 'in' and '%%' were emitted with their
 // own syntax intact. They all go through the same passes now.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
   local nA := hCfg{"id"}                  // a hash read lifts a Get above it
@@ -45,5 +45,5 @@ user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
 
   return nT
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

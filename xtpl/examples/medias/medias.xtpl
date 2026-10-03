@@ -27,7 +27,7 @@
 // A validacao usa a classe Regex do TLPP. 'matches' e estatico e exige a
 // string INTEIRA -- verificado rodando, porque o exemplo do TDN diz que
 // matches('^(abc)*$', 'abc123') e .T. e na verdade e .F.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 using namespace tlpp.regex
 
@@ -48,5 +48,5 @@ user function medias(cArquivo)
 static function ehNumero(cTexto)
   return Regex():matches("^-?[0-9]+(\.[0-9]+)?$", cTexto)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

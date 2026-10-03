@@ -38,7 +38,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- digit separators -------------------------------------------------------------------------
+# ---- digit separators --------------------------------------------------------
 check "taken out: TL++ has none -- in the whole part and the decimals",
 {
   line-of("  n := 12'345'678 + 1'234.567'8") eq "  n := 12345678 + 1234.5678"
@@ -70,7 +70,7 @@ check "a separator is not a quote to the comment finder: the space before '+' st
 };
 check "the checks see an ordinary number", { clean("  n := 1'000 * 2") };
 
-# ---- aPick, aRoll, setMaxRoll ------------------------------------------------------------------
+# ---- aPick, aRoll, setMaxRoll ------------------------------------------------
 check "calls to the runtime, with or without a count",
 {
   line-of("  a := aPick(a)") eq "  a := u_xtpl_apick(a)" && line-of("  a := aPick(a, 3)") eq "  a := u_xtpl_apick(a, 3)"

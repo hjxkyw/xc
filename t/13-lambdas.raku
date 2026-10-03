@@ -43,7 +43,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- the shape --------------------------------------------------------------------
+# ---- the shape ---------------------------------------------------------------
 check 'map(aOrders, [o] o:nValue): the lambda is the second argument',
 {
   my $e = expr('map(aOrders, [o] o:nValue)');
@@ -97,7 +97,7 @@ check 'names read in the body: the parameter and the outer ones',
   names(expr('filter(aP, [o] o:nValor > nLimite)')) eq 'aP o nLimite'
 };
 
-# ---- '[' as an index, and as a lambda -------------------------------------------
+# ---- '[' as an index, and as a lambda ----------------------------------------
 check 'a[i] is still an index',
 {
   expr('a[i]') ~~ Index
@@ -119,7 +119,7 @@ check "the head on one line, the body on the next, with ';'",
   $l ~~ Lambda && $l.params.join(',') eq 'cA,cB' && $l.body[0] ~~ Binary
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   'map(a, [] x)'                    => 'no name',
   'map(a, [a, b, c, d, e, f, g] a)' => 'seven names',

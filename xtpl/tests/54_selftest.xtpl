@@ -14,7 +14,7 @@
 // Tudo aqui e computacao pura de proposito. Nada que dependa de area de
 // trabalho, arquivo ou tela entra, porque o objetivo e uma resposta certa ou
 // errada, nao um ambiente.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function selftest()
   local nOk := 0
@@ -196,7 +196,7 @@ user function selftest()
 
 return nBad
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 static function check(cNome, lOk, xVisto, nOk, nBad)
   if lOk
@@ -218,5 +218,5 @@ static function defers()
 
 return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

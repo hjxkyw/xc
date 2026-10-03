@@ -33,7 +33,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- for local ------------------------------------------------------------------
+# ---- for local ---------------------------------------------------------------
 check 'for local i: var-local set, and the variable is i',
 {
   my $f = body("  for local i := 1 to 3\n  next")[0];
@@ -54,7 +54,7 @@ check 'for localVar: a variable that only starts with "local"',
   $f ~~ ForStmt && $f.var eq 'localVar' && !$f.var-local
 };
 
-# ---- if local ..., cond ----------------------------------------------------------
+# ---- if local ..., cond ------------------------------------------------------
 check 'if local x := f(), cond: a declarator in the header, then the condition',
 {
   my $s = body("  if local x := f(), x > 0\n    y()\n  endif")[0];
@@ -81,7 +81,7 @@ check 'if local with a type on the declarator',
   $s.header-decl.declared eq 'Numeric'
 };
 
-# ---- while local ..., cond -------------------------------------------------------
+# ---- while local ..., cond ---------------------------------------------------
 check 'while local x := f(), cond',
 {
   my $w = body("  while local x := prox(), x != Nil\n    usa(x)\n  enddo")[0];
@@ -93,7 +93,7 @@ check 'while without local: header-decl undefined',
   !body("  while x < 10\n  enddo")[0].header-decl.defined
 };
 
-# ---- do case with ----------------------------------------------------------------
+# ---- do case with ------------------------------------------------------------
 check 'do case with local nS := f(): the subject is a declarator',
 {
   my $c = body("  do case with local nS := calc(n)\n  case nS == 1\n    a()\n  endcase")[0];
@@ -119,7 +119,7 @@ check 'do case with: the subject is in exprs-of',
   @names.sort.join(' ') eq 'nA nB nS'   # 'soma' is a call name, not a read
 };
 
-# ---- what has to be refused -----------------------------------------------------------
+# ---- what has to be refused --------------------------------------------------
 my @refuse =
   "  if local x := f()\n  endif"          => 'if local without the condition',
   "  if local x, y > 0\n  endif"          => 'if local without an initializer',
