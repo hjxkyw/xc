@@ -93,7 +93,7 @@ user function consulta(cFilialDe, cFilialAte)
   Local fo_1_0       // o resultado da cadeia
   Local frc_1_0      // o registro em que a area estava antes do percurso
   Local fv_1_0       // o elemento em percurso
-  Local s_2_cFilial  // o local de bloco 'cFilial'
+  Local s_2_cFil  // o local de bloco 'cFil'
   Local s_2_each     // o local de bloco 'each'
   Local s_2_eachi    // o local de bloco 'eachi'
 
@@ -122,15 +122,15 @@ user function consulta(cFilialDe, cFilialAte)
 
     s_2_each := filiaisEntre(cFilialDe, cFilialAte)
     For s_2_eachi := 1 To Len(s_2_each)
-      s_2_cFilial := s_2_each[s_2_eachi]
+      s_2_cFil := s_2_each[s_2_eachi]
 
-      SE1->(DbSeek(s_2_cFilial))
+      SE1->(DbSeek(s_2_cFil))
 
       frc_1_0 := SE1->(RecNo())
-      SE1->(DbSeek(s_2_cFilial))
+      SE1->(DbSeek(s_2_cFil))
       fo_1_0 := 0
       While !SE1->(Eof())
-        If !(SE1->E1_FILIAL == s_2_cFilial)
+        If !(SE1->E1_FILIAL == s_2_cFil)
           Exit
         EndIf
         If SE1->E1_SALDO > 0
@@ -144,7 +144,7 @@ user function consulta(cFilialDe, cFilialAte)
       SE1->(DbGoto(frc_1_0))
       nTotal := fo_1_0
 
-      aadd(aResumo, {s_2_cFilial, nTotal})
+      aadd(aResumo, {s_2_cFil, nTotal})
 
     next
 

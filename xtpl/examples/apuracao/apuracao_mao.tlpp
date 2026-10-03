@@ -48,7 +48,7 @@
 //
 // ============================================================================
 
-User Function ApuracaoMao(cFilial, dCorte)
+User Function ApuracaoMao(cFil, dCorte)
 
   Local nErro      := 0
   Local nTotal     := 0
@@ -79,7 +79,7 @@ User Function ApuracaoMao(cFilial, dCorte)
   EndIf
 
   // ---- saida 4: as tres coisas ----------------------------------------------
-  nTotal := U_PopulaApuracao(cFilial, dCorte)
+  nTotal := U_PopulaApuracao(cFil, dCorte)
 
   If nTotal == 0
     ZAPUR->(DbCloseArea())
@@ -105,7 +105,7 @@ User Function ApuracaoMao(cFilial, dCorte)
     DbSelectArea(cAreaAnt)
   EndIf
 
-  ConOut("apuracao " + cFilial + ": " + cValToChar(nTotal))
+  ConOut("apuracao " + cFil + ": " + cValToChar(nTotal))
 
   // ---- saida 5: as tres, pela terceira vez -----------------------------------
   ZAPUR->(DbCloseArea())

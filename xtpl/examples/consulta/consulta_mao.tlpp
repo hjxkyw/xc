@@ -63,7 +63,7 @@ User Function ConsultaMao(cFilialDe, cFilialAte)
   Local cAreaAnt := ""
   Local nOrdAnt  := 0
   Local nRecAnt  := 0
-  Local cFilial  := ""
+  Local cFil  := ""
   Local nX       := 0
 
   // ---- a tela: identica -----------------------------------------------------
@@ -90,12 +90,12 @@ User Function ConsultaMao(cFilialDe, cFilialAte)
 
   For nX := 1 To Len(aFiliais)
 
-    cFilial := aFiliais[nX]
+    cFil := aFiliais[nX]
     nTotal  := 0
 
-    SE1->(DbSeek(cFilial))
+    SE1->(DbSeek(cFil))
     While !SE1->(Eof())
-      If SE1->E1_FILIAL != cFilial
+      If SE1->E1_FILIAL != cFil
         Exit
       EndIf
       If SE1->E1_SALDO > 0 .And. Date() - SE1->E1_VENCTO <= nDias
@@ -104,7 +104,7 @@ User Function ConsultaMao(cFilialDe, cFilialAte)
       SE1->(DbSkip())
     EndDo
 
-    AAdd(aResumo, {cFilial, nTotal})
+    AAdd(aResumo, {cFil, nTotal})
 
   Next
 

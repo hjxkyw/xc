@@ -77,13 +77,13 @@
 
 external CRLF                      // vem de totvs.ch
 
-user function fechamento(cFilial, aAcoes)
+user function fechamento(cFil, aAcoes)
   local nTotal := 0
   local cResumo := ""
 
   // ---- secao 1: vendas ---------------------------------------------------
-  if !empty(cFilial)
-    local aVendas := buscaVendas(cFilial)
+  if !empty(cFil)
+    local aVendas := buscaVendas(cFil)
     local nSoma := aVendas |> map([oV] oV:nValor) |> asum
 
     nTotal := nTotal + nSoma
@@ -91,8 +91,8 @@ user function fechamento(cFilial, aAcoes)
   endif
 
   // ---- secao 2: custos. Mesmo slot da secao 1 ----------------------------
-  if !empty(cFilial)
-    local aCustos := buscaCustos(cFilial)
+  if !empty(cFil)
+    local aCustos := buscaCustos(cFil)
     local nSoma := aCustos |> map([oC] oC:nValor) |> asum
 
     nTotal := nTotal - nSoma
@@ -101,7 +101,7 @@ user function fechamento(cFilial, aAcoes)
 
   // ---- secao 3: entregue a uma funcao, e ainda divide o slot -------------
   if nTotal > 0
-    local aLinha := {cFilial, nTotal}
+    local aLinha := {cFil, nTotal}
 
     // aadd entrega o array. Quem recebeu ficou com ele, e reaproveitar o
     // nome depois nao alcanca o que foi entregue.
@@ -110,15 +110,15 @@ user function fechamento(cFilial, aAcoes)
 
   // ---- secao 4: capturada por um bloco, e ai NAO divide -------------------
   if nTotal > 0
-    local nMeta := calculaMeta(cFilial)
+    local nMeta := calculaMeta(cFil)
 
     // O bloco le nMeta quando rodar, la na frente. Por isso nMeta ganha
     // armazenamento proprio: se dividisse, leria o que a proxima secao
     // tivesse posto ali.
-    aadd(aAcoes, {|| avisaMeta(cFilial, nMeta)})
+    aadd(aAcoes, {|| avisaMeta(cFil, nMeta)})
   endif
 
-  xconout("fechamento ", cFilial, ": ", nTotal)
+  xconout("fechamento ", cFil, ": ", nTotal)
 
   return cResumo
 

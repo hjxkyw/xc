@@ -84,7 +84,7 @@
 // Compare com apuracao_mao.tlpp.
 // ============================================================================
 
-user function apuracao(cFilial, dCorte)
+user function apuracao(cFil, dCorte)
 
   Local nErro := 0
   Local nTotal := 0
@@ -126,7 +126,7 @@ user function apuracao(cFilial, dCorte)
 
   // ---- daqui, tres coisas registradas e nenhuma saida para lembrar ---------
 
-  nTotal := populaApuracao(cFilial, dCorte)
+  nTotal := populaApuracao(cFil, dCorte)
 
   if nTotal == 0
     ZAPUR->(DbCloseArea())
@@ -156,7 +156,7 @@ user function apuracao(cFilial, dCorte)
     DbSelectArea(s_1_usearea)
   EndIf
 
-  conout("apuracao " + cValToChar(cFilial) + ": " + cValToChar(nTotal))
+  conout("apuracao " + cValToChar(cFil) + ": " + cValToChar(nTotal))
 
   ZAPUR->(DbCloseArea())
   TCDelFile("ZAPUR")

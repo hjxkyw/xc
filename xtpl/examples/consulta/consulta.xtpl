@@ -101,18 +101,18 @@ user function consulta(cFilialDe, cFilialAte)
 
   using alias SE1 order 1 do
 
-    for cFilial in filiaisEntre(cFilialDe, cFilialAte)
+    for cFil in filiaisEntre(cFilialDe, cFilialAte)
 
-      SE1->(DbSeek(cFilial))
+      SE1->(DbSeek(cFil))
 
-      nTotal := rows("SE1", cFilial)                                   ;
-                |> takewhile([oTit] oTit:E1_FILIAL == cFilial)         ;
+      nTotal := rows("SE1", cFil)                                   ;
+                |> takewhile([oTit] oTit:E1_FILIAL == cFil)         ;
                 |> filter([oTit] oTit:E1_SALDO > 0)                    ;
                 |> filter([oTit] date() - oTit:E1_VENCTO <= nDias)     ;
                 |> map([oTit] oTit:E1_SALDO)                           ;
                 |> asum
 
-      aadd(aResumo, {cFilial, nTotal})
+      aadd(aResumo, {cFil, nTotal})
 
     next
 

@@ -81,7 +81,7 @@
 // Compare com apuracao_mao.tlpp.
 // ============================================================================
 
-user function apuracao(cFilial, dCorte)
+user function apuracao(cFil, dCorte)
   local nErro := 0
   local nTotal := 0
   local aEstrutura := montaEstrutura()
@@ -113,7 +113,7 @@ user function apuracao(cFilial, dCorte)
 
   // ---- daqui, tres coisas registradas e nenhuma saida para lembrar ---------
 
-  nTotal := populaApuracao(cFilial, dCorte)
+  nTotal := populaApuracao(cFil, dCorte)
 
   if nTotal == 0
     return 0                             // as tres rodam, na ordem inversa
@@ -125,7 +125,7 @@ user function apuracao(cFilial, dCorte)
     nTotal := rows("ZAPUR") |> map([oLinha] oLinha:ZAP_VALOR) |> asum
   end using
 
-  xconout("apuracao ", cFilial, ": ", nTotal)
+  xconout("apuracao ", cFil, ": ", nTotal)
 
   return nTotal                          // e as tres rodam aqui tambem
 
