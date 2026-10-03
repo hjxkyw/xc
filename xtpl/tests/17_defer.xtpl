@@ -7,7 +7,7 @@
 // It is also resolved once, at the point it is written, so the same names
 // appear whether the exit is a 'return' or the end of the body -- and a
 // variable read only by a defer counts as read.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testDefer(aRows, nX, hCfg)
   local nCount := 0
@@ -23,5 +23,5 @@ user function testDefer(aRows, nX, hCfg)
   return 0
 
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

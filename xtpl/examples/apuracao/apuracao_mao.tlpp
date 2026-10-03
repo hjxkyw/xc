@@ -88,7 +88,7 @@ User Function ApuracaoMao(cFil, dCorte)
     Return 0
   EndIf
 
-  // ---- a leitura -------------------------------------------------------------
+  // ---- a leitura ------------------------------------------------------------
   cAreaAnt := Alias()
   DbSelectArea("ZAPUR")
   nRecAnt  := ZAPUR->(RecNo())
@@ -107,12 +107,12 @@ User Function ApuracaoMao(cFil, dCorte)
 
   ConOut("apuracao " + cFil + ": " + cValToChar(nTotal))
 
-  // ---- saida 5: as tres, pela terceira vez -----------------------------------
+  // ---- saida 5: as tres, pela terceira vez ----------------------------------
   ZAPUR->(DbCloseArea())
   TCDelFile("ZAPUR")
   TCUnlink()
 
 Return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

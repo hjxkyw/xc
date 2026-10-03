@@ -11,7 +11,7 @@
 // Declarado em um lugar, conhecido no arquivo inteiro: e o que escopo
 // dinamico significa. Diferente de 'external', que so promete que o nome
 // existe, um PRIVATE tambem pode ser atribuido.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testPrivate()
 
@@ -32,5 +32,5 @@ static function chamadaDeVolta()
   nContador := nContador + 1
   return nContador
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

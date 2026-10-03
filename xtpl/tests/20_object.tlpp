@@ -7,7 +7,7 @@
 // block, a ':' in a position where AdvPL could not have put one means "the
 // subject". Member access on anything else, '::' for self and ':=' for
 // assignment are all left alone.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testObject(oModel, oOutro, aRows)
 
@@ -40,5 +40,5 @@ user function testObject(oModel, oOutro, aRows)
 
   return cNome
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

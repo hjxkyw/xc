@@ -8,7 +8,7 @@
 //
 // 'main function' é especial no Protheus e não é exercitado aqui: uma fixture
 // não deveria reivindicar o ponto de entrada.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function test_main_form(nX)
 
@@ -19,5 +19,5 @@ user function test_main_form(nX)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

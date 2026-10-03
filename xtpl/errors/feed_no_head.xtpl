@@ -3,7 +3,7 @@
 // Reached in practice by a continuation that failed to join, which left the
 // second line standing alone. The stage used to be composed with an empty
 // first argument.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function feedNoHead(aNums)
   local aOut := {}
@@ -12,5 +12,5 @@ user function feedNoHead(aNums)
 
   return aOut
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -14,7 +14,7 @@
 //
 // Warnings, not errors: a field being added may not be in an export yet, and
 // a stale dictionary should not stop a build. --dict-strict for CI.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 
 user function testDictionary(cAlias)
@@ -80,5 +80,5 @@ user function testDictionary(cAlias)
 
   return nT + len(aC) + len(aV)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

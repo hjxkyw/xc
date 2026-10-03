@@ -9,7 +9,7 @@
 // 'for' que ela substituía.
 //
 // Uma cadeia de funções comuns continua sem se fundir: nunca foi candidata.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testEffectChains(aCobertura, cAlvo, aPedidos)
 
@@ -50,5 +50,5 @@ user function testEffectChains(aCobertura, cAlvo, aPedidos)
 
   return
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

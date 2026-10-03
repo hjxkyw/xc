@@ -10,7 +10,7 @@
 //
 // The element is the current record, not a value, so 'r:A1_COD' compiles to a
 // field reference and the name cannot be used for anything else.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testRows(cAlias, nLimit)
 
@@ -102,5 +102,5 @@ user function testRows(cAlias, nLimit)
 
   return nTotal + len(aCodes) + len(aFirst)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

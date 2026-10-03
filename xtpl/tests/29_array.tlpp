@@ -6,7 +6,7 @@
 // Collection first, matching aEval and aScan. A lambda is '[name] body',
 // with up to six names. Every function returns a new array and leaves its
 // input alone. Chaining them is a separate feature; see test_feed.tlpp.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testArray(aOrders, aNums, aCodes, aDesc)
 
@@ -61,5 +61,5 @@ user function testArray(aOrders, aNums, aCodes, aDesc)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

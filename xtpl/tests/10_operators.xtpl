@@ -1,5 +1,5 @@
 // 10_operators.xtpl -- in, %%, the folds, and external
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // CRLF and the STR constants come from headers this transpiler cannot read
 external CRLF, dDataBase
@@ -51,5 +51,5 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
 
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

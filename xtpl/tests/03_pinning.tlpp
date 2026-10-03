@@ -7,7 +7,7 @@
 // variables that never coexist, so one of them escaping says nothing about
 // the other. Each declaration is checked only against the lines its own
 // variable is live for.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testPinning(lFlag)
 
@@ -56,5 +56,5 @@ user function testPinning(lFlag)
 
   return aKeep
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

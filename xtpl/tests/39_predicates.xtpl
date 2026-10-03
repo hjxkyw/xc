@@ -6,7 +6,7 @@
 //
 // Fused, the loop leaves as soon as it knows -- and over rows() that means
 // the walk stops rather than reading the rest of the table.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testPredicates(aRows, aNums)
   local lAlguem := .F.
@@ -30,5 +30,5 @@ user function testPredicates(aRows, aNums)
 
   return lAlguem .and. lTodos .and. lNenhum .and. lNegativo .and. lOrdenado
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

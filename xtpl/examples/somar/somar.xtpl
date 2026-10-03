@@ -51,7 +51,7 @@
 // nao o que ela vai virar.
 //
 // Rode:  appserver.exe -env=SeuAmbiente -run=u_somar
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 using namespace tlpp.regex
 
@@ -108,5 +108,5 @@ static function ehNumero(cTexto)
 static function mostrar(aValores)
   return aValores |> map([nValor] alltrim(str(nValor))) |> join(", ")
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

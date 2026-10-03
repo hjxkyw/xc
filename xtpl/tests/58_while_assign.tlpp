@@ -13,7 +13,7 @@
 // Atras de um '.and.' ou dentro de um 'iif' ela pode nao ser avaliada, e ai
 // a atribuicao -- que normalmente e o que avanca alguma coisa -- nao
 // aconteceria.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testWhileAssign(oQry, lQuero, aItens)
 
@@ -53,5 +53,5 @@ user function testWhileAssign(oQry, lQuero, aItens)
 
   return nTotal + nConta + nSoma + len(aItens)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

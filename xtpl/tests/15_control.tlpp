@@ -2,7 +2,7 @@
 #include "tlpp-core.th"
 
 // 15_control.tlpp -- constructs that lower to plain AdvPL, no runtime needed
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testControl(oUser, nLimit, aItens)
 
@@ -103,5 +103,5 @@ user function testControl(oUser, nLimit, aItens)
   closeCursor()
   return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -5,7 +5,7 @@
 //
 // One source line often becomes a dozen, so the marker goes on all of them.
 // Scanning upwards for the nearest one is exactly the work this removes.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testMap(aNums, hCfg)
 

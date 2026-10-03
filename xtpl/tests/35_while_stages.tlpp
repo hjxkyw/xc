@@ -14,7 +14,7 @@
 // rows() starts at the top unless given a key to seek. With one it is
 // positioned by the index, which is what makes takewhile worth having on a
 // large table: reach the group in one jump, then stop at its end.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testWhileStages(aRows, cNum)
 
@@ -142,5 +142,5 @@ user function testWhileStages(aRows, cNum)
 
   return len(aItens) + len(aDepois) + len(aFrente) + len(aGrupo) + len(aSeek)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

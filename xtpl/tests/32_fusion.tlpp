@@ -7,7 +7,7 @@
 // Fused, the stages are the body of a single loop: no array between them, and
 // 'take' becomes an Exit rather than a function that runs after everything
 // else has already been computed and thrown away.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testFusion(aRows, nLimit)
 
@@ -170,5 +170,5 @@ user function testFusion(aRows, nLimit)
 
   return len(aTop) + len(aRest) + nSum + nBest + len(aOne) + len(aSorted) + nFold + len(cLong) + len(cJoined) + len(cBare)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -5,7 +5,7 @@
 // of the chain runs once per inner element, and that block closes with Next
 // rather than EndIf. Tracking what closes a block, instead of counting how
 // many are open, is what makes that possible.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testStreamStages(aMovs, aRows, aLeituras)
   local aSaldos := {}
@@ -30,5 +30,5 @@ user function testStreamStages(aMovs, aRows, aLeituras)
 
   return len(aSaldos) + len(aCodigos) + len(aDeltas) + len(aProdutos)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

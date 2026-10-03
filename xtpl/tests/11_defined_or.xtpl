@@ -3,7 +3,7 @@
 // '?=' assigns only when the target is still Nil. It is an operator on a
 // variable that already exists, never a declaration form: a freshly declared
 // local is always Nil, so the test could not fail there.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testDefinedOr(lUseDisk, lUseNet)
   local cCache
@@ -37,5 +37,5 @@ user function testDefinedOr(lUseDisk, lUseNet)
 
   return cCache
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

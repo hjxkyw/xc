@@ -91,7 +91,7 @@ User Function RomaneioMao(aItens)
       nLidos += 1
     EndIf
 
-    // ---- e agora as leituras, cada uma com a sua limpeza ---------------------
+    // ---- e agora as leituras, cada uma com a sua limpeza --------------------
     xTmp := Nil
     hPeso:Get(aItens[nX]:cProduto, @xTmp)
     nPeso := xTmp
@@ -112,5 +112,5 @@ User Function RomaneioMao(aItens)
 
 Return aLinhas
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

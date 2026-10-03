@@ -25,7 +25,7 @@ using namespace tlpp.regex
 //   - quanto custa compilar o padrao toda vez, contra guardar a instancia?
 //
 //    appserver.exe -env=zv -run=u_probeRegex
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 Static Function tenta(cNome, bBloco)
   Local xResposta
@@ -85,7 +85,7 @@ User Function probeRegex()
 
 Return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 User Function reGuarda(cPad)
   Private oReGlobal := Nil
@@ -104,5 +104,5 @@ User Function reChama(cMetodo, cTexto)
   EndCase
 Return xResposta
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

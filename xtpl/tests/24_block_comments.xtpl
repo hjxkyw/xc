@@ -13,7 +13,7 @@
 // whatever it contained as an undeclared name. They are folded before
 // anything else runs, keeping the line count so every line number still
 // points where it did.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testBlockComments(nX)
   local nA := 0
@@ -30,5 +30,5 @@ user function testBlockComments(nX)
 
   return nA + len(cS)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

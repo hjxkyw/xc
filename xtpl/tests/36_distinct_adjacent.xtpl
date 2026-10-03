@@ -8,7 +8,7 @@
 // maxby gives the largest ELEMENT by a key, where amax gives the largest key
 // and loses the row it came from. Otherwise you sort everything to look at
 // one of them.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testUniqMaxby(aRows)
   local aPedidos := {}
@@ -31,5 +31,5 @@ user function testUniqMaxby(aRows)
 
   return len(aPedidos) + len(aNumeros)
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

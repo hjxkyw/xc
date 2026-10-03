@@ -134,5 +134,5 @@ user function romaneio(aItens)
   // O hash nao guarda ordem, entao a ordem sai do array de linhas, que a tem.
   return aLinhas
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -3,7 +3,7 @@
 // Only literals are typed. Inferring types across an untyped language is how
 // a checker turns into a false-positive machine, so a field used with a
 // variable is left alone -- there is nothing to compare it against.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 external alias SA1
 
@@ -34,5 +34,5 @@ user function testTypes(cQualquer, nX)
 
   return nT
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

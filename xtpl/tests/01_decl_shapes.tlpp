@@ -14,7 +14,7 @@
 // The regex swallowed it into the value while the grammar, anchored to the
 // end of the line, refused the whole list. Both peel it first now, and it
 // goes back on the declarator it was written against.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testDeclShapes(nX)
 
@@ -31,5 +31,5 @@ user function testDeclShapes(nX)
 
   return nX + v4
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

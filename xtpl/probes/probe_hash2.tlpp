@@ -13,7 +13,7 @@
 // o xtpl conta com o temporario ficar intocado, para uma leitura ausente
 // voltar como Nil. O probe anterior so testou Get com um parametro, que erra
 // sempre, entao isso continua sem resposta.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 Static Function tenta(cNome, bBloco)
   Local xResposta
@@ -75,5 +75,5 @@ User Function probeHash2()
 
 Return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

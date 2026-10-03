@@ -17,7 +17,7 @@
 //
 // --legacy does not touch scoping. Block-scoped local is something xtpl adds
 // where AdvPL has nothing, so there is no existing meaning to preserve.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 #xtranslate MOSTRE <x> => conout(<x>)
 
@@ -45,5 +45,5 @@ User Function Legado(cCodigo)
 
 Return nTotal
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

@@ -6,7 +6,7 @@
 // The runtime only carries what AdvPL lacks. Upper, AllTrim, PadL and the
 // rest already take their subject first, so they compose with '|>' as they
 // stand -- wrapping them would shadow the originals on every existing call.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 user function testStrings(cNome, nTotal, hCfg, aLinhas)
 
@@ -61,5 +61,5 @@ user function testStrings(cNome, nTotal, hCfg, aLinhas)
 
   return cOut + cValToChar(lHit) + cValToChar(len(aLinhas))
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end

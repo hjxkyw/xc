@@ -18,7 +18,7 @@
 //
 // which would mean both spellings reached the same slot. Anything else, or a
 // compile error, and the idea does not work.
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 #translate aTmp~1   => __stk_1_0
 #translate aOther~1 => __stk_1_0
@@ -35,5 +35,5 @@ User Function probeTranslate()
 
 Return nil
 
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // the end
