@@ -195,6 +195,67 @@ sub is-source(Expr $e --> Bool) is export
   so ($e ~~ Call && $e.name.lc (elem) <rows lines>) || $e ~~ Interval
 }
 
+# The locals a statement declares in its header: 'if local x := ...', 'for
+# local i := ...', 'for x, i in ...', 'do case with local x := ...'.
+sub header-names(Stmt $s --> List)
+{
+  given $s
+  {
+    when IfStmt | WhileStmt { .header-decl.defined ?? (.header-decl.name,) !! () }
+    when ForStmt            { .var-local ?? (.var,) !! () }
+    when ForInStmt          { (.elem, |(.index // ())) }
+    when CaseStmt           { .subject-decl.defined ?? (.subject-decl.name,) !! () }
+    default                 { () }
+  }
+}
+
+# Whether the variable $name can be reached after its block -- in @stmts, its
+# block, or in @exprs, its header: named in a code block or a lambda (which
+# may outlive the block, and sees the variable, not a copy), passed by
+# reference ('@x'), read by a defer (run at the function's end), named in raw
+# text (which xc does not read). Handing on its value is none of these: the
+# next block to use its slot gives it a new value, and what was handed on
+# keeps the old one.
+sub escapes(Str $name, @stmts, @exprs --> Bool)
+{
+  my $k = $name.lc;
+  my $found = False;
+  my sub scan($e, Bool $captured, %shadow)
+  {
+    return if $found || !$e.defined;
+    given $e
+    {
+      when CodeBlock
+      {
+        my %s = %shadow;
+        %s{.lc} = True for $e.params;
+        scan($_, True, %s) for $e.body;
+        return;
+      }
+      when Ref  { $found = True if .target ~~ Name && .target.name.lc eq $k && !%shadow{$k} }
+      when Name { $found = True if $captured && .name.lc eq $k && !%shadow{$k} }
+    }
+    scan($_, $captured, %shadow) for subexprs($e);
+  }
+  scan($_, False, %()) for @exprs;
+  walk(@stmts, -> $s
+  {
+    if $s ~~ RawStmt
+    {
+      $found = True if $s.lines.first({ .lc ~~ / << $k >> / });
+    }
+    elsif $s ~~ Deferred
+    {
+      walk(($s.stmt,), -> $d { scan($_, True, %()) for exprs-of($d) });
+    }
+    else
+    {
+      scan($_, False, %()) for exprs-of($s);
+    }
+  });
+  $found
+}
+
 # What a declarator was, for a comment where xc writes it: the name it had,
 # when xc renamed it, and its attributes -- 'nB [const]', '[contained]'; ''
 # when there is nothing to say.
@@ -355,6 +416,8 @@ class Emitter
 
   # Per function: the names in use, and the Locals to add after its prologue.
   has %!used;
+  has %!slots;                     # the slots made: s_0_0, ... (lower case)
+  has %!slot-users;                # slot => the block locals in it, for its comment
   has @!hoist;                     # [name, comment]
   has %!hoisted;
 
@@ -917,59 +980,160 @@ class Emitter
     });
   }
 
-  # Which block locals to rename. xc keeps names as written, and a block local
-  # becomes a Local of the function -- so one with the name of a function
-  # variable, or of a block local of an enclosing block, would share its
-  # Local and clobber it. Those get a name of their own, in the shape xtpl
-  # gives its slots: s_<depth>_<name>. The same name in sibling blocks shares
-  # one Local, as before.
+  # Block locals: slots, recycled. A block local lives only while its block
+  # runs, so two whose blocks are never one inside the other can share a
+  # Local -- each entry gives it its value, or Nil, before anything reads it.
+  # Each takes the lowest slot (s_0_0, s_0_1, ...) that no local of an
+  # enclosing block holds: on a tree of blocks that is the fewest Locals
+  # there can be, as many as the most block locals alive at one point.
+  #
+  # Not one whose variable can still be reached after its block -- 'pinned'
+  # (see escapes): it keeps a Local of its own, under its name when no other
+  # declaration in the function has it, b_<n>_<name> when one does.
   method !plan-renames($f)
   {
-    %!renames = ();
-    my %fn;
-    %fn{.name.lc} = True for $f.params;
-    for $f.body.grep(Declaration) -> $d { %fn{.name.lc} = True for $d.declarators }
-    my %mine;                          # the new names made here
+    %!renames    = ();
+    %!slots      = ();
+    %!slot-users = ();
+    # How often each name is declared in the function, anywhere.
+    my %count;
+    %count{.name.lc}++ for $f.params;
+    walk($f.body, -> $s
+    {
+      if $s ~~ Declaration { %count{.name.lc}++ for $s.declarators }
+      else                 { %count{.lc}++ for header-names($s) }
+    });
+    my $pins = 0;
 
-    my sub prologue(@body) { @body.grep({ $_ ~~ Declaration && .scope eq 'local' }).map({ |.declarators.map(*.name) }) }
+    # The lowest slot no enclosing block holds.
+    my sub slot(@held --> Str)
+    {
+      my $k = 0;
+      $k++ while @held.first("s_0_$k") || (%!used{"s_0_$k"} && !%!slots{"s_0_$k"});
+      my $n = "s_0_$k";
+      %!used{$n} = True;
+      %!slots{$n} = True;
+      $n
+    }
+    # A Local of its own: the name, when it is the only one; else a new one.
+    my sub own(Str $n --> Str)
+    {
+      return $n if (%count{$n.lc} // 0) <= 1;
+      loop
+      {
+        $pins++;
+        my $new = "b_{$pins}_$n";
+        next if %!used{$new.lc};
+        %!used{$new.lc} = True;
+        return $new;
+      }
+    }
+    # Who used a slot: the names, and how the comment of its Local says them.
+    my %names;
+    my %decls;                       # slot => how many declarations it holds
+    my sub user(Str $slot, Str $name, Str $who)
+    {
+      my @u = |(%!slot-users{$slot} // ());
+      @u.push($who) unless @u.first($who);
+      %!slot-users{$slot} = @u;
+      my @n = |(%names{$slot} // ());
+      @n.push($name) unless @n.first({ .lc eq $name.lc });
+      %names{$slot} = @n;
+      %decls{$slot}++;
+    }
 
-    my sub visit(@body, @stack, Int $depth)
+    my sub visit(@body, @held)
     {
       for @body -> $s
       {
         next if $s ~~ Modified || $s ~~ Deferred;
         my @bodies = bodies-of($s);
         next unless @bodies;
-        my @head = do given $s
-        {
-          when IfStmt | WhileStmt { .header-decl.defined ?? (.header-decl.name,) !! () }
-          when ForStmt            { .var-local ?? (.var,) !! () }
-          when ForInStmt          { (.elem, |(.index // ())) }
-          when CaseStmt           { .subject-decl.defined ?? (.subject-decl.name,) !! () }
-          default                 { () }
-        };
-        my @own = |@head, |@bodies.map({ |prologue($_) });
-        my %set;
+        # The header's locals live in every body of $s.
         my %head;
-        my %body;
-        for @own.kv -> $i, $n
+        my @h = @held;
+        for header-names($s) -> $n
         {
-          my $k = $n.lc;
-          if %fn{$k} || @stack.first({ .{$k} })
+          if escapes($n, @bodies.map({ |$_ }).List, exprs-of($s))
           {
-            my $new = "s_{$depth}_$n";
-            $new ~= '_' while %!used{$new.lc} && !%mine{$new.lc};
-            %!used{$new.lc} = True;
-            %mine{$new.lc} = True;
-            if $i < @head { %head{$k} = $new } else { %body{$k} = $new }
+            my $new = own($n);
+            %head{$n.lc} = $new if $new ne $n;
           }
-          %set{$k} = True;
+          else
+          {
+            my $k = slot(@h);
+            %head{$n.lc} = $k;
+            @h.push($k);
+            user($k, $n, "'$n'");
+          }
         }
-        %!renames{$s.WHICH} = %(head => %head, body => %body) if %head || %body;
-        visit($_, [|@stack, %set], $depth + 1) for @bodies;
+        # Each body's own, apart: the bodies of one statement never run at
+        # once, so they share slots too.
+        my @maps;
+        for @bodies -> @b
+        {
+          my %body;
+          my @hb = @h;
+          for @b.grep({ $_ ~~ Declaration && .scope eq 'local' }).map({ |.declarators }) -> $dc
+          {
+            my $n = $dc.name;
+            next if %body{$n.lc}:exists;
+            if escapes($n, @b, ())
+            {
+              my $new = own($n);
+              %body{$n.lc} = $new if $new ne $n;
+            }
+            else
+            {
+              my $k = slot(@hb);
+              %body{$n.lc} = $k;
+              @hb.push($k);
+              user($k, $n, "'$n'" ~ ($dc.attributes ?? " [{$dc.attributes.join(', ')}]" !! ''));
+            }
+          }
+          @maps.push(%body);
+          visit(@b, @hb);
+        }
+        %!renames{$s.WHICH} = %(head => %head, bodies => @maps);
       }
     }
-    visit($f.body, [], 1);
+    visit($f.body, []);
+
+    # A slot with one name in it -- one block local, or one name declared in
+    # blocks that never meet -- goes by that name: the first such slot of a
+    # name, when the function itself (a parameter, a local of its prologue)
+    # does not have it; the others by s_<slot>_<name>. Only a slot holding
+    # different names keeps s_0_<k>. (A pinned one of the same name is
+    # always renamed: it is declared twice.)
+    my %fn;
+    %fn{.name.lc} = True for $f.params;
+    %fn{.name.lc} = True for prologue-of($f.body).map({ |.declarators });
+    my %first;
+    for %names.keys.sort({ +.substr(4) }) -> $slot
+    {
+      my @n = |%names{$slot};
+      next unless @n == 1;
+      %first{@n[0].lc} //= $slot unless %fn{@n[0].lc};
+    }
+    for %names.kv -> $slot, @n
+    {
+      next unless @n == 1;
+      my $name = @n[0];
+      my $new = (%first{$name.lc} // '') eq $slot ?? $name !! "s_{$slot.substr(4)}_$name";
+      for %!renames.values -> %r
+      {
+        for (%r<head>, |%r<bodies>) -> %m
+        {
+          for %m.keys.grep({ %m{$_} eq $slot }) -> $k
+          {
+            if $new eq $name { %m{$k}:delete } else { %m{$k} = $new }
+          }
+        }
+      }
+      %!used{$new.lc} = True;
+      %!slots{$slot}:delete;
+      %!slot-users{$slot}:delete;
+    }
   }
 
   # The name a header local of $s goes by.
@@ -993,16 +1157,20 @@ class Emitter
     $result
   }
 
-  # The bodies of $s, with its header locals and its prologue's in scope.
+  # The bodies of $s, each with the header locals of $s and its own in
+  # scope -- the names each body's block locals go by are its own.
   method !collect-bodies(Stmt $s)
   {
     my %saved = %!subst;
-    with %!renames{$s.WHICH} -> %r
+    my %r = %!renames{$s.WHICH} // %();
+    my @maps = |(%r<bodies> // ());
+    for bodies-of($s).kv -> $i, @b
     {
-      %!subst{$_} = %r<head>{$_} for %r<head>.keys;
-      %!subst{$_} = %r<body>{$_} for %r<body>.keys;
+      %!subst = %saved;
+      with %r<head> -> %h { %!subst{$_} = %h{$_} for %h.keys }
+      with @maps[$i] -> %m { %!subst{$_} = %m{$_} for %m.keys }
+      self!collect(@b, False);
     }
-    self!collect($_, False) for bodies-of($s);
     %!subst = %saved;
   }
 
@@ -1032,7 +1200,15 @@ class Emitter
     my @body = $f.body;
     my $indent = @body ?? self!indent-at(@body[0].src-from) !! '  ';
     my @decls = prologue-of(@body);
-    my @lines = @!hoist.map(-> [$name, $comment] { "{$indent}Local $name  // $comment" });
+    my @lines = @!hoist.map(-> [$name, $comment]
+    {
+      # A slot says which block locals it holds.
+      my @u = |(%!slot-users{$name.lc} // ());
+      my $c = !@u    ?? $comment
+           !! @u == 1 ?? "a slot: the block local {@u[0]}"
+           !!            "a slot: the block locals {@u.join(', ')}";
+      "{$indent}Local $name  // $c"
+    });
     if @decls
     {
       my $last = @decls[*-1];

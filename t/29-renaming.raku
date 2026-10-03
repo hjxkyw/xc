@@ -39,55 +39,55 @@ sub lowers(Str $what, Str $in, Str $out) { check $what, { body-of($in) eq $out }
 # ---- prologue locals ---------------------------------------------------------
 lowers "a prologue local: renamed in the body, not in the block's condition",
   "  if x > 0\n    local x := 999\n    conout(x)\n  endif\n  conout(x)",
-  "  if x > 0\n    s_1_x := 999  // x\n    conout(s_1_x)\n  endif\n  conout(x)";
+  "  if x > 0\n    s_0_x := 999  // x\n    conout(s_0_x)\n  endif\n  conout(x)";
 
 lowers 'the same name in sibling blocks shares one renamed Local',
   "  if n > 0\n    local x := 1\n    n := x\n  endif\n  if n > 1\n    local x := 2\n    n := x\n  endif",
-  "  if n > 0\n    s_1_x := 1  // x\n    n := s_1_x\n  endif\n  if n > 1\n    s_1_x := 2  // x\n    n := s_1_x\n  endif";
+  "  if n > 0\n    s_0_x := 1  // x\n    n := s_0_x\n  endif\n  if n > 1\n    s_0_x := 2  // x\n    n := s_0_x\n  endif";
 
 check 'three levels: each takes the innermost',
 {
   my $b = body-of("  if n > 0\n    local x := 1\n    if n > 1\n      local x := 2\n      n := x\n    endif\n    n := x\n  endif");
-  $b.contains("      s_2_x := 2  // x\n      n := s_2_x\n    endif\n    n := s_1_x\n")
+  $b.contains("      s_1_x := 2  // x\n      n := s_1_x\n    endif\n    n := s_0_x\n")
 };
 
 check "a renamed block local's Local names it, with its attributes; its value's line too, the comment kept",
 {
   my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(a)\n  local x := 0\n  if a > 0\n    local x <const> := 1   // the one\n    local aW <contained> := \{\}\n    aadd(aW, x)\n  endif\nreturn x\n]);
-  $out.contains("  Local s_1_x  // the block local 'x' [const]\n") && $out.contains("  Local aW  // a block local [contained]\n")
-    && $out.contains("    s_1_x := 1  // x [const] -- the one\n") && $out.contains("    aW := \{\}  // [contained]\n")
+  $out.contains("  Local s_0_x  // the block local 'x' [const]\n") && $out.contains("  Local aW  // a block local [contained]\n")
+    && $out.contains("    s_0_x := 1  // x [const] -- the one\n") && $out.contains("    aW := \{\}  // [contained]\n")
 };
 
 # ---- header locals -----------------------------------------------------------
 lowers "'if local': the condition sees it, its value does not",
   "  if local x := x + 1, x > 5\n    n := x\n  endif\n  n := x",
-  "  s_1_x := x + 1\n  If s_1_x > 5\n    n := s_1_x\n  endif\n  n := x";
+  "  s_0_x := x + 1\n  If s_0_x > 5\n    n := s_0_x\n  endif\n  n := x";
 
 lowers "'while local': the same, every round",
   "  while local x := next(x), x != Nil\n    n := x\n  enddo",
-  "  While .T.\n    s_1_x := next(x)\n    If !(s_1_x != Nil)\n      Exit\n    EndIf\n    n := s_1_x\n  enddo";
+  "  While .T.\n    s_0_x := next(x)\n    If !(s_0_x != Nil)\n      Exit\n    EndIf\n    n := s_0_x\n  enddo";
 
 lowers "'for x in x': the source is the outer x",
   "  for x in x\n    n := x\n  next x",
-  "  fs_0_0 := x\n  For fi_0_0 := 1 To Len(fs_0_0)\n    s_1_x := fs_0_0[fi_0_0]\n    n := s_1_x\n  next";
+  "  fs_0_0 := x\n  For fi_0_0 := 1 To Len(fs_0_0)\n    s_0_x := fs_0_0[fi_0_0]\n    n := s_0_x\n  next";
 
 lowers "'for local x': the counter renamed, and 'next x' loses the name",
   "  for local x := 1 to 3\n    n := x\n  next x",
-  "  For s_1_x := 1 To 3\n    n := s_1_x\n  next";
+  "  For s_0_x := 1 To 3\n    n := s_0_x\n  next";
 
 lowers "a plain 'for' over a renamed counter follows it",
   "  if n > 0\n    local x := 0\n    for x := 1 to 3\n      n := x\n    next x\n  endif",
-  "  if n > 0\n    s_1_x := 0  // x\n    For s_1_x := 1 To 3\n      n := s_1_x\n    next\n  endif";
+  "  if n > 0\n    s_0_x := 0  // x\n    For s_0_x := 1 To 3\n      n := s_0_x\n    next\n  endif";
 
 lowers "'do case with local': the cases see it",
   "  do case with local x := n * 2\n    case x > 5\n      n := x\n  endcase",
-  "  s_1_x := n * 2\n  Do Case\n    case s_1_x > 5\n      n := s_1_x\n  endcase";
+  "  s_0_x := n * 2\n  Do Case\n    case s_0_x > 5\n      n := s_0_x\n  endcase";
 
 # ---- uses --------------------------------------------------------------------
 check 'a lambda parameter of the same name is its own',
 {
   body-of("  if n > 0\n    local x := 1\n    a := map(a, [x] x + 1)\n    n := x\n  endif").contains(
-    "    a := u_xtpl_map(a, \{|x| x + 1\})\n    n := s_1_x")
+    "    a := u_xtpl_map(a, \{|x| x + 1\})\n    n := s_0_x")
 };
 check 'inside an interpolation, a hash read and a by-reference argument',
 {
@@ -99,17 +99,18 @@ check 'inside an interpolation, a hash read and a by-reference argument',
         aadd(@x, 1)
       endif
     END
-  $b.contains(q[conout(("v=" + cValToChar(s_1_x)))]) && $b.contains(q[n := u_xtpl_hget(s_1_x, "k")])
-    && $b.contains('aadd(@s_1_x, 1)')
+  # Passed by reference: pinned -- a Local of its own, not a slot.
+  $b.contains(q[conout(("v=" + cValToChar(b_1_x)))]) && $b.contains(q[n := u_xtpl_hget(b_1_x, "k")])
+    && $b.contains('aadd(@b_1_x, 1)')
 };
 check 'an assignment to it, and a compound one',
 {
   my $b = body-of("  if n > 0\n    local x := 1\n    x := x + 1\n    x += 2\n  endif");
-  $b.contains("    s_1_x := s_1_x + 1\n    s_1_x += 2")
+  $b.contains("    s_0_x := s_0_x + 1\n    s_0_x += 2")
 };
 check 'a return inside the block reads the renamed one',
 {
-  body-of("  if n > 0\n    local x := 5\n    return x\n  endif").contains("    return s_1_x")
+  body-of("  if n > 0\n    local x := 5\n    return x\n  endif").contains("    return s_0_x")
 };
 
 # ---- no clash, no rename -----------------------------------------------------

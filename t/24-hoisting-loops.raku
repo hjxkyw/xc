@@ -107,11 +107,11 @@ sub problems(Str $lines)
 # of its own, in xtpl's slot shape -- only inside its scope.
 lowers 'a block local with the name of a variable of the function is renamed, inside its block only',
   "  local oI := 0\n  for oI in a\n    n := oI\n  next\n  n := oI",
-  "  local oI := 0\n  Local s_1_oI  // a block local\n  Local fs_0_0  // the source of a 'for ... in'\n  Local fi_0_0  // the counter of a 'for ... in'\n  fs_0_0 := a\n  For fi_0_0 := 1 To Len(fs_0_0)\n    s_1_oI := fs_0_0[fi_0_0]\n    n := s_1_oI\n  next\n  n := oI";
+  "  local oI := 0\n  Local s_0_oI  // a block local\n  Local fs_0_0  // the source of a 'for ... in'\n  Local fi_0_0  // the counter of a 'for ... in'\n  fs_0_0 := a\n  For fi_0_0 := 1 To Len(fs_0_0)\n    s_0_oI := fs_0_0[fi_0_0]\n    n := s_0_oI\n  next\n  n := oI";
 check 'a block local shadowing an enclosing one is renamed; the outer one is itself again after',
 {
   my $b = body-of("  local nT := 0\n  for x in a\n    for x in a\n      n := x\n    next\n    n := x\n  next");
-  $b.contains("      s_2_x := fs_0_1[fi_0_1]\n      n := s_2_x\n    next\n    n := x\n")
+  $b.contains("      s_1_x := fs_0_1[fi_0_1]\n      n := s_1_x\n    next\n    n := x\n")
 };
 check "'for ... in' over rows() is reported (xtpl's corpus never walks one that way)",
 {

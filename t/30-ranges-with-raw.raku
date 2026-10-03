@@ -143,7 +143,7 @@ lowers 'a string holding ${...} is interpolated',
 check 'a renamed block local is renamed in raw text; a member or a function of that name is not',
 {
   body-of("  if n > 0\n    local x := 1\n    raw ANOTE x + o:x + x(1) + A->x\n  endif").contains(
-    "    ANOTE s_1_x + o:x + x(1) + A->x")
+    "    ANOTE b_1_x + o:x + x(1) + A->x")
 };
 check "a comment in a raw line is left as it is",
 {
