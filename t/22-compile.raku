@@ -136,6 +136,10 @@ lowers 'attributes dropped, the other declarators kept -- and said in a comment'
   "user function f()\n  local a <const> := 1, b := 2, c <contained> as A := \{\}\nreturn a\n",
   "user function f()\n  local a := 1, b := 2, c := \{\} as A  // a [const], c [contained]\nreturn a\n";
 
+lowers "a parameter's attributes leave the header, and a comment says them -- the line's own after it",
+  "user function f(aR <contained>, nX <const> as Numeric)   // the rows\nreturn nX\n\nstatic function g(nZ <const>)\nreturn nZ\n",
+  "user function f(aR, nX as Numeric)   // aR [contained], nX [const] -- the rows\nreturn nX\n\nstatic function g(nZ)  // nZ [const]\nreturn nZ\n";
+
 lowers 'a string holding // in a rewritten line keeps its text',
   "user function f(n)\n  c := \"http://x\" if n > 0\nreturn c\n",
   "user function f(n)\n  If n > 0\n    c := \"http://x\"\n  EndIf\nreturn c\n";

@@ -234,6 +234,23 @@ warns "the whole left side of '|>' is fed in: a comparison there",
 passes "a comparison in brackets, or an alias's '->': not the left side's",
   "  DbSelectArea(\"SA1\")\n  a := foo(a > 1) |> alltrim\n  a := SA1->A1_NOME |> alltrim";
 
+# ---- a parameter's attributes, as a local's ---------------------------------
+check "refuses: a <const> parameter assigned",
+{
+  result("user function f(nX <const>)\n  nX := 2\nreturn nX\n")<errors>
+    eqv ("2: 'nX' is <const> (declared on line 1) and cannot be assigned.",)
+};
+check "refuses: a <contained> parameter captured by a code block",
+{
+  result("user function f(aR <contained>)\n  aadd(aR, \{|| aR\})\nreturn aR\n")<errors>
+    eqv ("2: 'aR' is <contained> (declared on line 1) and cannot leave its block.",)
+};
+check "passes: both read, and the value of a <contained> one handed to a function",
+{
+  my %r = result("user function f(aR <contained>, nX <const> as Numeric)\n  aadd(aR, nX)\nreturn len(aR)\n");
+  !%r<errors> && !%r<warnings>
+};
+
 # ---- a private or public is a statement: the locals come first ---------------
 refuses "a 'local' after a 'private'",
   "  private nP := 1\n  local nL := 2\n  a := nP + nL",

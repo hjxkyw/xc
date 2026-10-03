@@ -333,9 +333,11 @@ rule params
 }
 
 # A parameter can be typed too: 'f(nX as Numeric)'.
+# '<const>' and '<contained>' as on a local: a parameter not assigned, one
+# that does not leave the function.
 rule param
 {
-  <name> <!{ is-reserved(~$<name>) }> <typespec>?
+  <name> <!{ is-reserved(~$<name>) }> <attrs>? <typespec>?
 }
 
 # 'return' is a STATEMENT, not just the end of the function. An early return

@@ -158,7 +158,7 @@ my class Checker
     %!warned-alias = ();
     $!scope = Scope.new;
     $!line  = $f.line;
-    self!declare(.name, $f.line, kind => 'param') for $f.params;
+    self!declare(.name, $f.line, kind => 'param', attributes => .attributes) for $f.params;
     self!body($f.body);
     self!never-read;
     self!returns($f);

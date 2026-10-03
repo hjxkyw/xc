@@ -145,8 +145,11 @@ method function($/)
 method param($/)
 {
   make Param.new(
-    name     => ~$<name>,
-    declared => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
+    name       => ~$<name>,
+    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
+    attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
+    attrs-from => $<attrs> ?? self!to($<name>) !! -1,
+    attrs-to   => $<attrs> ?? self!to($<attrs>) !! -1,
   );
 }
 

@@ -792,11 +792,36 @@ class Emitter
     add-includes($out, $!nl)
   }
 
+  # A parameter's '<const>' or '<contained>' leaves the header, and a comment
+  # at the end of the line says it: 'user function f(aRows, nX)  // aRows
+  # [contained], nX [const]' -- with the line's own comment after it.
+  method !param-attributes($f)
+  {
+    my @with = $f.params.grep({ $_ ~~ Param && .attributes });
+    return unless @with;
+    @!edits.push([.attrs-from, .attrs-to, '']) for @with;
+    my $note = @with.map({ "{.name} [{.attributes.join(', ')}]" }).join(', ');
+    my $from = self!line-start(@with[*-1].attrs-to);
+    my $end  = self!line-end(@with[*-1].attrs-to);
+    my $line = $!src.substr($from, $end - $from);
+    my ($code, $comment) = split-comment($line);
+    if $comment && $comment.starts-with('//')
+    {
+      my $at = $from + $line.index($comment, $code.chars);
+      @!edits.push([$at, $at + 2, "// $note --"]);
+    }
+    else
+    {
+      @!edits.push([$end, $end, "  // $note"]);
+    }
+  }
+
   method !function($f)
   {
     %!used    = ();
     @!hoist   = ();
     %!hoisted = ();
+    self!param-attributes($f);
     %!used{.name.lc} = True for $f.params;
     walk($f.body, -> $s
     {

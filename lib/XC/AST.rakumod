@@ -411,6 +411,10 @@ class Param is export
 {
   has Str $.name;
   has Str $.declared;              # '?' when there is none
+  has Str @.attributes;            # 'const', 'contained' -- xtpl's
+  # From the name's end to the '>': what the output leaves out. -1: none.
+  has Int $.attrs-from = -1;
+  has Int $.attrs-to   = -1;
 }
 
 class FunctionDef is export
