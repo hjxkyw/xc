@@ -196,6 +196,27 @@ user function xc_selftest()
   check("join fused: 40,000 elements, one text", len(cTmp) == 40000 .and. right(cTmp, 1) == "y", len(cTmp), @nOk, @nBad)
   check("join: none, one, numbers, no separator", join({}, ",") == "" .and. join({"a"}, ",") == "a" .and. join({1, 2.5, 3}, "-") == "1-2.5-3" .and. join({"a", "b"}) == "ab", 0, @nOk, @nBad)
 
+  // Block locals share slots. A slot taken again starts fresh; one a code
+  // block captured keeps a Local of its own, its value with the block.
+  if nOk >= 0
+    local nFill := 5
+    nTmp := nFill
+  endif
+  if nOk >= 0
+    local xFresh
+    check("slots: a slot taken again starts at Nil", xFresh == Nil, xFresh, @nOk, @nBad)
+  endif
+  aTmp := {}
+  if nOk >= 0
+    local nKept := 1
+    aadd(aTmp, {|| nKept})
+  endif
+  if nOk >= 0
+    local nKept := 2
+    aadd(aTmp, {|| nKept})
+  endif
+  check("slots: a captured block local keeps its own value", eval(aTmp[1]) == 1 .and. eval(aTmp[2]) == 2, eval(aTmp[1]), @nOk, @nBad)
+
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
 
 return nBad
