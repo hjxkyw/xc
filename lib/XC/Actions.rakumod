@@ -461,6 +461,10 @@ method subjacc($/)
     !! Member.new(base => $base, name => ~$<member>);
 }
 
+# A command, or a directive in a function: raw text, the whole of it.
+method cmdst($/) { make RawStmt.new(lines => (~$/,), line => self!line($/)) }
+method dirst($/) { make RawStmt.new(lines => ((~$/).trim,), line => self!line($/)) }
+
 method rawst($/)
 {
   # The block has a list of lines; the one-line form has a single match, and

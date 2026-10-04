@@ -70,10 +70,30 @@ same "a 'Static' of the file, typed or not, with a value or not",
 same "'Data ... default', 'Static Method', visibilities, '::' calls as statements",
   "Class Gw from Base\n  Public Data cId as character default \"\"\n  Static Method Make()\n  Private Method Wait( nWait as integer )\n  Public Static Method Other()\n  Method New() Constructor\nEndClass\n\nMethod New() Class Gw\n  ::Init()\n  ::oLog:Error( \"x\", \{ 1 \} )\n  ::cId := \"a\"\nReturn Self\n";
 
+# ---- the commands of TOTVS' include files: taken whole, as written ------------
+same 'one line, and continued with ;',
+  "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";
+same "'@ row, col SAY ...'; an annotation is '@' and its name together",
+  "\@Get(\"/hello\")\nUser Function f()\n  Local oDlg\n  \@ 1, 0 VTSAY \"x\"\n  \@ 10, 20 SAY \"y\" OF oDlg PIXEL\nreturn nil\n";
+same "'BeginSql' ... 'EndSql', 'BeginContent' ... 'EndContent': whole",
+  "User Function f()\n  BeginSql alias \"QRY\"\n    SELECT * FROM %table:SA1% SA1 WHERE %notDel%\n  EndSql\n  BeginContent var cCss as CSS\n    .a \{ color: red; \}\n  EndContent\nreturn nil\n";
+same "a directive inside a function; a command at the file's level",
+  "PUBLISH USER MODEL REST NAME Cad SOURCE \"Mvc.Cad\"\n\nUser Function f()\n#IFDEF TOP\n  conout(\"top\")\n#ENDIF\nreturn nil\n";
+same "not a command: 'Set(1)' a call, 'set := 1' an assignment",
+  "User Function f()\n  Local set := 0\n  Set(1)\n  set := 1\nreturn set\n";
+check "a word not on the list is not taken for a command: a typo stays an error",
+{
+  !parse($head ~ "User Function f()\n  DEFINEX MSDIALOG oDlg TITLE \"x\"\nreturn nil\n")
+};
+
 # ---- what the checks make of them ------------------------------------------------
 check "'Default' reads what it sets: no 'never read'",
 {
   !warnings("User Function f(a)\n  Local n\n  Default n := 1\nreturn a\n").first(*.contains('never read'))
+};
+check "the variables of a command are read: no 'never read'",
+{
+  !warnings("User Function f()\n  Local oDlg\n  DEFINE MSDIALOG oDlg TITLE \"x\" FROM 0,0 TO 9,9 PIXEL\nreturn nil\n")
 };
 check "a file 'Static' is known in every function of the file",
 {

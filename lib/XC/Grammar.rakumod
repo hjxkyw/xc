@@ -225,7 +225,7 @@ rule toplevel
      <function>
   || <classdecl>
   || <methodimpl>
-  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <annotation> ] <.eol> ]
+  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <cmdst> || <annotation> ] <.eol> ]
 }
 
 # ---- what the preprocessor takes whole ------------------------------------
@@ -434,7 +434,9 @@ token typename
 rule statement
 {
   [
-     <annotation>
+     <cmdst>
+  || <dirst>
+  || <annotation>
   || <seqst>
   || <tryst>
   || <transst>
@@ -547,6 +549,48 @@ rule subjacc { <?{ $*IN-WITH // False }> ':' <member> [ '(' ~ ')' <arglist> ]? }
 # Only 'end raw' closes the block: xtpl takes 'endraw' as one more raw line
 # and never closes it. Not at file level, where directives already pass
 # through whole (xtpl accepts it there).
+# ---- the commands of TOTVS' include files --------------------------------------
+# '#command' statements, which xc cannot read: their includes are not to be
+# had. A statement that starts with one of their words is taken whole, as
+# 'raw' text -- through its continuation lines; 'BeginSql' and
+# 'BeginContent' to their closing line -- and goes out as it came. The checks
+# see the names of variables in it, as in raw text. The words are a list: a
+# word that is not on it is still a line xc cannot parse, so a typo in a
+# keyword of xc's own is not taken for a command.
+#
+# Tried before an annotation: a rule does not go back into an alternation, and
+# '@ nRow, nCol SAY ...' would be half an annotation.
+token cmdst    { <cmdblock> || <cmdone> }
+token cmdone   { <.cmdword> <rawline> }
+token cmdword
+{
+  :i [
+       [ 'define' || 'activate' || 'redefine' || 'set' || 'menu' || 'publish' || 'replace' ] \h+ <[A..Za..z_]>
+    || [ 'add' \h+ 'option' || 'prepare' \h+ 'environment' || 'reset' \h+ 'environment'
+       || 'append' \h+ 'blank' || 'menuitem' || 'endmenu' || 'tcquery' || 'paramtype' || 'throw' ] <!ww>
+    # '@ row, col SAY ...': '@' with a space or a digit after -- an
+    # annotation has its name right after the '@'.
+    || '@' [ \h+ || <?before \d> ]
+  ]
+}
+# 'BeginSql' ... 'EndSql', 'BeginContent' ... 'EndContent': SQL, CSS, any text.
+token cmdblock { <sqlblock> || <contentblock> }
+token sqlblock
+{
+  :i 'beginsql' <!ww> \N* \v
+  [ <!before \h* :i 'endsql' <!ww> > \N* \v ]*
+  \h* :i 'endsql' <!ww> \N*
+}
+token contentblock
+{
+  :i 'begincontent' <!ww> \N* \v
+  [ <!before \h* :i 'endcontent' <!ww> > \N* \v ]*
+  \h* :i 'endcontent' <!ww> \N*
+}
+
+# A directive inside a function -- '#IFDEF TOP', '#ENDIF': as it came.
+token dirst    { <preproc> }
+
 token rawst    { <rawblock> || <rawone> }
 token rawblock
 {
