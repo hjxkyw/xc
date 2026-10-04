@@ -73,6 +73,8 @@ same "'Data ... default', 'Static Method', visibilities, '::' calls as statement
 # ---- the commands of TOTVS' include files: taken whole, as written ------------
 same 'one line, and continued with ;',
   "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";
+same "'Count to', and the RF terminal's: 'VTRead', 'VTPause', 'VTClear Screen'",
+  "User Function f()\n  Local nCount := 0\n  Count to nCount For SA1->A1_EST == \"SP\"\n  VTClear Screen\n  VTRead\n  VTPause\nreturn nCount\n";
 same "'@ row, col SAY ...'; an annotation is '@' and its name together",
   "\@Get(\"/hello\")\nUser Function f()\n  Local oDlg\n  \@ 1, 0 VTSAY \"x\"\n  \@ 10, 20 SAY \"y\" OF oDlg PIXEL\nreturn nil\n";
 same "'BeginSql' ... 'EndSql', 'BeginContent' ... 'EndContent': whole",

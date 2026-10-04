@@ -567,7 +567,10 @@ token cmdword
   :i [
        [ 'define' || 'activate' || 'redefine' || 'set' || 'menu' || 'publish' || 'replace' ] \h+ <[A..Za..z_]>
     || [ 'add' \h+ 'option' || 'prepare' \h+ 'environment' || 'reset' \h+ 'environment'
-       || 'append' \h+ 'blank' || 'menuitem' || 'endmenu' || 'tcquery' || 'paramtype' || 'throw' ] <!ww>
+       || 'append' \h+ 'blank' || 'count' \h+ 'to' || 'menuitem' || 'endmenu' || 'tcquery'
+       || 'paramtype' || 'throw'
+       # The RF terminal's (apvt100.ch).
+       || 'vtpause' || 'vtread' || 'vtclear' || 'vtsave' || 'vtrestore' ] <!ww>
     # '@ row, col SAY ...': '@' with a space or a digit after -- an
     # annotation has its name right after the '@'.
     || '@' [ \h+ || <?before \d> ]
