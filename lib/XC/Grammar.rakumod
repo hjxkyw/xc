@@ -132,12 +132,13 @@ sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
     elsif $depth == 0
     {
       return False if $item && $c == 44;     # ',' ends an item
-      if $what eq 'assign'
+      if $what eq 'assign' || $what eq 'bind'
       {
         # ':=', '+=', '-=', '*=', '/=', '?=', or '=' on its own -- not '==',
-        # '<=', '>=', '!='.
+        # '<=', '>=', '!='. 'bind': not '=' on its own, which in an
+        # expression compares.
         return True if $next == 61 && ($c == 58 || $c == 43 || $c == 45 || $c == 42 || $c == 47 || $c == 63);
-        if $c == 61
+        if $c == 61 && $what eq 'assign'
         {
           if $next == 61 { $i += 2; $last = 61; next }
           my $prev = $i > 0 ?? $u[$i - 1] !! 0;
@@ -224,7 +225,7 @@ rule toplevel
      <function>
   || <classdecl>
   || <methodimpl>
-  || [ [ <preproc> || <namespacest> || <externalst> || <annotation> ] <.eol> ]
+  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <annotation> ] <.eol> ]
 }
 
 # ---- what the preprocessor takes whole ------------------------------------
@@ -280,7 +281,7 @@ rule annotation
 rule function
 {
   [ <annotation> <.nl> ]*
-  <funckind> <name> '(' ~ ')' <params> <.nl>
+  <funckind> <name> [ '(' ~ ')' <params> ]? <rettype>? <.nl>
   <funcbody>
 }
 
@@ -289,6 +290,10 @@ rule function
 # starts with 'u_' -- and maybe other prefixes, not yet surveyed. Refusing it
 # here would refuse valid TL++.
 token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
+
+# 'User Function X' needs no parentheses in AdvPL; and TL++ may say what it
+# returns: 'Static Function Scheddef() as array'.
+token rettype { <typespec> }
 
 # ---- TL++: classes ---------------------------------------------------------
 # Native to TL++, not an xtpl extension. Two parts: the 'Class ... EndClass'
@@ -313,11 +318,16 @@ rule visib { :i [ 'public' || 'protected' || 'private' || 'exported' || 'hidden'
 # 'Data name [as type]', one or more per line. The type here is any name (a
 # class included), not the closed list of 'as' in declarations.
 rule datadecl { <visib>? :i 'data' <datavar>+ % ',' }
-rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? }
+rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? [ :i 'default' <datadefault> ]? }
+# 'Data cId as character default ""': its value when an object is made.
+token datadefault { <guardexpr> }
 
 # The signature: 'Constructor' and the return type are optional and come in
 # any order.
-rule methdecl { <visib>? :i 'method' <mname=name> '(' ~ ')' <params> <methtag>* }
+# 'Static Method', with or without a visibility, in either order: a method of
+# the class, not of an object.
+rule methdecl { [ <visib> || <mstatic> ]* :i 'method' <mname=name> '(' ~ ')' <params> <methtag>* }
+token mstatic { :i 'static' >> }
 rule methtag  { :i 'constructor' || [ :i 'as' <ret=name> ] }
 
 # The implementation, at file level. The 'as type' comes before 'class Name'.
@@ -403,7 +413,8 @@ rule typespec
 token typename
 {
   :i [
-       'array'     || 'a' >>
+       'integer' || 'decimal' || 'codeblock'
+    || 'array'     || 'a' >>
     || 'numeric'   || 'n' >>
     || 'character' || 'c' >>
     || 'logical'   || 'l' >>
@@ -425,6 +436,8 @@ rule statement
   [
      <annotation>
   || <seqst>
+  || <tryst>
+  || <transst>
   # A 'private' or 'public' is a statement in TL++: allowed anywhere one is.
   # It does not close the prologue here, though: a 'local' after it is then
   # parsed, and the checks can say what is wrong with it.
@@ -552,11 +565,22 @@ rule simple
      <returnst>
   || <exitst>
   || <loopst>
+  || <breakst>
+  || <defaultst>
   || [ <?{ ahead($/.from, 'assign') }> [ <assignment> || <nilassign> ] ]
   || [ <?{ ahead($/.from, 'pipe') }> <pipest> ]
   || <incst>
   || <callst>
 }
+
+# 'Break' [value]: out to a 'begin sequence''s recover. ('word'>>, no space:
+# in a rule a space before '>>' puts the whitespace first, and '>>' then
+# looks for a word's end where the next word starts.)
+rule breakst { :i 'break'>> <guardexpr>? }
+
+# 'Default x := 1, y := 2' (totvs.ch): each takes its value when it is Nil.
+rule defaultst { :i 'default'>> <defpair>+ % ',' }
+rule defpair   { <lvalue> ':=' <guardexpr> }
 
 # 'n++', '++n', 'a[i]--': TL++'s increment and decrement, as a statement.
 rule incst  { [ <incop> <lvalue> ] || [ <lvalue> <incop> ] }
@@ -594,6 +618,11 @@ token modkw   { :i [ 'if' || 'while' ] >> }
 rule execst   { :i 'exec' <expr> <modifier> }
 
 token blockcomment { '/*' .*? '*/' }
+
+# A 'Static' of the file, outside every function: 'Static aDados__ as array',
+# 'Static cX := "y"'. Every function of the file sees it.
+rule filestatic { :i 'static'>> <!before \s+ <.kwfunction> > <declarator>+ % ',' }
+token kwfunction { :i 'function' >> }
 
 rule declaration
 {
@@ -661,7 +690,7 @@ rule ifst
 
 rule whilest
 {
-  :i 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
+  :i [ 'do' <.ws> ]? 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
      <block>
   :i [ 'enddo' || 'end' ]
 }
@@ -742,10 +771,30 @@ rule seqst
   :i 'end' [ :i 'sequence' ]?
 }
 
+# TL++'s try: the handler, a block that opens no prologue, as 'recover'.
+rule tryst
+{
+  :i 'try' <.nl>
+     <seqblock>
+  [ :i 'catch' <errvar=name>? <.nl> <recover> ]?
+  :i 'endtry'
+}
+
+# A transaction (TOTVS' command): its body read and checked, the rest as is.
+rule transst
+{
+  :i 'begin' 'transaction' <.nl>
+     <seqblock>
+  :i 'end' 'transaction'
+}
+
 rule assignment
 {
-  <!stmtword> <lvalue> <assignop> <guardexpr>
+  <!stmtword> <lvalue> <assignop> [ <chained> || <guardexpr> ]
 }
+
+# 'a := b := 0': the value an assignment of its own, from the right.
+token chained { <?{ ahead($/.from, 'bind') }> <assignment> }
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 
@@ -764,6 +813,7 @@ token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 rule callst
 {
   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
+             || [ <selfacc> <trailer>* ]
              || [ '(' ~ ')' <pexpr> <trailer>+ ] ]
 }
 
@@ -971,8 +1021,12 @@ rule primary
   || <call>
   || <aliasfield>
   || <name>
-  || [ '(' ~ ')' <guardexpr> ]
+  || [ '(' ~ ')' [ <passign> || <guardexpr> ] ]
 }
+
+# An assignment in parentheses is an expression -- 'if !( lOk := f() )'. Only
+# when one is there, by ahead(): no capture is left when it is not.
+token passign { <?{ ahead($/.from, 'bind', :item) }> <assignment> }
 
 # A call qualified by a TL++ dotted path:
 #
@@ -1124,7 +1178,9 @@ token linecomment { '//' \N* }
 
 # The end of a line (or of the file), and whatever comes before the next
 # statement: blank lines, comment-only lines, and the indentation.
-token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ] }
+# A ';' with more on its line ends a statement too: 'conout(1); n++'. At the
+# end of a line it is a continuation, and the whitespace rule takes it.
+token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ || ';' <!before \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ]> ] }
 token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 # Every line end records how far the parse got, for the driver's error
 # message: the first line it could not continue past. 'try', because the

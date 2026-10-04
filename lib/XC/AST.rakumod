@@ -29,12 +29,12 @@ sub type-of-name(Str $name --> Str) is export
   given $name.lc
   {
     when 'array'     | 'a' { 'Array'     }
-    when 'numeric'   | 'n' { 'Numeric'   }
+    when 'numeric'   | 'n' | 'integer' | 'decimal' { 'Numeric' }
     when 'character' | 'c' { 'Character' }
     when 'logical'   | 'l' { 'Logical'   }
     when 'date'      | 'd' { 'Date'      }
     when 'object'    | 'o' { 'Object'    }
-    when 'block'     | 'b' { 'Block'     }
+    when 'block'     | 'b' | 'codeblock' { 'Block' }
     when 'json'      | 'j' { 'JSON'      }
     when 'variant'   | 'u' { 'Variant'   }
     default                { UNKNOWN     }
@@ -398,6 +398,32 @@ class RawStmt is Stmt is export
   has Str  @.lines;
 }
 
+# TL++'s 'try' ... 'catch oErr' ... 'endtry'.
+class TryStmt is Stmt is export
+{
+  has Stmt @.body;
+  has Str  $.error-var;            # 'catch oErr'; undefined if not
+  has Stmt @.handler;
+}
+
+# 'Begin Transaction' ... 'End Transaction': a block, as written.
+class TransactionStmt is Stmt is export
+{
+  has Stmt @.body;
+}
+
+# 'Break' [value]: out of a 'begin sequence', to its 'recover'.
+class BreakStmt is Stmt is export
+{
+  has Expr $.value;                # undefined if none
+}
+
+# 'Default x := 1, y := 2': each given its value when it is Nil.
+class DefaultStmt is Stmt is export
+{
+  has @.pairs;                     # Assignment, op ':='
+}
+
 class SequenceStmt is Stmt is export
 {
   has Stmt @.body;
@@ -485,6 +511,7 @@ class Program is export
   has ClassDef    @.classes;
   has MethodImpl  @.methods;       # the loose implementations
   has External    @.externals;
+  has Declaration @.statics;       # the file's own, outside every function
 }
 
 # ---- walking -----------------------------------------------------------------
@@ -567,7 +594,7 @@ sub walk-expr(Expr $e, &f) is export
 # The expressions a statement holds, without going into its bodies -- 'walk'
 # does that. The variable of a 'for' is a name, not an expression, and is left
 # out.
-my %NO-EXPRS = (RawStmt, SequenceStmt, Deferred).map({ .^name => True });
+my %NO-EXPRS = (RawStmt, SequenceStmt, Deferred, TryStmt, TransactionStmt).map({ .^name => True });
 my %EXPRS =
   Declaration.^name  => -> $s { |$s.declarators.map(*.init) },
   Assignment.^name   => -> $s { $s.target, $s.value },
@@ -585,7 +612,9 @@ my %EXPRS =
   ForInStmt.^name    => -> $s { $s.source },
   ForTimesStmt.^name => -> $s { $s.count },
   UsingAlias.^name   => -> $s { $s.order },
-  WithObject.^name   => -> $s { $s.subject };
+  WithObject.^name   => -> $s { $s.subject },
+  BreakStmt.^name    => -> $s { $s.value },
+  DefaultStmt.^name  => -> $s { |$s.pairs.map({ |(.target, .value) }) };
 
 sub exprs-of(Stmt $s --> List) is export
 {
@@ -621,7 +650,7 @@ sub exprs-of(Stmt $s --> List) is export
 # classes, junctions among them. No statement class has a subclass, so the
 # exact class is the whole answer; a class the tables do not know goes the
 # long way.
-my %NO-BODIES = (Declaration, Assignment, CallStmt, ReturnStmt, Annotation, RawStmt).map({ .^name => True });
+my %NO-BODIES = (Declaration, Assignment, CallStmt, ReturnStmt, Annotation, RawStmt, BreakStmt, DefaultStmt).map({ .^name => True });
 my %BODIES =
   IfStmt.^name       => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },
   CaseStmt.^name     => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },
@@ -633,7 +662,9 @@ my %BODIES =
   UsingAlias.^name   => -> $s { ($s.body.List,).List },
   WithObject.^name   => -> $s { ($s.body.List,).List },
   Modified.^name     => -> $s { (($s.stmt,).List,).List },
-  Deferred.^name     => -> $s { (($s.stmt,).List,).List };
+  Deferred.^name     => -> $s { (($s.stmt,).List,).List },
+  TryStmt.^name         => -> $s { ($s.body.List, $s.handler.List).List },
+  TransactionStmt.^name => -> $s { ($s.body.List,).List };
 
 # The bodies a statement holds, in reading order. It is what any analysis
 # needs to go down the tree without knowing every kind of statement.

@@ -65,7 +65,7 @@ method TOP($/)
   # the attribute takes. Untyped it would be Any, which Rakudo refuses there
   # (rakupp takes it).
   my Str $ns;
-  my (@usings, @directives, @annotations, @functions, @classes, @methods, @externals);
+  my (@usings, @directives, @annotations, @functions, @classes, @methods, @externals, @statics);
   for $<toplevel> -> $t
   {
     if $t<function>
@@ -87,6 +87,10 @@ method TOP($/)
     elsif $t<externalst>
     {
       @externals.push($t<externalst>.made);
+    }
+    elsif $t<filestatic>
+    {
+      @statics.push($t<filestatic>.made);
     }
     elsif $t<annotation>
     {
@@ -114,6 +118,7 @@ method TOP($/)
     classes     => @classes,
     methods     => @methods,
     externals   => @externals,
+    statics     => @statics,
   );
 }
 
@@ -135,7 +140,7 @@ method function($/)
   make FunctionDef.new(
     type        => @w > 1 ?? @w[0] !! '',
     name        => ~$<name>,
-    params      => $<params><param>.map(*.made).list,
+    params      => $<params> ?? $<params><param>.map(*.made).list !! (),
     annotations => $<annotation>.map(*.made).list,
     body        => $<funcbody>.made,
     line        => self!line($<funckind>),
@@ -315,10 +320,14 @@ method assignment($/)
   make Assignment.new(
     target => $<lvalue>.made,
     op     => ~$<assignop>,
-    value  => $<guardexpr>.made,
+    value  => $<chained> ?? $<chained>.made !! $<guardexpr>.made,
     line   => self!line($/),
   );
 }
+
+# An assignment that is a value: in parentheses, or the right of 'a := b := 0'.
+method passign($/) { make self!spanned(assign-expr($<assignment>.made), $/) }
+method chained($/) { make self!spanned(assign-expr($<assignment>.made), $/) }
 
 method lvalue($/)
 {
@@ -333,12 +342,14 @@ method lvalue($/)
 
 method callst($/)
 {
+  # '::Init()', '::oLog:Error(...)': a method of the object itself.
   my $base = $<call>    ?? $<call>.made
           !! $<subjacc> ?? $<subjacc>.made
+          !! $<selfacc> ?? $<selfacc>.made
           !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
-    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<pexpr> // $<name>, $<trailer>, $/), $/),
+    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<pexpr> // $<name>, $<trailer>, $/), $/),
     line => self!line($/),
   );
 }
@@ -473,6 +484,36 @@ method usingst($/)
   );
 }
 
+method tryst($/)
+{
+  make TryStmt.new(
+    body      => $<seqblock>.made,
+    error-var => $<errvar> ?? ~$<errvar> !! Str,
+    handler   => $<recover> ?? $<recover>.made !! (),
+    line      => self!line($/),
+  );
+}
+
+method transst($/)
+{
+  make TransactionStmt.new(body => $<seqblock>.made, line => self!line($/));
+}
+
+method breakst($/)
+{
+  make BreakStmt.new(value => $<guardexpr> ?? $<guardexpr>.made !! Expr, line => self!line($/));
+}
+
+method defaultst($/)
+{
+  make DefaultStmt.new(pairs => $<defpair>.map(*.made).list, line => self!line($/));
+}
+
+method defpair($/)
+{
+  make Assignment.new(target => $<lvalue>.made, op => ':=', value => $<guardexpr>.made, line => self!line($/));
+}
+
 method seqst($/)
 {
   make SequenceStmt.new(
@@ -485,6 +526,11 @@ method seqst($/)
 }
 
 # ---- declarations ------------------------------------------------------------
+method filestatic($/)
+{
+  make Declaration.new(scope => 'static', declarators => $<declarator>.map(*.made).list, line => self!line($/));
+}
+
 method declaration($/)
 {
   make Declaration.new(
@@ -700,6 +746,7 @@ method primary($/)
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Name.new(name => ~$<name>)
+      !! $<passign>      ?? $<passign>.made
       !! $<guardexpr>    ?? $<guardexpr>.made
       !! $<macro>        ?? $<macro>.made
       !! $<aliasfield>   ?? $<aliasfield>.made

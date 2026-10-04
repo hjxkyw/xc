@@ -89,6 +89,7 @@ my class Checker
   has %!implicit;                  # lower case => True: made a PRIVATE by a write
   has %!funcs;                     # lower case => %(name, kind, params, line)
   has %!externals;                 # lower case => the line of its 'external'
+  has %!statics;                   # the file's own Statics: lower case => line
   has %!defines;                   # lower case => True
   has %!privates;                  # lower case => True, in the whole file
   has %!retired;                   # lower case => line: block locals whose block is over
@@ -128,6 +129,10 @@ my class Checker
     for $p.externals.grep(*.alias) -> $x
     {
       %!external-alias{.uc} = True for $x.names;
+    }
+    for $p.statics -> $d
+    {
+      %!statics{.name.lc} = $d.line for $d.declarators;
     }
     @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
     for $p.directives -> $d
@@ -283,7 +288,7 @@ my class Checker
   {
     my $k = $name.lc;
     so KNOWN{$k} || XC::Grammar::is-reserved($name) || XC::Grammar::is-generated($name)
-       || %!externals{$k} || %!defines{$k} || %!privates{$k}
+       || %!externals{$k} || %!defines{$k} || %!privates{$k} || %!statics{$k}
   }
 
   # ---- names -----------------------------------------------------------------
@@ -523,6 +528,31 @@ my class Checker
         self!in-block({ self!body($q.body) });
         self!write($q.error-var) if $q.error-var.defined;
         self!in-block({ self!body($q.recover) });
+      }
+      when TryStmt
+      {
+        my $q = $_;
+        self!in-block({ self!body($q.body) });
+        self!write($q.error-var) if $q.error-var.defined;
+        self!in-block({ self!body($q.handler) });
+      }
+      when TransactionStmt
+      {
+        my $q = $_;
+        self!in-block({ self!body($q.body) });
+      }
+      when BreakStmt
+      {
+        self!expr(.value) if .value.defined;
+      }
+      # Read before it is written: compared with Nil first.
+      when DefaultStmt
+      {
+        for .pairs -> $p
+        {
+          self!expr($p.value);
+          self!target($p.target, '+=');
+        }
       }
       when UsingAlias
       {
