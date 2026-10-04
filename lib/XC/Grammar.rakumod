@@ -304,7 +304,7 @@ rule classdecl
 {
   :i 'class' <cname=name> [ :i [ 'from' || 'inherit' ] <supers=name>+ % ',' ]? <.nl>
   [ <classmember> <.nl> ]*
-  :i 'endclass'
+  :i [ 'endclass' || 'end' 'class' ]
 }
 
 # '@Get("/x")' before a method: the annotation goes with it, as written.
@@ -327,7 +327,7 @@ token datadefault { <guardexpr> }
 # any order.
 # 'Static Method', with or without a visibility, in either order: a method of
 # the class, not of an object.
-rule methdecl { [ <visib> || <mstatic> ]* :i 'method' <mname=name> '(' ~ ')' <params> <methtag>* }
+rule methdecl { [ <visib> || <mstatic> ]* :i 'method' <mname=name> [ '(' ~ ')' <params> ]? <methtag>* }
 token mstatic { :i 'static' >> }
 rule methtag  { :i 'constructor' || [ :i 'as' <ret=name> ] }
 
@@ -575,6 +575,8 @@ token cmdword
        [ 'define' || 'activate' || 'redefine' || 'set' || 'menu' || 'publish' || 'replace' ] \h+ <[A..Za..z_]>
     || [ 'add' \h+ 'option' || 'prepare' \h+ 'environment' || 'reset' \h+ 'environment'
        || 'append' \h+ 'blank' || 'count' \h+ 'to' || 'menuitem' || 'endmenu' || 'tcquery'
+       # Mail (ap5mail.ch).
+       || [ 'connect' || 'disconnect' ] \h+ 'smtp' || 'send' \h+ 'mail' || 'get' \h+ 'mail' \h+ 'error'
        || 'paramtype' || 'throw'
        # The RF terminal's (apvt100.ch).
        || 'vtpause' || 'vtread' || 'vtclear' || 'vtsave' || 'vtrestore' ] <!ww>
@@ -761,10 +763,10 @@ rule whilest
 rule forst
 {
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
-     <!{ is-reserved(~$<var>) }> ':=' <from=expr>
+     <!{ is-reserved(~$<var>) }> [ ':=' || '=' ] <from=expr>
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
      <block>
-  :i 'next' <endname=name>?
+  :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
 }
 
 # ---- xtpl: 'for x in ...' and 'for n times' ----------------------------------
@@ -791,7 +793,7 @@ rule forinst
      [ ',' <idx=name> <!{ is-reserved(~$<idx>) }> ]?
      :i 'in' [ <srange=forrange> || <source> ] <.nl>
      <block>
-  :i 'next' <endname=name>?
+  :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
 }
 
 rule fortimesst
@@ -860,6 +862,8 @@ token chained { <?{ ahead($/.from, 'bind') }> <assignment> }
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 
+token atail { <?before :i 'atail' \h* '('> <call> }
+
 # A real call, not a bare name: either it has parentheses, or at least one
 # ':' / '->' / '[' after. It may start with a parenthesised expression, as
 # in '(cAlias)->(DbSkip())' -- plain TL++, and how an alias held in a
@@ -877,7 +881,10 @@ rule callst
   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
              || [ <selfacc> <trailer>* ]
              || [ <macrocall> <trailer>* ]
-             || [ '(' ~ ')' <pexpr> <trailer>+ ] ]
+             || [ <nscall> <trailer>* ]
+             || [ <macro> ]
+             || [ <inalias> ]
+             || [ '(' ~ ')' <pexpr> <trailer>* ] ]
 }
 
 token stmtword
@@ -1046,7 +1053,7 @@ rule trailer
 # ':' followed by a method WITH arguments: 'MSDialog():New(...)'. Before the
 # plain member, or that would match the name and leave the parentheses
 # behind.
-rule tmethod  { ':' <member> '(' ~ ')' <arglist> }
+rule tmethod  { [ '::' || ':' ] <member> '(' ~ ')' <arglist> }
 rule tmember  { ':' <member> }
 
 # ---- xtpl: 'h{"k"}' -- hash access ------------------------------------------
@@ -1085,8 +1092,12 @@ rule primary
   || <call>
   || <aliasfield>
   || <name>
-  || [ '(' ~ ')' [ <passign> || <guardexpr> ] ]
+  || [ '(' ~ ')' [ [ <passign> || <guardexpr> ] [ ',' <listitem> ]* ] ]
 }
+
+# '( fA(), fB() )': more than one, each in turn -- the first is read once, as
+# for one alone, and the rest after it: no parse of it twice.
+token listitem { <passign> || <guardexpr> }
 
 # An assignment in parentheses is an expression -- 'if !( lOk := f() )'. Only
 # when one is there, by ahead(): no capture is left when it is not.
@@ -1137,7 +1148,9 @@ rule byref       { '@' <name> }
 # 'SA1->A1_NOME' and 'SA1->( DbGoTop() )'. 'SA1' is the NAME of a work area,
 # not a variable: with a variable one writes '(cAlias)->A1_NOME', which is a
 # parenthesized primary followed by a trailer.
-rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <fieldmacro> || <field=member> ] }
+rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' [ <expr> [ ',' <listitem> ]* ] ] || <fieldmacro> || <field=member> ] }
+# 'SA2->( dbSetOrder(3), dbGoTop() )' as a statement.
+token inalias { <aliasfield> <?{ (~$<aliasfield>) ~~ / '->' \s* '(' / }> }
 # 'SX3->&("X3_CAMPO")', '(cAlias)->&(cField)': the field named when it runs.
 token fieldmacro { <macro> }
 
@@ -1152,7 +1165,9 @@ rule jsonliteral { '{' ~ '}' [ ':' || [ <pair>+ % ',' ] ] }
 rule hashliteral { '{' ~ '}' [ '=>' || [ <hashpair>+ % ',' ] ] }
 rule pair        { <expr> ':' <expr> }
 rule hashpair    { <expr> '=>' <expr> }
-rule arrayliteral { '{' ~ '}' [ <expr>* % ',' ] }
+# An element may be empty: '{ "P", , 1 }' -- Nil there.
+rule arrayliteral { '{' ~ '}' [ <aitem> [ ',' <aitem> ]* ] }
+rule aitem        { <expr>? }
 
 # '{ || ... }' is a block with no parameters, and the two pipes touch.
 rule codeblock
@@ -1195,7 +1210,8 @@ rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 # '(cAlias)->A1_COD := x' and 'GetObj():cName := x' too: a parenthesised
 # expression or a call, with at least one trailer after it -- a bare '(x)'
 # or 'f()' is not something to assign to.
-rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ]
+# 'aTail(a) := x': the last element, as AdvPL takes it.
+rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ] || <atail>
                 || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ---------------------------------------------------------------

@@ -86,6 +86,19 @@ same "'If( c, a, b )' as a statement; 'if( c )' with a body is still a block",
   "User Function f(a)\n  a := g() ; If( Empty(a), a := \"x\", Nil )\n  if( a > 1 )\n    a := 0\n  endif\nreturn a\n";
 same "an annotation on a method in its class", "Class C\n  \@Post(\"/c/x\")\n  Public Method PostX() as logical\nEndClass\n\nMethod PostX() Class C\nReturn .T.\n";
 
+# ---- the survey's tail ------------------------------------------------------------
+same "'( fA(), fB() )': a list in parentheses, each in turn -- in a code block too",
+  "User Function f(a, b)\n  Local aB := \{\}\n  aAdd( aB, \{ 1, .T., \{ || Iif( b ,( g( a ) , h() ),) \} \} )\n  a := ( g(), h(), 3 )\nreturn aB\n";
+same "an empty element in an array, over continued lines with comments",
+  "User Function f(b)\n  Local aP := \{ \"P\",;\t\t//the kind\n    b,;\t\t//the question\n    ,;\t\t//no alias\n    1 \}\nreturn aP\n";
+same "'For i = 1 To', 'Next (i)'", "User Function f()\n  Local i, n := 0\n  For i = 1 To 3\n    n++\n  Next (i)\nreturn n\n";
+same "'aTail(a) := ...': the last element", "User Function f(a)\n  aTail(a) := \{ 1, 2 \}\nreturn a\n";
+same "a namespaced call, 'oObj::Method()', '\&( ... )' and '( ... )' as statements",
+  "User Function f(o, b)\n  Local n\n  MvcLogin.Cad():Make()\n  n := o::connect()\n  \&( 'o:F' + b + '()' )\n  ( if( !Empty(b), n := b, Nil ) ) // a comment\nreturn n\n";
+same "'SA2->( a, b, c )' as a statement", "User Function f()\n  SA2->( dbSelectArea(\"SA2\"), dbSetOrder(3), dbGoTop() )\nreturn nil\n";
+same "'End Class'; a method without parentheses", "Class C\n  Public Method GetEnum as variant\nEnd Class\n";
+same "the mail commands", "User Function f(cS, cA, cP)\n  Local lOk\n  CONNECT SMTP SERVER cS ACCOUNT cA PASSWORD cP RESULT lOk\n  SEND MAIL FROM cA TO cA SUBJECT \"x\" BODY \"y\" RESULT lOk\n  DISCONNECT SMTP SERVER\nreturn lOk\n";
+
 # ---- the commands of TOTVS' include files: taken whole, as written ------------
 same 'one line, and continued with ;',
   "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";
@@ -120,6 +133,10 @@ check "the name in a field macro is read",
 check "a statement other than 'Default' still closes the prologue: 'defaultValue := 1'",
 {
   !parse($head ~ "User Function f()\n  defaultValue := 1\n  Local x := 1\nreturn x\n")
+};
+check "the names in a list in parentheses are read; 'aTail(a) := x' reads 'a'",
+{
+  !warnings("User Function f()\n  Local nA := 1, aL := \{ 1 \}\n  conout( ( nA, 2 ) )\n  aTail(aL) := 3\nreturn nil\n")
 };
 check "a file 'Static' is known in every function of the file",
 {

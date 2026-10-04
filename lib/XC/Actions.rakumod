@@ -331,6 +331,7 @@ method chained($/) { make self!spanned(assign-expr($<assignment>.made), $/) }
 
 method lvalue($/)
 {
+  return make self!spanned($<atail>.made, $/) if $<atail>;
   my $base = $<selfacc> ?? $<selfacc>.made
           !! $<subjacc> ?? $<subjacc>.made
           !! $<pexpr>   ?? $<pexpr>.made
@@ -347,10 +348,13 @@ method callst($/)
           !! $<subjacc> ?? $<subjacc>.made
           !! $<selfacc> ?? $<selfacc>.made
           !! $<macrocall> ?? $<macrocall>.made
+          !! $<nscall>    ?? $<nscall>.made
+          !! $<macro>     ?? $<macro>.made
+          !! $<inalias>   ?? $<inalias>.made
           !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
-    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<macrocall> // $<pexpr> // $<name>, $<trailer>, $/), $/),
+    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<macrocall> // $<nscall> // $<macro> // $<inalias> // $<pexpr> // $<name>, $<trailer>, $/), $/),
     line => self!line($/),
   );
 }
@@ -758,6 +762,7 @@ method primary($/)
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Name.new(name => ~$<name>)
+      !! $<listitem>     ?? self!spanned(ExprList.new(items => (($<passign> // $<guardexpr>).made, |$<listitem>.map(*.made))), $/)
       !! $<passign>      ?? $<passign>.made
       !! $<guardexpr>    ?? $<guardexpr>.made
       !! $<macro>        ?? $<macro>.made
@@ -790,7 +795,9 @@ method macrocall($/)
 
 method aliasfield($/)
 {
-  make $<expr>       ?? InAlias.new(alias => ~$<alias>, expr => $<expr>.made)
+  make $<expr>       ?? InAlias.new(alias => ~$<alias>,
+                                   expr => $<listitem> ?? ExprList.new(items => ($<expr>.made, |$<listitem>.map(*.made)))
+                                                       !! $<expr>.made)
     !! $<fieldmacro> ?? AliasField.new(alias => ~$<alias>, field => '', macro => $<fieldmacro><macro>.made)
     !!                  AliasField.new(alias => ~$<alias>, field => ~$<field>);
 }
@@ -812,9 +819,15 @@ method hashpair($/) { make KeyValue.new(key => $<expr>[0].made, value => $<expr>
 
 method arrayliteral($/)
 {
-  make ArrayLit.new(type => 'Array', text => (~$/).trim,
-                    items => $<expr>.map(*.made).list);
+  # '{}' is one empty element: none. An empty one among others is Nil.
+  my @items = $<aitem>.map({ .<expr> ?? .<expr>.made !! Omitted.new });
+  @items = () if @items == 1 && @items[0] ~~ Omitted;
+  make ArrayLit.new(type => 'Array', text => (~$/).trim, items => @items);
 }
+
+method listitem($/) { make ($<passign> // $<guardexpr>).made }
+method atail($/)    { make $<call>.made }
+method inalias($/)  { make $<aliasfield>.made }
 
 method lambda($/)
 {

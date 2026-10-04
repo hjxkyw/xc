@@ -406,6 +406,7 @@ my %LOWERS =
   CodeBlock.^name  => 'literal', Binary.^name   => 'binary',
   Index.^name      => 'no',      SelfRef.^name  => 'no',     SubjectRef.^name => 'no',
   Interval.^name   => 'no',      AliasField.^name => 'no',   InAlias.^name    => 'no',
+  ExprList.^name   => 'no',
   Macro.^name      => 'no',      Ref.^name      => 'no',     Omitted.^name    => 'no';
 
 class Emitter

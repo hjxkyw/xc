@@ -166,7 +166,13 @@ class Ref is Expr is export              # '@aX' in an argument: read and writte
   has Expr $.target;
 }
 
-class Omitted is Expr is export { }      # the empty position in 'f( , 1)'
+class Omitted is Expr is export { }
+
+# '( a, b, c )': each in turn, the last the value.
+class ExprList is Expr is export
+{
+  has Expr @.items;
+}      # the empty position in 'f( , 1)'
 
 # An assignment where an expression goes: 'If(c, a, cA := u)', '{|| n := 1}'.
 class AssignExpr is Expr is export
@@ -536,6 +542,7 @@ my %KIDS =
   MethodCall.^name => -> $e { $e.base, |$e.args },
   SafeCall.^name   => -> $e { $e.base, |$e.args },
   AliasField.^name => -> $e { |($e.base, $e.macro).grep(*.defined) },
+  ExprList.^name   => -> $e { |$e.items },
   InAlias.^name    => -> $e { $e.base, $e.expr },
   Macro.^name      => -> $e { |($e.target, |$e.args).grep(*.defined) },
   Ref.^name        => -> $e { $e.target },
@@ -570,6 +577,7 @@ sub subexprs(Expr $e --> List) is export
     when Member     { .base }
     when MethodCall { .base, |.args }
     when AliasField { |(.base, .macro).grep(*.defined) }
+    when ExprList   { |.items }
     when InAlias    { .base, .expr }
     when Macro      { (.target, |.args).grep(*.defined) }
     when Ref        { .target }
