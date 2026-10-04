@@ -70,6 +70,22 @@ same "a 'Static' of the file, typed or not, with a value or not",
 same "'Data ... default', 'Static Method', visibilities, '::' calls as statements",
   "Class Gw from Base\n  Public Data cId as character default \"\"\n  Static Method Make()\n  Private Method Wait( nWait as integer )\n  Public Static Method Other()\n  Method New() Constructor\nEndClass\n\nMethod New() Class Gw\n  ::Init()\n  ::oLog:Error( \"x\", \{ 1 \} )\n  ::cId := \"a\"\nReturn Self\n";
 
+# ---- more forms -----------------------------------------------------------------
+same "a field macro: 'SX3->\&(\"X3_CAMPO\")', '(cAlias)->\&(cField)', read and written",
+  "User Function f(cAlias, cField)\n  Local aF := \{\}\n  aAdd(aF, allTrim(SX3->\&(\"X3_CAMPO\")))\n  (cAlias)->\&(cField) := 1\n  if( allTrim((cAlias)->\&(cField)) \$ \"ab\" )\n    aF := \{\}\n  endif\nreturn aF\n";
+same "'end case', and 'End' closing an 'if'",
+  "User Function f(a)\n  do case\n  case a > 1\n    a := 1\n  end case\n  if a > 2\n    a := 2\n  End\nreturn a\n";
+same "'finally' in a 'try'", "User Function f(a)\n  Local oE\n  try\n    a := 1\n  catch oE\n    a := 2\n  finally\n    a := 3\n  endtry\nreturn a\n";
+same "'Return()'; '\&cFunc.()' called, as a value and as a statement",
+  "User Function f(a, cF)\n  if a > 1\n    Return()\n  endif\n  a := \&cF.()\n  \&cF.(\"x\")\nreturn a\n";
+same "chained in a declaration: 'Private a := b := c := 0'",
+  "User Function f()\n  Local nB := 0, nC := 0\n  Private nA := nB := nC := 0\nreturn nA + nB + nC\n";
+same "'Default' before the locals, as the parameters' values often are",
+  "User Function f(a)\n  Default a := 1\n  Local x as variant\n  x := a\nreturn x\n";
+same "'If( c, a, b )' as a statement; 'if( c )' with a body is still a block",
+  "User Function f(a)\n  a := g() ; If( Empty(a), a := \"x\", Nil )\n  if( a > 1 )\n    a := 0\n  endif\nreturn a\n";
+same "an annotation on a method in its class", "Class C\n  \@Post(\"/c/x\")\n  Public Method PostX() as logical\nEndClass\n\nMethod PostX() Class C\nReturn .T.\n";
+
 # ---- the commands of TOTVS' include files: taken whole, as written ------------
 same 'one line, and continued with ;',
   "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";
@@ -96,6 +112,14 @@ check "'Default' reads what it sets: no 'never read'",
 check "the variables of a command are read: no 'never read'",
 {
   !warnings("User Function f()\n  Local oDlg\n  DEFINE MSDIALOG oDlg TITLE \"x\" FROM 0,0 TO 9,9 PIXEL\nreturn nil\n")
+};
+check "the name in a field macro is read",
+{
+  !warnings("User Function f(cAlias)\n  Local cF := \"A1_COD\"\n  conout((cAlias)->\&(cF))\nreturn nil\n")
+};
+check "a statement other than 'Default' still closes the prologue: 'defaultValue := 1'",
+{
+  !parse($head ~ "User Function f()\n  defaultValue := 1\n  Local x := 1\nreturn x\n")
 };
 check "a file 'Static' is known in every function of the file",
 {

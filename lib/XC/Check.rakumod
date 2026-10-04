@@ -535,6 +535,7 @@ my class Checker
         self!in-block({ self!body($q.body) });
         self!write($q.error-var) if $q.error-var.defined;
         self!in-block({ self!body($q.handler) });
+        self!in-block({ self!body($q.finally) });
       }
       when TransactionStmt
       {
@@ -647,7 +648,7 @@ my class Checker
       # the tree does not keep them. So a name there is read only if a
       # variable by that name exists. Inside '( ... )' a bare name is a field.
       when InAlias    { self!alias-base(.base) }
-      when AliasField { self!field($_); self!alias-base(.base) }
+      when AliasField { self!field($_); self!alias-base(.base); self!expr(.macro) if .macro.defined }
       when Ref        { .target ~~ Name ?? self!by-ref(.target.name) !! self!expr(.target) }
       when AssignExpr
       {
@@ -753,7 +754,8 @@ my class Checker
       self!warning("nothing in this function opened $a. Wrap the use in 'using alias $a do', "
                    ~ "or declare 'external alias $a' if the caller opens it.");
     }
-    self!dict-field($word, $f.field);
+    # A field named at run time ('->&(cField)'): nothing to look up.
+    self!dict-field($word, $f.field) unless $f.macro.defined;
   }
 
   # The area of 'SA1->x' as written, when it is a literal area and not a

@@ -307,10 +307,11 @@ rule classdecl
   :i 'endclass'
 }
 
+# '@Get("/x")' before a method: the annotation goes with it, as written.
 rule classmember
 {
-     <datadecl>
-  || <methdecl>
+  [ <annotation> <.nl> ]*
+  [ <datadecl> || <methdecl> ]
 }
 
 rule visib { :i [ 'public' || 'protected' || 'private' || 'exported' || 'hidden' ] }
@@ -360,9 +361,10 @@ rule param
 # The value is optional, and an 'if'/'while' right after 'return' starts a
 # modifier, not the value: 'return if lSkip' returns nothing. Without the
 # '<!modkw>' the 'if' became a name and the line stopped matching.
+# 'Return()': nothing, in parentheses.
 rule returnst
 {
-  :i 'return' [ <!modkw> <guardexpr> ]?
+  :i 'return' [ [ '(' ')' ] || [ <!modkw> <guardexpr> ] ]?
 }
 
 rule exitst { :i 'exit' }
@@ -444,6 +446,7 @@ rule statement
   # It does not close the prologue here, though: a 'local' after it is then
   # parsed, and the checks can say what is wrong with it.
   || [ <?{ !($*PAST-PROLOGUE // False) || private-ahead($/.from) }> <declaration> ]
+  || <ifcallst>
   || <ifst>
   || <whilest>
   || <forst>
@@ -457,7 +460,11 @@ rule statement
   || <rawst>
   || [ <simple> <modifier>? ]
   ]
-  { try $*PAST-PROLOGUE = True unless $<declaration> }
+  # A 'Default' -- parameters' values, before the locals in real code -- does
+  # not close the prologue either.
+  # (By its text: rakupp does not show a code block what is inside a
+  # capture -- '$<simple><defaultst>' -- only the capture.)
+  { try $*PAST-PROLOGUE = True unless $<declaration> || (~$/) ~~ m:i/ ^ \s* 'default' >> / }
 }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
@@ -708,7 +715,7 @@ rule declarator
   <!{ is-reserved(~$<name>) }>
   <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
   <attrs>?
-  [    [ ':=' <guardexpr> <typespec>? ]
+  [    [ ':=' [ <chained> || <guardexpr> ] <typespec>? ]
     || [ <typespec> ':=' <guardexpr> ]
     || [ <typespec> ]
     || <?> ]
@@ -726,13 +733,20 @@ token attr  { :i [ 'const' || 'contained' ] >> }
 # the declarator from the condition unambiguously: 'f()' stops at the comma,
 # and what follows is the condition. Only the opening 'if' declares; 'elseif'
 # does not.
+# 'If( c, a, b )' as a statement: AdvPL's If(), IIf's twin, not a block.
+# Three arguments and nothing after: a block's condition has one. (Three
+# slots written out: rakupp does not show a code block what is inside a
+# capture -- '$<arglist><slot>' -- so they cannot be counted there.)
+rule ifcallst { :i 'if' '(' <slot> ',' <slot> ',' <slot> ')' <?before <.eol> > }
+
 rule ifst
 {
   :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
      <then>
   [ :i 'elseif' <cond> <.nl> <thenc> ]*
   [ :i 'else' <.nl> <else> ]?
-  :i 'endif'
+  # 'End' closes it too, as Clipper's.
+  :i [ 'endif' || 'end' [ 'if' ]? ]
 }
 
 rule whilest
@@ -795,7 +809,7 @@ rule docasest
   :i 'do' 'case' [ :i 'with' <subject> ]? <.nl>
   [ :i 'case' <cond> <.nl> <thenc> ]+
   [ :i 'otherwise' <.nl> <else> ]?
-  :i 'endcase'
+  :i [ 'endcase' || 'end' [ 'case' ]? ]
 }
 
 rule subject
@@ -824,6 +838,7 @@ rule tryst
   :i 'try' <.nl>
      <seqblock>
   [ :i 'catch' <errvar=name>? <.nl> <recover> ]?
+  [ :i 'finally' <.nl> <finblock> ]?
   :i 'endtry'
 }
 
@@ -861,6 +876,7 @@ rule callst
 {
   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
              || [ <selfacc> <trailer>* ]
+             || [ <macrocall> <trailer>* ]
              || [ '(' ~ ')' <pexpr> <trailer>+ ] ]
 }
 
@@ -945,6 +961,7 @@ token block     { <body> }
 token seqblock  { <closedbody> }
 token withblock { <withbody> }
 token recover   { <closedbody> }
+token finblock  { <closedbody> }
 
 # ---- xtpl: '?:' -- elvis -----------------------------------------------------
 # The value on the left, unless it is Nil. Between '.or.' and '|>', and it
@@ -1047,7 +1064,7 @@ rule thash    { <?after <[\w)\]}]>> '{' ~ '}' <key> }
 rule tsafe    { '?.' <member> [ '(' ~ ')' <arglist> ]? }
 rule tindex   { '[' ~ ']' [ <expr> [ ',' <expr> ]* ] }
 rule tinalias { '->' '(' ~ ')' <expr> }
-rule tfield   { '->' <member> }
+rule tfield   { '->' [ <fieldmacro> || <member> ] }
 
 # After ':' or '->' comes a MEMBER, and a member can be called 'End' or
 # 'Next'. The reserved list applies where a statement starts, not here.
@@ -1095,10 +1112,14 @@ token logword { :i [ 'and' || 'or' || 'not' ] <![\w]> }
 
 # The macro operator: '&(expression)' or '&name'. Compiles and runs the
 # string at run time -- nothing here sees what is inside.
+# '&cVar', '&(cExpr)'; '&cFunc.()' -- the '.' ends the name -- a call.
 rule macro
 {
-  '&' [ [ '(' ~ ')' <expr> ] || <name> ]
+  '&' [ [ '(' ~ ')' <expr> ] || [ <name> '.'? ] ] <mcall>?
 }
+token mcall { '(' ~ ')' <arglist> }
+# A macro that is called -- '&cFunc.( ... )' -- as a statement.
+rule macrocall { '&' [ [ '(' ~ ')' <expr> ] || [ <name> '.'? ] ] <mcall> }
 
 rule call        { <name> '(' ~ ')' <arglist> }
 
@@ -1116,7 +1137,9 @@ rule byref       { '@' <name> }
 # 'SA1->A1_NOME' and 'SA1->( DbGoTop() )'. 'SA1' is the NAME of a work area,
 # not a variable: with a variable one writes '(cAlias)->A1_NOME', which is a
 # parenthesized primary followed by a trailer.
-rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <field=member> ] }
+rule aliasfield  { <alias=name> '->' [ [ '(' ~ ')' <expr> ] || <fieldmacro> || <field=member> ] }
+# 'SX3->&("X3_CAMPO")', '(cAlias)->&(cField)': the field named when it runs.
+token fieldmacro { <macro> }
 
 # '{ : }' is the empty JSON and '{ => }' the empty hash. They need a spelling
 # of their own because '{}' already means the empty array -- and they must

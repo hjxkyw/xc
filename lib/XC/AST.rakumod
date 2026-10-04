@@ -139,6 +139,7 @@ class AliasField is Expr is export
   has Expr $.base;
   has Str  $.alias;
   has Str  $.field;
+  has Expr $.macro;                # '->&(cField)': the field named when it runs
 }
 
 # An expression evaluated in a work area: 'SA1->( DbGoTop() )'. The area as
@@ -156,6 +157,8 @@ class InAlias is Expr is export
 class Macro is Expr is export
 {
   has Expr $.target;
+  has Bool $.called = False;       # '&cFunc.()': called, with these
+  has Expr @.args;
 }
 
 class Ref is Expr is export              # '@aX' in an argument: read and written
@@ -404,6 +407,7 @@ class TryStmt is Stmt is export
   has Stmt @.body;
   has Str  $.error-var;            # 'catch oErr'; undefined if not
   has Stmt @.handler;
+  has Stmt @.finally;
 }
 
 # 'Begin Transaction' ... 'End Transaction': a block, as written.
@@ -531,9 +535,9 @@ my %KIDS =
   SafeMember.^name => -> $e { $e.base },
   MethodCall.^name => -> $e { $e.base, |$e.args },
   SafeCall.^name   => -> $e { $e.base, |$e.args },
-  AliasField.^name => -> $e { $e.base },
+  AliasField.^name => -> $e { |($e.base, $e.macro).grep(*.defined) },
   InAlias.^name    => -> $e { $e.base, $e.expr },
-  Macro.^name      => -> $e { $e.target },
+  Macro.^name      => -> $e { |($e.target, |$e.args).grep(*.defined) },
   Ref.^name        => -> $e { $e.target },
   AssignExpr.^name => -> $e { $e.target, $e.value },
   ArrayLit.^name   => -> $e { |$e.items },
@@ -565,9 +569,9 @@ sub subexprs(Expr $e --> List) is export
     when Index      { .base, |.indices }
     when Member     { .base }
     when MethodCall { .base, |.args }
-    when AliasField { .base }
+    when AliasField { |(.base, .macro).grep(*.defined) }
     when InAlias    { .base, .expr }
-    when Macro      { .target }
+    when Macro      { (.target, |.args).grep(*.defined) }
     when Ref        { .target }
     when AssignExpr { .target, .value }
     when ArrayLit   { |.items }
@@ -663,7 +667,7 @@ my %BODIES =
   WithObject.^name   => -> $s { ($s.body.List,).List },
   Modified.^name     => -> $s { (($s.stmt,).List,).List },
   Deferred.^name     => -> $s { (($s.stmt,).List,).List },
-  TryStmt.^name         => -> $s { ($s.body.List, $s.handler.List).List },
+  TryStmt.^name         => -> $s { ($s.body.List, $s.handler.List, $s.finally.List).List },
   TransactionStmt.^name => -> $s { ($s.body.List,).List };
 
 # The bodies a statement holds, in reading order. It is what any analysis

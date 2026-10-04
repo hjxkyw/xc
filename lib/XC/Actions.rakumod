@@ -346,10 +346,11 @@ method callst($/)
   my $base = $<call>    ?? $<call>.made
           !! $<subjacc> ?? $<subjacc>.made
           !! $<selfacc> ?? $<selfacc>.made
+          !! $<macrocall> ?? $<macrocall>.made
           !! $<pexpr>   ?? $<pexpr>.made
           !!               Name.new(name => ~$<name>);
   make CallStmt.new(
-    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<pexpr> // $<name>, $<trailer>, $/), $/),
+    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<macrocall> // $<pexpr> // $<name>, $<trailer>, $/), $/),
     line => self!line($/),
   );
 }
@@ -494,6 +495,7 @@ method tryst($/)
     body      => $<seqblock>.made,
     error-var => $<errvar> ?? ~$<errvar> !! Str,
     handler   => $<recover> ?? $<recover>.made !! (),
+    finally   => $<finblock> ?? $<finblock>.made !! (),
     line      => self!line($/),
   );
 }
@@ -548,7 +550,7 @@ method !make-declarator($/)
 {
   # A declaration's value is a <guardexpr> (it may take 'fallback'); a block
   # header's -- 'if local x := e, cond' -- a plain <expr>.
-  my $value = $<guardexpr> // $<expr>;
+  my $value = $<chained> // $<guardexpr> // $<expr>;
   Declarator.new(
     type-first    => ?($<typespec> && $value && $<typespec>.from < $value.from),
     typespec-text => $<typespec> ?? (~$<typespec>).trim !! Str,
@@ -602,6 +604,7 @@ method block($/)     { make $<body>.made }
 method seqblock($/)  { make $<closedbody>.made }
 method withblock($/) { make $<withbody>.made }
 method recover($/)   { make $<closedbody>.made }
+method finblock($/)   { make $<closedbody>.made }
 
 method guardexpr($/)
 {
@@ -736,6 +739,11 @@ method tinalias($/)
 
 method tfield($/)
 {
+  with $<fieldmacro>
+  {
+    my $m = .<macro>.made;
+    return make -> $base { AliasField.new(base => $base, field => '', macro => $m) };
+  }
   my $name = ~$<member>;
   make -> $base { AliasField.new(base => $base, field => $name) }
 }
@@ -764,14 +772,27 @@ method primary($/)
 
 method macro($/)
 {
-  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>));
+  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>),
+                 called => ?$<mcall>, args => $<mcall> ?? $<mcall><arglist>.made.list !! ());
+}
+
+method ifcallst($/)
+{
+  my @args = $<slot>.map({ .<arg> ?? .<arg>.made !! Omitted.new });
+  make CallStmt.new(call => self!spanned(Call.new(name => 'If', args => @args), $/), line => self!line($/));
+}
+
+method macrocall($/)
+{
+  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>),
+                 called => True, args => $<mcall><arglist>.made.list);
 }
 
 method aliasfield($/)
 {
-  make $<expr>
-    ?? InAlias.new(alias => ~$<alias>, expr => $<expr>.made)
-    !! AliasField.new(alias => ~$<alias>, field => ~$<field>);
+  make $<expr>       ?? InAlias.new(alias => ~$<alias>, expr => $<expr>.made)
+    !! $<fieldmacro> ?? AliasField.new(alias => ~$<alias>, field => '', macro => $<fieldmacro><macro>.made)
+    !!                  AliasField.new(alias => ~$<alias>, field => ~$<field>);
 }
 
 method jsonliteral($/)
