@@ -1,4 +1,5 @@
 #include "totvs.ch"
+#include "rwmake.ch"
 #include "tlpp-core.th"
 
 // consulta.tlpp -- uma tela de consulta simples, com a parte de dados em xtpl.
@@ -101,8 +102,10 @@ user function consulta(cFilialDe, cFilialAte)
 
   // ---- a tela: entregue ao pre-processador ---------------------------------
     @ 200, 010 TO 400, 600 DIALOG oDlg TITLE "Consulta de saldos"
-    @ 012, 010 SAY "Cliente" GET cNome PICTURE "@!"
-    @ 014, 010 SAY "Dias"    GET nDias PICTURE "@E 999"
+    @ 012, 010 SAY "Cliente"
+    @ 012, 040 GET cNome PICTURE "@!"
+    @ 014, 010 SAY "Dias"
+    @ 014, 040 GET nDias PICTURE "@E 999"
     @ 060, 200 BMPBUTTON TYPE 1 ACTION lOk := .T.
     @ 060, 240 BMPBUTTON TYPE 2 ACTION lOk := .F.
 
