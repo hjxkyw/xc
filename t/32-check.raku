@@ -297,6 +297,23 @@ check "and of a method",
 };
 passes "whole names", "  local nX as Numeric := 1\n  local aY := \{\} as Array\n  a := nX + len(aY)";
 
+# tlpp-core.th before totvs.ch: the AppServer refuses '{ : }' (tried: xcq_k).
+check "warns: tlpp-core.th included before totvs.ch -- at its line, naming totvs.ch as written and its line",
+{
+  my %r = result("// header\n#include \"tlpp-core.th\"\n#include \"rwmake.ch\"\n#include \"TOTVS.CH\"\n"
+               ~ "user function f()\nreturn 1\n");
+  !%r<errors> && %r<warnings> eqv ("2: tlpp-core.th is included before TOTVS.CH (line 4): the AppServer then "
+                                   ~ "refuses TL++'s own '\{ : \}' (C2003) -- include TOTVS.CH first",)
+};
+check "and not after it, nor before another .ch only, nor with only one of the two",
+{
+  my @src = "#include \"totvs.ch\"\n#include \"tlpp-core.th\"\n#include \"tlpp-rest.th\"\nuser function f()\nreturn 1\n",
+            "#include \"totvs.ch\"\n#include \"tlpp-core.th\"\n#include \"rwmake.ch\"\nuser function f()\nreturn 1\n",
+            "#include \"tlpp-core.th\"\nuser function f()\nreturn 1\n",
+            "#include \"totvs.ch\"\nuser function f()\nreturn 1\n";
+  so @src.map({ result($_)<warnings>.elems == 0 }).all
+};
+
 # A static takes its value once, at load (tried on an AppServer): a parameter
 # or a local of its function does not exist there.
 check "a static whose value names a parameter, a local, a loop counter: Nil there, warned once each",

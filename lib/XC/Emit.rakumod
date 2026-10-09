@@ -2474,14 +2474,23 @@ sub needs-lowering(Stmt $s --> Bool)
   }
 }
 
-# The two includes xtpl puts at the top of every file, when missing.
+# The two includes every file gets, when missing: totvs.ch at the top, and
+# tlpp-core.th after the last .ch the file includes -- or at the top, after
+# totvs.ch, when it includes none. The order matters: with tlpp-core.th before
+# totvs.ch the AppServer refuses TL++'s own '{ : }' (C2003).
 sub add-includes(Str $out, Str $nl --> Str)
 {
-  my @missing = ('totvs.ch', 'tlpp-core.th').grep(-> $h
+  my &included = -> Str $h { so $out ~~ m:i/ ^^ \h* '#' \h* 'include' \h* '"' $h '"' / };
+  my @top;
+  @top.push('totvs.ch') unless included('totvs.ch');
+  my $text = $out;
+  unless included('tlpp-core.th')
   {
-    !($out ~~ m:i/ ^^ \h* '#include' \h* '"' $h '"' /)
-  });
-  @missing ?? @missing.map({ "#include \"$_\"" }).join($nl) ~ $nl ~ $nl ~ $out !! $out
+    my $last = $out.match(/:i ^^ \h* '#' \h* 'include' \h* '"' <-["]>* '.ch"' \N* /, :g).tail;
+    if $last { $text = $out.substr(0, $last.to) ~ $nl ~ '#include "tlpp-core.th"' ~ $out.substr($last.to) }
+    else     { @top.push('tlpp-core.th') }
+  }
+  @top ?? @top.map({ "#include \"$_\"" }).join($nl) ~ $nl ~ $nl ~ $text !! $text
 }
 
 # The whole file: TL++ from the tree and its source.

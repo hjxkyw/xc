@@ -92,10 +92,28 @@ check 'the includes are added at the top when missing',
   my $src = "user function f()\nreturn 1\n";
   compile($src) eq qq[#include "totvs.ch"\n#include "tlpp-core.th"\n\n$src]
 };
-check 'only the missing include is added',
+check 'only the missing include is added -- tlpp-core.th after the totvs.ch there',
 {
-  my $src = qq[#include "TOTVS.CH"\nuser function f()\nreturn 1\n];
-  compile($src) eq qq[#include "tlpp-core.th"\n\n$src]
+  compile(qq[#include "TOTVS.CH"\nuser function f()\nreturn 1\n])
+    eq qq[#include "TOTVS.CH"\n#include "tlpp-core.th"\nuser function f()\nreturn 1\n]
+};
+# With tlpp-core.th before totvs.ch, the AppServer refuses '{ : }' (C2003): so
+# after the last .ch the file includes, wherever it is.
+check 'tlpp-core.th after the last .ch, below a header with accents; totvs.ch at the top',
+{
+  my $src = qq[// cabeçalho, ação\n\n#include "rwmake.ch"\n#include "tlpp-rest.th"\n\nuser function f()\nreturn 1\n];
+  compile($src) eq qq[#include "totvs.ch"\n\n// cabeçalho, ação\n\n#include "rwmake.ch"\n#include "tlpp-core.th"\n]
+                 ~ qq[#include "tlpp-rest.th"\n\nuser function f()\nreturn 1\n]
+};
+check 'and a CRLF source gets it with CRLF',
+{
+  compile(qq[#include "totvs.ch"\r\n#include "rwmake.ch"\r\nuser function f()\r\nreturn 1\r\n])
+    eq qq[#include "totvs.ch"\r\n#include "rwmake.ch"\r\n#include "tlpp-core.th"\r\nuser function f()\r\nreturn 1\r\n]
+};
+check 'only tlpp-core.th there: totvs.ch at the top, before it',
+{
+  my $src = qq[#include "tlpp-core.th"\nuser function f()\nreturn 1\n];
+  compile($src) eq qq[#include "totvs.ch"\n\n$src]
 };
 
 # ---- lowering ----------------------------------------------------------------

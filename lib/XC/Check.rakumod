@@ -142,6 +142,7 @@ my class Checker
     {
       %!defines{~$0.lc} = True if $d ~~ m:i/ ^ '#' \h* 'define' \h+ (\w+) /;
     }
+    self!include-order($p);
     # A 'private' is dynamic: a function the file calls sees it, so its name
     # is known in the whole file, as in xtpl.
     for |$p.functions, |$p.methods -> $f
@@ -156,6 +157,23 @@ my class Checker
     }
     self!function($_) for |$p.functions, |$p.methods;
     self!static-never-read;
+  }
+
+  # tlpp-core.th before totvs.ch: the AppServer then refuses TL++'s own
+  # '{ : }' (C2003; tried: xcq_k). xc puts tlpp-core.th after the .ch files
+  # when it adds it; one the source includes itself before totvs.ch is said,
+  # at its line. (Before another .ch: not known to matter, so not said.)
+  method !include-order(Program $p)
+  {
+    my @d = $p.directives;
+    my $core = @d.first(:k, { $_ ~~ m:i/ ^ '#' \h* 'include' \h* '"tlpp-core.th"' / });
+    return without $core;
+    my $totvs = ($core ^..^ @d.elems).first({ @d[$_] ~~ m:i/ ^ '#' \h* 'include' \h* '"totvs.ch"' / });
+    return without $totvs;
+    my $name = ~(@d[$totvs] ~~ m/ '"' <( <-["]>* )> '"' /);
+    $!line = $p.directive-lines[$core];
+    self!warning("tlpp-core.th is included before $name (line {$p.directive-lines[$totvs]}): the AppServer then "
+               ~ "refuses TL++'s own '\{ : \}' (C2003) -- include $name first");
   }
 
   # TL++ takes a type's whole name: 'as N' is "Invalid Type N" to Protheus.
