@@ -90,6 +90,7 @@ my class Checker
   has %!funcs;                     # lower case => %(name, kind, params, line)
   has %!externals;                 # lower case => the line of its 'external'
   has %!statics;                   # the file's own Statics: lower case => line
+  has %!late;                      # the Declarations of statics after a statement
   has %!defines;                   # lower case => True
   has %!privates;                  # lower case => True, in the whole file
   has %!retired;                   # lower case => line: block locals whose block is over
@@ -134,6 +135,7 @@ my class Checker
     {
       %!statics{.name.lc} = $d.line for $d.declarators;
     }
+    self!late-statics(.body) for |$p.functions, |$p.methods;
     @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
     for $p.directives -> $d
     {
@@ -195,7 +197,9 @@ my class Checker
     });
     # On the function's last line, as xtpl does: the one before the next
     # function, or the file's last.
-    my $last = $f.body.tail;
+    # The last statement, a static after it aside: the file's, not the
+    # function's end.
+    my $last = $f.body.reverse.first({ !($_ ~~ Declaration && .scope eq 'static' && %!late{.WHICH}) });
     my $next = @!ends.first(* > $f.line);
     my $end = $next.defined ?? $next - 1 !! ($!lines || ($last andthen .line) || $f.line);
     my $ends-without = $last !~~ ReturnStmt;
@@ -381,14 +385,32 @@ my class Checker
         {
           $private //= $s;
         }
-        elsif $private.defined
+        elsif $s.scope eq 'local' && $private.defined
         {
           $!line = $s.line;
-          self!problem("'{$s.scope}' after '{$private.scope}' (line {$private.line}): a private or a public is a "
-                       ~ "statement, and every local and static comes before the first statement.");
+          self!problem("'local' after '{$private.scope}' (line {$private.line}): a private or a public is a "
+                       ~ "statement, and every local comes before the first statement.");
         }
       }
       self!stmt($s);
+    }
+  }
+
+  # A 'static' after a statement -- an ordinary one, a private, a public --
+  # is the file's, as Protheus takes it: every function of the file sees it.
+  # (So is one between two functions: it reads as the end of the one before.)
+  method !late-statics(@stmts)
+  {
+    my $past = False;
+    for @stmts -> $s
+    {
+      if $s ~~ Declaration && $s.scope eq 'static' && $past
+      {
+        %!late{$s.WHICH} = True;
+        %!statics{.name.lc} //= .line for $s.declarators;
+      }
+      $past = True unless $s ~~ Declaration && $s.scope (elem) <local static>;
+      self!late-statics($_) for bodies-of($s);
     }
   }
 
@@ -433,7 +455,7 @@ my class Checker
         for .declarators -> $d
         {
           self!expr($d.init) if $d.init.defined;
-          next if $s.scope eq 'private';
+          next if $s.scope eq 'private' || %!late{$s.WHICH};
           self!declare($d.name, $d.line, attributes => $d.attributes,
                        kind => $s.scope eq 'public' ?? 'public' !! 'local', written => $d.init.defined);
           self!note-scalar($d);

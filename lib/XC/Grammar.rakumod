@@ -61,13 +61,15 @@ sub text-units(Str $t)
   $offsets-in-bytes ?? $t.encode.list.Array !! $t.comb.map({ $_ eq "\r\n" ?? 10 !! .ord }).Array
 }
 
-# Whether the text at $from, past spaces, is the word 'private' or 'public'.
-sub private-ahead(Int $from --> Bool)
+# Whether the text at $from, past spaces, is the word 'private', 'public' or
+# 'static' -- a declaration that may come after a statement. ('static
+# function' is not one: 'function' is reserved, and the declaration fails.)
+sub decl-ahead(Int $from --> Bool)
 {
   my $u = $*UNITS // return False;
   my $i = $from;
   $i++ while $i < $u.elems && ($u[$i] == 32 || $u[$i] == 9);
-  for 'private', 'public' -> $word
+  for 'private', 'public', 'static' -> $word
   {
     my $n = $word.chars;
     next unless $i + $n <= $u.elems;
@@ -442,10 +444,11 @@ rule statement
   || <seqst>
   || <tryst>
   || <transst>
-  # A 'private' or 'public' is a statement in TL++: allowed anywhere one is.
-  # It does not close the prologue here, though: a 'local' after it is then
-  # parsed, and the checks can say what is wrong with it.
-  || [ <?{ !($*PAST-PROLOGUE // False) || private-ahead($/.from) }> <declaration> ]
+  # A 'private' or 'public' is a statement in TL++, allowed anywhere one is;
+  # so is a 'static' -- Protheus takes one after a statement, file-wide. None
+  # closes the prologue here: a 'local' after one is then parsed, and the
+  # checks can say what is wrong with it.
+  || [ <?{ !($*PAST-PROLOGUE // False) || decl-ahead($/.from) }> <declaration> ]
   || <ifcallst>
   || <ifst>
   || <whilest>

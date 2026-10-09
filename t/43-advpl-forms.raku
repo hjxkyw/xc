@@ -98,6 +98,14 @@ same "'SA2->( a, b, c )' as a statement", "User Function f()\n  SA2->( dbSelectA
 same "'End Class'; a method without parentheses", "Class C\n  Public Method GetEnum as variant\nEnd Class\n";
 same "the mail commands", "User Function f(cS, cA, cP)\n  Local lOk\n  CONNECT SMTP SERVER cS ACCOUNT cA PASSWORD cP RESULT lOk\n  SEND MAIL FROM cA TO cA SUBJECT \"x\" BODY \"y\" RESULT lOk\n  DISCONNECT SMTP SERVER\nreturn lOk\n";
 
+# ---- statics, as Protheus takes them (tried on an AppServer, 8 October 2026) ---------
+same "file statics between functions; a static after a statement in a function, which other functions see",
+  "static cFirst := \"cFirst\"\n\nfunction u_stat_test_1(cParm)\n  default cParm := \"a\"\n  static cInside := \"cInside\"\n  default cParm := \"b\"\n  conout(\"u_stat_test_1 \" + cFirst + \" \" + cInside + \" \" + cParm)\n  return\n\nstatic cSecond := \"cSecond\"\n\nfunction u_stat_test_2()\n  conout(\"u_stat_test_2 \" + cSecond + \" \" + cInside)\n  return\n\nstatic cThird := \"cThird\"\n\nfunction u_stat_test_3()\n  u_stat_test_1()\n  u_stat_test_2()\n  conout(\"u_stat_test_3 \" + cThird)\n  return\n";
+check "and the checks have nothing to say about it",
+{
+  !warnings("static cFirst := \"a\"\n\nfunction u_t1(cParm)\n  default cParm := \"a\"\n  static cInside := \"b\"\n  conout(cFirst + cInside + cParm)\n  return\n\nstatic cSecond := \"c\"\n\nfunction u_t2()\n  conout(cSecond + cInside)\n  return\n")
+};
+
 # ---- the commands of TOTVS' include files: taken whole, as written ------------
 same 'one line, and continued with ;',
   "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";

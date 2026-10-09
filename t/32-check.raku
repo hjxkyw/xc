@@ -254,10 +254,25 @@ check "passes: both read, and the value of a <contained> one handed to a functio
 # ---- a private or public is a statement: the locals come first ---------------
 refuses "a 'local' after a 'private'",
   "  private nP := 1\n  local nL := 2\n  a := nP + nL",
-  "3: 'local' after 'private' (line 2): a private or a public is a statement, and every local and static comes before the first statement.";
-refuses "a 'static' after a 'public'",
-  "  local nL := 1\n  public nU := 2\n  static nS := 3\n  a := nL + nU + nS",
-  "4: 'static' after 'public' (line 3): a private or a public is a statement, and every local and static comes before the first statement.";
+  "3: 'local' after 'private' (line 2): a private or a public is a statement, and every local comes before the first statement.";
+# A 'static' may come after a statement -- Protheus takes it, and every
+# function of the file sees it.
+passes "a 'static' after a 'public', and after an ordinary statement",
+  "  local nL := 1\n  public nU := 2\n  static nS := 3\n  conout(nS)\n  static nT := 4\n  a := nL + nU + nS + nT";
+check "a static after a statement is the file's: another function sees it, no 'undeclared'",
+{
+  my %r = result("user function f(a)\n  default a := 1\n  static cIn := \"x\"\nreturn a\n\nuser function g()\nreturn cIn\n");
+  !%r<errors> && !%r<warnings>
+};
+check "a static in the prologue stays the function's: another function using it is warned",
+{
+  result("user function f(a)\n  static cOwn := \"x\"\nreturn a + cOwn\n\nuser function g()\nreturn cOwn\n")<warnings>.first(*.contains("cOwn"))
+};
+check "a static after the return reads as the file's -- no W0019 for it; a function that ends without a return still has one",
+{
+  !result("user function f(a)\nreturn a\n\nstatic nS := 0\n\nuser function g()\nreturn nS\n")<warnings>
+    && result("user function f(a)\n  conout(a)\n\nstatic nS := 0\n\nuser function g()\nreturn nS\n")<warnings>.first(*.contains('W0019'))
+};
 passes "a private and a public after a statement: statements, where statements go",
   "  local nL := 1\n  a := nL\n  private nP := 2\n  public nU := 3\n  a := nP + nU";
 passes "locals and statics, then privates and publics",

@@ -119,15 +119,15 @@ check "a file that fails before its first function: the line that failed, not li
   %r<code> == 1 && %r<err>.contains('top.xtpl:4: cannot parse this line: NotAThing x y z')
 };
 
-check "a local or static after a statement: said so -- a malformed one is still a line that does not parse",
+check "a local after a statement: said so -- a malformed one is still a line that does not parse",
 {
   spurt $dir.add('late.xtpl'), "user function f(a)\n  Default a := 1\n  Local x := 1   // a comment\nreturn x\n";
   spurt $dir.add('bad.xtpl'), "user function f(a)\n  conout(a)\n  local x := := 1\nreturn a\n";
   my %late = xc('--check', "$dir/late.xtpl");
   my %bad  = xc('--check', "$dir/bad.xtpl");
   $dir.add($_).unlink for <late.xtpl bad.xtpl>;
-  %late<code> == 1 && %late<err>.contains("late.xtpl:3: 'local' cannot be declared here: every local and static "
-                                          ~ "comes before the first statement of its function or its block")
+  %late<code> == 1 && %late<err>.contains("late.xtpl:3: 'local' cannot be declared here: every local comes before "
+                                          ~ "the first statement of its function or its block")
     && %bad<code> == 1 && %bad<err>.contains('bad.xtpl:3: cannot parse this line: local x := := 1')
 };
 

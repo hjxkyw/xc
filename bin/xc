@@ -123,8 +123,8 @@ sub compile(Str $in, Str $out --> Bool)
     # fails for its place alone: say so.
     if late-declaration($text)
     {
-      note "$in:$line: '{$text.words[0].lc}' cannot be declared here: every local and static comes before "
-         ~ "the first statement of its function or its block -- '$text'";
+      note "$in:$line: 'local' cannot be declared here: every local comes before the first statement of its "
+         ~ "function or its block -- '$text'";
       return False;
     }
     note "$in:$line: cannot parse this line: $text";
@@ -184,10 +184,11 @@ with $outdir
   mkdir $outdir unless $check;
 }
 
-# Whether a line is a 'local' or 'static' declaration whole, its comment aside.
+# Whether a line is a 'local' declaration whole, its comment aside. (A
+# 'static' may come after a statement: Protheus takes it, file-wide.)
 sub late-declaration(Str $text --> Bool)
 {
-  return False unless $text ~~ m:i/ ^ [ 'local' | 'static' ] >> /;
+  return False unless $text ~~ m:i/ ^ 'local' >> /;
   my $code = split-comment($text)[0].trim;
   my $*FURTHEST = 0;
   so try XC::Grammar.parse($code, :rule<declaration>)
