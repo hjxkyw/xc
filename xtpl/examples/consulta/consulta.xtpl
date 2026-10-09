@@ -74,6 +74,14 @@
 // unico da pasta em que a versao a mao quase nao perde: e de proposito.
 // ============================================================================
 
+#include "totvs.ch"
+#include "rwmake.ch"
+#include "tlpp-core.th"
+
+// rwmake.ch traz os comandos da tela (DIALOG, SAY, GET, BMPBUTTON). Cada
+// SAY e cada GET e um comando proprio, com a sua posicao: os dois na mesma
+// linha, o AppServer nao compila.
+
 external CRLF
 
 user function consulta(cFilialDe, cFilialAte)
@@ -87,8 +95,10 @@ user function consulta(cFilialDe, cFilialAte)
   // ---- a tela: entregue ao pre-processador ---------------------------------
   raw
     @ 200, 010 TO 400, 600 DIALOG oDlg TITLE "Consulta de saldos"
-    @ 012, 010 SAY "Cliente" GET cNome PICTURE "@!"
-    @ 014, 010 SAY "Dias"    GET nDias PICTURE "@E 999"
+    @ 012, 010 SAY "Cliente"
+    @ 012, 040 GET cNome PICTURE "@!"
+    @ 014, 010 SAY "Dias"
+    @ 014, 040 GET nDias PICTURE "@E 999"
     @ 060, 200 BMPBUTTON TYPE 1 ACTION lOk := .T.
     @ 060, 240 BMPBUTTON TYPE 2 ACTION lOk := .F.
   end raw
