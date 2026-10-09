@@ -103,6 +103,13 @@ same "file statics between functions; a static after a statement in a function, 
   "static cFirst := \"cFirst\"\n\nfunction u_stat_test_1(cParm)\n  default cParm := \"a\"\n  static cInside := \"cInside\"\n  default cParm := \"b\"\n  conout(\"u_stat_test_1 \" + cFirst + \" \" + cInside + \" \" + cParm)\n  return\n\nstatic cSecond := \"cSecond\"\n\nfunction u_stat_test_2()\n  conout(\"u_stat_test_2 \" + cSecond + \" \" + cInside)\n  return\n\nstatic cThird := \"cThird\"\n\nfunction u_stat_test_3()\n  u_stat_test_1()\n  u_stat_test_2()\n  conout(\"u_stat_test_3 \" + cThird)\n  return\n";
 same "a static at the top of a function, read by another; one after calls",
   "function u_t1(cParm)\n  static cTopInside := \"cTopInside\"\n  default cParm := \"a\"\n  conout(cParm)\n  return\n\nfunction u_t2()\n  conout(cTopInside)\n  u_t1()\n  static cAnother := \"cAnother\"\n  conout(cAnother)\n  return\n";
+check "one static name in two functions: one variable, as Protheus has it -- compiled to itself, and warned",
+{
+  my $body = "function u_t1()\n  static cTop := \"cTop\"\n  return\n\nfunction u_t2()\n  static cTop := \"other cTop\"\n  conout(cTop)\n  return\n";
+  my $src = $head ~ $body;
+  my $m = parse($src);
+  $m && emit($m.made, $src) eq $src && warnings($body) eqv ("'cTop' is already a static of this file (line 5): both are one variable, with one starting value",)
+};
 check "and the checks have nothing to say about it",
 {
   !warnings("static cFirst := \"a\"\n\nfunction u_t1(cParm)\n  default cParm := \"a\"\n  static cInside := \"b\"\n  conout(cFirst + cInside + cParm)\n  return\n\nstatic cSecond := \"c\"\n\nfunction u_t2()\n  conout(cSecond + cInside)\n  return\n")

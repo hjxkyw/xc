@@ -132,11 +132,11 @@ my class Checker
     {
       %!external-alias{.uc} = True for $x.names;
     }
-    for $p.statics -> $d
-    {
-      self!file-static($_) for $d.declarators;
-    }
-    self!file-statics(.body) for |$p.functions, |$p.methods;
+    # Every static of the file, in the order of its lines: the first of a
+    # name is the one, and the others are said to be the same.
+    my @statics = $p.statics.map({ |.declarators });
+    self!file-statics(.body, @statics) for |$p.functions, |$p.methods;
+    self!file-static($_) for @statics.sort(*.line);
     @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
     for $p.directives -> $d
     {
@@ -409,25 +409,32 @@ my class Checker
   # function, after a statement, in a block, between two functions (which
   # reads as the end of the one before): every function of the file sees
   # it, as Protheus does (tried on an AppServer).
-  method !file-statics(@stmts)
+  method !file-statics(@stmts, @statics)
   {
     for @stmts -> $s
     {
       if $s ~~ Declaration && $s.scope eq 'static'
       {
         %!static-decls{$s.WHICH} = True;
-        self!file-static($_) for $s.declarators;
+        @statics.append($s.declarators);
       }
-      self!file-statics($_) for bodies-of($s);
+      self!file-statics($_, @statics) for bodies-of($s);
     }
   }
 
   # One static of the file: where it is declared, and what is known of it.
-  # The first declaration of a name is the one.
+  # The first declaration of a name is the one. Another of the same name --
+  # in another function, say -- is the same variable (tried on an AppServer:
+  # no error, one value), which a reader of either function does not see.
   method !file-static(Declarator $d)
   {
     my $k = $d.name.lc;
-    return if %!statics{$k}:exists;
+    if %!statics{$k}:exists
+    {
+      @!warned.push($d.line => "'{$d.name}' is already a static of this file (line {%!statics{$k}}): "
+                               ~ "both are one variable, with one starting value");
+      return;
+    }
     %!statics{$k} = $d.line;
     %!static-uses{$k} = %(name => $d.name, reads => 0, writes => +$d.init.defined,
                          const => so('const' (elem) $d.attributes));

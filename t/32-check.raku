@@ -274,6 +274,13 @@ check "a static no function reads is warned, file-wide: read elsewhere, in a com
   result("static nTop := 0\n\nuser function f(a)\n  static nS := 0\n  static nU\n  static nR := 1\n  nS++\nreturn a\n\nuser function g()\n  \@ 1, 1 SAY nTop\nreturn nR\n")<warnings>
     eqv ("5: 'nU' is declared but never used",)
 };
+check "a second static of one name is warned: the same variable -- the first by line is the one named",
+{
+  result("user function f(a)\n  static cX := \"a\"\nreturn a + cX\n\nuser function g()\n  static cX := \"b\"\nreturn cX\n")<warnings>
+    eqv ("6: 'cX' is already a static of this file (line 2): both are one variable, with one starting value",)
+  && result("static cY := 1\n\nuser function f(a)\n  static cY := 2\nreturn a + cY\n")<warnings>
+    eqv ("4: 'cY' is already a static of this file (line 1): both are one variable, with one starting value",)
+};
 check "a <const> static cannot be assigned, from any function",
 {
   result("user function f(a)\n  static nC <const> := 1\nreturn a + nC\n\nuser function g()\n  nC := 2\nreturn nil\n")<errors>
