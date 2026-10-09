@@ -416,8 +416,10 @@ rule typespec
 
 token typename
 {
+  # 'variadic': TL++'s parameter that takes every argument there is --
+  # 'parm As Variadic', read as 'parm:vCount' and 'parm:vArgs[i]'.
   :i [
-       'integer' || 'decimal' || 'codeblock'
+       'integer' || 'decimal' || 'codeblock' || 'variadic' >>
     || 'array'     || 'a' >>
     || 'numeric'   || 'n' >>
     || 'character' || 'c' >>

@@ -46,6 +46,9 @@ same 'a function with no parentheses', "User Function TLeroy\nreturn 1\n";
 same 'a return type; integer, decimal, codeblock among the types',
   "Static Function Scheddef() as array\nreturn \{\}\n\nUser Function f(n as integer, x as decimal, b as codeblock) as logical\nreturn .T.\n";
 
+same "a parameter 'As Variadic', read through ':vCount' and ':vArgs[i]'",
+  "function u_FuncRunAdvpl(parm As Variadic)\n  Local i\n  Conout(parm:vCount)\n  For i := 1 To parm:vCount\n    Conout(parm:vArgs[i])\n  Next\n\nReturn 1\n";
+
 # ---- assignments as values --------------------------------------------------
 same 'an assignment in parentheses is a value',
   "User Function f(a)\n  Local lErr := .F.\n  if !( lErr := g(\@a) )\n    a := 1\n  endif\nreturn lErr\n";

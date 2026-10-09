@@ -33,7 +33,7 @@ sub type-of-name(Str $name --> Str) is export
     when 'character' | 'c' { 'Character' }
     when 'logical'   | 'l' { 'Logical'   }
     when 'date'      | 'd' { 'Date'      }
-    when 'object'    | 'o' { 'Object'    }
+    when 'object'    | 'o' | 'variadic' { 'Object' }
     when 'block'     | 'b' | 'codeblock' { 'Block' }
     when 'json'      | 'j' { 'JSON'      }
     when 'variant'   | 'u' { 'Variant'   }
