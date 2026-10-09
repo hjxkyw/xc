@@ -94,11 +94,14 @@ sub native($p --> Str)
   $*DISTRO.is-win ?? $s.subst('/', '\\', :g) !! $s
 }
 
-# Relative inside the repository, whole outside it.
+# Relative inside the repository, whole outside it -- with the system's
+# separator, as native() writes it.
 sub shown($p --> Str)
 {
   my $s = $p.IO.absolute.Str;
-  $s.starts-with($root.Str) ?? $p.IO.absolute.IO.relative($root) !! native($p)
+  return native($p) unless $s.starts-with($root.Str);
+  my $r = $p.IO.absolute.IO.relative($root);
+  $*DISTRO.is-win ?? $r.subst('/', '\\', :g) !! $r
 }
 
 # The self-tests: the source, the file bin/xc writes, the function to run.
@@ -201,9 +204,9 @@ if $corpus
                                                     && .basename ne '51_legacy.xtpl' && .basename ne '54_selftest.xtpl' }),
                 |$root.add('xtpl/examples').dir.grep(*.d).map({ |.dir.grep(*.extension eq 'xtpl') });
   @sources = @sources.sort;
-  say "xc: compiling {+@sources} programs of xtpl's corpus into {shown($out)}/";
+  say "xc: compiling {+@sources} programs of xtpl's corpus into {shown($out)}";
   mkdir $out;
-  my $p = run $*EXECUTABLE, $root.add('bin/xc').Str, "--outdir={$out.absolute}", |@sources.map(*.Str),
+  my $p = run $*EXECUTABLE, native($root.add('bin/xc')), "--outdir={native($out)}", |@sources.map({ native($_) }),
               :cwd($root.Str), :merge;
   my $text = $p.out.slurp(:close);
   mkdir $logs;
@@ -236,7 +239,7 @@ if $corpus
 # ---- the self-tests ----------------------------------------------------------
 if $compile
 {
-  say "xc: compiling the self-tests into {shown($out)}/";
+  say "xc: compiling the self-tests into {shown($out)}";
   mkdir $out;
   # The newest of what makes the output: bin/xc and the modules.
   my $xc-made = ($root.add('bin/xc'), |$root.add('lib/XC').dir).map(*.modified).max;
@@ -248,7 +251,8 @@ if $compile
       say "  {%t<source>}: up to date";
       next;
     }
-    my $p = run $*EXECUTABLE, $root.add('bin/xc').Str, $root.add(%t<source>).Str, $out.add(%t<file>).Str,
+    # Paths as the system writes them: bin/xc says them back, 'x -> y'.
+    my $p = run $*EXECUTABLE, native($root.add('bin/xc')), native($root.add(%t<source>)), native($out.add(%t<file>)),
                 :cwd($root.Str), :merge;
     my $text = $p.out.slurp(:close);
     print $text.lines.map({ "  $_\n" }).join;
