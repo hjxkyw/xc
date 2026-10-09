@@ -154,6 +154,15 @@ check '--outdir: a source given twice, itself and in its folder, compiled once',
   my %r = xc("--outdir=$dir/od2", "$dir/src/sub/b.xtpl", "$dir/src/sub");
   %r<code> == 1 && %r<out>.lines.grep(*.contains('b.xtpl ->')).elems == 1
 };
+check "--outdir: paths with the system's separator -- on Windows '\\', as run-protheus.raku passes them",
+{
+  my $s = $*DISTRO.is-win ?? '\\' !! '/';
+  my $d = $*DISTRO.is-win ?? $dir.Str.subst('/', '\\', :g) !! $dir.Str;
+  my %r = xc("--outdir={$d}{$s}od3", "{$d}{$s}src{$s}a.xtpl", "{$d}{$s}src{$s}sub{$s}b.xtpl", "{$d}{$s}src{$s}sub");
+  %r<code> == 1 && $dir.add('od3/a.tlpp').e && $dir.add('od3/b.tlpp').e
+    && %r<out>.lines.grep(*.contains('b.xtpl ->')).elems == 1
+    && %r<out>.contains("a.xtpl -> {$d}{$s}od3{$s}a.tlpp")
+};
 
 # ---- one source and its output -----------------------------------------------
 reset-dir;

@@ -167,12 +167,32 @@ sub compile(Str $in, Str $out --> Bool)
   True
 }
 
+# Paths on Windows: a folder ends at '\' as much as at '/', and a drive is
+# 'D:'. rakupp's IO::Path knows only '/' -- 'D:\x\a.xtpl'.IO.basename is the
+# whole path -- so xc takes such a path apart itself.
+my $windows = $*DISTRO.is-win;
+my $sep = $windows ?? '\\' !! '/';
+
+# The file a path names, the same however the path is written: on Windows,
+# whole, with '/' throughout and in lower case, as the system takes it.
+sub file-key(Str $p --> Str)
+{
+  return $p.IO.absolute.Str unless $windows;
+  my $s = $p.subst('\\', '/', :g);
+  $s = $*CWD.Str.subst('\\', '/', :g).subst(/ '/' $ /, '') ~ '/' ~ $s unless $s ~~ / ^ [ <[a..zA..Z]> ':' ]? '/' /;
+  $s.subst(/ '/' [ '.' '/' ]+ /, '/', :g).lc
+}
+
 # A source given twice -- itself and in its folder -- is compiled once.
-@sources = @sources.unique(:as({ .IO.absolute }));
+@sources = @sources.unique(:as({ file-key($_) }));
 
 # --outdir: every .tlpp into one folder, named for its source -- two sources
 # of the same name would write the same file.
-sub stem(Str $in --> Str) { $in.IO.basename.subst(/ '.' <-[.]>* $ /, '') }
+sub stem(Str $in --> Str)
+{
+  my $name = $windows ?? $in.split(/ <[\\/:]> /).tail !! $in.IO.basename;
+  $name.subst(/ '.' <-[.]>* $ /, '')
+}
 with $outdir
 {
   my %seen;
@@ -197,7 +217,7 @@ sub late-declaration(Str $text --> Bool)
 my $failed = $missing;
 for @sources -> $in
 {
-  my $out = $named-out // ($outdir.defined ?? $outdir.IO.add(stem($in) ~ '.tlpp').Str
+  my $out = $named-out // ($outdir.defined ?? $outdir.subst(/ <[\\/]>+ $ /, '') ~ $sep ~ stem($in) ~ '.tlpp'
                                             !! $in.subst(/ '.' <-[./\\]>* $ /, '') ~ '.tlpp');
   $failed++ unless compile($in, $out);
 }
