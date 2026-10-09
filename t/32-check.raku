@@ -264,9 +264,20 @@ check "a static after a statement is the file's: another function sees it, no 'u
   my %r = result("user function f(a)\n  default a := 1\n  static cIn := \"x\"\nreturn a\n\nuser function g()\nreturn cIn\n");
   !%r<errors> && !%r<warnings>
 };
-check "a static in the prologue stays the function's: another function using it is warned",
+check "a static at the top of a function is the file's too: another function sees it",
 {
-  result("user function f(a)\n  static cOwn := \"x\"\nreturn a + cOwn\n\nuser function g()\nreturn cOwn\n")<warnings>.first(*.contains("cOwn"))
+  my %r = result("user function f(a)\n  static cTop := \"x\"\nreturn a\n\nuser function g()\nreturn cTop\n");
+  !%r<errors> && !%r<warnings>
+};
+check "a static no function reads is warned, file-wide: read elsewhere, in a command, or by '++' it is not",
+{
+  result("static nTop := 0\n\nuser function f(a)\n  static nS := 0\n  static nU\n  static nR := 1\n  nS++\nreturn a\n\nuser function g()\n  \@ 1, 1 SAY nTop\nreturn nR\n")<warnings>
+    eqv ("5: 'nU' is declared but never used",)
+};
+check "a <const> static cannot be assigned, from any function",
+{
+  result("user function f(a)\n  static nC <const> := 1\nreturn a + nC\n\nuser function g()\n  nC := 2\nreturn nil\n")<errors>
+    eqv ("6: 'nC' is <const> (declared on line 2) and cannot be assigned.",)
 };
 check "a static after the return reads as the file's -- no W0019 for it; a function that ends without a return still has one",
 {

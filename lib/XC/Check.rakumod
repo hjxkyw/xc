@@ -90,7 +90,8 @@ my class Checker
   has %!funcs;                     # lower case => %(name, kind, params, line)
   has %!externals;                 # lower case => the line of its 'external'
   has %!statics;                   # the file's own Statics: lower case => line
-  has %!late;                      # the Declarations of statics after a statement
+  has %!static-decls;              # every Declaration of a static, in a function or not
+  has %!static-uses;               # lower case => %(reads, writes, const, init) -- file-wide
   has %!defines;                   # lower case => True
   has %!privates;                  # lower case => True, in the whole file
   has %!retired;                   # lower case => line: block locals whose block is over
@@ -133,9 +134,9 @@ my class Checker
     }
     for $p.statics -> $d
     {
-      %!statics{.name.lc} = $d.line for $d.declarators;
+      self!file-static($_) for $d.declarators;
     }
-    self!late-statics(.body) for |$p.functions, |$p.methods;
+    self!file-statics(.body) for |$p.functions, |$p.methods;
     @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
     for $p.directives -> $d
     {
@@ -154,6 +155,7 @@ my class Checker
       });
     }
     self!function($_) for |$p.functions, |$p.methods;
+    self!static-never-read;
   }
 
   method !function($f)
@@ -199,7 +201,7 @@ my class Checker
     # function, or the file's last.
     # The last statement, a static after it aside: the file's, not the
     # function's end.
-    my $last = $f.body.reverse.first({ !($_ ~~ Declaration && .scope eq 'static' && %!late{.WHICH}) });
+    my $last = $f.body.reverse.first({ !($_ ~~ Declaration && .scope eq 'static') });
     my $next = @!ends.first(* > $f.line);
     my $end = $next.defined ?? $next - 1 !! ($!lines || ($last andthen .line) || $f.line);
     my $ends-without = $last !~~ ReturnStmt;
@@ -317,6 +319,7 @@ my class Checker
     }
     return self!problem("'$name' is out of scope here (block local declared on line {%!retired{$k}}).")
       if %!retired{$k}:exists;
+    with %!static-uses{$k} { .<reads>++; return }
     return if self!exempt($name) || %!implicit{$k};
     self!warning("'$name' is not declared") unless %!warned-names{"read $k"}++;
   }
@@ -338,6 +341,12 @@ my class Checker
       if %!retired{$k}:exists;
     return self!problem("'$name' is external (line {%!externals{$k}}) and cannot be assigned.")
       if %!externals{$k}:exists;
+    with %!static-uses{$k} -> %u
+    {
+      self!problem("'$name' is <const> (declared on line {%!statics{$k}}) and cannot be assigned.") if %u<const>;
+      $reads ?? %u<reads>++ !! %u<writes>++;
+      return;
+    }
     return if self!exempt($name) || %!implicit{$k};
     # AdvPL makes a PRIVATE of it; from here on it exists.
     %!implicit{$k} = True;
@@ -370,10 +379,10 @@ my class Checker
   }
 
   # ---- statements ------------------------------------------------------------
-  # Declarations are only in a body's prologue (the grammar sees to it); and
-  # there, every 'local' and 'static' comes before the first 'private' or
-  # 'public' -- those are statements in TL++, and Protheus refuses a local
-  # after a statement.
+  # Locals are only in a body's prologue (the grammar sees to it); and there,
+  # every 'local' comes before the first 'private' or 'public' -- those are
+  # statements in TL++, and Protheus refuses a local after a statement. A
+  # 'static' may be anywhere.
   method !body(@stmts)
   {
     my $private;
@@ -396,21 +405,44 @@ my class Checker
     }
   }
 
-  # A 'static' after a statement -- an ordinary one, a private, a public --
-  # is the file's, as Protheus takes it: every function of the file sees it.
-  # (So is one between two functions: it reads as the end of the one before.)
-  method !late-statics(@stmts)
+  # Every 'static' is the file's, wherever it is declared -- at the top of a
+  # function, after a statement, in a block, between two functions (which
+  # reads as the end of the one before): every function of the file sees
+  # it, as Protheus does (tried on an AppServer).
+  method !file-statics(@stmts)
   {
-    my $past = False;
     for @stmts -> $s
     {
-      if $s ~~ Declaration && $s.scope eq 'static' && $past
+      if $s ~~ Declaration && $s.scope eq 'static'
       {
-        %!late{$s.WHICH} = True;
-        %!statics{.name.lc} //= .line for $s.declarators;
+        %!static-decls{$s.WHICH} = True;
+        self!file-static($_) for $s.declarators;
       }
-      $past = True unless $s ~~ Declaration && $s.scope (elem) <local static>;
-      self!late-statics($_) for bodies-of($s);
+      self!file-statics($_) for bodies-of($s);
+    }
+  }
+
+  # One static of the file: where it is declared, and what is known of it.
+  # The first declaration of a name is the one.
+  method !file-static(Declarator $d)
+  {
+    my $k = $d.name.lc;
+    return if %!statics{$k}:exists;
+    %!statics{$k} = $d.line;
+    %!static-uses{$k} = %(name => $d.name, reads => 0, writes => +$d.init.defined,
+                         const => so('const' (elem) $d.attributes));
+  }
+
+  # A static no function of the file reads: assigned, or not even that.
+  method !static-never-read()
+  {
+    for %!static-uses.keys.sort({ %!statics{$_} }) -> $k
+    {
+      my %u = %!static-uses{$k};
+      next if %u<reads>;
+      @!warned.push(%!statics{$k} => (%u<writes>
+        ?? "'{%u<name>}' is assigned but never read"
+        !! "'{%u<name>}' is declared but never used"));
     }
   }
 
@@ -455,7 +487,7 @@ my class Checker
         for .declarators -> $d
         {
           self!expr($d.init) if $d.init.defined;
-          next if $s.scope eq 'private' || %!late{$s.WHICH};
+          next if $s.scope eq 'private' || %!static-decls{$s.WHICH};
           self!declare($d.name, $d.line, attributes => $d.attributes,
                        kind => $s.scope eq 'public' ?? 'public' !! 'local', written => $d.init.defined);
           self!note-scalar($d);
@@ -619,6 +651,7 @@ my class Checker
               $r<reads>++;
               self!leaves(%v, %v<name>, True);
             }
+            orwith %!static-uses{$w.lc} { .<reads>++ }
           }
         }
       }

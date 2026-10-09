@@ -101,6 +101,8 @@ same "the mail commands", "User Function f(cS, cA, cP)\n  Local lOk\n  CONNECT S
 # ---- statics, as Protheus takes them (tried on an AppServer, 8 October 2026) ---------
 same "file statics between functions; a static after a statement in a function, which other functions see",
   "static cFirst := \"cFirst\"\n\nfunction u_stat_test_1(cParm)\n  default cParm := \"a\"\n  static cInside := \"cInside\"\n  default cParm := \"b\"\n  conout(\"u_stat_test_1 \" + cFirst + \" \" + cInside + \" \" + cParm)\n  return\n\nstatic cSecond := \"cSecond\"\n\nfunction u_stat_test_2()\n  conout(\"u_stat_test_2 \" + cSecond + \" \" + cInside)\n  return\n\nstatic cThird := \"cThird\"\n\nfunction u_stat_test_3()\n  u_stat_test_1()\n  u_stat_test_2()\n  conout(\"u_stat_test_3 \" + cThird)\n  return\n";
+same "a static at the top of a function, read by another; one after calls",
+  "function u_t1(cParm)\n  static cTopInside := \"cTopInside\"\n  default cParm := \"a\"\n  conout(cParm)\n  return\n\nfunction u_t2()\n  conout(cTopInside)\n  u_t1()\n  static cAnother := \"cAnother\"\n  conout(cAnother)\n  return\n";
 check "and the checks have nothing to say about it",
 {
   !warnings("static cFirst := \"a\"\n\nfunction u_t1(cParm)\n  default cParm := \"a\"\n  static cInside := \"b\"\n  conout(cFirst + cInside + cParm)\n  return\n\nstatic cSecond := \"c\"\n\nfunction u_t2()\n  conout(cSecond + cInside)\n  return\n")
