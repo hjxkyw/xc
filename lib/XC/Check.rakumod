@@ -424,15 +424,17 @@ my class Checker
 
   # One static of the file: where it is declared, and what is known of it.
   # The first declaration of a name is the one. Another of the same name --
-  # in another function, say -- is the same variable (tried on an AppServer:
-  # no error, one value), which a reader of either function does not see.
+  # in another function, say -- is the same variable, which a reader of
+  # either function does not see. Tried on an AppServer: no error, one
+  # variable; statics take their values once, at load, in file order, so it
+  # starts with the last value declared, whichever function runs first.
   method !file-static(Declarator $d)
   {
     my $k = $d.name.lc;
     if %!statics{$k}:exists
     {
       @!warned.push($d.line => "'{$d.name}' is already a static of this file (line {%!statics{$k}}): "
-                               ~ "both are one variable, with one starting value");
+                               ~ "both are one variable, which starts with the last value declared");
       return;
     }
     %!statics{$k} = $d.line;

@@ -108,7 +108,7 @@ check "one static name in two functions: one variable, as Protheus has it -- com
   my $body = "function u_t1()\n  static cTop := \"cTop\"\n  return\n\nfunction u_t2()\n  static cTop := \"other cTop\"\n  conout(cTop)\n  return\n";
   my $src = $head ~ $body;
   my $m = parse($src);
-  $m && emit($m.made, $src) eq $src && warnings($body) eqv ("'cTop' is already a static of this file (line 5): both are one variable, with one starting value",)
+  $m && emit($m.made, $src) eq $src && warnings($body) eqv ("'cTop' is already a static of this file (line 5): both are one variable, which starts with the last value declared",)
 };
 check "and the checks have nothing to say about it",
 {
