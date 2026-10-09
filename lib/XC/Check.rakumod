@@ -427,19 +427,49 @@ my class Checker
   # in another function, say -- is the same variable, which a reader of
   # either function does not see. Tried on an AppServer: no error, one
   # variable; statics take their values once, at load, in file order, so it
-  # starts with the last value declared, whichever function runs first.
+  # starts with the last value given in the file, whichever function runs
+  # first; a declaration with no value changes nothing.
   method !file-static(Declarator $d)
   {
     my $k = $d.name.lc;
     if %!statics{$k}:exists
     {
       @!warned.push($d.line => "'{$d.name}' is already a static of this file (line {%!statics{$k}}): "
-                               ~ "both are one variable, which starts with the last value declared");
+                               ~ "both are one variable, which starts with the last value given in the file");
       return;
     }
     %!statics{$k} = $d.line;
     %!static-uses{$k} = %(name => $d.name, reads => 0, writes => +$d.init.defined,
                          const => so('const' (elem) $d.attributes));
+  }
+
+  # A static takes its value once, at load, before anything of the file runs
+  # (tried on an AppServer: a function call there runs once, first) -- when
+  # no parameter and no local of its function exists. One named in its value
+  # is Nil there, with no word from Protheus. A code block in the value runs
+  # later, and is left alone.
+  method !static-value(Declarator $d)
+  {
+    my %said;
+    my sub look($e)
+    {
+      return unless $e.defined && $e ~~ Expr;
+      return if $e ~~ CodeBlock;
+      if $e ~~ Name
+      {
+        my $k = $e.name.lc;
+        with self!find($k) -> %v
+        {
+          if %v<kind> eq 'param' | 'local' | 'loop' && !%said{$k}++
+          {
+            @!warned.push($d.line => "'{$e.name}' is a {%v<kind> eq 'param' ?? 'parameter' !! 'local'}: a static "
+                                     ~ "takes its value once, at load, when '{$e.name}' does not exist -- it is Nil there");
+          }
+        }
+      }
+      look($_) for subexprs($e);
+    }
+    look($d.init);
   }
 
   # A static no function of the file reads: assigned, or not even that.
@@ -495,6 +525,7 @@ my class Checker
       {
         for .declarators -> $d
         {
+          self!static-value($d) if %!static-decls{$s.WHICH} && $d.init.defined;
           self!expr($d.init) if $d.init.defined;
           next if $s.scope eq 'private' || %!static-decls{$s.WHICH};
           self!declare($d.name, $d.line, attributes => $d.attributes,

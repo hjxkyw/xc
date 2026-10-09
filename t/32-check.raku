@@ -277,9 +277,22 @@ check "a static no function reads is warned, file-wide: read elsewhere, in a com
 check "a second static of one name is warned: the same variable -- the first by line is the one named",
 {
   result("user function f(a)\n  static cX := \"a\"\nreturn a + cX\n\nuser function g()\n  static cX := \"b\"\nreturn cX\n")<warnings>
-    eqv ("6: 'cX' is already a static of this file (line 2): both are one variable, which starts with the last value declared",)
+    eqv ("6: 'cX' is already a static of this file (line 2): both are one variable, which starts with the last value given in the file",)
   && result("static cY := 1\n\nuser function f(a)\n  static cY := 2\nreturn a + cY\n")<warnings>
-    eqv ("4: 'cY' is already a static of this file (line 1): both are one variable, which starts with the last value declared",)
+    eqv ("4: 'cY' is already a static of this file (line 1): both are one variable, which starts with the last value given in the file",)
+};
+# A static takes its value once, at load (tried on an AppServer): a parameter
+# or a local of its function does not exist there.
+check "a static whose value names a parameter, a local, a loop counter: Nil there, warned once each",
+{
+  result("user function f(cParm)\n  local cL := \"l\"\n  static cA := cParm + cParm\n  static cB := cL\n  for local i := 1 to 2\n    static nC := i\n  next\nreturn cA + cB + nC\n")<warnings>
+    eqv ("3: 'cParm' is a parameter: a static takes its value once, at load, when 'cParm' does not exist -- it is Nil there",
+         "4: 'cL' is a local: a static takes its value once, at load, when 'cL' does not exist -- it is Nil there",
+         "6: 'i' is a local: a static takes its value once, at load, when 'i' does not exist -- it is Nil there")
+};
+check "not: a constant, a function call (it runs at load, once), another static, a code block (it runs later)",
+{
+  !result("static nBase := 1\n\nuser function f(cParm)\n  static nA := 2\n  static nB := g()\n  static nC := nBase + nA\n  static bD := \{|| cParm \}\nreturn nA + nB + nC + eval(bD)\n\nstatic function g()\nreturn 3\n")<warnings>
 };
 check "a <const> static cannot be assigned, from any function",
 {

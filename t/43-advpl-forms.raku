@@ -111,7 +111,15 @@ check "one static name in two functions: one variable, as Protheus has it -- com
   my $body = "function u_t1()\n  static cTop := \"cTop\"\n  return\n\nfunction u_t2()\n  static cTop := \"other cTop\"\n  conout(cTop)\n  return\n";
   my $src = $head ~ $body;
   my $m = parse($src);
-  $m && emit($m.made, $src) eq $src && warnings($body) eqv ("'cTop' is already a static of this file (line 5): both are one variable, which starts with the last value declared",)
+  $m && emit($m.made, $src) eq $src && warnings($body) eqv ("'cTop' is already a static of this file (line 5): both are one variable, which starts with the last value given in the file",)
+};
+check "a static's value: a call runs at load and is fine; a parameter is Nil there, and warned (tried, 8 October)",
+{
+  my $call = "function u_stinit_d()\n  conout(cValToChar(nInit))\n  return\n\nfunction u_stinit_d2()\n  static nInit := stinit_d_init()\n  return\n\nstatic function stinit_d_init()\n  conout(\"the initializer runs\")\n  return 42\n";
+  my $parm = "function u_stinit_b()\n  stinit_b2(\"given\")\n  return\n\nstatic function stinit_b2(cParm)\n  static cFromParm := cParm\n  conout(cValToChar(cFromParm))\n  return\n";
+  my $m = parse($head ~ $call);
+  $m && emit($m.made, $head ~ $call) eq $head ~ $call && !warnings($call)
+    && warnings($parm) eqv ("'cParm' is a parameter: a static takes its value once, at load, when 'cParm' does not exist -- it is Nil there",)
 };
 check "and the checks have nothing to say about it",
 {
