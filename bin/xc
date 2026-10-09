@@ -118,7 +118,16 @@ sub compile(Str $in, Str $out --> Bool)
       return False;
     }
     my $line = $pos.line($*FURTHEST);
-    note "$in:$line: cannot parse this line: {$src.lines[$line - 1].trim}";
+    my $text = $src.lines[$line - 1].trim;
+    # A whole 'local' or 'static' declaration that does not parse where it is
+    # fails for its place alone: say so.
+    if late-declaration($text)
+    {
+      note "$in:$line: '{$text.words[0].lc}' cannot be declared here: every local and static comes before "
+         ~ "the first statement of its function or its block -- '$text'";
+      return False;
+    }
+    note "$in:$line: cannot parse this line: $text";
     return False;
   }
 
@@ -173,6 +182,15 @@ with $outdir
     %seen{stem($in).lc} = $in;
   }
   mkdir $outdir unless $check;
+}
+
+# Whether a line is a 'local' or 'static' declaration whole, its comment aside.
+sub late-declaration(Str $text --> Bool)
+{
+  return False unless $text ~~ m:i/ ^ [ 'local' | 'static' ] >> /;
+  my $code = split-comment($text)[0].trim;
+  my $*FURTHEST = 0;
+  so try XC::Grammar.parse($code, :rule<declaration>)
 }
 
 my $failed = $missing;

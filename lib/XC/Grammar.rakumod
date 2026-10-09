@@ -460,11 +460,9 @@ rule statement
   || <rawst>
   || [ <simple> <modifier>? ]
   ]
-  # A 'Default' -- parameters' values, before the locals in real code -- does
-  # not close the prologue either.
-  # (By its text: rakupp does not show a code block what is inside a
-  # capture -- '$<simple><defaultst>' -- only the capture.)
-  { try $*PAST-PROLOGUE = True unless $<declaration> || (~$/) ~~ m:i/ ^ \s* 'default' >> / }
+  # Any other statement closes the prologue -- a 'Default' too: it is an 'If'
+  # once the preprocessor is done with it, and a local after it is an error.
+  { try $*PAST-PROLOGUE = True unless $<declaration> }
 }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
