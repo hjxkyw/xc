@@ -12,8 +12,8 @@ tar xzf rakupp-linux-x86_64.tar.gz
 export PATH=$PWD/rakupp/bin:$PATH
 ```
 
-xc runs under rakupp 5.2.1, and under 4.0.1 too; the tests pass under
-Rakudo as well (`raku run-tests.raku`).
+xc runs under rakupp 5.2.1; the tests pass under Rakudo as well
+(`raku run-tests.raku`).
 
 ## Compiling
 
