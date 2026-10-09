@@ -447,6 +447,7 @@ class Param is export
 {
   has Str $.name;
   has Str $.declared;              # '?' when there is none
+  has Str $.type-word;             # the type as written ('Numeric', 'N'); undefined if none
   has Str @.attributes;            # 'const', 'contained' -- xtpl's
   # From the name's end to the '>': what the output leaves out. -1: none.
   has Int $.attrs-from = -1;
@@ -461,6 +462,7 @@ class FunctionDef is export
   has Annotation @.annotations;
   has Stmt       @.body;
   has Int        $.line;
+  has Str        $.rettype-word;   # 'as Array' after the parameters, as written
 }
 
 class DataMember is export         # 'Data name as type'

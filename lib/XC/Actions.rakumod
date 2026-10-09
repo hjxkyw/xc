@@ -144,6 +144,7 @@ method function($/)
     annotations => $<annotation>.map(*.made).list,
     body        => $<funcbody>.made,
     line        => self!line($<funckind>),
+    rettype-word => $<rettype> ?? ~$<rettype><typespec><typename> !! Str,
   );
 }
 
@@ -152,6 +153,7 @@ method param($/)
   make Param.new(
     name       => ~$<name>,
     declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
+    type-word  => $<typespec> ?? ~$<typespec><typename> !! Str,
     attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
     attrs-from => $<attrs> ?? self!to($<name>) !! -1,
     attrs-to   => $<attrs> ?? self!to($<attrs>) !! -1,

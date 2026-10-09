@@ -17,7 +17,7 @@ Soma o saldo em aberto de um cliente.
 /*/
 
 @Get("/saldo/:id")
-user function saldo(cCliente as Character, nLimite as N)
+user function saldo(cCliente as Character, nLimite as Numeric)
 
   local aTitulos := {} as Array
   local jResposta as JSON

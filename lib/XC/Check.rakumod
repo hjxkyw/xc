@@ -158,8 +158,22 @@ my class Checker
     self!static-never-read;
   }
 
+  # TL++ takes a type's whole name: 'as N' is "Invalid Type N" to Protheus.
+  # (xc read the one-letter forms as their types, and wrote them on.)
+  my constant WHOLE = %( a => 'Array', n => 'Numeric', c => 'Character', l => 'Logical', d => 'Date',
+                         o => 'Object', b => 'CodeBlock', j => 'JSON', u => 'Variant' );
+  method !type-word($word, Int $line)
+  {
+    return unless $word.defined && $word.chars == 1;
+    $!line = $line;
+    self!problem("'as $word': TL++ has no type '$word' -- write 'as {WHOLE{$word.lc} // $word}'.");
+  }
+
   method !function($f)
   {
+    self!type-word(.type-word, $f.line) for $f.params;
+    self!type-word($f.rettype-word, $f.line) if $f ~~ FunctionDef;
+    self!type-word($f.returns, $f.line) if $f ~~ MethodImpl;
     %!retired      = ();
     %!scalar       = ();
     @!records      = ();
@@ -525,6 +539,7 @@ my class Checker
       {
         for .declarators -> $d
         {
+          self!type-word(($d.typespec-text // '').words[1], $d.line);
           self!static-value($d) if %!static-decls{$s.WHICH} && $d.init.defined;
           self!expr($d.init) if $d.init.defined;
           next if $s.scope eq 'private' || %!static-decls{$s.WHICH};

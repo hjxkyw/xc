@@ -281,6 +281,22 @@ check "a second static of one name is warned: the same variable -- the first by 
   && result("static cY := 1\n\nuser function f(a)\n  static cY := 2\nreturn a + cY\n")<warnings>
     eqv ("4: 'cY' is already a static of this file (line 1): both are one variable, which starts with the last value given in the file",)
 };
+# TL++ takes a type's whole name: 'as N' is "Invalid Type N" to Protheus.
+check "refuses a one-letter type -- a parameter's, a return type, a declaration's either way round",
+{
+  result("user function f(cA as Character, nL as N) as A\n  local aX := \{\} as A\n  local cY as C := \"\"\nreturn \{nL, aX, cY, cA\}\n")<errors>
+    eqv ("1: 'as N': TL++ has no type 'N' -- write 'as Numeric'.",
+         "1: 'as A': TL++ has no type 'A' -- write 'as Array'.",
+         "2: 'as A': TL++ has no type 'A' -- write 'as Array'.",
+         "3: 'as C': TL++ has no type 'C' -- write 'as Character'.")
+};
+check "and of a method",
+{
+  result("Class C\n  Method M(n as N)\nEndClass\n\nMethod M(n as N) Class C\nReturn n\n")<errors>
+    eqv ("5: 'as N': TL++ has no type 'N' -- write 'as Numeric'.",)
+};
+passes "whole names", "  local nX as Numeric := 1\n  local aY := \{\} as Array\n  a := nX + len(aY)";
+
 # A static takes its value once, at load (tried on an AppServer): a parameter
 # or a local of its function does not exist there.
 check "a static whose value names a parameter, a local, a loop counter: Nil there, warned once each",
