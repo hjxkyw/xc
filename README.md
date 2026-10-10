@@ -1,6 +1,8 @@
 # xc
 
-A compiler from xtpl to TL++, written in Raku.
+A compiler from xtpl to TL++, written in Raku. The language -- what xc
+takes, what it makes of it, what it refuses -- is described in
+[docs/language.md](docs/language.md).
 
 ## Installing rakupp
 
@@ -105,6 +107,7 @@ and aRoll draw with `Random()`.
 | | |
 |---|---|
 | `bin/xc` | the compiler |
+| `docs/` | the language reference, `language.md` -- `t/45` compiles its examples |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `t/` | xc's tests, in Raku; `t/lib/` what several of them share |
