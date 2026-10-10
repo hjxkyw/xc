@@ -1307,8 +1307,7 @@ class Emitter
           self!header-to($s, self!line-end($s.src-from), $at, |@setup);
           my $raw = self!slice($s);
           my $ce  = code-end($raw);
-          my $m   = $raw.substr(0, $ce).lc.match(/ 'end' \s+ 'using' /, :g)[*-1];
-          my $start = $s.src-from + $m.from;
+          my $start = $s.src-from + last-from($raw.substr(0, $ce), / 'end' \s+ 'using' /);
           @!edits.push([$start, $s.src-from + $ce, self!join-at($start, @restore)]);
 
           @!closers.push('using' => @restore.List);
@@ -1530,7 +1529,7 @@ class Emitter
             my $raw  = self!slice($s);
             my $ce   = code-end($raw);
             my $from = self!line-start($s.src-from);
-            my $last = $s.src-from + $raw.substr(0, $ce).lc.match(/ 'end' \s+ 'raw' /, :g)[*-1].from;
+            my $last = $s.src-from + last-from($raw.substr(0, $ce), / 'end' \s+ 'raw' /);
             my $end  = self!line-end($s.src-from + $ce);
             my @out;
             my $open = split-comment($!src.substr($s.src-from, self!line-end($s.src-from) - $s.src-from))[1];
@@ -1989,7 +1988,7 @@ class Emitter
   {
     my $raw = self!slice($s);
     my $ce  = code-end($raw);
-    my $at  = $s.src-from + $raw.substr(0, $ce).lc.match($closer, :g)[*-1].from;
+    my $at  = $s.src-from + last-from($raw.substr(0, $ce), $closer);
     my $end = self!line-end($s.src-from + $ce);
     my $comment = split-comment($!src.substr($at, $end - $at))[1];
     my $from = self!line-start($at);
@@ -2483,6 +2482,16 @@ sub needs-lowering(Stmt $s --> Bool)
   }
 }
 
+# Where the last match in a block's text starts, in characters, the text
+# taken in lower case. Matched on a copy with every "\r\n" made "\n" -- one
+# character either way, so the offsets hold for the text as it is -- because
+# some rakupp builds count "\r\n" as two in a match's '.from' and '.substr'
+# counts one.
+sub last-from(Str $text, Regex $re --> Int)
+{
+  $text.lc.subst("\r\n", "\n", :g).match($re, :g)[*-1].from
+}
+
 # The two includes every file gets, when missing: totvs.ch at the top, and
 # tlpp-core.th after the last .ch the file includes -- or at the top, after
 # totvs.ch, when it includes none: the order of every file known to compile
@@ -2495,9 +2504,18 @@ sub add-includes(Str $out, Str $nl --> Str)
   my $text = $out;
   unless included('tlpp-core.th')
   {
-    my $last = $out.match(/:i ^^ \h* '#' \h* 'include' \h* '"' <-["]>* '.ch"' \N* /, :g).tail;
-    if $last { $text = $out.substr(0, $last.to) ~ $nl ~ '#include "tlpp-core.th"' ~ $out.substr($last.to) }
-    else     { @top.push('tlpp-core.th') }
+    # By lines, not by where a match ends: some rakupp builds count "\r\n" as
+    # two in a match's '.to' and '.substr' as one, and the include landed one
+    # character late -- after the line end, and before the next line's text.
+    my @lines = $out.lines(:!chomp);
+    my $last = @lines.first(:end, :k, { $_ ~~ m:i/ ^ \h* '#' \h* 'include' \h* '"' <-["]>* '.ch"' / });
+    with $last
+    {
+      @lines[$last] ~= $nl unless @lines[$last] ~~ / \n $ /;
+      @lines.splice($last + 1, 0, '#include "tlpp-core.th"' ~ $nl);
+      $text = @lines.join;
+    }
+    else { @top.push('tlpp-core.th') }
   }
   @top ?? @top.map({ "#include \"$_\"" }).join($nl) ~ $nl ~ $nl ~ $text !! $text
 }

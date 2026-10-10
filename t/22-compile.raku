@@ -110,6 +110,25 @@ check 'and a CRLF source gets it with CRLF',
   compile(qq[#include "totvs.ch"\r\n#include "rwmake.ch"\r\nuser function f()\r\nreturn 1\r\n])
     eq qq[#include "totvs.ch"\r\n#include "rwmake.ch"\r\n#include "tlpp-core.th"\r\nuser function f()\r\nreturn 1\r\n]
 };
+# Blocks closed by a line of their own -- 'end using', 'end with', 'end raw':
+# where the closer starts is found by a match in the block's text, and some
+# rakupp builds count "\r\n" as two there. The same source with CRLF must come
+# out as with LF, line for line.
+check "CRLF: 'end using', 'end with' and 'end raw' found where they are, line for line as with LF",
+{
+  my $lf = qq[user function f(o)\n  local n := 0\n  using alias SA1 order 1 do\n    n := SA1->A1_SALDO\n]
+         ~ qq[  end using   // done\n  with object o\n    :SetValue("A", n)\n  end with   // set\n]
+         ~ qq[  raw\n    ANOTE "x"\n  end raw   // noted\nreturn n\n];
+  my $crlf = $lf.subst("\n", "\r\n", :g);
+  my ($a, $b) = compile($lf), compile($crlf);
+  $a.defined && $b.defined && $b.contains("\r\n") && $b.subst("\r\n", "\n", :g) eq $a
+    && $a.contains('// done') && $a.contains('// set') && $a.contains('// noted')
+};
+check 'the last .ch on the last line, with no line end: tlpp-core.th on a line of its own',
+{
+  compile(qq[user function f()\nreturn 1\n#include "rwmake.ch"])
+    eq qq[#include "totvs.ch"\n\nuser function f()\nreturn 1\n#include "rwmake.ch"\n#include "tlpp-core.th"\n]
+};
 check 'only tlpp-core.th there: totvs.ch at the top, before it',
 {
   my $src = qq[#include "tlpp-core.th"\nuser function f()\nreturn 1\n];
