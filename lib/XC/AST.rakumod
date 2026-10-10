@@ -29,8 +29,8 @@ sub type-of-name(Str $name --> Str) is export
   given $name.lc
   {
     when 'array'     | 'a' { 'Array'     }
-    when 'numeric'   | 'n' | 'integer' | 'decimal' { 'Numeric' }
-    when 'character' | 'c' { 'Character' }
+    when 'numeric'   | 'n' | 'integer' | 'decimal' | 'double' { 'Numeric' }
+    when 'character' | 'c' | 'char' { 'Character' }
     when 'logical'   | 'l' { 'Logical'   }
     when 'date'      | 'd' { 'Date'      }
     when 'object'    | 'o' | 'variadic' { 'Object' }
@@ -424,6 +424,12 @@ class TransactionStmt is Stmt is export
 }
 
 # 'Break' [value]: out of a 'begin sequence', to its 'recover'.
+# 'EndFunction' and its kin: a name on its own, that does nothing.
+class NoOpStmt is Stmt is export
+{
+  has Str $.word;
+}
+
 class BreakStmt is Stmt is export
 {
   has Expr $.value;                # undefined if none
@@ -609,7 +615,7 @@ sub walk-expr(Expr $e, &f) is export
 # The expressions a statement holds, without going into its bodies -- 'walk'
 # does that. The variable of a 'for' is a name, not an expression, and is left
 # out.
-my %NO-EXPRS = (RawStmt, SequenceStmt, Deferred, TryStmt, TransactionStmt).map({ .^name => True });
+my %NO-EXPRS = (RawStmt, NoOpStmt, SequenceStmt, Deferred, TryStmt, TransactionStmt).map({ .^name => True });
 my %EXPRS =
   Declaration.^name  => -> $s { |$s.declarators.map(*.init) },
   Assignment.^name   => -> $s { $s.target, $s.value },
@@ -665,7 +671,7 @@ sub exprs-of(Stmt $s --> List) is export
 # classes, junctions among them. No statement class has a subclass, so the
 # exact class is the whole answer; a class the tables do not know goes the
 # long way.
-my %NO-BODIES = (Declaration, Assignment, CallStmt, ReturnStmt, Annotation, RawStmt, BreakStmt, DefaultStmt).map({ .^name => True });
+my %NO-BODIES = (Declaration, Assignment, CallStmt, ReturnStmt, Annotation, RawStmt, NoOpStmt, BreakStmt, DefaultStmt).map({ .^name => True });
 my %BODIES =
   IfStmt.^name       => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },
   CaseStmt.^name     => -> $s { (|$s.branches.map({ .body.List }), $s.otherwise.List).List },

@@ -55,7 +55,9 @@ sub split-comment(Str $text --> List) is export
     my $c = $text.substr($i, 1);
     if $quote
     {
-      $quote = '' if $c eq $quote;
+      # A string ends at its quote, or at the end of its line (TL++ closes it
+      # there).
+      $quote = '' if $c eq $quote || $c eq "\n" | "\r\n" | "\r";
       $code ~= $c;
       $i++;
     }
@@ -99,7 +101,7 @@ sub code-end(Str $text --> Int) is export
     my $c = $text.substr($i, 1);
     if $quote
     {
-      $quote = '' if $c eq $quote;
+      $quote = '' if $c eq $quote || $c eq "\n" | "\r\n" | "\r";
       $end = ++$i;
     }
     elsif $c eq '"' || ($c eq "'" && !is-separator($text, $i))

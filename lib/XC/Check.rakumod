@@ -158,13 +158,22 @@ my class Checker
     self!static-never-read;
   }
 
-  # TL++ takes a type's whole name: 'as N' is "Invalid Type N" to Protheus.
-  # (xc read the one-letter forms as their types, and wrote them on.)
+  # A string the line ended: TL++ closes it there, and so the line reads.
+  method !unclosed($e)
+  {
+    my $t = $e.text;
+    return if $t.chars >= 2 && $t.ends-with($t.substr(0, 1));
+    self!warning("this string is not closed: TL++ ends it at the end of the line -- $t");
+  }
+
+  # TL++ takes a type's whole name: 'as N' is "Invalid Type N" to Protheus,
+  # 'as Char' "Use Character Type instead of Char Type". (xc read the short
+  # forms as their types, and wrote them on.)
   my constant WHOLE = %( a => 'Array', n => 'Numeric', c => 'Character', l => 'Logical', d => 'Date',
-                         o => 'Object', b => 'CodeBlock', j => 'JSON', u => 'Variant' );
+                         o => 'Object', b => 'CodeBlock', j => 'JSON', u => 'Variant', char => 'Character' );
   method !type-word($word, Int $line)
   {
-    return unless $word.defined && $word.chars == 1;
+    return unless $word.defined && ($word.chars == 1 || $word.lc eq 'char');
     $!line = $line;
     self!problem("'as $word': TL++ has no type '$word' -- write 'as {WHOLE{$word.lc} // $word}'.");
   }
@@ -215,7 +224,7 @@ my class Checker
     # function, or the file's last.
     # The last statement, a static after it aside: the file's, not the
     # function's end.
-    my $last = $f.body.reverse.first({ !($_ ~~ Declaration && .scope eq 'static') });
+    my $last = $f.body.reverse.first({ !($_ ~~ Declaration && .scope eq 'static') && $_ !~~ NoOpStmt });
     my $next = @!ends.first(* > $f.line);
     my $end = $next.defined ?? $next - 1 !! ($!lines || ($last andthen .line) || $f.line);
     my $ends-without = $last !~~ ReturnStmt;
@@ -656,6 +665,11 @@ my class Checker
       {
         self!expr(.value) if .value.defined;
       }
+      when NoOpStmt
+      {
+        self!warning("'{.word}' is no TL++ keyword: the AppServer takes it as a name on its own, "
+                     ~ "and the line does nothing (W0001)");
+      }
       # Read before it is written: compared with Nil first.
       when DefaultStmt
       {
@@ -741,6 +755,7 @@ my class Checker
   method !expr($e)
   {
     return unless $e.defined && $e ~~ Expr;
+    self!unclosed($e) if ($e ~~ Literal || $e ~~ Interp) && $e.type eq 'Character';
     given $e
     {
       when Name { self!read(.name) }
@@ -983,7 +998,7 @@ my class Checker
     my $quote = '';
     for $text.comb -> $c
     {
-      if $quote             { $quote = '' if $c eq $quote }
+      if $quote             { $quote = '' if $c eq $quote || $c eq "\n" | "\r\n" | "\r" }
       elsif $c eq '"' | "'" { $quote = $c }
       elsif $c eq '(' | '[' | '\{' { $depth++ }
       elsif $c eq ')' | ']' | '}' { $depth-- }

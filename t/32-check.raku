@@ -296,6 +296,13 @@ check "and of a method",
     eqv ("5: 'as N': TL++ has no type 'N' -- write 'as Numeric'.",)
 };
 passes "whole names", "  local nX as Numeric := 1\n  local aY := \{\} as Array\n  a := nX + len(aY)";
+check "'as Char' is refused with the AppServer's hint: 'Use Character Type instead of Char Type'",
+{
+  problems("user function f(cX as Char)\n  local cY As char := \"\"\nreturn cX + cY\n")
+    eqv ("1: 'as Char': TL++ has no type 'Char' -- write 'as Character'.",
+         "2: 'as char': TL++ has no type 'char' -- write 'as Character'.")
+};
+passes "'as double' is a type of TL++'s (tried: xcr_j)", "  local vDou := 0 as double\n  a := vDou";
 
 # A static takes its value once, at load (tried on an AppServer): a parameter
 # or a local of its function does not exist there.

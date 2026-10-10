@@ -173,9 +173,9 @@ method parse($target, |c)
 # apply to local, private, parameters, header declarations and 'for local';
 # not to lambda parameters, which xtpl accepts.
 my constant RESERVED = set <
-  function static user return if else elseif endif for next while enddo do
+  function static return if else elseif endif for next while enddo do
   local private public with without orwith given when otherwise end
-  conout len eval array aadd substr userexception
+  conout len eval aadd substr userexception
 >;
 
 # 'our': under rakupp 4.0.1 a lexical 'sub' in this file is not visible from
@@ -475,10 +475,10 @@ token typename
   # 'variadic': TL++'s parameter that takes every argument there is --
   # 'parm As Variadic', read as 'parm:vCount' and 'parm:vArgs[i]'.
   :i [
-       'integer' || 'decimal' || 'codeblock' || 'variadic' >>
+       'integer' || 'decimal' || 'codeblock' || 'variadic' >> || 'double' >>
     || 'array'     || 'a' >>
     || 'numeric'   || 'n' >>
-    || 'character' || 'c' >>
+    || 'character' || 'c' >> || 'char' >>
     || 'logical'   || 'l' >>
     || 'date'      || 'd' >>
     || 'object'    || 'o' >>
@@ -519,12 +519,19 @@ rule statement
   || <usingst>
   || <withst>
   || <rawst>
+  || <noopst>
   || [ <simple> <modifier>? ]
   ]
   # Any other statement closes the prologue -- a 'Default' too: it is an 'If'
   # once the preprocessor is done with it, and a local after it is an error.
   { try $*PAST-PROLOGUE = True unless $<declaration> }
 }
+
+# 'EndFunction', 'EndFunc', 'EndMethod': no keywords of TL++'s. The AppServer
+# takes such a word as a name on its own -- a line that does nothing, with a
+# warning (W0001, tried: xcr_f, xcr_g) -- and real sources end functions with
+# them. The checks warn too.
+token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' ] <!ww> }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
 #
@@ -815,11 +822,12 @@ rule ifst
   :i [ 'endif' || 'end' [ 'if' ]? ]
 }
 
+# 'End Do' closes it too (tried: xcr_e); 'End Try' does not close a try.
 rule whilest
 {
   :i [ 'do' <.ws> ]? 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
      <block>
-  :i [ 'enddo' || 'end' ]
+  :i [ 'enddo' || 'end' [ :i 'do' >> ]? ]
 }
 
 # 'for local i := ...' makes 'i' a new local of the loop. Without 'local', 'i'
@@ -1315,12 +1323,15 @@ token number   { [ \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? ] || [ '.' \d+ ] }
 # xtpl does not interpolate a string in a 'local' initializer -- it passes
 # through as written. xc interpolates it wherever it is.
 token string   { [ <!{ $*IN-DQ // False }> <dqstring> ] || [ <!{ $*IN-SQ // False }> <sqstring> ] }
-token dqstring { :my $*IN-DQ = True; '"' <spart=dqpart>* '"' }
-token sqstring { :my $*IN-SQ = True; "'" <spart=sqpart>* "'" }
+# A string not closed by the end of its line ends there: the AppServer takes
+# 'cQ := "SELECT X' (tried: xcr_a, xcr_b), and real sources have it. The
+# checks warn.
+token dqstring { :my $*IN-DQ = True; '"' <spart=dqpart>* [ '"' || <?before \n || $> ] }
+token sqstring { :my $*IN-SQ = True; "'" <spart=sqpart>* [ "'" || <?before \n || $> ] }
 token dqpart   { <interp> || <text=dqtext> }
 token sqpart   { <interp> || <text=sqtext> }
-token dqtext   { [ <-["$]> || '$' <!before '{'> ]+ }
-token sqtext   { [ <-['$]> || '$' <!before '{'> ]+ }
+token dqtext   { [ <-["$\n]> || '$' <!before '{'> ]+ }
+token sqtext   { [ <-['$\n]> || '$' <!before '{'> ]+ }
 token interp   { '${' <.ws> <expr> <.ws> '}' }
 token logical  { :i '.t.' || '.f.' }
 token nildef   { :i 'nil' >> }

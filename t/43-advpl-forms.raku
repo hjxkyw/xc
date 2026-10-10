@@ -192,6 +192,26 @@ check "a block local with dimensions starts as Array() of them, each time",
   $out.contains("Local aX  // a block local") && $out.contains('aX := Array(n, 2)') && !$out.contains('aX[n]')
 };
 
+# ---- tried on an AppServer (outputs/xcr) ---------------------------------------
+same "a string the line ends: the AppServer closes it there (xcr_a, xcr_b)",
+  "User Function f(cId)\n  Local cQ := \"SELECT X FROM SZ1010\n  cQ += \" WHERE ID = '\" + cId + \"'\n  cQ += ' AND D_E_L_E_T_ = \" \"\nreturn cQ\n";
+check "and the checks say so, once each, with the string",
+{
+  my @w = warnings("User Function f(cId)\n  Local cQ := \"SELECT X\n  cQ += \" AND ID = '\" + cId + \"'\nreturn cQ\n");
+  @w.grep(*.contains('not closed')).elems == 2 && @w.first(*.contains('"SELECT X'))
+};
+same "'End Do' closes a 'Do While' (xcr_e)", "User Function f(n)\n  Do While n > 0\n    n--\n  End Do\nreturn n\n";
+same "'EndFunction', 'EndFunc', 'EndMethod': a name on its own, a line that does nothing (xcr_f, xcr_g)",
+  "User Function f(n)\nReturn n\nEndFunction\n\nStatic Function g()\nReturn 1\nEndFunc\n\nMethod New() Class C\nReturn Self\nEndMethod\n";
+check "and the checks say so -- and no 'ends without a return'",
+{
+  my @w = warnings("User Function f(n)\nReturn n\nEndFunction\n");
+  @w.elems == 1 && @w[0].contains("'EndFunction' is no TL++ keyword")
+};
+same "'user' and 'array' are names to the AppServer (xcr_h)",
+  "User Function f(user)\n  Local array := \{1, 2\}\nReturn user + Len(array)\n";
+check "'len' is not (xcr_h: C2003)", { !parse($head ~ "User Function f()\n  Local len := 1\nReturn len\n") };
+
 # ---- what the checks make of them ------------------------------------------------
 check "'Default' reads what it sets: no 'never read'",
 {

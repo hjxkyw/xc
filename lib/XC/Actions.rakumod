@@ -307,6 +307,8 @@ method statement($/)
 
 method simple($/) { make $/.hash.values[0].made }
 
+method noopst($/) { make NoOpStmt.new(word => ~$/, line => self!line($/)) }
+
 method deferst($/)
 {
   my $m = $<assignment> // $<pipest> // $<callst>;
