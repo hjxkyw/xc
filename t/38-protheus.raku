@@ -116,6 +116,13 @@ check 'all passes: the AppServer compiles the folder -- both, and the runtime co
     && $out.add('xtpl_runtime.tlpp').slurp eq 'runtime/xtpl_runtime.tlpp'.IO.slurp
     && %r<text>.contains('every check passed')
 };
+check 'an old runtime in the folder is replaced -- even newer, and of the same size',
+{
+  my $rt = 'runtime/xtpl_runtime.tlpp'.IO.slurp;
+  spurt $out.add('xtpl_runtime.tlpp'), $rt.subst('xtpl_jnew', 'xtpl_JNEW');
+  my %r = protheus(|@base, '--compile-only');
+  %r<code> == 0 && $out.add('xtpl_runtime.tlpp').slurp eq $rt
+};
 check 'another source in the folder is removed: the AppServer would compile it too',
 {
   spurt $out.add('stray.prw'), "user function stray()\nreturn 1\n";
