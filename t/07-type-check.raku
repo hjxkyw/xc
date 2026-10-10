@@ -17,6 +17,13 @@ my @pass =
   'local xV := "qualquer" as Variant',
   # xtpl's order, checked the same way.
   'local nX as Numeric := 1',
+  # '-' takes a number from a date, and gives a date: not a number by itself.
+  'local dX := dHoje - 1 as Date',
+  'local nX := 3 - 1 as Numeric',
+  'local lX := a in b as Logical',
+  'local lX := h has "k" as Logical',
+  'local lX := n %% 2 as Logical',
+  'local nX := 2 ** 8 as Integer',
   ;
 
 my @refuse =
@@ -35,6 +42,9 @@ my @refuse =
   # It matched as an array: the pair's ':' was read as a member of "a".
   'local jJ := { "a": nX } as Array',
   'local cS as Character := 42',
+  'local nX := "a" - "b" as Numeric',
+  'local nX := a in b as Numeric',
+  'local cS := 2 ^ 3 as Character',
   ;
 
 my ($ok, $total) = 0, @pass + @refuse;

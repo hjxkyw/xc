@@ -10,15 +10,22 @@
 #
 # Where there is no way to know, nothing is reported. A checker that refuses
 # what it does not understand is a checker nobody uses.
+#
+# XC::Check calls it for every declaration: a value that does not agree with
+# its type is an error.
 
 use XC::AST;
 
 unit module XC::Types;
 
-# The operators that decide the type on their own, whatever the operands.
+# The operators that decide the type on their own, whatever the operands --
+# xtpl's 'in', 'has' and '%%' among them.
+# Not '-': it takes a number from a date and gives a date, and joins strings
+# as '+' does ('"a " - "b"' is '"ab "'). Like '+', it is known only when both
+# sides say the same thing.
 constant @LOGICAL-OPS = ('==', '=', '!=', '<>', '#', '<', '>', '<=', '>=', '$',
-                         '.and.', '.or.', '!');
-constant @NUMERIC-OPS = ('-', '*', '/', '%', 'neg');
+                         '.and.', '.or.', '!', 'in', 'has', '%%');
+constant @NUMERIC-OPS = ('*', '/', '%', '**', '^', 'neg');
 
 # The type of an expression, or '?' when it cannot be told from here.
 sub type-of(Expr $e --> Str) is export
@@ -43,9 +50,9 @@ sub type-of(Expr $e --> Str) is export
       return 'Logical' if $op (elem) @LOGICAL-OPS;
       return 'Numeric' if $op (elem) @NUMERIC-OPS;
 
-      # '+' adds numbers and joins strings. The result is only known when both
-      # sides say the same thing.
-      if $op eq '+'
+      # '+' and '-' add numbers and join strings. The result is only known
+      # when both sides say the same thing.
+      if $op eq '+' || $op eq '-'
       {
         my $a = type-of($node.left);
         my $b = type-of($node.right);
@@ -60,27 +67,30 @@ sub type-of(Expr $e --> Str) is export
   }
 }
 
+# What is wrong with a declarator's value for its type, or Str when nothing
+# is, or nothing can be told.
+sub type-problem(Declarator $v --> Str) is export
+{
+  return Str if $v.declared eq UNKNOWN;      # no 'as': nothing to check
+  return Str without $v.init;                # no initializer
+  my $found = type-of($v.init);
+  return Str if $found eq UNKNOWN;           # no way to know
+  return Str if $v.declared eq 'Variant';    # accepts anything
+
+  # Nil fits any type: it is how TL++ writes "not yet".
+  return Str if $v.init ~~ Literal && $v.init.text.lc eq 'nil';
+
+  return Str if $found eq $v.declared;
+  "'{$v.name}' is declared as {$v.declared}, but its initial value is {$found}."
+}
+
 # The problems of a declaration, one per declarator that does not agree.
 sub check-declaration(Declaration $d --> List) is export
 {
   my @problems;
   for $d.declarators -> $v
   {
-    next if $v.declared eq UNKNOWN;          # no 'as': nothing to check
-    next without $v.init;                    # no initializer
-    my $found = type-of($v.init);
-    next if $found eq UNKNOWN;               # no way to know
-    next if $v.declared eq 'Variant';        # accepts anything
-
-    # Nil fits any type: it is how TL++ writes "not yet".
-    next if $v.init ~~ Literal && $v.init.text.lc eq 'nil';
-
-    if $found ne $v.declared
-    {
-      @problems.push:
-        "line {$v.line}: '{$v.name}' is declared as {$v.declared}, "
-        ~ "but its initial value is {$found}";
-    }
+    with type-problem($v) -> $p { @problems.push("line {$v.line}: $p") }
   }
   @problems.List
 }

@@ -17,6 +17,18 @@
 # its declaration to the end of its block; after that its name is 'out of
 # scope', not 'not declared'.
 #
+# A name xc keeps for itself -- a reserved word, the shape of a name it
+# generates -- cannot be declared. The grammar refuses it, and can only say
+# that the line does not parse; check-names() says which name and why, in
+# xtpl's words, when bin/xc reads the file again with any name allowed.
+#
+# TYPES
+#
+# A declaration's value has to agree with the type it declares, when the
+# value's type can be told -- a literal, a comparison, a sum of numbers
+# (XC::Types). 'local nX := "a" as Numeric' is an error; 'local nX := f() as
+# Numeric' says nothing. xtpl did not check it.
+#
 # A name nothing declares is a warning, not an error -- a choice xtpl did not
 # make: plain TL++ uses the system's globals (cFilAnt, dDataBase, CRLF from
 # totvs.ch) without declaring them, and it compiles unchanged. The messages
@@ -50,6 +62,7 @@ use XC::AST;
 use XC::Grammar;
 use XC::Emit;
 use XC::Source;
+use XC::Types;
 
 unit module XC::Check;
 
@@ -117,6 +130,12 @@ my class Checker
   method !problem(Str $message) { @!found.push($!line => $message) }
   method !warning(Str $message)  { @!warned.push($!line => $message) }
 
+  # A declarator's value against the type it declares.
+  method !agrees(Declarator $d)
+  {
+    with type-problem($d) -> $p { @!found.push($d.line => $p) }
+  }
+
   # ---- the file --------------------------------------------------------------
   method program(Program $p)
   {
@@ -135,6 +154,7 @@ my class Checker
     # Every static of the file, in the order of its lines: the first of a
     # name is the one, and the others are said to be the same.
     my @statics = $p.statics.map({ |.declarators });
+    self!agrees($_) for @statics;
     self!file-statics(.body, @statics) for |$p.functions, |$p.methods;
     self!file-static($_) for @statics.sort(*.line);
     @!ends = (|$p.functions, |$p.methods, |$p.classes).map(*.line).sort;
@@ -566,6 +586,7 @@ my class Checker
         for .declarators -> $d
         {
           self!type-word(($d.typespec-text // '').words[1], $d.line);
+          self!agrees($d);
           self!static-value($d) if %!static-decls{$s.WHICH} && $d.init.defined;
           self!expr($d.init) if $d.init.defined;
           self!expr($_) for $d.dims;
@@ -587,6 +608,7 @@ my class Checker
       {
         my $if = $_;
         self!expr($if.header-decl.init) if $if.header-decl.defined;
+        self!agrees($_) with $if.header-decl;
         self!in-block({
           with $if.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
           for $if.branches -> $b
@@ -601,6 +623,7 @@ my class Checker
       {
         my $w = $_;
         self!expr($w.header-decl.init) if $w.header-decl.defined;
+        self!agrees($_) with $w.header-decl;
         self!in-block({
           with $w.header-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
           self!expr($w.cond);
@@ -647,6 +670,7 @@ my class Checker
       {
         my $c = $_;
         self!expr($c.subject-decl.init) if $c.subject-decl.defined;
+        self!agrees($_) with $c.subject-decl;
         with $c.subject-assign -> $a { self!expr($a.value); self!target($a.target, $a.op) }
         self!in-block({
           with $c.subject-decl -> $d { self!declare($d.name, $d.line, attributes => $d.attributes, :written) }
@@ -990,6 +1014,11 @@ my class Checker
     # the array it built, and is not what stopped anything.
     return if $fold || $taken >= @stages || @stages < 2;
     my $stop = @stages[$taken];
+    # From the stop on, functions xc cannot see into and nothing else --
+    # 'cName |> alltrim |> upper', 'aX |> filter(...) |> myHelper()': nothing
+    # there is known to build an array, and nothing could have fused. xtpl
+    # warned anyway, of a string chain too; xc says nothing.
+    return unless @stages[$taken .. *].first({ is-runtime-verb(.name) });
     my $why = is-runtime-verb($stop.name) ?? 'it needs the whole collection' !! 'xtpl cannot see inside it';
     self!warning("this chain does not fuse -- '{$stop.name}' stops it, because $why, so it and every "
                  ~ "stage after it builds an array");
@@ -1243,6 +1272,68 @@ sub check-program(Program $p --> List) is export
   # .List: a Hash's value is an item under Rakudo -- 'my @p = ...' would get
   # the whole list as one element. (rakupp does not itemize it.)
   check-all($p)<errors>.List
+}
+
+# The names a program declares that xc keeps for itself: Pairs, line =>
+# message, in xtpl's words. A reserved word is refused wherever a name is
+# declared -- a local, private, public or static, the file's statics, a
+# parameter, a loop's variable, a block header's local; not a lambda's or a
+# code block's parameter, which xtpl takes. The shape of a generated name only
+# in a function's own declarations, the ones written as they are: a block
+# local becomes a slot of another name. The grammar refuses both already;
+# bin/xc reads a file that did not parse again with '$*ANY-NAME' set, and
+# asks this which name it was.
+my sub reserved-name(@found, Str $name, Int $line)
+{
+  @found.push($line => "Cannot use reserved word '$name' as a variable name.") if XC::Grammar::is-reserved($name);
+}
+my sub generated-name(@found, Str $name, Int $line)
+{
+  @found.push($line => "'$name' has the shape of a name xtpl generates, so it cannot be declared. "
+                       ~ "Reserved: a leading '__', and '<kind>_<depth>_<index>' -- fo_0_0, fv_1_2, s_1_0, b_0_x.")
+    if XC::Grammar::is-generated($name);
+}
+
+sub check-names(Program $p --> List) is export
+{
+  my @found;
+  my &reserved  = -> $name, $line { reserved-name(@found, $name, $line) };
+  my &generated = -> $name, $line { generated-name(@found, $name, $line) };
+  reserved(.name, .line) for $p.statics.map({ |.declarators });
+  for |$p.functions, |$p.methods -> $f
+  {
+    reserved(.name, $f.line) for $f.params;
+    for $f.body.grep(Declaration) -> $d
+    {
+      generated(.name, .line) for $d.declarators;
+    }
+    walk($f.body, -> $s
+    {
+      given $s
+      {
+        when Declaration         { reserved(.name, .line) for $s.declarators }
+        when ForStmt             { reserved($s.var, $s.line) }
+        when ForInStmt           { reserved($_, $s.line) for ($s.elem, $s.index).grep(*.defined) }
+        when IfStmt | WhileStmt  { reserved(.name, .line) with $s.header-decl }
+        when CaseStmt            { reserved(.name, .line) with $s.subject-decl }
+      }
+    });
+  }
+  @found.unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List
+}
+
+# The same for one declaration on its own, as a function's: what bin/xc asks
+# of the line a file stopped at, when the file does not parse even with any
+# name allowed -- 'local if := 1' followed by 'return if'.
+sub check-declared-names(Declaration $d --> List) is export
+{
+  my @found;
+  for $d.declarators -> $v
+  {
+    reserved-name(@found, $v.name, $v.line);
+    generated-name(@found, $v.name, $v.line);
+  }
+  @found.List
 }
 
 # The same, with the warnings: %(errors => ..., warnings => ...).

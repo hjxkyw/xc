@@ -234,6 +234,12 @@ my constant RESERVED = set <
 # inside a '<!{ }>' (under Rakudo it is).
 our sub is-reserved(Str $n --> Bool) { RESERVED{$n.lc}:exists }
 
+# Whether a name is refused where one is declared. With '$*ANY-NAME' set none
+# is: bin/xc reads a file that did not parse again so, and XC::Check's
+# check-names() then says which name it was and why -- the grammar alone can
+# only say that the line does not parse.
+our sub refused(Str $n --> Bool) { !($*ANY-NAME // False) && is-reserved($n) }
+
 # The shape of a name xtpl generates: a leading '__', a short temporary
 # '<kind>_<depth>_<index>', or a slot 's_'/'b_'. Only a function-level
 # 'local'/'private' refuses it -- the only declaration emitted with the name
@@ -465,7 +471,7 @@ rule params
 # that does not leave the function.
 rule param
 {
-  <name> <!{ is-reserved(~$<name>) }> <attrs>? <typespec>?
+  <name> <!{ refused(~$<name>) }> <attrs>? <typespec>?
 }
 
 # 'return' is a STATEMENT, not just the end of the function. An early return
@@ -843,8 +849,8 @@ token kwlocal { :i 'local' }
 rule declarator
 {
   <name>
-  <!{ is-reserved(~$<name>) }>
-  <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
+  <!{ refused(~$<name>) }>
+  <!{ !($*ANY-NAME // False) && ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
   <dims>?
   <attrs>?
   [    [ ':=' [ <chained> || <guardexpr> ] <typespec>? ]
@@ -895,7 +901,7 @@ rule whilest
 rule forst
 {
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
-     <!{ is-reserved(~$<var>) }> [ ':=' || '=' ] <from=expr>
+     <!{ refused(~$<var>) }> [ ':=' || '=' ] <from=expr>
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
      <block>
   :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
@@ -921,8 +927,8 @@ rule forst
 # EndDo', which is not AdvPL.
 rule forinst
 {
-  :i 'for' <elem=name> <!{ is-reserved(~$<elem>) }>
-     [ ',' <idx=name> <!{ is-reserved(~$<idx>) }> ]?
+  :i 'for' <elem=name> <!{ refused(~$<elem>) }>
+     [ ',' <idx=name> <!{ refused(~$<idx>) }> ]?
      :i 'in' [ <srange=forrange> || <source> ] <.nl>
      <block>
   :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
@@ -955,7 +961,7 @@ rule subject
 # A block header declaration needs an initializer: it is the value it binds
 # for the condition or for the 'case's. A bare 'local x' would belong in the
 # prologue.
-rule hdrdecl { <name> <!{ is-reserved(~$<name>) }> ':=' <expr> <typespec>? }
+rule hdrdecl { <name> <!{ refused(~$<name>) }> ':=' <expr> <typespec>? }
 
 # BEGIN SEQUENCE ... RECOVER ... END SEQUENCE -- error handling.
 rule seqst

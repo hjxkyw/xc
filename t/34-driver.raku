@@ -131,6 +131,46 @@ check "a local after a statement: said so -- a malformed one is still a line tha
     && %bad<code> == 1 && %bad<err>.contains('bad.xtpl:3: cannot parse this line: local x := := 1')
 };
 
+# A name xc keeps for itself: the grammar refuses it, and bin/xc, reading the
+# file again with any name allowed, says which one and why -- in xtpl's words,
+# on xtpl's line, for xtpl's own two cases.
+check "a reserved word or a generated name declared: xtpl's message, on xtpl's line",
+{
+  my $ok = True;
+  for <reserved_word generated_name> -> $case
+  {
+    my $err = "xtpl/errors/$case.err".IO.slurp.trim;
+    my ($line, $message) = $err ~~ / ^ 'SyntaxError: ' [ 'Line ' (\d+) ': ' ]? (.+) $ / ?? ($0, ~$1) !! (Nil, $err);
+    my %r = xc('--check', "xtpl/errors/$case.xtpl");
+    my $want = $line.defined ?? "$case.xtpl:$line: $message" !! "$case.xtpl:";
+    $ok &&= %r<code> == 1 && %r<err>.contains($want) && %r<err>.contains($message);
+  }
+  $ok
+};
+
+check "a reserved word as a parameter, a loop's variable, a block local; a generated name in a block is a block local",
+{
+  spurt $dir.add('names.xtpl'),
+    "user function f(a, given)\n  local n := 0\n  for when in a\n    if .t.\n      local otherwise := 1\n"
+    ~ "      local fo_0_1 := 2\n      n += otherwise + fo_0_1 + when\n    endif\n  next\n"
+    ~ "  for local with := 1 to 3\n  next\nreturn n\n";
+  my %r = xc('--check', "$dir/names.xtpl");
+  $dir.add('names.xtpl').unlink;
+  my @said = %r<err>.lines.map({ .subst(/ ^ .* 'names.xtpl:' /, '') });
+  %r<code> == 1 && @said.join("\n") eq ("1: Cannot use reserved word 'given' as a variable name.",
+                                       "3: Cannot use reserved word 'when' as a variable name.",
+                                       "5: Cannot use reserved word 'otherwise' as a variable name.",
+                                       "10: Cannot use reserved word 'with' as a variable name.").join("\n")
+};
+
+check "a reserved word, and a line further down that does not parse anyway: the name, on its line",
+{
+  spurt $dir.add('both.xtpl'), "user function f(a)\n  local len := 1\n  x := := 2\nreturn a\n";
+  my %r = xc('--check', "$dir/both.xtpl");
+  $dir.add('both.xtpl').unlink;
+  %r<code> == 1 && %r<err>.contains("both.xtpl:2: Cannot use reserved word 'len' as a variable name.")
+};
+
 # ---- --outdir: every output into one folder ----------------------------------
 reset-dir;
 check '--outdir: sources and folders, every .tlpp into the folder, named for its source',

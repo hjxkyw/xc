@@ -208,6 +208,30 @@ warns 'used before the line that opens it',
 passes 'an area held in a variable is not checked',
   "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
 
+# ---- types: a declaration's value against the type it declares --------------
+# Not xtpl's: xc's own (XC::Types, t/07). Only what can be told -- a literal,
+# a comparison, a sum of numbers -- and an error, as the type was written.
+refuses "a value of another type",
+  "  local nX := \"a\" as Numeric\n  a := nX",
+  "2: 'nX' is declared as Numeric, but its initial value is Character.";
+refuses "xtpl's order, the type first",
+  "  local cX as Character := 1 + 2\n  a := cX",
+  "2: 'cX' is declared as Character, but its initial value is Numeric.";
+refuses "a block header's local",
+  "  if local nAt := \"x\" as Numeric, nAt > 0\n    a := nAt\n  endif",
+  "2: 'nAt' is declared as Numeric, but its initial value is Character.";
+check "refuses: a static of the file",
+{
+  problems("static nS := .t. as Numeric\nuser function f()\nreturn nS\n")
+    eqv ("1: 'nS' is declared as Numeric, but its initial value is Logical.",)
+};
+passes "what cannot be told: a call, a name, a date less a number, Nil",
+  "  local nX := Len(a) as Numeric\n  local nY := a as Numeric\n  local dX := Date() - 1 as Date\n"
+  ~ "  local oX := Nil as Object\n  a := \{nX, nY, dX, oX\}";
+passes "Integer, Decimal and Double are numbers; 'in', 'has' and '%%' logical",
+  "  local nI := 1 as Integer\n  local nD := 2.5 as Double\n  local lIn := a in \{1, 2\} as Logical\n"
+  ~ "  local lDiv := 9 %% 3 as Logical\n  a := \{nI, nD, lIn, lDiv\}";
+
 # ---- fusion: xtpl's warnings -------------------------------------------------
 # t/31 has every one of them in xtpl's corpus; these are the edges.
 my $sort = "this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array";
@@ -215,9 +239,19 @@ warns "a verb that needs the whole collection stops the fusing",
   "  a := a |> filter([x] x > 1) |> sort", "2: $sort";
 warns "even with nothing fused before it",
   "  a := a |> sort |> take(3)", "2: $sort";
-warns "a function xtpl cannot see into",
-  "  a := a |> filter([x] x > 1) |> myHelper(3)",
+warns "a function xtpl cannot see into, with a stage after it that would fuse",
+  "  a := a |> myHelper(3) |> filter([x] x > 1)",
   "2: this chain does not fuse -- 'myHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
+# xtpl warned of these too. From the stop on there are only functions xc
+# cannot see into: nothing there is known to build an array, and nothing
+# could have fused -- a string chain, above all.
+passes "a string chain: functions xc cannot see into, nothing that could fuse",
+  "  a := a |> alltrim |> upper";
+passes "a function at the end, after what fused: nothing after it to fuse",
+  "  a := a |> filter([x] x > 1) |> myHelper(3)";
+warns "a function, then a verb after it: xtpl's warning stands",
+  "  a := a |> alltrim |> split(\",\")",
+  "2: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
 warns "inside an expression too",
   "  a := len(a |> filter([x] x > 1) |> sort)", "2: $sort";
 passes "one stage: nothing to fuse", "  a := a |> sort";

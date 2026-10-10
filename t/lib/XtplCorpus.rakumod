@@ -50,6 +50,16 @@ my %extra =
   'saldo.xtpl'           => ("line 23: 'jResposta' is assigned but never read", "line 24: 'hCache' is assigned but never read"),
   ;
 
+# And where xtpl warns and xc does not, on purpose: a chain whose stages, from
+# the one that stops the fusing on, are all functions xc cannot see into --
+# nothing there is known to build an array, and nothing could have fused. Two
+# are string chains, which build no array at all.
+my %dropped =
+  '14_strings.xtpl'  => ("line 17: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  '31_feed.xtpl'     => ("line 23: this chain does not fuse -- 'myOwnHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  'notificacao.xtpl' => ("line 98: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  ;
+
 # The output as Protheus takes it: in TL++ every Local and Static of a
 # function comes before its first statement -- and a Private or a Public is a
 # statement. (xc once put the Locals it adds after a 'private'.) The first line of a
@@ -131,11 +141,15 @@ sub corpus-check(@files, Bool :$skips = False) is export
     # As bin/xc reads it: bytes, not 'slurp', so line ends stay as they are.
     my $src = $f.slurp(:bin).decode('utf-8');
     my $warn = $f.subst(/ '.xtpl' $ /, '.warn').IO;
-    my @expected = |($warn.e ?? $warn.slurp.lines.grep(/ <shared> /).map({ .subst(/^ 'warning: ' /, '') }) !! ()),
-                   |(%extra{$name} // ());
+    my @dropped = |(%dropped{$name} // ());
+    my @xtpl = |($warn.e ?? $warn.slurp.lines.grep(/ <shared> /).map({ .subst(/^ 'warning: ' /, '') }) !! ()),
+               |(%extra{$name} // ());
+    my @expected = @xtpl.grep({ $_ !(elem) @dropped });
     my $dict = $f.subst(/ '.xtpl' $ /, '.dict.csv').IO;
     my %dictionary = $dict.e ?? load-dictionary(~$dict) !! ();
     check "$label compiles, xtpl's warnings with it, and the output compiles to itself", {
+      # A warning dropped on purpose is one xtpl gives: the list cannot go stale.
+      with @dropped.first({ $_ !(elem) @xtpl }) { die "dropped, but xtpl does not give it: $_" }
       my $once = compile($src, :@expected, :%dictionary);
     with $once
     {

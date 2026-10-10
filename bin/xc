@@ -137,6 +137,32 @@ sub compile(Str $in, Str $out --> Bool)
     }
     my $line = $pos.line($*FURTHEST);
     my $text = $src.lines[$line - 1].trim;
+    # A name xc keeps for itself -- 'Local len', 'Local fo_0_0' -- is refused
+    # by the grammar, which can only say the line does not parse. Read again
+    # with any name allowed, the checks say which name and why, in xtpl's
+    # words: when the file parses so, the names were all that was wrong; when
+    # it does not -- the name used where it cannot be, 'return if' -- the line
+    # it stopped at, if it is a declaration.
+    my @names = do
+    {
+      my $*ANY-NAME = True;
+      my $*FURTHEST = 0;
+      my $again = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
+      if $again
+      {
+        check-names($again.made)
+      }
+      else
+      {
+        my $decl = XC::Grammar.parse($text, rule => 'declaration', actions => XC::Actions.new(source => $text));
+        $decl ?? check-declared-names($decl.made).map({ $line => .value }).List !! ()
+      }
+    };
+    if @names
+    {
+      note "$in:{.key}: {.value}" for @names;
+      return False;
+    }
     # A whole 'local' or 'static' declaration that does not parse where it is
     # fails for its place alone: say so.
     if late-declaration($text)
