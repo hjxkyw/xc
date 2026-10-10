@@ -8,7 +8,7 @@
 // dizer se o ambiente esta em pe antes de rodar 55_envtest -- que monta a
 // tabela exatamente assim.
 //
-//    appserver.exe -env=zv -run=u_probeDb
+//    appserver.exe -env=SeuAmbiente -run=u_probeDb
 //
 //    db: link=0 criou=.T. abriu=ZXTPL campos=3 postas=10 lidas=10 soma=55
 //    db: primeira=001 ultima=010 apagou=.T.

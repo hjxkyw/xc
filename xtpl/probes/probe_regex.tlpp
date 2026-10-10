@@ -24,7 +24,7 @@ using namespace tlpp.regex
 //   - o namespace precisa do prefixo, ou 'using namespace' basta?
 //   - quanto custa compilar o padrao toda vez, contra guardar a instancia?
 //
-//    appserver.exe -env=zv -run=u_probeRegex
+//    appserver.exe -env=SeuAmbiente -run=u_probeRegex
 // -----------------------------------------------------------------------------
 
 Static Function tenta(cNome, bBloco)
