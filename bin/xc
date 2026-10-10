@@ -9,6 +9,10 @@
 #                       the compile is reported, the warnings too
 #   --outdir=DIR        each .tlpp into DIR, not next to its source -- many
 #                       sources in one run, as an AppServer compiles a folder
+#   --includes=DIRS     where to look for the include files a source names,
+#                       after its own folder ('a;b', as the AppServer's
+#                       -includes): the commands and translations a plain-text
+#                       one defines are known (TOTVS' own are compressed)
 #   --dict sx3.csv      checks the fields used against an exported SX3
 #   --dict-strict       and what it finds is an error, not a warning
 #
@@ -29,10 +33,11 @@ sub usage-error(Str $message)
   exit 2;
 }
 
-my $usage = "usage: rakupp bin/xc [--check] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
-          ~ "       rakupp bin/xc [--check] [--outdir=DIR] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
+my $usage = "usage: rakupp bin/xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
+          ~ "       rakupp bin/xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
 my @args = @*ARGS;
 my ($dict-path, $strict, $check, $outdir) = Str, False, False, Str;
+my @includes;
 my @given;
 while @args
 {
@@ -41,6 +46,7 @@ while @args
   elsif $a eq '--dict-strict' { $strict = True }
   elsif $a eq '--check'       { $check = True }
   elsif $a ~~ / ^ '--outdir=' (.+) $ / { $outdir = ~$0 }
+  elsif $a ~~ / ^ '--includes=' (.+) $ / { @includes.append((~$0).split(/ <[;,]> /).grep(*.chars)) }
   elsif $a.starts-with('--')  { usage-error("$a: no such option\n$usage") }
   else                        { @given.push($a) }
 }
@@ -76,6 +82,15 @@ for @given -> $g
   else          { note "$g: no such file"; $missing++ }
 }
 
+# The folder a path is in -- at '\\' too on Windows, where rakupp's IO::Path
+# splits at '/' only.
+sub folder-of(Str $p --> Str)
+{
+  my $cut = $*DISTRO.is-win ?? $p.rindex('\\') max ($p.rindex('/') // -1) !! $p.rindex('/') // -1;
+  $cut = -1 without $cut;
+  $cut >= 0 ?? $p.substr(0, $cut) !! '.'
+}
+
 # One source: read, parsed, checked, lowered, and -- but with --check --
 # written. What stops it is reported, and it returns False.
 sub compile(Str $in, Str $out --> Bool)
@@ -105,6 +120,9 @@ sub compile(Str $in, Str $out --> Bool)
   # How far the parse got: the grammar records the end of every line it could
   # finish. The first line it could not is the one to show.
   my $*FURTHEST = 0;
+  # For the include files it names: its folder, then --includes.
+  my $*XC-DIR = folder-of($in);
+  my $*XC-INCLUDES = @includes;
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
   unless $m
   {

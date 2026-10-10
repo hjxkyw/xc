@@ -410,7 +410,8 @@ my %LOWERS =
   Index.^name      => 'no',      SelfRef.^name  => 'no',     SubjectRef.^name => 'no',
   Interval.^name   => 'no',      AliasField.^name => 'no',   InAlias.^name    => 'no',
   ExprList.^name   => 'no',
-  Macro.^name      => 'no',      Ref.^name      => 'no',     Omitted.^name    => 'no';
+  Macro.^name      => 'no',      Ref.^name      => 'no',     Omitted.^name    => 'no',
+  UserTrans.^name  => 'no';
 
 class Emitter
 {
@@ -943,7 +944,7 @@ class Emitter
 
     # The natural end: unless the body ends in a 'return', every defer runs
     # after its last statement.
-    my $last = $f.body[*-1];
+    my $last = $f.body ?? $f.body[*-1] !! Any;
     if @!defers && $last.defined && $last !~~ ReturnStmt
     {
       my $at = self!line-end($last.src-from + code-end(self!slice($last)));

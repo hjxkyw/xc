@@ -27,6 +27,8 @@
 
 unit grammar XC::Grammar;
 
+use XC::Commands;
+
 # ---- looking ahead, cheaply --------------------------------------------------
 #
 # Several rules try an assignment first and fall back: a statement, an
@@ -159,11 +161,57 @@ sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
 }
 
 # The text for ahead(), in the units of the match offsets.
+# And where the source uses the commands and translations it brings with it
+# (XC::Commands): its folder and the include folders, when bin/xc says them.
 method parse($target, |c)
 {
   my $*UNITS = text-units($target);
+  my $dir = $*XC-DIR // Str;
+  my @dirs = ($*XC-INCLUDES // ()).list;
+  my $*USER = in-units($target, user-spans($target, :$dir, :@dirs));
   callsame;
 }
+
+# The spans in the units of the match offsets: characters, or -- rakupp
+# 4.0.1 -- UTF-8 bytes.
+sub in-units(Str $t, %spans --> Hash)
+{
+  return %spans unless $offsets-in-bytes && (%spans<cmd> || %spans<trans>);
+  my @at = 0;
+  @at.push(@at[*-1] + .encode.elems) for $t.comb;
+  %( cmd   => %spans<cmd>.map({ @at[.key] => [@at[.value[0]], .value[1]] }).Hash,
+     trans => %spans<trans>.map({ @at[.key] => @at[.value] }).Hash )
+}
+
+# Whether the source uses commands of its own at all.
+sub user-active(--> Bool)
+{
+  my $u = $*USER // return False;
+  so $u<cmd> || $u<trans>
+}
+
+# A use of the source's own commands at $from: its length, when it is one of
+# the kind asked ('stmt' or 'header'), else 0.
+sub user-cmd(Int $from, Str $kind --> Int)
+{
+  my $u = $*USER // return 0;
+  my $c = $u<cmd>{$from} // return 0;
+  $c[1] eq $kind ?? $c[0] - $from !! 0
+}
+sub user-trans(Int $from --> Int)
+{
+  my $u = $*USER // return 0;
+  my $to = $u<trans>{$from} // return 0;
+  $to - $from
+}
+
+# A statement made by one of the source's own commands, taken whole; one that
+# stands for a function's header, with its body; a translation as a value.
+token usercmd   { <?{ user-cmd($/.from, 'stmt') > 0 }>   :my $n = user-cmd($/.from, 'stmt');   . ** {$n} }
+token userhead  { <?{ user-cmd($/.from, 'header') > 0 }> :my $n = user-cmd($/.from, 'header'); . ** {$n} }
+token usertrans { <?{ user-trans($/.from) > 0 }>         :my $n = user-trans($/.from);         . ** {$n} }
+rule  userfunc  { <userhead> <.nl> <funcbody> }
+token ttrans    { <usertrans> }
 
 # ---- names that cannot be declared ------------------------------------------
 #
@@ -228,12 +276,16 @@ rule TOP
 # follows is not a function does an annotation stand alone.
 rule toplevel
 {
-     <function>
+     <userfunc>
+  || <function>
   || <classdecl>
   || <interfacedecl>
   || <methodimpl>
   || <wsmethodimpl>
-  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <wsblock> || <cmdst> || <annotation> ] <.eol> ]
+  || [ [ <usercmd> || <preproc> || <namespacest> || <externalst> || <filestatic> || <wsblock> || <cmdst> || <annotation> ] <.eol> ]
+  # A class's data at file level, where a source's own commands open the class
+  # ('TestSuite X' ... 'Data nRegs As Numeric' ... 'EndTestSuite').
+  || [ <?{ user-active() }> <datadecl> <.eol> ]
 }
 
 # ---- what the preprocessor takes whole ------------------------------------
@@ -426,7 +478,7 @@ rule param
 # 'Return()': nothing, in parentheses.
 rule returnst
 {
-  :i 'return' [ [ '(' ')' ] || [ <!modkw> <guardexpr> ] ]?
+  :i 'return' [ [ '(' ')' ] || [ [ <?before <.usertrans>> || <!modkw> ] <guardexpr> ] ]?
 }
 
 rule exitst { :i 'exit' }
@@ -500,7 +552,8 @@ token typename
 rule statement
 {
   [
-     <cmdst>
+     <usercmd>
+  || <cmdst>
   || <dirst>
   || <annotation>
   || <seqst>
@@ -1120,9 +1173,11 @@ rule postfix
 }
 
 # One rule per form, so the tree knows which one matched.
+# A translation may follow a value too: json.ch's 'oJson[#"name"]'.
 rule trailer
 {
-     <thash>
+     <ttrans>
+  || <thash>
   || <tsafe>
   || <tmethod>
   || <tmember>
@@ -1160,7 +1215,8 @@ token member { <[A..Za..z_]> \w* }
 
 rule primary
 {
-     <selfacc>
+     <usertrans>
+  || <selfacc>
   || <subjacc>
   || <lambda>
   || <macro>

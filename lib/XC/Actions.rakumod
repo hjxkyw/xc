@@ -88,6 +88,10 @@ method TOP($/)
     {
       @methods.push($t<wsmethodimpl>.made);
     }
+    elsif $t<userfunc>
+    {
+      @methods.push($t<userfunc>.made);
+    }
     elsif $t<preproc>
     {
       @directives.push((~$t<preproc>).trim);
@@ -237,6 +241,21 @@ method interfacedecl($/)
     line    => self!line($/),
   );
 }
+
+# A function one of the source's own commands opens: its header as written.
+method userfunc($/)
+{
+  make MethodImpl.new(
+    class-name => '',
+    name       => (~$<userhead>).words[0] // 'command',
+    params     => (),
+    returns    => Str,
+    body       => $<funcbody>.made,
+    line       => self!line($/),
+  );
+}
+method usercmd($/)   { make RawStmt.new(lines => (~$/,), line => self!line($/)) }
+method usertrans($/) { make self!spanned(UserTrans.new(text => ~$/), $/) }
 
 # A web service's method: a method of the service, its header as written.
 method wsmethodimpl($/)
@@ -768,6 +787,12 @@ method tmember($/)
   make -> $base { Member.new(base => $base, name => $name) }
 }
 
+method ttrans($/)
+{
+  my $text = ~$<usertrans>;
+  make -> $base { UserTrans.new(base => $base, text => $text) }
+}
+
 method tindex($/)
 {
   my @i = $<expr>.map(*.made);
@@ -795,7 +820,8 @@ method tfield($/)
 # show up here, not become a silent string.
 method primary($/)
 {
-  make   $<selfacc>      ?? $<selfacc>.made
+  make   $<usertrans>    ?? $<usertrans>.made
+      !! $<selfacc>      ?? $<selfacc>.made
       !! $<subjacc>      ?? $<subjacc>.made
       !! $<literal>      ?? $<literal>.made
       !! $<nscall>       ?? $<nscall>.made

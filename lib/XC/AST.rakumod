@@ -65,6 +65,14 @@ class Name is Expr is export
   has Str $.name;
 }
 
+# A use of a translation the source brings ('#xtranslate'), as written: a value
+# nothing here looks into.
+class UserTrans is Expr is export
+{
+  has Str  $.text;
+  has Expr $.base;                 # what it follows, when it is a trailer
+}
+
 class Call is Expr is export
 {
   has Str  $.name;
@@ -543,6 +551,7 @@ class Program is export
 # with what they get from their parent.
 my %LEAVES = (Literal, Name, SelfRef, SubjectRef, Omitted).map({ .^name => True });
 my %KIDS =
+  UserTrans.^name  => -> $e { $e.base },
   Binary.^name     => -> $e { $e.left, $e.right },
   Call.^name       => -> $e { |$e.args },
   Index.^name      => -> $e { $e.base, |$e.indices },

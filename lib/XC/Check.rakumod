@@ -158,6 +158,23 @@ my class Checker
     self!static-never-read;
   }
 
+  # The variables a piece of raw text names are read -- and a '<contained>'
+  # one named there leaves its block: a command can hold on to what it is
+  # given (GET does).
+  method !raw-reads(Str $text)
+  {
+    for $text.comb(/ <[A..Za..z_]> \w* /) -> $w
+    {
+      with self!find($w.lc) -> %v
+      {
+        my $r = self!record($w.lc);
+        $r<reads>++;
+        self!leaves(%v, %v<name>, True);
+      }
+      orwith %!static-uses{$w.lc} { .<reads>++ }
+    }
+  }
+
   # A string the line ended: TL++ closes it there, and so the line reads.
   method !unclosed($e)
   {
@@ -713,16 +730,7 @@ my class Checker
         # named in it leaves its block.
         for .lines -> $l
         {
-          for $l.comb(/ <[A..Za..z_]> \w* /) -> $w
-          {
-            with self!find($w.lc) -> %v
-            {
-              my $r = self!record($w.lc);
-              $r<reads>++;
-              self!leaves(%v, %v<name>, True);
-            }
-            orwith %!static-uses{$w.lc} { .<reads>++ }
-          }
+          self!raw-reads($l);
         }
       }
     }
@@ -759,6 +767,8 @@ my class Checker
     given $e
     {
       when Name { self!read(.name) }
+      # A translation's text: the variables named in it are read.
+      when UserTrans { self!expr(.base) if .base.defined; self!raw-reads(.text) }
       when CodeBlock
       {
         # A lambda or a code block: its parameters are its own, and a name
