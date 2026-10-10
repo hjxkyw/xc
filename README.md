@@ -5,14 +5,14 @@ A compiler from xtpl to TL++, written in Raku.
 ## Installing rakupp
 
 ```sh
-curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.2.1/rakupp-linux-x86_64.tar.gz
-curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.2.1/rakupp-linux-x86_64.tar.gz.sha256
+curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz
+curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz.sha256
 sha256sum -c rakupp-linux-x86_64.tar.gz.sha256
 tar xzf rakupp-linux-x86_64.tar.gz
 export PATH=$PWD/rakupp/bin:$PATH
 ```
 
-xc runs under rakupp 5.2.1; the tests pass under Rakudo as well
+xc runs under rakupp 5.3.0; the tests pass under Rakudo as well
 (`raku run-tests.raku`).
 
 ## Compiling

@@ -128,6 +128,8 @@ for @refuse-body -> $c
 my @refuse-file =
   "external\nuser function f()\nreturn 1\n"                   => 'external with no names',
   "external alias\nuser function f()\nreturn 1\n"             => 'external alias with no names',
+  "external alias, CRLF\nuser function f()\nreturn 1\n"       => "'alias' as the first of the names",
+  "external CRLF, alias\nuser function f()\nreturn 1\n"       => "'alias' as the last of the names",
   "external CRLF,\nuser function f()\nreturn 1\n"             => 'external with a trailing comma',
   "user function f()\n  external CRLF\nreturn 1\n"            => 'external inside a function',
   ;

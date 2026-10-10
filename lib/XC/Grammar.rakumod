@@ -263,12 +263,14 @@ token dottedname { <[A..Za..z_]> \w* [ '.' <[A..Za..z_]> \w* ]* }
 # function, and with no names at all (where it does nothing). xc follows the
 # doc.
 # No name may be the word 'alias': 'external alias' with nothing after it
-# would otherwise declare one called that. (A reserved word is refused for
-# the 'for' counter the same way, 'local' or not. Both used to be refused only
-# because rakupp's '||' capture leak left the keyword's capture behind.)
-rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname=name> [ ',' <xname=name> ]*
-                  <!{ $<xname>.list.first({ .Str.trim.lc eq 'alias' }) }> }
+# would otherwise declare one called that. The name refuses it itself, by a
+# lookahead -- not a '<!{ }>' over the names after them: in a code assertion
+# rakupp (5.3.0 too) sees a repeated capture as its last match alone, so an
+# 'alias' first went through. Under 5.2.1 it was refused all the same, but
+# only because '[ <isalias=kwalias> ]?' kept the word and never gave it back.
+rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname> [ ',' <xname> ]* }
 token kwalias   { :i 'alias' >> }
+token xname     { <!before <.kwalias>> <name> }
 
 # ---- TL++: annotations -----------------------------------------------------
 #
