@@ -164,6 +164,16 @@ User Function xtpl_hnew(aPairs)
   Next
 Return oHash
 
+// xc: a JSON literal, '{"k1": v1, "k2": v2}', from {{"k1", v1}, {"k2", v2}}.
+// TL++ has none: '{ : }' is a syntax error to the AppServer.
+User Function xtpl_jnew(aPairs)
+  Local jObj := JsonObject():New()
+  Local nX
+  For nX := 1 To Len(aPairs)
+    jObj[aPairs[nX][1]] := aPairs[nX][2]
+  Next
+Return jObj
+
 User Function xtpl_take(aData, nCount)
   Local nLen := Min(Len(aData), Max(0, nCount))
   Local aRes := Array(nLen)

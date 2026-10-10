@@ -20,6 +20,11 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
+check "jnew: a JsonObject, each pair a member",
+{
+  my $f = function('xtpl_jnew');
+  $f.contains('JsonObject():New()') && $f.contains('jObj[aPairs[nX][1]] := aPairs[nX][2]')
+};
 check "distinct: one pass -- the values seen are filed in a hash, not scanned",
 {
   my $f = function('xtpl_distinct');

@@ -97,8 +97,8 @@ check 'only the missing include is added -- tlpp-core.th after the totvs.ch ther
   compile(qq[#include "TOTVS.CH"\nuser function f()\nreturn 1\n])
     eq qq[#include "TOTVS.CH"\n#include "tlpp-core.th"\nuser function f()\nreturn 1\n]
 };
-# With tlpp-core.th before totvs.ch, the AppServer refuses '{ : }' (C2003): so
-# after the last .ch the file includes, wherever it is.
+# tlpp-core.th after the last .ch the file includes, wherever it is: the order
+# of every file known to compile.
 check 'tlpp-core.th after the last .ch, below a header with accents; totvs.ch at the top',
 {
   my $src = qq[// cabeçalho, ação\n\n#include "rwmake.ch"\n#include "tlpp-rest.th"\n\nuser function f()\nreturn 1\n];

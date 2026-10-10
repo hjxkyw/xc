@@ -27,6 +27,7 @@ user function xc_selftest()
   local hCount := {=>}
   local hMap := {"a" => 1}
   local hKeep := {=>}
+  local jTmp := { : }
   local aTmp := {}
   local aBig := {}
   local aSeen := {}
@@ -121,6 +122,11 @@ user function xc_selftest()
   check("a hash from pairs", hKeep{"y"} == 20, hKeep{"y"}, @nOk, @nBad)
   nTmp := same(hKeep{"z"} := 42)
   check("a hash write gives the value written", nTmp == 42 .and. hKeep{"z"} == 42, nTmp, @nOk, @nBad)
+
+  // ---- JSON: TL++ has no literal, so xc builds a JsonObject ------------------
+  check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
+  jTmp := {"a": 1, "b": {"c": "x"}, "d": {1, 2}}
+  check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5

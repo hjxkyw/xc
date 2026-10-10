@@ -402,7 +402,8 @@ my %LOWERS =
   SafeMember.^name => 'yes',     SafeCall.^name => 'yes',
   Call.^name       => 'call',    Name.^name     => 'name',   Member.^name     => 'member',
   MethodCall.^name => 'method',  AssignExpr.^name => 'assign',
-  Literal.^name    => 'literal', ArrayLit.^name => 'literal', JsonLit.^name   => 'literal',
+  JsonLit.^name    => 'yes',
+  Literal.^name    => 'literal', ArrayLit.^name => 'literal',
   CodeBlock.^name  => 'literal', Binary.^name   => 'binary',
   Index.^name      => 'no',      SelfRef.^name  => 'no',     SubjectRef.^name => 'no',
   Interval.^name   => 'no',      AliasField.^name => 'no',   InAlias.^name    => 'no',
@@ -2205,6 +2206,14 @@ class Emitter
           ?? 'u_xtpl_hnew({' ~ .pairs.map({ '{' ~ self!expr(.key) ~ ', ' ~ self!expr(.value) ~ '}' }).join(', ') ~ '})'
           !! 'THashMap():New()'
       }
+      # TL++ has no JSON literal: '{ : }' is a syntax error to the AppServer.
+      # A JsonObject, then, filled from the pairs.
+      when JsonLit
+      {
+        .pairs
+          ?? 'u_xtpl_jnew({' ~ .pairs.map({ '{' ~ self!expr(.key) ~ ', ' ~ self!expr(.value) ~ '}' }).join(', ') ~ '})'
+          !! 'JsonObject():New()'
+      }
       when Guard
       {
         "u_xtpl_safe_pipe(\{|| {self!expr(.expr)}\}, \{|| {self!expr(.fallback)}\})"
@@ -2311,7 +2320,7 @@ class Emitter
     return True if $e ~~ Call && (VERBS{$e.name.lc}:exists);
     return True if $e ~~ Name && (%!subst{$e.name.lc}:exists);
     return True if $e ~~ Member && $e.base ~~ Name && (%!field{$e.base.name.lc}:exists);
-    return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ Guard || $e ~~ Interp;
+    return True if $e ~~ HashIndex || $e ~~ HashLit || $e ~~ JsonLit || $e ~~ Guard || $e ~~ Interp;
     return True if $e ~~ AssignExpr && $e.target ~~ HashIndex;
     return True if $e ~~ SafeMember || $e ~~ SafeCall;
     return True if $e ~~ Literal && $e.type eq 'Numeric' && $e.text.contains("'");
@@ -2476,8 +2485,8 @@ sub needs-lowering(Stmt $s --> Bool)
 
 # The two includes every file gets, when missing: totvs.ch at the top, and
 # tlpp-core.th after the last .ch the file includes -- or at the top, after
-# totvs.ch, when it includes none. The order matters: with tlpp-core.th before
-# totvs.ch the AppServer refuses TL++'s own '{ : }' (C2003).
+# totvs.ch, when it includes none: the order of every file known to compile
+# (xcq_i: totvs.ch, rwmake.ch, tlpp-core.th).
 sub add-includes(Str $out, Str $nl --> Str)
 {
   my &included = -> Str $h { so $out ~~ m:i/ ^^ \h* '#' \h* 'include' \h* '"' $h '"' / };

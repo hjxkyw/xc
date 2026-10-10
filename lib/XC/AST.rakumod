@@ -518,7 +518,6 @@ class Program is export
   has Str         $.namespace;     # undefined when there is none
   has Str         @.usings;
   has Str         @.directives;    # '#include ...' whole, as it came
-  has Int         @.directive-lines;   # and the line of each
   has Annotation  @.annotations;   # the ones not before a function
   has FunctionDef @.functions;
   has ClassDef    @.classes;

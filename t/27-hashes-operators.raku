@@ -48,6 +48,24 @@ lowers 'the empty hash',
 lowers 'a literal inside an argument (xtpl leaves it as xtpl)',
   '  conout(len({"a" => 1}))',
   '  conout(len(u_xtpl_hnew({{"a", 1}})))';
+
+# ---- JSON --------------------------------------------------------------------
+# TL++ has no JSON literal -- '{ : }' is a syntax error to the AppServer -- so
+# the literal is a JsonObject, built from its pairs as the hash is.
+lowers 'the empty JSON is a new JsonObject',
+  '  x := { : }',
+  '  x := JsonObject():New()';
+lowers 'a JSON with pairs, one inside another, an array as a value',
+  '  x := {"a": 1, "b": {"c": l}, "d": {1, 2}}',
+  '  x := u_xtpl_jnew({{"a", 1}, {"b", u_xtpl_jnew({{"c", l}})}, {"d", {1, 2}}})';
+lowers 'inside an argument, and a value that lowers too',
+  '  conout({"n": h{"k"}}:toJson())',
+  '  conout(u_xtpl_jnew({{"n", u_xtpl_hget(h, "k")}}):toJson())';
+check 'as a local\'s value',
+{
+  my $out = compile(qq[user function f()\n  local j := \{ : \} as JSON\nreturn j\n]);
+  $out.defined && $out.contains('JsonObject():New()') && !$out.contains('{ : }')
+};
 lowers 'a write is Set',
   '  h{"limite"} := 2000   // a write',
   '  h:Set("limite", 2000)  // a write';

@@ -65,7 +65,7 @@ method TOP($/)
   # the attribute takes. Untyped it would be Any, which Rakudo refuses there
   # (rakupp takes it).
   my Str $ns;
-  my (@usings, @directives, @directive-lines, @annotations, @functions, @classes, @methods, @externals, @statics);
+  my (@usings, @directives, @annotations, @functions, @classes, @methods, @externals, @statics);
   for $<toplevel> -> $t
   {
     if $t<function>
@@ -83,7 +83,6 @@ method TOP($/)
     elsif $t<preproc>
     {
       @directives.push((~$t<preproc>).trim);
-      @directive-lines.push(self!line($t<preproc>));
     }
     elsif $t<externalst>
     {
@@ -114,7 +113,6 @@ method TOP($/)
     namespace   => $ns,
     usings      => @usings,
     directives  => @directives,
-    directive-lines => @directive-lines,
     annotations => @annotations,
     functions   => @functions,
     classes     => @classes,
