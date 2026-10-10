@@ -113,7 +113,9 @@ check 'map(alltrim) in a fused loop calls the function with the element',
 check 'map(alltrim) elsewhere is the block that calls it; a variable stays a variable',
 {
   my $b = body-of("  local x := \{\}\n  local bOk := \{|v| .T.\}\n  x := a |> map(alltrim) |> filter(bOk)\n  x := map(a, upper)");
-  $b.contains("x := u_xtpl_filter(u_xtpl_map(a, \{|__it| alltrim(__it)\}), bOk)")
+  # The map, one stage with a block, is a loop now; the filter, its block a
+  # variable, a call on what the loop collected.
+  $b.contains("fv_0_0 := alltrim(fv_0_0)") && $b.contains("x := u_xtpl_filter(fo_0_0, bOk)")
     && $b.contains("x := u_xtpl_map(a, \{|__it| upper(__it)\})")
 };
 

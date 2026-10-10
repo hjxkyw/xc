@@ -60,9 +60,15 @@ sub late-locals(Str $out --> List)
   my @bad;
   my $in-function = False;
   my $past = False;
+  my $continued = False;
   for $out.lines.kv -> $i, $l
   {
     my $t = $l.trim;
+    # A line a ';' continues is part of the one before: 'nB := 2' after
+    # 'local nA := 1, ;' is the declaration's.
+    my $was-continued = $continued;
+    $continued = so $t.subst(/ \s* '//' .* $ /, '') ~~ / ';' \s* $ /;
+    next if $was-continued;
     if $t ~~ m:i/ ^ [ [ user | static | main | public | private | protected ] \s+ ]* [ function | method | procedure ] >> /
     {
       ($in-function, $past) = True, False;

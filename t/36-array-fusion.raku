@@ -56,9 +56,16 @@ lowers 'an array that is not a name is bound once',
 lowers 'run for its effects, every stage fused: the loop alone',
   "  a |> tap([x] conout(x))",
   "  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    conout(fv_0_0)\n  Next";
-lowers 'one stage: a call -- there is nothing to save',
+lowers 'one stage with a block: a loop -- no Eval of the block per element',
   "  n := a |> map([x] x * 2)",
-  "  n := u_xtpl_map(a, \{|x| x * 2\})";
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    fv_0_0 := fv_0_0 * 2\n    AAdd(fo_0_0, fv_0_0)\n  Next\n  n := fo_0_0";
+lowers 'one terminal with a block, a function named as one: loops',
+  "  n := a |> count([x] x > 1)\n  m := a |> filter(empty)",
+  "  fo_0_0 := 0\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 1\n      fo_0_0++\n    EndIf\n  Next\n  n := fo_0_0\n"
+  ~ "  fo_0_1 := \{\}\n  For fi_0_1 := 1 To Len(a)\n    fv_0_1 := a[fi_0_1]\n    If empty(fv_0_1)\n      AAdd(fo_0_1, fv_0_1)\n    EndIf\n  Next\n  m := fo_0_1";
+lowers 'one stage with no block: a call -- there is nothing to save',
+  "  n := a |> asum\n  m := a |> take(3)",
+  "  n := u_xtpl_asum(a)\n  m := u_xtpl_take(a, 3)";
 lowers 'a first stage that cannot fuse: calls',
   "  n := a |> sort |> take(3)",
   "  n := u_xtpl_take(u_xtpl_sort(a), 3)";

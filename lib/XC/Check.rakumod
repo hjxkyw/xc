@@ -983,7 +983,7 @@ my class Checker
       self!warning("'fallback' turns off fusion for this chain -- a guard needs an expression and a fused "
                    ~ "loop is not one, so each stage builds an array again. Guard the part that can fail "
                    ~ "instead, and leave the chain outside it.")
-        if !is-source($p.source) && ($taken >= 2 || ($at eq 'effect' && $run >= 1));
+        if !is-source($p.source) && array-chain-fuses(%split, $at eq 'effect');
       return;
     }
     # A terminal ends the fused run by design: what follows it carries on from

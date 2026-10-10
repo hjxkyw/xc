@@ -160,8 +160,10 @@ sub call-name(Str $name --> Str)
 # A chain over an ARRAY fuses the same way -- one loop, no array between the
 # stages, a 'take' that stops it -- when it is a statement's whole value and
 # at least two of its stages fuse (all of them, for a chain run for its
-# effects), as xtpl does. Anywhere else it stays one call per stage, which is
-# what a chain means; fusing only saves the work.
+# effects), as xtpl does; or one, when that one carries a block: 'aX |>
+# map([x] x * 2)' is a loop, not u_xtpl_map's Eval of a block per element.
+# Anywhere else it stays one call per stage, which is what a chain means;
+# fusing only saves the work.
 my constant FUSED        = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent
                                 scan pairwise>;
 my constant TERMINAL     = set <asum count anyof allof noneof first aprod amax amin join reduce fold maxby minby
@@ -342,6 +344,22 @@ sub fusion-split(Expr $chain, &declared --> Hash) is export
     }
   }
   %(fused => @fused.List, terminal => $terminal, rest => @rest.List)
+}
+
+# Whether an array chain, split, runs as a loop where it stands: two stages
+# that fuse, or one that carries a block -- its lambda, or a function's name
+# (inlinable already says it is no variable). Run for its effects: all of its
+# stages fuse, and none is a terminal. Shared with XC::Check, whose warnings
+# say when a chain would have fused.
+sub array-chain-fuses(%split, Bool $for-effect --> Bool) is export
+{
+  my $fused = %split<fused>.elems;
+  my $terminal = %split<terminal>.defined;
+  return so $fused >= 1 && !$terminal && !%split<rest> if $for-effect;
+  return True if $fused + $terminal >= 2;
+  return False unless $fused + $terminal == 1;
+  my $st = $fused ?? %split<fused>[0] !! %split<terminal>;
+  so $st.args.first(* ~~ Lambda) || (TAKES-BLOCK{$st.name.lc} && $st.args && $st.args[0] ~~ Name)
 }
 
 # Whether a stage can be written into a loop: its block written in the stage
@@ -674,15 +692,12 @@ class Emitter
     stage-inlinable($st, -> $n { so %!declared{$n} })
   }
 
-  # An array chain fused where it stands: the whole value of a statement, with
-  # at least two stages fused -- or, run for its effects, all of them.
+  # An array chain fused where it stands: the whole value of a statement
+  # (array-chain-fuses says when).
   method !fusable-array($e, Bool $for-effect --> Bool)
   {
     return False unless $e ~~ Pipeline && !is-source($e.source);
-    my %split = self!split($e);
-    my $fused = %split<fused>.elems;
-    my $terminal = %split<terminal>.defined;
-    $for-effect ?? ($fused >= 1 && !$terminal && !%split<rest>) !! ($fused + $terminal) >= 2
+    array-chain-fuses(self!split($e), $for-effect)
   }
 
   # The chain a statement runs as a loop: one from a source, or an array chain
