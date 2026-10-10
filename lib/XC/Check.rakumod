@@ -684,8 +684,11 @@ my class Checker
       }
       when NoOpStmt
       {
-        self!warning("'{.word}' is no TL++ keyword: the AppServer takes it as a name on its own, "
-                     ~ "and the line does nothing (W0001)");
+        self!warning(.word.lc eq 'default'
+          ?? "'{.word}' is no label of Do Case's -- 'Otherwise' is: the AppServer takes it as a name on its own, "
+             ~ "the line does nothing (W0001), and the lines after it belong to the case before"
+          !! "'{.word}' is no TL++ keyword: the AppServer takes it as a name on its own, "
+             ~ "and the line does nothing (W0001)");
       }
       # Read before it is written: compared with Nil first.
       when DefaultStmt

@@ -208,6 +208,15 @@ check "and the checks say so -- and no 'ends without a return'",
   my @w = warnings("User Function f(n)\nReturn n\nEndFunction\n");
   @w.elems == 1 && @w[0].contains("'EndFunction' is no TL++ keyword")
 };
+same "'Default' alone where 'Otherwise' goes: a name on its own line (xct_a)",
+  "User Function f(cTipo)\n  Local cRet := \"\"\n  Do Case\n    Case cTipo == \"C\"\n      cRet := \"texto\"\n    Default\n      cRet := \"outro\"\n  EndCase\nReturn cRet\n";
+check "and the checks say what it does: the lines after it belong to the case before",
+{
+  warnings("User Function f(c)\n  Do Case\n    Case c == 1\n      c := 2\n    Default\n      c := 3\n  EndCase\nReturn c\n")
+    .first(*.contains("'Default' is no label of Do Case's"))
+};
+same "'\@oJSON := x': a parameter assigned with its '\@' (xct_b); 'oObj::cCommand' (xct_c)",
+  "User Function f(oJSON, oObj)\n  Local cCmd := oObj::cCommand\n  \@oJSON := JsonObject():New()\nReturn cCmd\n";
 same "'user' and 'array' are names to the AppServer (xcr_h)",
   "User Function f(user)\n  Local array := \{1, 2\}\nReturn user + Len(array)\n";
 same "'conout', 'eval', 'aadd', 'substr', 'userexception' are names too (outputs/xcs)",

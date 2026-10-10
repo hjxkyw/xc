@@ -555,7 +555,8 @@ rule statement
      <usercmd>
   || <cmdst>
   || <dirst>
-  || <annotation>
+  # An annotation is the whole line: '@oJSON := x' is an assignment.
+  || [ <annotation> <?before <.eol>> ]
   || <seqst>
   || <tryst>
   || <transst>
@@ -588,7 +589,9 @@ rule statement
 # takes such a word as a name on its own -- a line that does nothing, with a
 # warning (W0001, tried: xcr_f, xcr_g) -- and real sources end functions with
 # them. The checks warn too.
-token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' ] <!ww> }
+# And 'Default' alone on its line, where 'Otherwise' goes in a Do Case: no
+# label either (tried: xct_a) -- the lines after it belong to the case before.
+token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' || 'default' <?before \h* [ <.linecomment> || \v || $ ]> ] <!ww> }
 
 # ---- xtpl: 'defer' ----------------------------------------------------------
 #
@@ -1190,7 +1193,8 @@ rule trailer
 # plain member, or that would match the name and leave the parentheses
 # behind.
 rule tmethod  { [ '::' || ':' ] <member> '(' ~ ')' <arglist> }
-rule tmember  { ':' <member> }
+# 'oObj::cCommand': '::' after a value too (tried: xct_c).
+rule tmember  { [ '::' || ':' ] <member> }
 
 # ---- xtpl: 'h{"k"}' -- hash access ------------------------------------------
 # Braces index a hash, brackets index an array. A '{' RIGHT after a name, a
@@ -1350,10 +1354,11 @@ rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 # expression or a call, with at least one trailer after it -- a bare '(x)'
 # or 'f()' is not something to assign to.
 # 'aTail(a) := x': the last element, as AdvPL takes it.
-# '&(cCampo) := x', '&cVar := x': the variable a macro names.
+# '&(cCampo) := x', '&cVar := x': the variable a macro names. '@oJSON := x':
+# a parameter's name with the '@' it is passed with (tried: xct_b).
 rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ] || <atail>
                 || [ <macro> <trailer>* ]
-                || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
+                || [ '@'? [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ---------------------------------------------------------------
 token literal  { <number> || <string> || <logical> || <nildef> }
