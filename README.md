@@ -22,12 +22,21 @@ rakupp bin/xc file.xtpl              # writes file.tlpp
 rakupp bin/xc file.xtpl out.tlpp
 rakupp bin/xc a.xtpl b.xtpl src/     # each next to itself; a folder is every .xtpl under it
 rakupp bin/xc --check src/           # checks, and writes nothing
+rakupp bin/xc --includes="lib/include;../shared" file.xtpl   # where its include files are
 rakupp bin/xc --dict sx3.csv file.xtpl                  # checks the fields against an exported SX3
 rakupp bin/xc --dict sx3.csv --dict-strict file.xtpl    # and what it finds stops the compile
 ```
 
 The exit code is 0 when every file went through, 1 when one did not, and 2
 when the command line itself is wrong.
+
+A source may bring commands and translations of its own -- `#xcommand`,
+`#xtranslate`, in the file or in an include file. xc reads them from the
+file and from every include file it finds as plain text, beside the source
+or in `--includes`, and takes their uses as the preprocessor will: a command
+whole, as written; one that stands for a function's header, with its body
+read like any other; a translation as a value. TOTVS' own include files are
+compressed, and xc knows their commands from a list of its own.
 
 The generated code calls xtpl's runtime, `runtime/xtpl_runtime.tlpp`, which
 has to be compiled into the RPO alongside it.
