@@ -226,8 +226,10 @@ rule toplevel
 {
      <function>
   || <classdecl>
+  || <interfacedecl>
   || <methodimpl>
-  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <cmdst> || <annotation> ] <.eol> ]
+  || <wsmethodimpl>
+  || [ [ <preproc> || <namespacest> || <externalst> || <filestatic> || <wsblock> || <cmdst> || <annotation> ] <.eol> ]
 }
 
 # ---- what the preprocessor takes whole ------------------------------------
@@ -299,16 +301,62 @@ token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
 # returns: 'Static Function Scheddef() as array'.
 token rettype { <typespec> }
 
+# ---- web services: REST and SOAP -------------------------------------------
+# AdvPL's web services come from include files (restful.ch, apwebsrv.ch) that
+# xc cannot read. The declaration -- 'WSRESTFUL Name ... END WSRESTFUL', its
+# WSDATA and WSMETHOD lines; 'WSSERVICE', 'WSSTRUCT', 'WSCLIENT' alike -- is
+# taken whole, at file level, and goes out as it came. Each method's
+# implementation is a function: the header, through its continuation lines,
+# as written, ending in 'WSSERVICE Name' or 'WSRESTFUL Name'; the body like
+# any other, with 'self' and '::' for the service:
+#
+#   WSMETHOD GET PedVendaLb WSRECEIVE QUERYPARAM, Page WSSERVICE dsapirest
+#
+# ('WSREST Name' ends a header as well: real sources write it so.)
+#     Local lRet := .T.
+#     ::SetContentType("application/json")
+#   Return lRet
+token wsblock
+{
+  :i [ 'wsrestful' || 'wsservice' || 'wsstruct' || 'wsclient' ] <!ww> \N* \v
+  [ <!before \h* <.wsend> > \N* \v ]*
+  \h* <.wsend> \N*
+}
+token wsend { :i 'end' \h* [ 'wsrestful' || 'wsservice' || 'wsstruct' || 'wsclient' ] <!ww> }
+
+rule wsmethodimpl
+{
+  <wshead> <.nl>
+  <funcbody>
+}
+token wshead
+{
+  :i 'wsmethod' <!ww> [ \N*? ';' \h* \v ]* \N*? <!ww> [ 'wsservice' || 'wsrestful' || 'wsrest' ] \h+ <svc=name>
+  <?before \h* [ <.linecomment> || \v || $ ]>
+}
+
 # ---- TL++: classes ---------------------------------------------------------
 # Native to TL++, not an xtpl extension. Two parts: the 'Class ... EndClass'
 # block with its 'Data' members and 'Method' signatures, and the
 # implementations 'Method name(...) Class Name' loose in the file, each with
 # its own body.
+# A superclass may be named with its namespace -- 'from
+# totvs.framework.treports.integratedprovider.IntegratedProvider' -- and a
+# class may implement interfaces: 'class cX Implements iX'.
 rule classdecl
 {
-  :i 'class' <cname=name> [ :i [ 'from' || 'inherit' ] <supers=name>+ % ',' ]? <.nl>
+  :i 'class' <cname=name> [ :i [ 'from' || 'inherit' ] <supers=dottedname>+ % ',' ]?
+     [ :i 'implements' <ifaces=dottedname>+ % ',' ]? <.nl>
   [ <classmember> <.nl> ]*
   :i [ 'endclass' || 'end' 'class' ]
+}
+
+# TL++'s interface: method signatures, as in a class, and nothing else.
+rule interfacedecl
+{
+  :i 'interface' <cname=name> <.nl>
+  [ <classmember> <.nl> ]*
+  :i [ 'endinterface' || 'end' 'interface' ]
 }
 
 # '@Get("/x")' before a method: the annotation goes with it, as written.
@@ -323,25 +371,31 @@ rule visib { :i [ 'public' || 'protected' || 'private' || 'exported' || 'hidden'
 # 'Data name [as type]', one or more per line. The type here is any name (a
 # class included), not the closed list of 'as' in declarations.
 rule datadecl { <visib>? :i 'data' <datavar>+ % ',' }
-rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? [ :i 'default' <datadefault> ]? }
+rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? [ :i [ 'default' || 'init' ] <datadefault> ]? }
 # 'Data cId as character default ""': its value when an object is made.
+# AdvPL's classes say 'init': 'DATA aTrack AS ARRAY INIT {}'.
 token datadefault { <guardexpr> }
 
 # The signature: 'Constructor' and the return type are optional and come in
 # any order.
 # 'Static Method', with or without a visibility, in either order: a method of
 # the class, not of an object.
-rule methdecl { [ <visib> || <mstatic> ]* :i 'method' <mname=name> [ '(' ~ ')' <params> ]? <methtag>* }
+# TL++'s operators are declared and written as methods: 'Public Operator
+# Add()', 'Operator Add(xParam1) Class DateTime' -- Add, Sub, Mult, Div,
+# Compare, ToString.
+rule methdecl { [ <visib> || <mstatic> ]* :i [ 'method' || 'operator' ] <mname=name> [ '(' ~ ')' <params> ]? <methtag>* }
 token mstatic { :i 'static' >> }
 rule methtag  { :i 'constructor' || [ :i 'as' <ret=name> ] }
 
-# The implementation, at file level. The 'as type' comes before 'class Name'.
+# The implementation, at file level. The 'as type' before 'class Name', or
+# after it: 'method getData() class MySVLookup as logical'.
 rule methodimpl
 {
   [ <annotation> <.nl> ]*
-  :i 'method' <mname=name> '(' ~ ')' <params>
+  :i [ 'method' || 'operator' ] <mname=name> '(' ~ ')' <params>
      [ :i 'as' <ret=name> ]?
-     :i 'class' <cname=name> <.nl>
+     :i 'class' <cname=name>
+     [ :i 'as' <retafter=name> ]? <.nl>
   <funcbody>
 }
 
@@ -716,11 +770,15 @@ token kwlocal { :i 'local' }
 # under rakupp 4.0.1 a quantified capture ('<x>?') made in a '||' alternative
 # that later fails is not discarded -- it is merged into the one that matched,
 # and '<contained>' came back four times.
+#
+# Clipper's dimensions after the name make an array of that size, its
+# elements Nil: 'Local aDados[10]', 'Private aTela[0][0], aGets[0]'.
 rule declarator
 {
   <name>
   <!{ is-reserved(~$<name>) }>
   <!{ ($*TOP-LEVEL // False) && is-generated(~$<name>) && !($*GENERATED-OK // False) }>
+  <dims>?
   <attrs>?
   [    [ ':=' [ <chained> || <guardexpr> ] <typespec>? ]
     || [ <typespec> ':=' <guardexpr> ]
@@ -729,6 +787,7 @@ rule declarator
   <!{ $<attrs> && (~$<attrs>).lc.contains('const') && !$<guardexpr> }>
 }
 
+rule dims  { [ '[' ~ ']' <expr> ]+ }
 token attrs { '<' \s* <attr>+ % [ \s* ',' \s* ] \s* '>' }
 token attr  { :i [ 'const' || 'contained' ] >> }
 
@@ -957,7 +1016,9 @@ token fbkw     { :i 'fallback' >> }
 # times over for an expression in an 'if' in a function. A token of its own
 # for each part runs them once, and keeps the name the actions read. Tokens,
 # not rules: the part is exactly what it holds, not the space around it.
-token cond      { <expr> }
+# 'If lOk := aRet[1]': an assignment is a value, the condition too. ':=' and
+# the like only: 'If a = b' compares.
+token cond      { [ <?{ ahead($/.from, 'bind', :item) }> <assignment> ] || <expr> }
 token guarded   { <expr> }
 token fallback  { <expr> }
 token pexpr     { <expr> }
@@ -1025,7 +1086,10 @@ rule inrhs     { <lo> [ '..' <hi> ]? }
 rule forrange  { <lo> '..' <hi> }
 rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
-rule mulexpr   { <unary> [ <mulop> <unary> ]* }
+rule mulexpr   { <powexpr> [ <mulop> <powexpr> ]* }
+# AdvPL's power: 'nVal ^ 2', 'nVal ** 2' -- tighter than '*'.
+rule powexpr   { <unary> [ <powop> <unary> ]* }
+token powop    { '**' || '^' }
 # '%%' -- divisible by -- before AdvPL's '%', which passes through untouched.
 token mulop    { '%%' || '*' || '/' || '%' }
 # '++n' and '--n' in an expression: on a variable, an element, a field --
@@ -1148,7 +1212,9 @@ rule slot        { <arg>? }
 
 # An assignment is a valid argument too: 'If( c, a, cA := u )'.
 rule arg         { <byref> || [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
-rule byref       { '@' <name> }
+# '@::cTab': a member of the object, by reference, too; and an element of an
+# array, '@aCampos[nX][8]'.
+rule byref       { '@' [ <selfacc> || [ <name> <trailer>* ] ] }
 
 # 'SA1->A1_NOME' and 'SA1->( DbGoTop() )'. 'SA1' is the NAME of a work area,
 # not a variable: with a variable one writes '(cAlias)->A1_NOME', which is a
@@ -1216,7 +1282,9 @@ rule selfacc     { '::' <member> [ '(' ~ ')' <arglist> ]? }
 # expression or a call, with at least one trailer after it -- a bare '(x)'
 # or 'f()' is not something to assign to.
 # 'aTail(a) := x': the last element, as AdvPL takes it.
+# '&(cCampo) := x', '&cVar := x': the variable a macro names.
 rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ] || <atail>
+                || [ <macro> <trailer>* ]
                 || [ [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ---------------------------------------------------------------
@@ -1225,7 +1293,8 @@ token literal  { <number> || <string> || <logical> || <nildef> }
 # character: '12'345'678', '1'234.567'8'. Only between two digits -- never
 # first, last, doubled, beside the point, or before a space -- so it cannot be
 # taken for a string: a string straight after a number was never valid.
-token number   { \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? }
+# '.5' too, with no digit before the point, as Clipper writes it.
+token number   { [ \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? ] || [ '.' \d+ ] }
 # ---- strings, and xtpl's interpolation ---------------------------------------
 #
 #     "total = ${nTotal} items"       ("total = " + cValToChar(nTotal) + " items")

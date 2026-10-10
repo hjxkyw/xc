@@ -542,6 +542,7 @@ my class Checker
           self!type-word(($d.typespec-text // '').words[1], $d.line);
           self!static-value($d) if %!static-decls{$s.WHICH} && $d.init.defined;
           self!expr($d.init) if $d.init.defined;
+          self!expr($_) for $d.dims;
           next if $s.scope eq 'private' || %!static-decls{$s.WHICH};
           self!declare($d.name, $d.line, attributes => $d.attributes,
                        kind => $s.scope eq 'public' ?? 'public' !! 'local', written => $d.init.defined);

@@ -72,6 +72,10 @@ method TOP($/)
     {
       @functions.push($t<function>.made);
     }
+    elsif $t<interfacedecl>
+    {
+      @classes.push($t<interfacedecl>.made);
+    }
     elsif $t<classdecl>
     {
       @classes.push($t<classdecl>.made);
@@ -79,6 +83,10 @@ method TOP($/)
     elsif $t<methodimpl>
     {
       @methods.push($t<methodimpl>.made);
+    }
+    elsif $t<wsmethodimpl>
+    {
+      @methods.push($t<wsmethodimpl>.made);
     }
     elsif $t<preproc>
     {
@@ -213,7 +221,31 @@ method methodimpl($/)
     class-name => ~$<cname>,
     name       => ~$<mname>,
     params     => $<params><param>.map(*.made).list,
-    returns    => $<ret> ?? ~$<ret> !! Str,
+    returns    => $<ret> ?? ~$<ret> !! $<retafter> ?? ~$<retafter> !! Str,
+    body       => $<funcbody>.made,
+    line       => self!line($/),
+  );
+}
+
+# An interface: its signatures, as a class without data.
+method interfacedecl($/)
+{
+  make ClassDef.new(
+    name    => ~$<cname>,
+    members => (),
+    methods => $<classmember>.grep(*.<methdecl>).map(*.<methdecl>.made).list,
+    line    => self!line($/),
+  );
+}
+
+# A web service's method: a method of the service, its header as written.
+method wsmethodimpl($/)
+{
+  make MethodImpl.new(
+    class-name => ~$<wshead><svc>,
+    name       => (~$<wshead>).words[1] // 'wsmethod',
+    params     => (),
+    returns    => Str,
     body       => $<funcbody>.made,
     line       => self!line($/),
   );
@@ -334,12 +366,13 @@ method chained($/) { make self!spanned(assign-expr($<assignment>.made), $/) }
 method lvalue($/)
 {
   return make self!spanned($<atail>.made, $/) if $<atail>;
-  my $base = $<selfacc> ?? $<selfacc>.made
+  my $base = $<macro>   ?? $<macro>.made
+          !! $<selfacc> ?? $<selfacc>.made
           !! $<subjacc> ?? $<subjacc>.made
           !! $<pexpr>   ?? $<pexpr>.made
           !! $<call>    ?? $<call>.made
           !!               Name.new(name => ~$<name>);
-  make self!spanned(self!trailed($base, $<selfacc> // $<subjacc> // $<pexpr> // $<call> // $<name>,
+  make self!spanned(self!trailed($base, $<macro> // $<selfacc> // $<subjacc> // $<pexpr> // $<call> // $<name>,
                                  $<trailer>, $/), $/);
 }
 
@@ -563,7 +596,8 @@ method !make-declarator($/)
     name       => ~$<name>,
     attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
     init       => $value ?? $value.made !! Expr,
-    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
+    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! $<dims> ?? type-of-name('array') !! UNKNOWN,
+    dims       => $<dims> ?? $<dims><expr>.map(*.made).list !! (),
     line       => self!line($/),
   )
 }
@@ -594,7 +628,7 @@ method elvis($/)
 # Without 'fallback' it is just the expression; most have none, and must not
 # gain a node.
 # The parts with a name: each makes what it holds.
-method cond($/)      { make $<expr>.made }
+method cond($/)      { make $<assignment> ?? self!spanned(assign-expr($<assignment>.made), $/) !! $<expr>.made }
 method guarded($/)   { make $<expr>.made }
 method fallback($/)  { make $<expr>.made }
 method pexpr($/)     { make $<expr>.made }
@@ -658,7 +692,8 @@ method cmpexpr($/)
 method rangeexpr($/) { make interval($<lo>.made, $<hi>) }
 method inrhs($/)     { make interval($<lo>.made, $<hi>) }
 method addexpr($/)   { make fold-ops($/, 'mulexpr', 'addop') }
-method mulexpr($/)   { make fold-ops($/, 'unary',   'mulop') }
+method mulexpr($/)   { make fold-ops($/, 'powexpr', 'mulop') }
+method powexpr($/)   { make fold-ops($/, 'unary',   'powop') }
 
 # An increment or decrement is an assignment of one more, or one less: what
 # handles '+=' handles it -- the checks, a hash element's lowering -- and the
@@ -874,7 +909,12 @@ method arglist($/)
 method arg($/)
 {
   make self!spanned(
-         $<byref>      ?? Ref.new(target => self!spanned(Name.new(name => ~$<byref><name>), $<byref><name>))
+         $<byref>      ?? Ref.new(target => $<byref><selfacc>
+                                          ?? $<byref><selfacc>.made
+                                          !! $<byref><trailer>
+                                          ?? self!trailed(Name.new(name => ~$<byref><name>), $<byref><name>,
+                                                          $<byref><trailer>, $<byref>)
+                                          !! self!spanned(Name.new(name => ~$<byref><name>), $<byref><name>))
       !! $<assignment> ?? assign-expr($<assignment>.made)
       !!                  $<expr>.made, $/);
 }

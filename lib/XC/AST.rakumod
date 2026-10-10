@@ -257,6 +257,7 @@ class Declarator is export
   has Int   $.line;
   has Bool  $.type-first = False;  # 'local x as N := 1' -- xtpl's order
   has Str   $.typespec-text;       # the 'as ...' as written; undefined if none
+  has Expr  @.dims;                # 'Local aX[10]': each dimension
 }
 
 class Declaration is Stmt is export
@@ -637,7 +638,7 @@ sub exprs-of(Stmt $s --> List) is export
   with %EXPRS{$class} -> &exprs { return (exprs($s),).flat.grep(*.defined).List }
   my @s = do given $s
   {
-    when Declaration { |.declarators.map(*.init) }
+    when Declaration { |.declarators.map({ |(.init, |.dims) }) }
     when Assignment  { .target, .value }
     when CallStmt    { .call }
     when ReturnStmt  { .value }

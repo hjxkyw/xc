@@ -4,8 +4,8 @@ use XC::Actions;
 use XC::Emit;
 use XC::Check;
 
-# Forms of real AdvPL and TL++ -- found running xc over 1,407 sources from
-# GitHub -- that xc did not read. TL++ goes through xc as it came: each source
+# Forms of real AdvPL and TL++ -- found running xc over sources from GitHub:
+# 1,407 files, then 830 from 93 repositories -- that xc did not read. TL++ goes through xc as it came: each source
 # here compiles to itself, byte for byte, and passes the checks.
 
 sub parse(Str $src)
@@ -142,6 +142,54 @@ same "not a command: 'Set(1)' a call, 'set := 1' an assignment",
 check "a word not on the list is not taken for a command: a typo stays an error",
 {
   !parse($head ~ "User Function f()\n  DEFINEX MSDIALOG oDlg TITLE \"x\"\nreturn nil\n")
+};
+
+# ---- web services (restful.ch, apwebsrv.ch) -----------------------------------
+same "a REST service: the declaration whole, each method a function",
+  qq[WSRESTFUL Clientes DESCRIPTION "Clientes" FORMAT "application/json"\n]
+  ~ qq[  WSDATA Page AS INTEGER OPTIONAL\n  WSMETHOD GET Lista;\n    DESCRIPTION "Lista" ;\n    WSSYNTAX "/api/v1/clientes"\n]
+  ~ qq[END WSRESTFUL\n\n]
+  ~ qq[WSMETHOD GET Lista WSRECEIVE QUERYPARAM, Page WSSERVICE Clientes\n  Local lRet := .T.\n]
+  ~ qq[  ::SetContentType("application/json")\n  ::SetResponse(Self:Page)\nReturn lRet\n\n]
+  ~ qq[WSMETHOD POST Grava WSRECEIVE cId ;\n  WSREST Clientes\n  Local cBody := ::GetContent()\nReturn !Empty(cBody)\n];
+same "a SOAP service and its structure, whole",
+  qq[WSSTRUCT Item\n  WSDATA cCod AS STRING\nENDWSSTRUCT\n\nWSSERVICE Pedidos DESCRIPTION "Pedidos"\n]
+  ~ qq[  WSDATA aItens AS ARRAY OF Item\n  WSMETHOD Incluir\nENDWSSERVICE\n\n]
+  ~ qq[WSMETHOD Incluir WSRECEIVE aItens WSSEND lOk WSSERVICE Pedidos\n  ::lOk := Len(::aItens) > 0\nReturn .T.\n];
+
+# ---- classes and interfaces ---------------------------------------------------
+same "a superclass with its namespace; 'Implements' an interface; the interface",
+  qq[Interface iConta\n  public method saldo() as numeric\nEndInterface\n\n]
+  ~ qq[class cConta from totvs.framework.base.Objeto Implements iConta\n  public method new() as object\n  public method saldo() as numeric\nendclass\n\n]
+  ~ qq[method new() as object class cConta\nreturn self\n\nmethod saldo() class cConta as numeric\nreturn 0\n];
+same "TL++'s operators: 'Public Operator Add()', 'Operator Add(x) Class DateTime'",
+  qq[Class DateTime\n  Data nDias\n  Public Method New() Constructor\n  Public Operator Add()\n  Public Operator ToString()\nEndClass\n\n]
+  ~ qq[Method New() Class DateTime\n  ::nDias := 0\nReturn Self\n\nOperator Add(xParam1) Class DateTime\n  ::nDias += xParam1\nReturn Self\n\n]
+  ~ qq[Operator ToString() Class DateTime\nReturn cValToChar(::nDias)\n];
+same "'DATA x AS ARRAY INIT \{\}': a member's value when an object is made",
+  qq[Class TJogo\n  DATA lPronto INIT .F.\n  DATA aTrack AS ARRAY INIT \{\} // posicoes\n  METHOD New() CONSTRUCTOR\nEndClass\n\n]
+  ~ qq[Method New() Class TJogo\nReturn Self\n];
+
+# ---- expressions and assignments ----------------------------------------------
+same "an assignment as an 'If', 'ElseIf' or 'While' condition -- 'If a = b' still compares",
+  "User Function f(a)\n  Local lOk := .F., b := 1\n  If lOk := a[1]\n    b := 2\n  ElseIf lOk := (a[2] == 1)\n    b := 3\n  EndIf\n"
+  ~ "  If b = 2\n    b := 4\n  EndIf\n  While lOk := b > 9\n    b--\n  EndDo\nreturn b\n";
+same "'^' and '**', AdvPL's power", "User Function f(n)\n  Local nR := n ^ 2 + 2 ** n\n  nR += Int((n / (2 ^ (8 * n))) % 256)\nreturn nR\n";
+same "'\@aCampos[nX][8]': an element by reference",
+  "User Function f(aCampos, nX)\n  Eval(aCampos[nX][6], \@aCampos[nX][8], nX)\nreturn aCampos\n";
+same "'@::cTab': a member by reference", "Method Cria() Class TDb\n  ::cAlias := ::CriaDB(\{\}, \"COL\", \@::cTab)\nReturn ::cAlias\n";
+same "'&(cCampo) := x', '&cVar := x': a macro assigned",
+  "User Function f(cCampo, aV)\n  Local cVar := \"MV_PAR01\"\n  \&(cCampo) := aV[1]\n  \&cVar := aV[2]\n"
+  ~ "  \&(\"M->\" + cCampo) := \&(\"SRA->\" + cCampo)\nreturn nil\n";
+
+same "Clipper's dimensions: 'Local aDados[10]', 'Private aTela[0][0], aGets[0]'",
+  "User Function f(n)\n  Local aDados[10], aGrade[n][2]\n  Private aTela[0][0], aGets[0]\n  aDados[1] := aGrade\nreturn aDados\n";
+same "a number with no digit before its point: '.5'", "User Function f(n)\n  Local nMeio := n * .5\nreturn nMeio + .25\n";
+check "a block local with dimensions starts as Array() of them, each time",
+{
+  my $src = $head ~ "User Function f(n)\n  if n > 0\n    local aX[n][2]\n    aX[1][1] := n\n  endif\nreturn n\n";
+  my $out = emit(parse($src).made, $src);
+  $out.contains("Local aX  // a block local") && $out.contains('aX := Array(n, 2)') && !$out.contains('aX[n]')
 };
 
 # ---- what the checks make of them ------------------------------------------------

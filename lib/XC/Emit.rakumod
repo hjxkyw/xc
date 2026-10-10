@@ -1247,7 +1247,10 @@ class Emitter
             my $nm = self!local($dc.name);
             # Its Local first: a chain in its value adds Locals of its own.
             self!hoist($nm, block-local-comment($dc, $nm));
-            my @l = $dc.init.defined ?? self!init-lines($nm, $dc.init) !! ("$nm := Nil",);
+            # 'local aX[10]' made as 'Local aX[10]' makes it: Array(10).
+            my @l = $dc.init.defined ?? self!init-lines($nm, $dc.init)
+                 !! $dc.dims        ?? ("$nm := Array({$dc.dims.map({ self!expr($_) }).join(', ')})",)
+                 !!                    ("$nm := Nil",);
             # One note per line, the declarator's on its last -- pushed one by
             # one: an empty 'xx' given to append was taken as an element.
             @notes.push('') for 1 ..^ @l.elems;
@@ -2440,6 +2443,7 @@ class Emitter
         my @d = .declarators.map(-> $d
         {
           $d.name
+            ~ $d.dims.map({ "[{self!expr($_)}]" }).join
             ~ ($d.init.defined ?? " := {self!expr($d.init)}" !! '')
             ~ ($d.typespec-text.defined ?? " {$d.typespec-text}" !! '')
         });
