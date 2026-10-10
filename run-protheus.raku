@@ -183,9 +183,11 @@ sub compile-folder(IO::Path $dir, Int $count --> Str)
 # be there: the AppServer would compile it too.
 sub prepare-folder(IO::Path $dir, @ours)
 {
-  my $runtime = $root.add('runtime/xtpl_runtime.tlpp');
-  my $copy = $dir.add('xtpl_runtime.tlpp');
-  $runtime.copy($copy) if !$copy.e || $copy.modified < $runtime.modified || $copy.s != $runtime.s;
+  # Written whole every time, the bytes read and written here. It used to be
+  # copied only when the copy looked out of date -- older, or of another size
+  # -- and on Windows an old copy stayed: compiled after the corpus, it put
+  # the old runtime back into the RPO, and U_XTPL_JNEW was not there.
+  spurt $dir.add('xtpl_runtime.tlpp'), $root.add('runtime/xtpl_runtime.tlpp').slurp(:bin);
   my %ours = (|@ours, 'xtpl_runtime.tlpp').map(*.lc => True);
   # Logs an earlier version wrote here: the AppServer would take them too.
   .unlink for $dir.dir.grep({ .f && (.basename eq 'compile.log' | 'xc.log' || .basename ~~ / ^ 'run-' .* '.log' $ /) });
