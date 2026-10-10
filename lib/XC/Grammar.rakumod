@@ -169,13 +169,17 @@ method parse($target, |c)
 #
 # The same rules as xtpl, checked against it case by case:
 #
-# Reserved words -- xtpl's list, which includes a few native functions. They
-# apply to local, private, parameters, header declarations and 'for local';
-# not to lambda parameters, which xtpl accepts.
+# Reserved words: the statements' own, xtpl's 'with', 'without', 'orwith',
+# 'given' and 'when', and 'len' -- the one native function the AppServer
+# refuses as a name (C2003). 'user', 'array', 'conout', 'eval', 'aadd',
+# 'substr' and 'userexception', on xtpl's list, are names to it, and so to xc
+# (tried: xcr_h, outputs/xcs). They apply to local, private, parameters,
+# header declarations and 'for local'; not to lambda parameters, which xtpl
+# accepts.
 my constant RESERVED = set <
   function static return if else elseif endif for next while enddo do
   local private public with without orwith given when otherwise end
-  conout len eval aadd substr userexception
+  len
 >;
 
 # 'our': under rakupp 4.0.1 a lexical 'sub' in this file is not visible from

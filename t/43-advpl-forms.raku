@@ -210,6 +210,9 @@ check "and the checks say so -- and no 'ends without a return'",
 };
 same "'user' and 'array' are names to the AppServer (xcr_h)",
   "User Function f(user)\n  Local array := \{1, 2\}\nReturn user + Len(array)\n";
+same "'conout', 'eval', 'aadd', 'substr', 'userexception' are names too (outputs/xcs)",
+  "User Function f()\n  Local conout := 1, eval := 2, aadd := 3, substr := 4, userexception := 5\n"
+  ~ "Return conout + eval + aadd + substr + userexception\n";
 check "'len' is not (xcr_h: C2003)", { !parse($head ~ "User Function f()\n  Local len := 1\nReturn len\n") };
 
 # ---- what the checks make of them ------------------------------------------------
