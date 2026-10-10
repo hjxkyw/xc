@@ -310,8 +310,24 @@ names -- `as N` is "Invalid Type N" to Protheus, and an error to xc:
 `JSON`, `Variant`, `Integer`, `Decimal`, `Double`, and `Variadic` -- a
 parameter that takes every argument there is, read as `parm:vCount` and
 `parm:vArgs[i]`. `Char` is refused, as Protheus refuses it ("Use Character
-Type instead of Char Type"). xc does not yet check that a value agrees with
-the type declared.
+Type instead of Char Type").
+
+A value whose type xc can tell has to agree with the type declared: a
+literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
+or of two strings. A call, a name, a date less a number say nothing -- what
+they hold is not known here. `Integer`, `Decimal` and `Double` are numbers,
+`Variant` takes anything, and `Nil` fits every type.
+
+```xtpl
+User Function Ty(nY)
+  Local nX := "a" as Numeric
+  Local nOk := nY + 1 as Numeric
+Return nX + nOk
+```
+
+```text
+ty.xtpl:2: 'nX' is declared as Numeric, but its initial value is Character.
+```
 
 **Attributes**, between the name and the value, outside TL++: `<const>` --
 the variable is never assigned again nor passed by reference with `@`, so it
@@ -1097,7 +1113,10 @@ Return aCodes
 - A chain run for its effect fuses only when all of its stages do, and none
   is a terminal.
 - Any other stage stops the fusing: it and every stage after it apply, as
-  calls, to what the loop collected. xc warns about it, in xtpl's words.
+  calls, to what the loop collected. xc warns about it, in xtpl's words --
+  unless from there on there are only functions it cannot see into, as in
+  `cName |> alltrim |> upper` or `aX |> filter(...) |> myHelper()`: nothing
+  there is known to build an array, and nothing could have fused.
 
 ```xtpl
 User Function NoFuse(aOrders)
@@ -1249,6 +1268,9 @@ parses, in xtpl's words.
 | an `external` assigned | `'cEmpAnt' is external (line 1) and cannot be assigned.` |
 | a `Local` after a `Private` or `Public` | `'local' after 'private' (line 3): a private or a public is a statement, and every local comes before the first statement.` |
 | a type by its letter, or `Char` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
+| a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
+| a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
+| a name of xc's shape declared | `'fo_0_0' has the shape of a name xtpl generates, so it cannot be declared. ...` |
 | a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
 | more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3.` |
@@ -1259,11 +1281,12 @@ parses, in xtpl's words.
 | a `fallback` around a chain from a source | `'fallback' cannot guard a walk over rows(). ...` |
 | `distinctAdjacent` over `rows()` without a key | `distinctAdjacent over rows() needs a key -- ...` |
 
-The grammar refuses the rest, with `cannot parse this line`: a reserved word
-declared, a name of xc's shape declared, a trailing comma in a declaration,
-`?=` in an expression, `|>` or `fallback` inside a lambda or a code block, a
-`|>` with nothing on its left, `${` never closed, a lambda with no
-parameters, `with` without `object`.
+The grammar refuses the rest, with `cannot parse this line`: a trailing
+comma in a declaration, `?=` in an expression, `|>` or `fallback` inside a
+lambda or a code block, a `|>` with nothing on its left, `${` never closed,
+a lambda with no parameters, `with` without `object`. It refuses a reserved
+word or a name of xc's shape declared too, and xc then reads the file again
+with any name allowed, to say which name it was and why.
 
 **Warnings** -- the file is written:
 
@@ -1277,7 +1300,7 @@ parameters, `with` without `object`.
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
-| a stage that stops the fusing | `this chain does not fuse -- 'sortby' stops it, ...` |
+| a stage that stops the fusing, with a verb from there on | `this chain does not fuse -- 'sortby' stops it, ...` |
 | a `fallback` around a chain that would fuse | `'fallback' turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
 
@@ -1324,6 +1347,16 @@ free:
 ```text
 function static return if else elseif endif for next while enddo do
 local private public with without orwith given when otherwise end len
+```
+
+```xtpl
+User Function Res()
+  Local len := 1
+Return len
+```
+
+```text
+res.xtpl:2: Cannot use reserved word 'len' as a variable name.
 ```
 
 `len` is the one native function the AppServer refuses as a name.
