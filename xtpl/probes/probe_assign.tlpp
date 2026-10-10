@@ -12,7 +12,7 @@
 // devolver outra coisa que nao o valor atribuido. Entao cada caso confere o
 // resultado E o que sobrou na variavel.
 //
-//    appserver.exe -env=zv -run=u_probeAssign
+//    appserver.exe -env=SeuAmbiente -run=u_probeAssign
 //
 // Esperado, se ':=' for uma expressao que devolve o valor atribuido:
 //

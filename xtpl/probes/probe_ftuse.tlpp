@@ -19,7 +19,7 @@
 // O teste: abrir um arquivo de verdade, ler uma linha, tentar abrir um que
 // nao existe, fechar, e ver se o primeiro ainda esta la e na mesma posicao.
 //
-//    appserver.exe -env=zv -run=u_probeFtUse
+//    appserver.exe -env=SeuAmbiente -run=u_probeFtUse
 //
 // Se imprimir 'inerte: sim', a forma plana atual esta certa. Se imprimir
 // 'inerte: nao', tanto a abertura quanto o fechamento precisam de guarda.
