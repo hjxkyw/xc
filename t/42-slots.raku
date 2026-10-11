@@ -39,7 +39,7 @@ sub check(Str $what, &test)
   say(($v ?? '  ok    ' !! '  FAIL  '), $what);
 }
 
-# ---- sharing ------------------------------------------------------------------
+# ---- sharing -----------------------------------------------------------------
 check 'sibling blocks share one slot; its Local says who; each value says what it was',
 {
   my $o = out-of("  if a > 0\n    local nFirst := 1\n    conout(nFirst)\n  endif\n  if a > 1\n    local cSecond := \"x\"\n    conout(cSecond)\n  endif");
@@ -66,7 +66,7 @@ check 'a slot taken again starts fresh: a local with no value is set to Nil',
   out-of("  if a > 0\n    local nA := 1\n    conout(nA)\n  endif\n  if a > 1\n    local nB\n    conout(nB)\n  endif").contains("    s_0_0 := Nil  // nB\n")
 };
 
-# ---- pinned: reachable after its block ----------------------------------------
+# ---- pinned: reachable after its block ---------------------------------------
 check 'pinned: captured by a code block -- its own Local',
 {
   my $o = out-of("  if a > 0\n    local nF := 10\n    aadd(aH, \{|| nF * 2\})\n  endif\n  if a > 1\n    local nG := 1\n    conout(nG)\n  endif");
@@ -104,7 +104,7 @@ check 'pinning is per declaration: one aTmp captured, another of the name in a s
   locals($o) eqv ("b_1_aTmp  // the block local 'aTmp'", "s_0_0  // a slot: the block locals 'aTmp', 'aOther'")
 };
 
-# ---- names ----------------------------------------------------------------------
+# ---- names -------------------------------------------------------------------
 check 'one name in sibling blocks: one slot, which goes by the name',
 {
   locals(out-of("  if a > 0\n    local x := 1\n    conout(x)\n  endif\n  if a > 1\n    local x := 2\n    conout(x)\n  endif"))

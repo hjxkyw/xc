@@ -213,7 +213,7 @@ token usertrans { <?{ user-trans($/.from) > 0 }>         :my $n = user-trans($/.
 rule  userfunc  { <userhead> <.nl> <funcbody> }
 token ttrans    { <usertrans> }
 
-# ---- names that cannot be declared ------------------------------------------
+# ---- names that cannot be declared -------------------------------------------
 #
 # The same rules as xtpl, checked against it case by case:
 #
@@ -295,7 +295,7 @@ rule toplevel
   || [ <?{ user-active() }> <datadecl> <.eol> ]
 }
 
-# ---- what the preprocessor takes whole ------------------------------------
+# ---- what the preprocessor takes whole ---------------------------------------
 # A directive goes whole to the TL++ preprocessor -- '#include', '#define',
 # '#command', '#xtranslate'. Nothing here looks inside: the body of a
 # '#command' is a language of its own, and not ours.
@@ -309,7 +309,7 @@ token preproc
   '#' [ \N*? ';' \h* \n ]* \N*
 }
 
-# ---- TL++: namespace -------------------------------------------------------
+# ---- TL++: namespace ---------------------------------------------------------
 rule namespacest
 {
   :i [ 'using' 'namespace' || 'namespace' ] <dottedname>
@@ -337,7 +337,7 @@ rule externalst { :i 'external' [ <isalias=kwalias> ]? <xname> [ ',' <xname> ]* 
 token kwalias   { :i 'alias' >> }
 token xname     { <!before <.kwalias>> <name> }
 
-# ---- TL++: annotations -----------------------------------------------------
+# ---- TL++: annotations -------------------------------------------------------
 #
 # A line starting with '@'. It may or may not take arguments in parentheses,
 # and it comes before what it annotates.
@@ -346,7 +346,7 @@ rule annotation
   '@' <name> [ '(' ~ ')' <arglist> ]?
 }
 
-# ---- functions -------------------------------------------------------------
+# ---- functions ---------------------------------------------------------------
 rule function
 {
   [ <annotation> <.nl> ]*
@@ -364,7 +364,7 @@ token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
 # returns: 'Static Function Scheddef() as array'.
 token rettype { <typespec> }
 
-# ---- web services: REST and SOAP -------------------------------------------
+# ---- web services: REST and SOAP ---------------------------------------------
 # AdvPL's web services come from include files (restful.ch, apwebsrv.ch) that
 # xc cannot read. The declaration -- 'WSRESTFUL Name ... END WSRESTFUL', its
 # WSDATA and WSMETHOD lines; 'WSSERVICE', 'WSSTRUCT', 'WSCLIENT' alike -- is
@@ -398,7 +398,7 @@ token wshead
   <?before \h* [ <.linecomment> || \v || $ ]>
 }
 
-# ---- TL++: classes ---------------------------------------------------------
+# ---- TL++: classes -----------------------------------------------------------
 # Native to TL++, not an xtpl extension. Two parts: the 'Class ... EndClass'
 # block with its 'Data' members and 'Method' signatures, and the
 # implementations 'Method name(...) Class Name' loose in the file, each with
@@ -519,7 +519,7 @@ rule funcbody   { :my $*PAST-PROLOGUE = False; :my $*TOP-LEVEL = True;  [ <state
 rule body       { :my $*PAST-PROLOGUE = False; :my $*TOP-LEVEL = False; [ <statement> <.nl> ]* }
 rule closedbody { :my $*PAST-PROLOGUE = True;  :my $*TOP-LEVEL = False; [ <statement> <.nl> ]* }
 
-# ---- types ------------------------------------------------------------------
+# ---- types -------------------------------------------------------------------
 #
 # The type can be declared or come from the initializer:
 #
@@ -600,7 +600,7 @@ rule statement
 # label either (tried: xct_a) -- the lines after it belong to the case before.
 token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' || 'default' <?before \h* [ <.linecomment> || \v || $ ]> ] <!ww> }
 
-# ---- xtpl: 'defer' ----------------------------------------------------------
+# ---- xtpl: 'defer' -----------------------------------------------------------
 #
 #     defer closeCursor()
 #     defer aLines |> validate() |> save()
@@ -618,7 +618,7 @@ token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' || 'default' <?bef
 rule deferst { :i 'defer' [ [ <?{ ahead($/.from, 'assign') }> <assignment> ]
                           || [ <?{ ahead($/.from, 'pipe') }> <pipest> ] || <callst> ] }
 
-# ---- xtpl: 'using alias' -- a scoped work area ------------------------------
+# ---- xtpl: 'using alias' -- a scoped work area -------------------------------
 #
 #     using alias SA1 order 1 do
 #       nTotal := SA1->A1_SALDO
@@ -638,7 +638,7 @@ rule usingst
   :i 'end' 'using'
 }
 
-# ---- xtpl: 'with object' ----------------------------------------------------
+# ---- xtpl: 'with object' -----------------------------------------------------
 #
 #     with object oModel:GetModel("SA1DETAIL")
 #       :SetValue("A1_COD", cCod)
@@ -689,7 +689,7 @@ rule subjacc { <?{ $*IN-WITH // False }> ':' <member> [ '(' ~ ')' <arglist> ]? }
 # Only 'end raw' closes the block: xtpl takes 'endraw' as one more raw line
 # and never closes it. Not at file level, where directives already pass
 # through whole (xtpl accepts it there).
-# ---- the commands of TOTVS' include files --------------------------------------
+# ---- the commands of TOTVS' include files ------------------------------------
 # '#command' statements, which xc cannot read: their includes are not to be
 # had. A statement that starts with one of their words is taken whole, as
 # 'raw' text -- through its continuation lines; 'BeginSql' and
@@ -786,7 +786,7 @@ rule nilassign { <!stmtword> <lvalue> '?=' <expr> }
 # on a line starting with 'f(x) |> ...' and leave the rest without an owner.
 rule pipest { <!stmtword> <elvis> <feed>+ }
 
-# ---- xtpl: postfix modifiers ------------------------------------------------
+# ---- xtpl: postfix modifiers -------------------------------------------------
 #
 #     lDone := .T. if nTotal > 5          If nTotal > 5 / lDone := .T. / EndIf
 #     conout("x") while nTotal < 0        While nTotal < 0 / conout("x") / EndDo
@@ -1037,7 +1037,7 @@ token stmtword
   ] >>
 }
 
-# ---- expressions, by precedence ---------------------------------------------
+# ---- expressions, by precedence ----------------------------------------------
 #
 # Each level written as 'a [ op a ]*', not as 'a+ % op'. In a 'rule',
 # '<n>+ % <op>' does not match when the input has spaces:
@@ -1050,7 +1050,7 @@ token stmtword
 # Without the operator captured, 'a + b' became a sum node with an empty
 # operator, and the type checker could not tell it was a sum.
 #
-# ---- xtpl: '|>' ------------------------------------------------------------
+# ---- xtpl: '|>' --------------------------------------------------------------
 #
 #     aCodes := aOrders |> filter([o] o:nValue > 1000) |> map([o] o:cCode)
 #     nTotal := len(aNums |> distinct)
@@ -1146,7 +1146,7 @@ token cmpop    { '==' || '!=' || '<>' || '>=' || '<=' || '>' || '<' || '$' || '#
                || [ :i 'has' >> ] }
 token inop     { :i 'in' >> }
 
-# ---- xtpl: 'lo..hi' ---------------------------------------------------------
+# ---- xtpl: 'lo..hi' ----------------------------------------------------------
 # Only in two places: the right of an 'in', and as the source of a pipeline
 # ('1..999 |> filter(...)'). Anywhere else there is nothing a range could be,
 # so outside an 'in' it only matches when followed by '|>'.
@@ -1203,7 +1203,7 @@ rule tmethod  { [ '::' || ':' ] <member> '(' ~ ')' <arglist> }
 # 'oObj::cCommand': '::' after a value too (tried: xct_c).
 rule tmember  { [ '::' || ':' ] <member> }
 
-# ---- xtpl: 'h{"k"}' -- hash access ------------------------------------------
+# ---- xtpl: 'h{"k"}' -- hash access -------------------------------------------
 # Braces index a hash, brackets index an array. A '{' RIGHT after a name, a
 # ')', a ']' or a '}' -- no space -- is hash access, which AdvPL never has:
 # 'hCfg{"k"}', 'getHash(){"k"}', 'aHashes[1]{"k"}', 'h{"a"}{"b"}'.
@@ -1211,7 +1211,7 @@ rule tmember  { [ '::' || ':' ] <member> }
 # been eaten by the caller's <.ws>, and then what lies behind is that space.
 rule thash    { <?after <[\w)\]}]>> '{' ~ '}' <key> }
 
-# ---- xtpl: '?.' -- safe access ----------------------------------------------
+# ---- xtpl: '?.' -- safe access -----------------------------------------------
 # 'oUser?.oAddress?.cCity', 'oUser?.Method(1)': Nil when the base is Nil,
 # instead of an error. xtpl's doc shows members; it takes the call form too,
 # and emits 'If(...)(1)' for it, which is broken -- xc lowers it.

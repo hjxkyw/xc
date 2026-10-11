@@ -68,7 +68,7 @@ sub tokens-of(Str $line, Int $base --> List)
   $line.match(/ <token=&token> /, :g).map({ [~$_, $base + .from, $base + .to] }).List
 }
 
-# ---- the directives ------------------------------------------------------------
+# ---- the directives ----------------------------------------------------------
 # A directive with its continuation lines -- each ending in ';' -- as one.
 sub directives-of(Str $text --> List)
 {
@@ -166,7 +166,7 @@ sub rules-of(Str $text --> List)
   }).grep(*.pattern.elems).List
 }
 
-# ---- the include files ---------------------------------------------------------
+# ---- the include files -------------------------------------------------------
 # The names a text includes: '#include "x.ch"', "'x.ch'", '<x.ch>'.
 sub includes-of(Str $text --> List)
 {
@@ -214,7 +214,7 @@ sub rules-with-includes(Str $text, $dir, @dirs --> List)
   @rules
 }
 
-# ---- matching -------------------------------------------------------------------
+# ---- matching ----------------------------------------------------------------
 # A word of the pattern against a word of the source: the same, any case; for
 # '#command', the first four letters or more of it.
 sub same-word(Str $pat, Str $src, Bool $exact --> Bool)
@@ -361,7 +361,7 @@ sub match-elems(@elems, @toks, Int $i is copy, Bool $exact, @outer-stops --> Int
   $i
 }
 
-# ---- the uses in a source --------------------------------------------------------
+# ---- the uses in a source ----------------------------------------------------
 # Comments blanked to spaces, the line ends kept: what is left is code and
 # strings, at the same offsets.
 # (By hand, from mark to mark: a 'subst' with a block gave rakupp a text of

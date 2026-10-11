@@ -152,7 +152,7 @@ user function xc_selftest()
   nTmp := same(hKeep{"z"} := 42)
   check("a hash write gives the value written", nTmp == 42 .and. hKeep{"z"} == 42, nTmp, @nOk, @nBad)
 
-  // ---- JSON: TL++ has no literal, so xc builds a JsonObject ------------------
+  // ---- JSON: TL++ has no literal, so xc builds a JsonObject -----------------
   check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
   jTmp := {"a": 1, "b": {"c": "x"}, "d": {1, 2}}
   check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
@@ -274,7 +274,7 @@ user function xc_selftest()
   nTmp := deferLoop(0, aTmp)
   check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
 
-  // ---- the code blocks xc writes around the source's own code ----------------
+  // ---- the code blocks xc writes around the source's own code ---------------
   // 'f() in lo..hi' and 'o()?.M(x)' become a block that takes the value once;
   // a '__v' of the source's in the bound or the argument is the source's.
   lTmp := same(7) in __v..10

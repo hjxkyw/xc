@@ -87,7 +87,7 @@ class Binary is Expr is export
   has Expr $.right;
 }
 
-# ---- what comes after an expression -----------------------------------------
+# ---- what comes after an expression ------------------------------------------
 class Index is Expr is export             # a[i, j]
 {
   has Expr $.base;

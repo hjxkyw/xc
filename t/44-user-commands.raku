@@ -131,7 +131,7 @@ check "a pattern matches the whole statement, or it is not the command",
   !parse(qq[#include "totvs.ch"\n#xcommand REPORTE <x> TITULO <t> => u_Rep(<x>, <t>)\n\nUser Function f(a)\n  REPORTE a\nReturn nil\n])
 };
 
-# ---- include files ---------------------------------------------------------------
+# ---- include files -----------------------------------------------------------
 my $dir = $*TMPDIR.add("xc-usercmd-$*PID");
 mkdir $dir.add('inc');
 spurt $dir.add('inc/mine.ch'), "#xcommand SAUDA <x> => ConOut(<x>)\n";

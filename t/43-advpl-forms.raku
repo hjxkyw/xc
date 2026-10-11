@@ -41,7 +41,7 @@ sub warnings(Str $body)
   check-all(parse($src).made, source => $src)<warnings>.map(*.value).List
 }
 
-# ---- functions --------------------------------------------------------------
+# ---- functions ---------------------------------------------------------------
 same 'a function with no parentheses', "User Function TLeroy\nreturn 1\n";
 same 'a return type; integer, decimal, codeblock among the types',
   "Static Function Scheddef() as array\nreturn \{\}\n\nUser Function f(n as integer, x as decimal, b as codeblock) as logical\nreturn .T.\n";
@@ -49,13 +49,13 @@ same 'a return type; integer, decimal, codeblock among the types',
 same "a parameter 'As Variadic', read through ':vCount' and ':vArgs[i]'",
   "function u_FuncRunAdvpl(parm As Variadic)\n  Local i\n  Conout(parm:vCount)\n  For i := 1 To parm:vCount\n    Conout(parm:vArgs[i])\n  Next\n\nReturn 1\n";
 
-# ---- assignments as values --------------------------------------------------
+# ---- assignments as values ---------------------------------------------------
 same 'an assignment in parentheses is a value',
   "User Function f(a)\n  Local lErr := .F.\n  if !( lErr := g(\@a) )\n    a := 1\n  endif\nreturn lErr\n";
 same "chained, from the right -- and 'b = 0' in a value compares",
   "User Function f(a)\n  Local b := 0, c := 0\n  a := b := c := 0\n  a := b = 0\nreturn a + c\n";
 
-# ---- statements ---------------------------------------------------------------
+# ---- statements --------------------------------------------------------------
 same "'Do While' ... 'EndDo'", "User Function f(a)\n  Do While a > 0\n    a--\n  EndDo\nreturn a\n";
 same "'Default', one or more", "User Function f(a, b)\n  Default a := 1\n  DEFAULT b := \{\}, a := 2\nreturn a\n";
 same "';' between statements on one line; at its end, a continuation",
@@ -65,15 +65,15 @@ same "'try' ... 'catch' ... 'endtry'; without 'catch' too",
 same "'Break' in a 'begin sequence'", "User Function f(a)\n  begin sequence\n    Break(a)\n  recover\n    a := 0\n  end sequence\nreturn a\n";
 same "'Begin Transaction' ... 'End Transaction'", "User Function f(a)\n  Begin Transaction\n    a := 1\n  End Transaction\nreturn a\n";
 
-# ---- the file ---------------------------------------------------------------------
+# ---- the file ----------------------------------------------------------------
 same "a 'Static' of the file, typed or not, with a value or not",
   "Static aDados__ as array\nStatic cToken__ := \"\" as character // a comment\nStatic lInit := .F.\n\nUser Function f()\n  aDados__ := \{\}\n  lInit := .T.\nreturn cToken__\n";
 
-# ---- classes ------------------------------------------------------------------------
+# ---- classes -----------------------------------------------------------------
 same "'Data ... default', 'Static Method', visibilities, '::' calls as statements",
   "Class Gw from Base\n  Public Data cId as character default \"\"\n  Static Method Make()\n  Private Method Wait( nWait as integer )\n  Public Static Method Other()\n  Method New() Constructor\nEndClass\n\nMethod New() Class Gw\n  ::Init()\n  ::oLog:Error( \"x\", \{ 1 \} )\n  ::cId := \"a\"\nReturn Self\n";
 
-# ---- more forms -----------------------------------------------------------------
+# ---- more forms --------------------------------------------------------------
 same "a field macro: 'SX3->\&(\"X3_CAMPO\")', '(cAlias)->\&(cField)', read and written",
   "User Function f(cAlias, cField)\n  Local aF := \{\}\n  aAdd(aF, allTrim(SX3->\&(\"X3_CAMPO\")))\n  (cAlias)->\&(cField) := 1\n  if( allTrim((cAlias)->\&(cField)) \$ \"ab\" )\n    aF := \{\}\n  endif\nreturn aF\n";
 same "'end case', and 'End' closing an 'if'",
@@ -88,7 +88,7 @@ same "'If( c, a, b )' as a statement; 'if( c )' with a body is still a block",
   "User Function f(a)\n  a := g() ; If( Empty(a), a := \"x\", Nil )\n  if( a > 1 )\n    a := 0\n  endif\nreturn a\n";
 same "an annotation on a method in its class", "Class C\n  \@Post(\"/c/x\")\n  Public Method PostX() as logical\nEndClass\n\nMethod PostX() Class C\nReturn .T.\n";
 
-# ---- the survey's tail ------------------------------------------------------------
+# ---- the survey's tail -------------------------------------------------------
 same "'( fA(), fB() )': a list in parentheses, each in turn -- in a code block too",
   "User Function f(a, b)\n  Local aB := \{\}\n  aAdd( aB, \{ 1, .T., \{ || Iif( b ,( g( a ) , h() ),) \} \} )\n  a := ( g(), h(), 3 )\nreturn aB\n";
 same "an empty element in an array, over continued lines with comments",
@@ -101,7 +101,8 @@ same "'SA2->( a, b, c )' as a statement", "User Function f()\n  SA2->( dbSelectA
 same "'End Class'; a method without parentheses", "Class C\n  Public Method GetEnum as variant\nEnd Class\n";
 same "the mail commands", "User Function f(cS, cA, cP)\n  Local lOk\n  CONNECT SMTP SERVER cS ACCOUNT cA PASSWORD cP RESULT lOk\n  SEND MAIL FROM cA TO cA SUBJECT \"x\" BODY \"y\" RESULT lOk\n  DISCONNECT SMTP SERVER\nreturn lOk\n";
 
-# ---- statics, as Protheus takes them (tried on an AppServer, 8 October 2026) ---------
+# ---- statics, as Protheus takes them -----------------------------------------
+# Tried on an AppServer, 8 October 2026.
 same "file statics between functions; a static after a statement in a function, which other functions see",
   "static cFirst := \"cFirst\"\n\nfunction u_stat_test_1(cParm)\n  default cParm := \"a\"\n  static cInside := \"cInside\"\n  default cParm := \"b\"\n  conout(\"u_stat_test_1 \" + cFirst + \" \" + cInside + \" \" + cParm)\n  return\n\nstatic cSecond := \"cSecond\"\n\nfunction u_stat_test_2()\n  conout(\"u_stat_test_2 \" + cSecond + \" \" + cInside)\n  return\n\nstatic cThird := \"cThird\"\n\nfunction u_stat_test_3()\n  u_stat_test_1()\n  u_stat_test_2()\n  conout(\"u_stat_test_3 \" + cThird)\n  return\n";
 same "a static at the top of a function, read by another; one after calls",
@@ -126,7 +127,7 @@ check "and the checks have nothing to say about it",
   !warnings("static cFirst := \"a\"\n\nfunction u_t1(cParm)\n  default cParm := \"a\"\n  static cInside := \"b\"\n  conout(cFirst + cInside + cParm)\n  return\n\nstatic cSecond := \"c\"\n\nfunction u_t2()\n  conout(cSecond + cInside)\n  return\n")
 };
 
-# ---- the commands of TOTVS' include files: taken whole, as written ------------
+# ---- the commands of TOTVS' include files: taken whole, as written -----------
 same 'one line, and continued with ;',
   "User Function f()\n  Local oDlg, cQry := \"select 1\"\n  DEFINE MSDIALOG oDlg TITLE \"x\" ;\n    FROM 0,0 TO 10,10 PIXEL\n  ACTIVATE MSDIALOG oDlg CENTERED\n  TCQUERY cQry NEW ALIAS \"QRY\"\n  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0\n  PREPARE ENVIRONMENT EMPRESA \"T1\" FILIAL \"01\"\n  Set Filter To\nreturn nil\n";
 same "'Count to', and the RF terminal's: 'VTRead', 'VTPause', 'VTClear Screen'",
@@ -144,7 +145,7 @@ check "a word not on the list is not taken for a command: a typo stays an error"
   !parse($head ~ "User Function f()\n  DEFINEX MSDIALOG oDlg TITLE \"x\"\nreturn nil\n")
 };
 
-# ---- web services (restful.ch, apwebsrv.ch) -----------------------------------
+# ---- web services (restful.ch, apwebsrv.ch) ----------------------------------
 same "a REST service: the declaration whole, each method a function",
   qq[WSRESTFUL Clientes DESCRIPTION "Clientes" FORMAT "application/json"\n]
   ~ qq[  WSDATA Page AS INTEGER OPTIONAL\n  WSMETHOD GET Lista;\n    DESCRIPTION "Lista" ;\n    WSSYNTAX "/api/v1/clientes"\n]
@@ -157,7 +158,7 @@ same "a SOAP service and its structure, whole",
   ~ qq[  WSDATA aItens AS ARRAY OF Item\n  WSMETHOD Incluir\nENDWSSERVICE\n\n]
   ~ qq[WSMETHOD Incluir WSRECEIVE aItens WSSEND lOk WSSERVICE Pedidos\n  ::lOk := Len(::aItens) > 0\nReturn .T.\n];
 
-# ---- classes and interfaces ---------------------------------------------------
+# ---- classes and interfaces --------------------------------------------------
 same "a superclass with its namespace; 'Implements' an interface; the interface",
   qq[Interface iConta\n  public method saldo() as numeric\nEndInterface\n\n]
   ~ qq[class cConta from totvs.framework.base.Objeto Implements iConta\n  public method new() as object\n  public method saldo() as numeric\nendclass\n\n]
@@ -170,7 +171,7 @@ same "'DATA x AS ARRAY INIT \{\}': a member's value when an object is made",
   qq[Class TJogo\n  DATA lPronto INIT .F.\n  DATA aTrack AS ARRAY INIT \{\} // posicoes\n  METHOD New() CONSTRUCTOR\nEndClass\n\n]
   ~ qq[Method New() Class TJogo\nReturn Self\n];
 
-# ---- expressions and assignments ----------------------------------------------
+# ---- expressions and assignments ---------------------------------------------
 same "an assignment as an 'If', 'ElseIf' or 'While' condition -- 'If a = b' still compares",
   "User Function f(a)\n  Local lOk := .F., b := 1\n  If lOk := a[1]\n    b := 2\n  ElseIf lOk := (a[2] == 1)\n    b := 3\n  EndIf\n"
   ~ "  If b = 2\n    b := 4\n  EndIf\n  While lOk := b > 9\n    b--\n  EndDo\nreturn b\n";
@@ -192,7 +193,7 @@ check "a block local with dimensions starts as Array() of them, each time",
   $out.contains("Local aX  // a block local") && $out.contains('aX := Array(n, 2)') && !$out.contains('aX[n]')
 };
 
-# ---- tried on an AppServer (outputs/xcr) ---------------------------------------
+# ---- tried on an AppServer (outputs/xcr) -------------------------------------
 same "a string the line ends: the AppServer closes it there (xcr_a, xcr_b)",
   "User Function f(cId)\n  Local cQ := \"SELECT X FROM SZ1010\n  cQ += \" WHERE ID = '\" + cId + \"'\n  cQ += ' AND D_E_L_E_T_ = \" \"\nreturn cQ\n";
 check "and the checks say so, once each, with the string",
@@ -256,7 +257,7 @@ check "a ':=' in an '&&' comment is no assignment: the call is a call",
 same "a local whose name starts with '__' (TMS.prw: 'local __APPUSER')",
   "User Function f()\n  Local __APPUSER := 1\n  __APPUSER++\nreturn __APPUSER\n";
 
-# ---- what the checks make of them ------------------------------------------------
+# ---- what the checks make of them --------------------------------------------
 check "'Default' reads what it sets: no 'never read'",
 {
   !warnings("User Function f(a)\n  Local n\n  Default n := 1\nreturn a\n").first(*.contains('never read'))

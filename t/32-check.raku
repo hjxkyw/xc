@@ -240,7 +240,7 @@ warns 'used before the line that opens it',
 passes 'an area held in a variable is not checked',
   "  local cAl := \"SA1\"\n  a := (cAl)->A1_COD";
 
-# ---- types: a declaration's value against the type it declares --------------
+# ---- types: a declaration's value against the type it declares ---------------
 # Not xtpl's: xc's own (XC::Types, t/07). Only what can be told -- a literal,
 # a comparison, a sum of numbers -- and an error, as the type was written.
 refuses "a value of another type",
@@ -292,7 +292,7 @@ warns "the whole left side of '|>' is fed in: a comparison there",
 passes "a comparison in brackets, or an alias's '->': not the left side's",
   "  DbSelectArea(\"SA1\")\n  a := foo(a > 1) |> alltrim\n  a := SA1->A1_NOME |> alltrim";
 
-# ---- a parameter's attributes, as a local's ---------------------------------
+# ---- a parameter's attributes, as a local's ----------------------------------
 check "refuses: a <const> parameter assigned",
 {
   result("user function f(nX <const>)\n  nX := 2\nreturn nX\n")<errors>
