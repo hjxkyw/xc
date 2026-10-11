@@ -544,7 +544,7 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 |---|---|
 | `If` ... `ElseIf` ... `Else` | `EndIf`, `End If`, `End` |
 | `While`, `Do While` | `EndDo`, `End Do`, `End` |
-| `For i := a To b [Step s]` | `Next`, `Next i`, `Next (i)` |
+| `For i := a To b [Step s]` | `Next`, `Next i`, `Next (i)`, `End For` |
 | `Do Case` ... `Case` ... `Otherwise` | `EndCase`, `End Case`, `End` |
 | `for x in ...`, `for n times` | `Next` -- nothing else |
 | `Begin Sequence` ... `Recover [Using e]` | `End Sequence`, `End` |
@@ -867,6 +867,11 @@ continuation lines, and goes out as it came:
 - `@ row, col ...`: an `@` followed by a space or a digit;
 - `BeginSql` ... `EndSql` and `BeginContent` ... `EndContent`, to their
   closing line.
+
+Outside them, `%exp:x%` in an expression is the value of `x`, as the
+AppServer takes it -- `"F2_EMISSAO >= '" + %exp:DtoS(dDe)% + "'"`. xc reads
+the expression in it as any other, and the `%`s go out as they came; inside
+it a `%` is its end, never a modulo.
 
 `Begin Transaction` ... `End Transaction` is a block whose body xc reads.
 A word not on the list is a line xc cannot parse -- so a typo in one of
