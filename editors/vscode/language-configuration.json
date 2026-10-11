@@ -1,0 +1,93 @@
+{
+  "comments": {
+    "lineComment": "//",
+    "blockComment": [
+      "/*",
+      "*/"
+    ]
+  },
+  "brackets": [
+    [
+      "{",
+      "}"
+    ],
+    [
+      "[",
+      "]"
+    ],
+    [
+      "(",
+      ")"
+    ]
+  ],
+  "autoClosingPairs": [
+    {
+      "open": "{",
+      "close": "}"
+    },
+    {
+      "open": "[",
+      "close": "]"
+    },
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "\"",
+      "close": "\"",
+      "notIn": [
+        "string",
+        "comment"
+      ]
+    },
+    {
+      "open": "'",
+      "close": "'",
+      "notIn": [
+        "string",
+        "comment"
+      ]
+    },
+    {
+      "open": "/*",
+      "close": " */",
+      "notIn": [
+        "string"
+      ]
+    }
+  ],
+  "surroundingPairs": [
+    [
+      "{",
+      "}"
+    ],
+    [
+      "[",
+      "]"
+    ],
+    [
+      "(",
+      ")"
+    ],
+    [
+      "\"",
+      "\""
+    ],
+    [
+      "'",
+      "'"
+    ]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(?i:((user|static|main)\\s+)?function\\b|procedure\\b|method\\b(?=.*\\bclass\\s+\\w+\\s*$)|wsmethod\\b|class\\b|interface\\b|if\\b(?!\\s*\\(.*\\)\\s*$)|else\\b|elseif\\b|for\\b|while\\b|do\\s+(while|case)\\b|case\\b|otherwise\\b|begin\\s+(sequence|transaction)\\b|recover\\b|try\\b|catch\\b|finally\\b|using\\s+alias\\b|with\\s+object\\b|raw\\s*$).*$",
+    "decreaseIndentPattern": "^\\s*(?i:end\\b|endif\\b|else\\b|elseif\\b|next\\b|enddo\\b|endcase\\b|case\\b|otherwise\\b|recover\\b|catch\\b|finally\\b|endtry\\b|endclass\\b|endinterface\\b).*$"
+  },
+  "folding": {
+    "markers": {
+      "start": "^\\s*//\\s*#?region\\b",
+      "end": "^\\s*//\\s*#?endregion\\b"
+    }
+  },
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
+}

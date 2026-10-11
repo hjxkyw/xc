@@ -1,0 +1,691 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "xtpl",
+  "scopeName": "source.xtpl",
+  "fileTypes": [
+    "xtpl"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#preprocessor"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#statements"
+    },
+    {
+      "include": "#expressions"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.xtpl",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.xtpl"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.xtpl"
+            }
+          }
+        },
+        {
+          "name": "comment.line.double-slash.xtpl",
+          "match": "(//).*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.comment.xtpl"
+            }
+          }
+        },
+        {
+          "name": "comment.line.double-ampersand.xtpl",
+          "match": "(&&).*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.comment.xtpl"
+            }
+          }
+        },
+        {
+          "name": "comment.line.asterisk.xtpl",
+          "match": "^\\s*(\\*).*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.comment.xtpl"
+            }
+          }
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.include.xtpl",
+          "match": "(?i)^\\s*(#\\s*include)\\s+(\\\"[^\\\"]*\\\"|<[^>]*>|'[^']*')",
+          "captures": {
+            "1": {
+              "name": "keyword.control.directive.include.xtpl"
+            },
+            "2": {
+              "name": "string.quoted.other.include.xtpl"
+            }
+          }
+        },
+        {
+          "name": "meta.preprocessor.xtpl",
+          "begin": "(?i)^\\s*(#\\s*(?:define|undef|ifdef|ifndef|if|elif|else|endif|command|xcommand|translate|xtranslate|pragma|error|warning)\\b)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.directive.xtpl"
+            }
+          },
+          "end": "(?<!;)$",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "name": "variable.other.marker.xtpl",
+              "match": "<[^<>\\s]+>"
+            },
+            {
+              "name": "keyword.operator.translate.xtpl",
+              "match": "=>"
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.xtpl",
+          "match": "(?i)^\\s*(?:((?:user|static|main|template)\\s+)?(function|procedure))\\s+([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.xtpl"
+            },
+            "2": {
+              "name": "storage.type.function.xtpl"
+            },
+            "3": {
+              "name": "entity.name.function.xtpl"
+            }
+          }
+        },
+        {
+          "name": "meta.method.xtpl",
+          "match": "(?i)^\\s*(method|wsmethod)\\s+([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.method.xtpl"
+            },
+            "2": {
+              "name": "entity.name.function.xtpl"
+            }
+          }
+        },
+        {
+          "name": "meta.class.xtpl",
+          "match": "(?i)^\\s*(class|interface|wsrestful|wsservice|wsstruct)\\s+([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.class.xtpl"
+            },
+            "2": {
+              "name": "entity.name.type.class.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)\\b(from|inherit|class)\\s+([A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.xtpl"
+            },
+            "2": {
+              "name": "entity.other.inherited-class.xtpl"
+            }
+          }
+        },
+        {
+          "name": "storage.type.class.end.xtpl",
+          "match": "(?i)\\b(endclass|endinterface|end\\s+class|end\\s+interface|end\\s+wsrestful|end\\s+wsservice|end\\s+wsstruct)\\b"
+        },
+        {
+          "match": "(?i)^\\s*(data|wsdata)\\s+([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.data.xtpl"
+            },
+            "2": {
+              "name": "variable.other.member.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)^\\s*(namespace|using\\s+namespace)\\s+([A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.namespace.xtpl"
+            },
+            "2": {
+              "name": "entity.name.namespace.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)\\b(external)(?:\\s+(alias))?\\b",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.external.xtpl"
+            },
+            "2": {
+              "name": "storage.modifier.external.xtpl"
+            }
+          }
+        },
+        {
+          "name": "storage.modifier.xtpl",
+          "match": "(?i)\\b(local|static|private|public|protected|constructor)\\b"
+        },
+        {
+          "match": "(?i)\\b(as)\\s+(numeric|character|logical|date|object|block|codeblock|array|json|variant|integer|decimal|double|variadic|[A-Za-z_]\\w*)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.other.as.xtpl"
+            },
+            "2": {
+              "name": "storage.type.xtpl"
+            }
+          }
+        },
+        {
+          "name": "storage.modifier.attribute.xtpl",
+          "match": "(?i)<\\s*(?:const|contained)\\s*>"
+        },
+        {
+          "match": "^\\s*(@)([A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.annotation.xtpl"
+            },
+            "2": {
+              "name": "storage.type.annotation.xtpl"
+            }
+          }
+        }
+      ]
+    },
+    "statements": {
+      "patterns": [
+        {
+          "match": "(?i)^\\s*(using)\\s+(alias)\\s+([A-Za-z_]\\w*)(?:\\s+(order)\\b)?",
+          "captures": {
+            "1": {
+              "name": "keyword.control.xtpl"
+            },
+            "2": {
+              "name": "keyword.control.xtpl"
+            },
+            "3": {
+              "name": "variable.other.alias.xtpl"
+            },
+            "4": {
+              "name": "keyword.control.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)^\\s*(with)\\s+(object)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.xtpl"
+            },
+            "2": {
+              "name": "keyword.control.xtpl"
+            }
+          }
+        },
+        {
+          "name": "keyword.control.xtpl",
+          "match": "(?i)\\b(end)\\s+(using|with|raw|sequence|transaction|case|do|if)\\b"
+        },
+        {
+          "match": "(?i)^\\s*(defer|raw)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)\\b(for)\\s+([A-Za-z_]\\w*)(?:\\s*,\\s*([A-Za-z_]\\w*))?\\s+(in)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.xtpl"
+            },
+            "2": {
+              "name": "variable.other.xtpl"
+            },
+            "3": {
+              "name": "variable.other.xtpl"
+            },
+            "4": {
+              "name": "keyword.control.xtpl"
+            }
+          }
+        },
+        {
+          "name": "keyword.control.xtpl",
+          "match": "(?i)\\b(if|elseif|else|endif|while|enddo|for|to|step|next|exit|loop|return|do|case|otherwise|endcase|begin|sequence|recover|using|break|try|catch|finally|endtry|transaction|end|times|default)\\b"
+        }
+      ]
+    },
+    "expressions": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#constants"
+        },
+        {
+          "include": "#codeblock"
+        },
+        {
+          "include": "#lambda"
+        },
+        {
+          "include": "#braces"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#statements"
+        },
+        {
+          "include": "#declarations"
+        },
+        {
+          "include": "#calls"
+        },
+        {
+          "include": "#access"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.xtpl",
+          "begin": "\"",
+          "end": "\"|$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.xtpl"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.xtpl"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#interpolation"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.xtpl",
+          "begin": "'",
+          "end": "'|$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.xtpl"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.xtpl"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#interpolation"
+            }
+          ]
+        }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.xtpl",
+      "begin": "\\$\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.xtpl"
+        }
+      },
+      "contentName": "source.xtpl.embedded",
+      "patterns": [
+        {
+          "include": "#expressions"
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.xtpl",
+      "match": "(?:(?<!\\w)(?<![^.]\\.)\\d+(?:'\\d+)*(?:\\.\\d+(?:'\\d+)*)?|(?<![\\w.])\\.\\d+(?:'\\d+)*)(?![\\w'])"
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.xtpl",
+          "match": "(?i)\\.(?:t|f|y|n)\\."
+        },
+        {
+          "name": "constant.language.nil.xtpl",
+          "match": "(?i)\\bnil\\b"
+        },
+        {
+          "name": "variable.language.self.xtpl",
+          "match": "(?i)\\b(?:self|super)\\b"
+        }
+      ]
+    },
+    "codeblock": {
+      "name": "meta.block.code.xtpl",
+      "begin": "(\\{)\\s*(\\|)([^|]*)(\\|)",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.block.begin.xtpl"
+        },
+        "2": {
+          "name": "punctuation.definition.parameters.begin.xtpl"
+        },
+        "3": {
+          "patterns": [
+            {
+              "name": "variable.parameter.xtpl",
+              "match": "[A-Za-z_]\\w*"
+            }
+          ]
+        },
+        "4": {
+          "name": "punctuation.definition.parameters.end.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.xtpl"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#expressions"
+        }
+      ]
+    },
+    "lambda": {
+      "name": "meta.lambda.parameters.xtpl",
+      "match": "(?<![\\w)\\]}])(\\[)\\s*([A-Za-z_]\\w*(?:\\s*,\\s*[A-Za-z_]\\w*){0,5})\\s*(\\])(?=\\s+[^\\s:=])",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.parameters.begin.xtpl"
+        },
+        "2": {
+          "patterns": [
+            {
+              "name": "variable.parameter.xtpl",
+              "match": "[A-Za-z_]\\w*"
+            }
+          ]
+        },
+        "3": {
+          "name": "punctuation.definition.parameters.end.xtpl"
+        }
+      }
+    },
+    "braces": {
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.begin.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.end.xtpl"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#expressions"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "(\\|>)\\s*([A-Za-z_]\\w*)\\b(?!\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.pipe.xtpl"
+            },
+            "2": {
+              "name": "support.function.xtpl"
+            }
+          }
+        },
+        {
+          "name": "keyword.operator.pipe.xtpl",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.word.xtpl",
+          "match": "(?i)\\b(?:in|has|fallback)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.xtpl",
+          "match": "(?i)\\.(?:and|or|not)\\."
+        },
+        {
+          "name": "keyword.operator.assignment.nil.xtpl",
+          "match": "\\?="
+        },
+        {
+          "name": "keyword.operator.elvis.xtpl",
+          "match": "\\?:"
+        },
+        {
+          "match": "(\\?\\.)\\s*([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.safe.xtpl"
+            },
+            "2": {
+              "name": "variable.other.member.xtpl"
+            }
+          }
+        },
+        {
+          "name": "punctuation.accessor.safe.xtpl",
+          "match": "\\?\\."
+        },
+        {
+          "name": "keyword.operator.range.xtpl",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.divisible.xtpl",
+          "match": "%%"
+        },
+        {
+          "name": "punctuation.separator.key-value.xtpl",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.assignment.xtpl",
+          "match": ":=|\\+=|-=|\\*=|/=|%=|\\^="
+        },
+        {
+          "name": "keyword.operator.increment.xtpl",
+          "match": "\\+\\+|--"
+        },
+        {
+          "name": "keyword.operator.comparison.xtpl",
+          "match": "==|!=|<>|<=|>=|<|>|#|=|\\$"
+        },
+        {
+          "name": "keyword.operator.arithmetic.xtpl",
+          "match": "\\*\\*|[-+*/%^]"
+        },
+        {
+          "name": "keyword.operator.logical.xtpl",
+          "match": "!"
+        },
+        {
+          "name": "keyword.operator.macro.xtpl",
+          "match": "&"
+        },
+        {
+          "name": "keyword.operator.reference.xtpl",
+          "match": "@"
+        },
+        {
+          "name": "punctuation.separator.continuation.xtpl",
+          "match": ";\\s*(?=$|//|&&)"
+        },
+        {
+          "name": "punctuation.separator.comma.xtpl",
+          "match": ","
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "match": "(?i)\\b(rows|lines)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "support.function.source.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?i)\\b(map|filter|reject|reduce|fold|take|drop|distinct|sort|sortby|reverse|flatten|enumerate|chunks|zip|asum|aprod|amax|amin|anyof|allof|noneof|keys|values|pairs|takewhile|dropwhile|chunkby|first|count|distinctadjacent|maxby|minby|scan|expand|tap|pairwise|queue|split|join|starts|ends|contains|apick|aroll|setmaxroll)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "support.function.xtpl"
+            }
+          }
+        },
+        {
+          "match": "\\b([A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.call.xtpl"
+            }
+          }
+        }
+      ]
+    },
+    "access": {
+      "patterns": [
+        {
+          "match": "(::)\\s*([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.self.xtpl"
+            },
+            "2": {
+              "name": "variable.other.member.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?<!:)(:)\\s*([A-Za-z_]\\w*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.xtpl"
+            },
+            "2": {
+              "name": "entity.name.function.member.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?<!:)(:)\\s*([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.xtpl"
+            },
+            "2": {
+              "name": "variable.other.member.xtpl"
+            }
+          }
+        },
+        {
+          "match": "\\b([A-Za-z_]\\w*)\\s*(->)\\s*([A-Za-z_]\\w*)?",
+          "captures": {
+            "1": {
+              "name": "variable.other.alias.xtpl"
+            },
+            "2": {
+              "name": "punctuation.accessor.alias.xtpl"
+            },
+            "3": {
+              "name": "variable.other.field.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(->)\\s*([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.alias.xtpl"
+            },
+            "2": {
+              "name": "variable.other.field.xtpl"
+            }
+          }
+        },
+        {
+          "name": "variable.other.xtpl",
+          "match": "[A-Za-z_]\\w*"
+        }
+      ]
+    }
+  }
+}
