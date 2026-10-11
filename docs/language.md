@@ -1158,10 +1158,10 @@ Return aCodes
 - A chain run for its effect fuses only when all of its stages do, and none
   is a terminal.
 - Any other stage stops the fusing: it and every stage after it apply, as
-  calls, to what the loop collected. xc warns about it, in xtpl's words --
-  unless from there on there are only functions it cannot see into, as in
-  `cName |> alltrim |> upper` or `aX |> filter(...) |> myHelper()`: nothing
-  there is known to build an array, and nothing could have fused.
+  calls, to what the loop collected. xc warns about it, in xtpl's words, when
+  a stage after it would have fused -- what the stop cost, as the `take(3)`
+  below. With none -- `cName |> alltrim |> upper`, `aX |> filter(...) |>
+  sort` -- nothing was lost, and it says nothing.
 
 ```xtpl
 User Function NoFuse(aOrders)
@@ -1319,7 +1319,6 @@ parses, in xtpl's words.
 | a name of xc's shape declared | `'fo_0_0' has the shape of a name xc generates, so it cannot be declared. ...` |
 | a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
-| more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3.` |
 | a single value at the head of a chain | `nX is a single value -- it was declared as 5, and a chain walks a collection. Write {nX} for a one-element array, or 'lo..hi' for a range.` |
 | a source anywhere but the head of a chain | `'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '\|>'.` |
 | a chain from a source in the wrong place | `a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', ...` |
@@ -1346,9 +1345,15 @@ with any name allowed, to say which name it was and why.
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
-| a stage that stops the fusing, with a verb from there on | `this chain does not fuse -- 'sortby' stops it, ...` |
+| a stage that stops the fusing, with one after it that would have fused | `this chain does not fuse -- 'sortby' stops it, ...` |
+| more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `fallback` around a chain that would fuse | `'fallback' turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
+
+A User Function of the file called without its `u_` is refused even when
+the call means a function of the framework by the same name -- `TCBrowse()`
+in a file that declares `User Function TCBrowse`: xc does not know the
+framework's names. Give the user function another name.
 
 A name nothing declares is a warning, not an error: plain TL++ uses the
 system's variables -- `cFilAnt`, `dDataBase`, `CRLF` -- without declaring
