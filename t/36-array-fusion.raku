@@ -157,6 +157,11 @@ check 'join: a separator in a variable bound once, before the loop; none, none',
 lowers 'reduce: the seed once, the step on the result so far and the element',
   "  n := a |> filter([x] x > 0) |> reduce([s, x] s + x * 2, 10)",
   "  fo_0_0 := 10\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 0\n      fo_0_0 := fo_0_0 + fv_0_0 * 2\n    EndIf\n  Next\n  n := fo_0_0";
+# A step whose parameters share a name: the name is the last of them -- the
+# element -- as the AppServer has it in a code block (xcw_a to xcw_f).
+lowers 'reduce, the parameters of one name: the element, as in a code block',
+  "  n := a |> filter([x] x > 0) |> reduce([s, s] s * 2, 0)",
+  "  fo_0_0 := 0\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 0\n      fo_0_0 := fv_0_0 * 2\n    EndIf\n  Next\n  n := fo_0_0";
 check 'fold: the first element is the start',
 {
   body-of("  n := a |> map([x] x:nV) |> fold([s, x] s * x)").contains(

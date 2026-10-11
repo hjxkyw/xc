@@ -312,7 +312,15 @@ my class Checker
       # sources have it. One variable (tried: xcv_a to xcv_h, run): a value
       # in the second assigns it, none leaves it as it was -- a parameter
       # keeps what it was given.
-      if $!scope.outer.defined
+      if $kind eq 'block-param'
+      {
+        # A code block's -- or a lambda's -- parameter twice: the AppServer
+        # takes it, and the name is the last of them (tried: xcw_a to xcw_f,
+        # run: '{|p1, p1| p1}' gives its second argument).
+        @!warned.push($line => "'$name' is a parameter of this block twice: the AppServer takes it, and '$name' is "
+                               ~ "the argument in the last of its places");
+      }
+      elsif $!scope.outer.defined
       {
         @!found.push($line => "'$name' is already declared in this block.");
       }
@@ -830,7 +838,7 @@ my class Checker
         # from outside is captured.
         my $outer = $!scope;
         $!scope = Scope.new(outer => $outer, closure => True);
-        self!declare($_, $!line, kind => 'param') for .params;
+        self!declare($_, $!line, kind => 'block-param') for .params;
         self!expr($_) for .body;
         $!scope = $outer;
       }

@@ -67,6 +67,14 @@ check "refuses: a block local declared twice in its block -- xtpl's rule for its
   result("user function f(n)\n  if n > 0\n    local nT := 5\n    local nT := 6\n    conout(nT)\n  endif\nreturn n\n")<errors>
     eqv ("4: 'nT' is already declared in this block.",)
 };
+# A code block's parameter twice: the AppServer takes it, and the name is the
+# last of them (xcw_a to xcw_f: '{|p1, p1| p1}' gives its second argument).
+my $twice = "is a parameter of this block twice: the AppServer takes it, and";
+warns "a code block's parameter twice", "  local b := \{|p1, p1| p1\}\n  a := eval(b, 1, 2)",
+  "2: 'p1' $twice 'p1' is the argument in the last of its places";
+warns "a lambda's, and three of them, one twice", "  a := a |> reduce([s, s] s * 2, 0)\n  a := eval(\{|x, y, x| x + y\}, 1, 2, 3)",
+  "2: 's' $twice 's' is the argument in the last of its places",
+  "3: 'x' $twice 'x' is the argument in the last of its places";
 passes 'a parameter, a local, a static, a public',
   "  local nL := a\n  static nS := 0\n  public nP := 1\n  nL := nS + nP\n  a := nL";
 passes 'a private, even in a function the file calls: it is dynamic',
