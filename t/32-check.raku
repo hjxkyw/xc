@@ -139,10 +139,10 @@ check "refuses: a user function called without its 'u_'",
   problems($two ~ "user function f()\n  local a := u(3)\nreturn a\n")
     eqv ("6: 'u' is a user function (line 3), so it is called as 'u_u' -- the compiler puts the prefix on the declaration.",)
 };
-check "refuses: a user function given too many arguments, through its 'u_'",
+check "warns: a user function given too many arguments, through its 'u_' -- AdvPL drops the rest",
 {
-  problems($two ~ "user function f()\n  local a := u_u(1, 2)\nreturn a\n")
-    eqv ("6: u() takes 1 parameter (line 3), but is given 2.",)
+  my %r = result($two ~ "user function f()\n  local a := u_u(1, 2)\nreturn a\n");
+  !%r<errors> && %r<warnings> eqv ("6: u() takes 1 parameter (line 3), but is given 2 -- the rest are dropped.",)
 };
 check 'passes: an omitted argument does not count',
 {
@@ -247,25 +247,27 @@ passes "Integer, Decimal and Double are numbers; 'in', 'has' and '%%' logical",
 # ---- fusion: xtpl's warnings -------------------------------------------------
 # t/31 has every one of them in xtpl's corpus; these are the edges.
 my $sort = "this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array";
-warns "a verb that needs the whole collection stops the fusing",
-  "  a := a |> filter([x] x > 1) |> sort", "2: $sort";
+warns "a verb that needs the whole collection stops the fusing, and a stage after it would have fused",
+  "  a := a |> filter([x] x > 1) |> sort |> take(3)", "2: $sort";
 warns "even with nothing fused before it",
   "  a := a |> sort |> take(3)", "2: $sort";
 warns "a function xtpl cannot see into, with a stage after it that would fuse",
   "  a := a |> myHelper(3) |> filter([x] x > 1)",
   "2: this chain does not fuse -- 'myHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
-# xtpl warned of these too. From the stop on there are only functions xc
-# cannot see into: nothing there is known to build an array, and nothing
-# could have fused -- a string chain, above all.
+warns "inside an expression too",
+  "  a := len(a |> filter([x] x > 1) |> sort |> take(2))", "2: $sort";
+# xtpl warned of these too. No stage after the stop would have fused: nothing
+# was lost, and there is nothing to do about it -- a string chain, above all.
 passes "a string chain: functions xc cannot see into, nothing that could fuse",
   "  a := a |> alltrim |> upper";
-passes "a function at the end, after what fused: nothing after it to fuse",
+passes "a function at the end, after what fused: nothing after it",
   "  a := a |> filter([x] x > 1) |> myHelper(3)";
-warns "a function, then a verb after it: xtpl's warning stands",
-  "  a := a |> alltrim |> split(\",\")",
-  "2: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
-warns "inside an expression too",
-  "  a := len(a |> filter([x] x > 1) |> sort)", "2: $sort";
+passes "a verb that needs the whole collection at the end",
+  "  a := a |> filter([x] x > 1) |> sort";
+passes "after the stop, only stages that do not fuse either",
+  "  a := a |> distinct |> reverse\n  a := a |> alltrim |> split(\",\")";
+passes "after the stop, a stage that fuses but is not written to: a block held in a variable",
+  "  local bOk := \{|x| x > 1\}\n  a := a |> sort |> filter(bOk)";
 passes "one stage: nothing to fuse", "  a := a |> sort";
 passes "every stage fused", "  a := a |> filter([x] x > 1) |> map([x] x * 2) |> count";
 passes "after a terminal: the rest carries on from its array, nothing stopped", "  a := a |> map([x] x) |> chunkby([x] x) |> sort";

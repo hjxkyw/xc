@@ -378,6 +378,15 @@ sub array-chain-fuses(%split, Bool $for-effect --> Bool) is export
   so $st.args.first(* ~~ Lambda) || (TAKES-BLOCK{$st.name.lc} && $st.args && $st.args[0] ~~ Name)
 }
 
+# Whether a stage would be part of a fused loop where it stands, if nothing
+# before it stopped the fusing: a stage or a terminal that fuses, written so it
+# can be. XC::Check asks it of the stages after the one that stopped a chain.
+sub stage-fuses($st, &declared --> Bool) is export
+{
+  my $n = $st.name.lc;
+  so (FUSED{$n} || TERMINAL{$n}) && stage-inlinable($st, &declared)
+}
+
 # Whether a stage can be written into a loop: its block written in the stage
 # (a function name is one too), with what it needs.
 sub stage-inlinable($st, &declared --> Bool)

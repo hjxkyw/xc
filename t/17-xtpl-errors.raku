@@ -32,17 +32,21 @@ my %syntax =
   ;
 
 my @analysis = <
-  arity_too_many call_form const_assign const_by_ref contained_captured
+  call_form const_assign const_by_ref contained_captured
   contained_deferred distinct_adjacent_no_key external_assign fallback_over_source
   out_of_scope redeclared scalar_chain scalar_declared source_stranded
 >;
 
-# A name nothing declares: xtpl refuses it, xc warns -- plain TL++ uses the
+# What xtpl refuses and xc only warns about, on xtpl's line. A name nothing
+# declares -- plain TL++ uses the
 # system's globals without declaring them. The warning is on xtpl's line, in
 # the words xtpl uses when it only warns (its legacy mode).
 my %warned =
   undeclared_read  => "'nOutro' is not declared",
   undeclared_write => "'nOutro' is not declared, so this creates a PRIVATE",
+  # More arguments than parameters: AdvPL drops the rest and the code runs,
+  # and real sources have it -- xc warns, in words of its own.
+  arity_too_many   => "calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.",
   ;
 
 # A bare 'function': TL++ accepts it with a 'u_' name (and maybe other

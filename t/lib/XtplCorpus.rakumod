@@ -50,14 +50,17 @@ my %extra =
   'saldo.xtpl'           => ("line 23: 'jResposta' is assigned but never read", "line 24: 'hCache' is assigned but never read"),
   ;
 
-# And where xtpl warns and xc does not, on purpose: a chain whose stages, from
-# the one that stops the fusing on, are all functions xc cannot see into --
-# nothing there is known to build an array, and nothing could have fused. Two
-# are string chains, which build no array at all.
+# And where xtpl warns and xc does not, on purpose: a chain with no stage after
+# the one that stops the fusing that would have fused -- nothing was lost,
+# and there is nothing to do about it. Two are string chains, which build no
+# array at all; the others end in a verb that needs the whole collection.
 my %dropped =
-  '14_strings.xtpl'  => ("line 17: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
-  '31_feed.xtpl'     => ("line 23: this chain does not fuse -- 'myOwnHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
-  'notificacao.xtpl' => ("line 98: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  '14_strings.xtpl'      => ("line 17: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  '25_continuation.xtpl' => ("line 19: this chain does not fuse -- 'distinct' stops it, because it needs the whole collection, so it and every stage after it builds an array",),
+  '31_feed.xtpl'         => ("line 20: this chain does not fuse -- 'distinct' stops it, because it needs the whole collection, so it and every stage after it builds an array",
+                             "line 23: this chain does not fuse -- 'myOwnHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array"),
+  '32_fusion.xtpl'       => ("line 35: this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array",),
+  'notificacao.xtpl'     => ("line 98: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
   ;
 
 # The output as Protheus takes it: in TL++ every Local and Static of a

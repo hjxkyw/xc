@@ -907,12 +907,14 @@ my class Checker
                      ~ "'u_{$c.name}' -- the compiler puts the prefix on the declaration.");
       }
     }
+    # More arguments than parameters: AdvPL drops the rest, and the code runs.
+    # A warning -- xtpl refused it, and real sources have it.
     my %f = %!funcs{$n} // %!funcs{$plain} // return;
     my $given = $c.args.grep({ $_ !~~ Omitted }).elems;
     if $given > %f<params>
     {
-      self!problem("{%f<name>}() takes {%f<params>} parameter{%f<params> == 1 ?? '' !! 's'} "
-                   ~ "(line {%f<line>}), but is given $given.");
+      self!warning("{%f<name>}() takes {%f<params>} parameter{%f<params> == 1 ?? '' !! 's'} "
+                   ~ "(line {%f<line>}), but is given $given -- the rest are dropped.");
     }
   }
 
@@ -1024,11 +1026,12 @@ my class Checker
     # the array it built, and is not what stopped anything.
     return if $fold || $taken >= @stages || @stages < 2;
     my $stop = @stages[$taken];
-    # From the stop on, functions xc cannot see into and nothing else --
-    # 'cName |> alltrim |> upper', 'aX |> filter(...) |> myHelper()': nothing
-    # there is known to build an array, and nothing could have fused. xtpl
-    # warned anyway, of a string chain too; xc says nothing.
-    return unless @stages[$taken .. *].first({ is-runtime-verb(.name) });
+    # Only when a stage after the stop would have fused -- what the stop
+    # cost. With none -- 'cName |> alltrim |> upper', 'aX |> filter(...) |>
+    # distinct', 'aX |> sort |> reverse' -- nothing could have fused, and there
+    # is nothing to do about it. xtpl warned anyway, of a string chain too.
+    my &declared = -> $n { self!find($n).defined };
+    return unless @stages[$taken ^.. *].first({ stage-fuses($_, &declared) });
     my $why = is-runtime-verb($stop.name) ?? 'it needs the whole collection' !! 'xtpl cannot see inside it';
     self!warning("this chain does not fuse -- '{$stop.name}' stops it, because $why, so it and every "
                  ~ "stage after it builds an array");
