@@ -999,7 +999,8 @@ A lambda's parameters may be reserved words. Code blocks, `{|x| ...}` and
 `{|| ...}`, are TL++'s and pass through; inside one, an assignment is a
 value. Neither a lambda nor a code block may hold a `|>` or a `fallback`:
 the body runs later, and lifting a stage out of it would run the stage
-first.
+first. A name given to two parameters, `{|p1, p1| p1}`, is the last of
+them -- the AppServer takes it so, and xc warns.
 
 ### fallback
 
@@ -1396,6 +1397,7 @@ with any name allowed, to say which name it was and why.
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
+| a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `fallback` around a chain that would fuse | `'fallback' turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
