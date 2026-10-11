@@ -3,14 +3,16 @@
 // xtpl's 54_selftest.xtpl runs what xtpl's fixtures only compile; this is its
 // companion for what xc brought: fusion over arrays and the stages it fuses,
 // aPick, aRoll and setMaxRoll, digit separators, hash writes inside
-// expressions, chains as a private's value and under a postfix modifier. Pure
+// expressions, chains as a private's value and under a postfix modifier, a
+// defer that runs only if it was reached, the code blocks xc writes around the
+// source's own code, Clipper's comments, a name that starts with '__'. Pure
 // computation, as 54 is: no table, no file, no screen, so a right or wrong
 // answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 55 ok, 0 failed
+//   xc_selftest: 68 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -37,6 +39,8 @@ user function xc_selftest()
   local nOld := 0
   local cTmp := ""
   local lTmp := .F.
+  local jKeys := {"a": "x", "v5": "cinco"}
+  local __v := 5            && a name that starts with '__', and a Clipper comment
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -223,6 +227,38 @@ user function xc_selftest()
   endif
   check("slots: a captured block local keeps its own value", eval(aTmp[1]) == 1 .and. eval(aTmp[2]) == 2, eval(aTmp[1]), @nOk, @nBad)
 
+  // ---- defer: only if it was reached ----------------------------------------
+* A defer in a block runs at the exits only when its line ran -- and in a
+* loop, once, with the values its variables have at the exit.
+  aTmp := {}
+  deferIn(.F., aTmp)
+  check("defer in an If not taken: does not run", len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  deferIn(.T., aTmp)
+  check("defer in an If taken: runs at the end", len(aTmp) == 1, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferEarly(.T., aTmp)
+  check("defer in an If taken: runs at a return after the If", nTmp == 2 .and. len(aTmp) == 1, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferEarly(.F., aTmp)
+  check("defer in an If not taken: not at a return after it either", nTmp == 2 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferLoop(5, aTmp)
+  check("defer in a loop: once, at a return in a later round, with the value then", nTmp == -1 .and. len(aTmp) == 1 .and. aTmp[1] == 3, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferLoop(0, aTmp)
+  check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+
+  // ---- the code blocks xc writes around the source's own code ----------------
+  // 'f() in lo..hi' and 'o()?.M(x)' become a block that takes the value once;
+  // a '__v' of the source's in the bound or the argument is the source's.
+  lTmp := same(7) in __v..10
+  check("'f() in lo..hi', a '__v' of the source's in a bound: in", lTmp, lTmp, @nOk, @nBad)
+  lTmp := same(3) in __v..10
+  check("'f() in lo..hi', a '__v' of the source's in a bound: out", !lTmp, lTmp, @nOk, @nBad)
+  cTmp := same(jKeys)?.GetJsonText("v" + cValToChar(__v))
+  check("'o()?.M(x)', a '__v' of the source's in the argument", cTmp == "cinco", cTmp, @nOk, @nBad)
+
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
 
 return nBad
@@ -240,6 +276,33 @@ return nil
 
 static function same(xValue)
 return xValue
+
+// A defer in an If: at the function's end, only if the If was taken.
+static function deferIn(lTake, aLog)
+  if lTake
+    defer aadd(aLog, "ran")
+  endif
+return nil
+
+// The same, at a return after the If: its condition is read first, then the
+// defer runs, then the return.
+static function deferEarly(lTake, aLog)
+  local nRet := 2
+  if lTake
+    defer aadd(aLog, "ran")
+  endif
+  return nRet if len(aLog) == 0
+return 0
+
+// A defer in a loop, and a return above it in the loop: from the second round
+// on, the defer has run before the return.
+static function deferLoop(nRounds, aLog)
+  local nI := 0
+  for nI := 1 to nRounds
+    return -1 if nI == 3
+    defer aadd(aLog, nI)
+  next
+return 0
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)
