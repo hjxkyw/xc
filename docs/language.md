@@ -444,8 +444,9 @@ The bodies of `ElseIf`, `Else`, `Case`, `Otherwise`, `Begin Sequence`,
 block they are part of and open no prologue: no declarations there. Two
 block locals of the same name in one block are an error. At the function's
 own level a name declared again -- a parameter as a `Local`, a `Local`
-twice -- is one variable: the AppServer takes it with its warning W0011, and
-xc warns too.
+twice -- is one variable: a value in the second declaration assigns it, and
+none leaves it as it was, so a parameter keeps what it was given. The
+AppServer takes it with its warning W0011, and xc warns too.
 
 ### Declaring in a block's header
 
@@ -1343,7 +1344,7 @@ with any name allowed, to say which name it was and why.
 | a name nothing declares | `'cFilAnt' is not declared` |
 | a name nothing declares, assigned | `'nCount' is not declared, so this creates a PRIVATE` |
 | a variable never read, or never used | `'cX' is assigned but never read`, `'cY' is declared but never used` |
-| a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the AppServer takes it, with its warning W0011, "Variable OMODEL redefined"` |
+| a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
 | a field of an area nothing in the function opened | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
 | a value on one path and none on another | `the function can reach its end without a return, but returns a value on line 3` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |

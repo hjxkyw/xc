@@ -53,13 +53,13 @@ check "warns: a parameter declared again as a Local, with a value or not -- one 
 {
   my %r = result("static function PosValida(oModel)\n  local oModel := FWModelActive()\n  local nOp := oModel:GetOperation()\nreturn nOp\n");
   my %c = result("user function f(cDoc)\n  local cDoc\nreturn cDoc\n");
-  !%r<errors> && %r<warnings> eqv ("2: 'oModel' is declared again (first on line 1): the AppServer takes it, with its warning W0011, \"Variable OMODEL redefined\"",)
-    && !%c<errors> && %c<warnings> eqv ("2: 'cDoc' is declared again (first on line 1): the AppServer takes it, with its warning W0011, \"Variable CDOC redefined\"",)
+  !%r<errors> && %r<warnings> eqv ("2: 'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, \"Variable OMODEL redefined\")",)
+    && !%c<errors> && %c<warnings> eqv ("2: 'cDoc' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, \"Variable CDOC redefined\")",)
 };
 check "warns: a Local declared twice in the function -- the second's value is a write",
 {
   my %r = result("user function f()\n  local aD := \{\}\n  local nY := 0\n  local aD := \{1\}\nreturn nY\n");
-  !%r<errors> && %r<warnings> eqv ("4: 'aD' is declared again (first on line 2): the AppServer takes it, with its warning W0011, \"Variable AD redefined\"",
+  !%r<errors> && %r<warnings> eqv ("4: 'aD' is declared again (first on line 2): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, \"Variable AD redefined\")",
                                    "2: 'aD' is assigned but never read").sort.List
 };
 check "refuses: a block local declared twice in its block -- xtpl's rule for its own construct",
