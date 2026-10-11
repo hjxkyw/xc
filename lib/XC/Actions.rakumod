@@ -864,6 +864,7 @@ method primary($/)
       !! $<selfacc>      ?? $<selfacc>.made
       !! $<subjacc>      ?? $<subjacc>.made
       !! $<literal>      ?? $<literal>.made
+      !! $<sqlexp>       ?? self!spanned(ExprList.new(items => ($<sqlexp><expr>.made,)), $<sqlexp>)
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
       !! $<name>         ?? Name.new(name => self!text($<name>))

@@ -225,6 +225,38 @@ same "'conout', 'eval', 'aadd', 'substr', 'userexception' are names too (outputs
   ~ "Return conout + eval + aadd + substr + userexception\n";
 check "'len' is not (xcr_h: C2003)", { !parse($head ~ "User Function f()\n  Local len := 1\nReturn len\n") };
 
+# ---- tried on an AppServer (outputs/xcx) -------------------------------------
+# AppServer 24.3.1.9, 11 October: it takes 'End For' and '%exp:x%' outside
+# BeginSql; it refuses '? x', '?? x', 'a[1]:[2]' and 'fwnulldefault' -- with
+# totvs.ch in a .prw, and with fw-tlpp-core.th in a .tlpp -- all C2003.
+same "'End For' closes a 'For' (xcx_g)",
+  "User Function f()\n  Local nI := 0, nSoma := 0\n  For nI := 1 To 3\n    nSoma += nI\n  End For\nreturn nSoma\n";
+check "but not xtpl's 'for ... in': only 'next' closes that",
+{
+  !parse($head ~ "User Function f(a)\n  Local n := 0\n  for x in a\n    n += x\n  end for\nreturn n\n")
+};
+same "'%exp:x%' outside BeginSql: the value of x (xcx_h, danfeii.prw)",
+  "User Function f(dDe)\n  Local cWhere := \"%F2_EMISSAO >= '\" + %exp:DtoS(dDe)% + \"'%\"\nreturn cWhere\n";
+check "the name in it is read, and a '%' after it is a modulo again",
+{
+  my $src = $head ~ "User Function f(n)\n  Local nX := 7\n  n := %exp:nX% % 2\nreturn n\n";
+  my $m = parse($src);
+  $m && emit($m.made, $src) eq $src && !warnings("User Function f(n)\n  Local nX := 7\n  n := %exp:nX% % 2\nreturn n\n")
+};
+check "xtpl in it is xtpl: an interpolation goes out as TL++",
+{
+  my $src = $head ~ "User Function f(n)\n  Local c := \"x\" + %exp:\"n=\$\{n\}\"% + \"y\"\nreturn c\n";
+  my $out = emit(parse($src).made, $src);
+  $out.contains('%exp:') && !$out.contains('${')
+};
+check "'? x', '?? x', 'a[1]:[2]', 'fwnulldefault' are not (xcx_a to xcx_f)",
+{
+  !parse($head ~ "User Function f(c)\n  ? c\nreturn c\n")
+    && !parse($head ~ "User Function f(c)\n  ?? c\nreturn c\n")
+    && !parse($head ~ "User Function f(a)\nreturn a[1]:[2]\n")
+    && !parse($head ~ "User Function f(a)\n  fwnulldefault a := \{\}\nreturn a\n")
+};
+
 # ---- Clipper's comments, and names that start with '__' ----------------------
 # Tried on AppServer 24.3.1.9 (xcu_a to xcu_j): all of them compile, in a .prw
 # and in a .tlpp.

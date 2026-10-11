@@ -175,6 +175,7 @@ my $user;                    # the uses of the source's own commands
 my $user-on = False;         # whether there are any
 my @ends;                    # the line ends the parse took, for $*FURTHEST
 my $parting = False;         # a part of a source is parsed (in-parts)
+my $in-exp = 0;              # inside '%exp:...%', whose '%' is no modulo
 
 # ---- an ASCII copy, for speed ------------------------------------------------
 #
@@ -417,6 +418,7 @@ method parse($target, |c)
   my $outer-user  = $user;
   my $outer-on    = $user-on;
   my @outer-ends  = @ends;
+  my $outer-exp   = $in-exp;
   my $m;
   {
     LEAVE
@@ -424,7 +426,9 @@ method parse($target, |c)
       $user    = $outer-user;
       $user-on = $outer-on;
       @ends    = @outer-ends;
+      $in-exp  = $outer-exp;
     }
+    $in-exp = 0;
     $user = in-units($target, user-spans($target, :$dir, :@dirs));
     $user-on = so $user<cmd> || $user<trans>;
     @ends = ();
@@ -1168,14 +1172,16 @@ rule whilest
 }
 
 # 'for local i := ...' makes 'i' a new local of the loop. Without 'local', 'i'
-# is a variable declared before.
+# is a variable declared before. 'End For' closes it too (tried: xcx_g) --
+# 'EndFor' and 'End' alone were not tried.
 rule forst
 {
   :i 'for' [ :i <varlocal=kwlocal> ]? <var=name>
      <!{ refused(~$<var>) }> [ ':=' || '=' ] <from=expr>
      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
      <block>
-  :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
+  [ :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
+  || :i 'end' 'for' >> ]
 }
 
 # ---- xtpl: 'for x in ...' and 'for n times' ----------------------------------
@@ -1436,7 +1442,8 @@ rule mulexpr   { <powexpr> [ <mulop> <powexpr> ]* }
 rule powexpr   { <unary> [ <powop> <unary> ]* }
 token powop    { '**' || '^' }
 # '%%' -- divisible by -- before AdvPL's '%', which passes through untouched.
-token mulop    { '%%' || '*' || '/' || '%' }
+# Inside '%exp:...%' a '%' is its end.
+token mulop    { '%%' || '*' || '/' || [ '%' <?{ !$in-exp }> ] }
 # '++n' and '--n' in an expression: on a variable, an element, a field --
 # never a literal ('--5' is not one).
 rule unary     { [ <incop> <!before <.ws> <literal>> <postfix> ] || [ <sign>? <postfix> ] }
@@ -1502,6 +1509,7 @@ rule primary
   || <lambda>
   || <macro>
   || <literal>
+  || <sqlexp>
   || <codeblock>
   || <jsonliteral>
   || <hashliteral>
@@ -1511,6 +1519,18 @@ rule primary
   || <aliasfield>
   || <name>
   || [ '(' ~ ')' [ [ <passign> || <guardexpr> ] [ ',' <listitem> ]* ] ]
+}
+
+# '%exp:x%', the value of x, outside BeginSql too (tried: xcx_h -- houstonsantos'
+# danfeii.prw builds a query's text with it): the expression is read as any
+# other, and the '%'s go out as they came. Inside it a '%' is its end, never a
+# modulo: '%exp:DtoS(d)% + "'"'.
+token sqlexp
+{
+  '%' :i 'exp' ':' <.ws>
+  { $in-exp++ }
+  [ <expr> { $in-exp-- } || { $in-exp-- } <?{ False }> ]
+  <.ws> '%'
 }
 
 # '( fA(), fB() )': more than one, each in turn -- the first is read once, as
