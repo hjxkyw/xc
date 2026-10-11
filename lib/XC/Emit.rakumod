@@ -32,6 +32,22 @@ class X::XC::NotLowered is Exception is export
   }
 }
 
+# A '*' that starts a comment line, Clipper's: the first thing on its line,
+# and the line before it not carried on to it by a ';' -- there it multiplies.
+# The text's own start is no line start: a piece of source starts with code.
+sub star-comment(Str $text, Int $i --> Bool)
+{
+  return False unless $i > 0 && $text.substr($i, 1) eq '*';
+  # "\r\n" is one character: a line break is any of the three.
+  my &break-before = -> $p { ("\n", "\r\n", "\r").map({ $text.rindex($_, $p) // -1 }).max };
+  my $start = break-before($i - 1);
+  return False if $start < 0 || $text.substr($start + 1, $i - $start - 1) ~~ / \S /;
+  # The line before, its comment aside: does it end in a ';'?
+  my $from = $start > 0 ?? break-before($start - 1) + 1 !! 0;
+  my $line = $text.substr($from, $start - $from).subst(/ [ '//' || '&&' ] \N* $ /, '');
+  !($line ~~ / ';' \h* $ /)
+}
+
 # Splits a piece of source into its code and its comments, outside strings.
 # The comments come back joined on one line, a block comment as its text: a
 # rewritten line has only its end to put them on.
@@ -67,7 +83,7 @@ sub split-comment(Str $text --> List) is export
       $code ~= $c;
       $i++;
     }
-    elsif $text.substr($i, 2) eq '//'
+    elsif $text.substr($i, 2) eq '//' | '&&' || star-comment($text, $i)
     {
       my $end = $text.index("\n", $i) // $n;
       @comments.push($text.substr($i + 2, $end - $i - 2).trim);
@@ -109,7 +125,7 @@ sub code-end(Str $text --> Int) is export
       $quote = $c;
       $end = ++$i;
     }
-    elsif $text.substr($i, 2) eq '//'
+    elsif $text.substr($i, 2) eq '//' | '&&' || star-comment($text, $i)
     {
       $i = $text.index("\n", $i) // $n;
     }
@@ -121,7 +137,7 @@ sub code-end(Str $text --> Int) is export
     {
       $i++;
     }
-    elsif $c eq ';' && $text.substr($i + 1) ~~ / ^ \h* [ '//' \N* || '/*' .*? '*/' \h* ]? \v /
+    elsif $c eq ';' && $text.substr($i + 1) ~~ / ^ \h* [ [ '//' || '&&' ] \N* || '/*' .*? '*/' \h* ]? \v /
     {
       # A ';' continuation: the rest of its line is not code.
       $i++;
@@ -2131,7 +2147,7 @@ class Emitter
     while $i < $n
     {
       my $c = $text.substr($i, 1);
-      if $text.substr($i, 2) eq '//'
+      if $text.substr($i, 2) eq '//' | '&&'
       {
         $out ~= $text.substr($i);
         last;
@@ -2350,14 +2366,17 @@ class Emitter
         {
           when 'in'
           {
-            # 'x in lo..hi' is a range test, with x read once.
+            # 'x in lo..hi' is a range test, with x read once. The block's
+            # parameter has a generated name's shape: the bounds are the
+            # source's own code, and a variable of the source's called '__v'
+            # -- TL++ takes the name -- would be hidden by one of that name.
             if $b.right ~~ Interval
             {
               my $lo = self!expr($b.right.lo);
               my $hi = self!expr($b.right.hi);
               $b.left ~~ Name || $b.left ~~ Literal
                 ?? "($l >= $lo .And. $l <= $hi)"
-                !! "Eval(\{|__v| __v >= $lo .And. __v <= $hi\}, $l)"
+                !! "Eval(\{|fbv_0_0| fbv_0_0 >= $lo .And. fbv_0_0 <= $hi\}, $l)"
             }
             else
             {
@@ -2459,13 +2478,15 @@ class Emitter
   }
 
   # 'o?.x' / 'o?.M(...)': Nil when the base is Nil. A name is read twice, as
-  # xtpl does; anything else is evaluated once, as the argument of a block.
+  # xtpl does; anything else is evaluated once, as the argument of a block --
+  # whose parameter has a generated name's shape, since a call's arguments in
+  # the tail are the source's code.
   method !safe(Expr $base, Str $tail --> Str)
   {
     my $b = self!expr($base);
     $base ~~ Name
       ?? "If($b != Nil, $b$tail, Nil)"
-      !! "Eval(\{|__v| If(__v != Nil, __v$tail, Nil)\}, $b)"
+      !! "Eval(\{|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0$tail, Nil)\}, $b)"
   }
 
   # 'h{k} := v' -> 'h:Set(k, v)'. One that also reads -- '+=', '?=' -- reads

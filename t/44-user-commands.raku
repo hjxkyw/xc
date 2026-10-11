@@ -117,6 +117,10 @@ same "a translation inside another's part, and one after 'Return'",
   ~ qq[#xtranslate Eval <blockName>([<prm,...>]) => Eval(<blockName> [, <prm>])\n\n]
   ~ qq[User Function f(bIt, xV)\n  Local xC := If bIt == Nil ? xV : Eval bIt( xV )\n  Return If xC == Nil ;\n    ? 0 ;\n    : xC\n];
 
+same "a command's words in a '*' or '&&' comment are no use of it",
+  qq[#include "totvs.ch"\n#include "tlpp-core.th"\n#command REPORTE <x> => u_Rep(<x>)\n\n]
+  ~ qq[User Function f(a)\n* REPORTE a\n  REPORTE a  && REPORTE b\nReturn nil\n];
+
 check "without a directive, a line of the same words is not a command",
 {
   !parse(qq[#include "totvs.ch"\n\nUser Function f(a)\n  REPORTE a\nReturn nil\n])

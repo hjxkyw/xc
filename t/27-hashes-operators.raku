@@ -114,13 +114,19 @@ lowers "'?.' on a name: the name read twice, as xtpl does",
   '  x := If(o != Nil, o:cNome, Nil)';
 lowers "'?.' on anything else: evaluated once",
   '  x := getObj()?.cNome',
-  '  x := Eval({|__v| If(__v != Nil, __v:cNome, Nil)}, getObj())';
+  '  x := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cNome, Nil)}, getObj())';
 lowers "'?.' with a call (xtpl emits 'If(...)(1)')",
   '  x := o?.Metodo(1)',
   '  x := If(o != Nil, o:Metodo(1), Nil)';
+# The block's parameter has a generated name's shape: a call's arguments in
+# the tail are the source's code, and a '__v' of the source's -- TL++ takes
+# the name -- would be hidden by a parameter of that name.
+lowers "'?.' on a call, with a '__v' of the source's in the tail: not hidden by the block's parameter",
+  '  x := getObj()?.Metodo(__v)',
+  '  x := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:Metodo(__v), Nil)}, getObj())';
 lowers "a chain of '?.'",
   '  x := o?.oA?.cNome',
-  '  x := Eval({|__v| If(__v != Nil, __v:cNome, Nil)}, If(o != Nil, o:oA, Nil))';
+  '  x := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cNome, Nil)}, If(o != Nil, o:oA, Nil))';
 
 # ---- fallback and interpolation ----------------------------------------------
 lowers "'fallback' is the runtime's safe_pipe",

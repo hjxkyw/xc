@@ -103,7 +103,10 @@ lowers "'x in lo..hi': a range test",
   "  n := (x >= 1 .And. x <= 100)";
 lowers "'f() in lo..hi': the left side read once",
   "  n := calc(x) in 1..n",
-  "  n := Eval(\{|__v| __v >= 1 .And. __v <= n\}, calc(x))";
+  "  n := Eval(\{|fbv_0_0| fbv_0_0 >= 1 .And. fbv_0_0 <= n\}, calc(x))";
+lowers "the block's parameter has a generated name's shape: a '__v' of the source's in a bound is not hidden",
+  "  n := calc(x) in __v..n",
+  "  n := Eval(\{|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= n\}, calc(x))";
 
 check 'a range anywhere else does not parse',
 {

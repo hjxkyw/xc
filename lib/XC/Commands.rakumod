@@ -375,16 +375,17 @@ sub without-comments(Str $text --> Str)
 {
   my @out;
   my $n = $text.chars;
-  my @marks = '"', "'", '//', '/*';
+  # '//' and Clipper's '&&' to the end of the line; '/* ... */'.
+  my @marks = '"', "'", '//', '/*', '&&';
   my @next = @marks.map({ $text.index($_, 0) // $n });
   my $pos = 0;
   while $pos < $n
   {
-    for ^4 -> $k { @next[$k] = $text.index(@marks[$k], $pos) // $n if @next[$k] < $pos }
+    for @marks.keys -> $k { @next[$k] = $text.index(@marks[$k], $pos) // $n if @next[$k] < $pos }
     my $at = @next.min;
     @out.push($text.substr($pos, $at - $pos));
     last if $at >= $n;
-    my $k = (^4).first({ @next[$_] == $at });
+    my $k = @marks.keys.first({ @next[$_] == $at });
     my $end;
     if $k < 2
     {
@@ -394,7 +395,7 @@ sub without-comments(Str $text --> Str)
       $end = $close < $eol ?? $close + 1 !! $eol;
       @out.push($text.substr($at, $end - $at));
     }
-    elsif $k == 2
+    elsif $k == 2 || $k == 4
     {
       $end = line-end($text, $at);
       @out.push(' ' x ($end - $at));
@@ -406,6 +407,35 @@ sub without-comments(Str $text --> Str)
       @out.push($text.substr($at, $end - $at).subst(/ \N /, ' ', :g));
     }
     $pos = $end;
+  }
+  star-lines-blank(@out.join)
+}
+
+# Clipper's comment lines, '*' first on the line, blanked too -- not a line a
+# ';' carries the one before on to, where a '*' multiplies.
+sub star-lines-blank(Str $text --> Str)
+{
+  my @out;
+  my $pos = 0;
+  my $n = $text.chars;
+  my $continued = False;
+  while $pos < $n
+  {
+    my $end = line-end($text, $pos);
+    my $line = $text.substr($pos, $end - $pos);
+    if !$continued && $line ~~ / ^ \h* '*' /
+    {
+      @out.push(' ' x $line.chars);
+    }
+    else
+    {
+      @out.push($line);
+      $continued = so $line ~~ / ';' \h* $ /;
+    }
+    my $brk = $text.substr($end, 1);         # "\r\n" is one character
+    @out.push($brk);
+    $pos = $end + $brk.chars;
+    last if $brk eq '';
   }
   @out.join
 }

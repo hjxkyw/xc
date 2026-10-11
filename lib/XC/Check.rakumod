@@ -1285,7 +1285,8 @@ sub check-program(Program $p --> List) is export
 }
 
 # The names a program declares that xc keeps for itself: Pairs, line =>
-# message, in xtpl's words. A reserved word is refused wherever a name is
+# message, in xtpl's words (the generated shape's in xc's: xtpl's had a leading
+# '__' too, which xc lets through). A reserved word is refused wherever a name is
 # declared -- a local, private, public or static, the file's statics, a
 # parameter, a loop's variable, a block header's local; not a lambda's or a
 # code block's parameter, which xtpl takes. The shape of a generated name only
@@ -1299,8 +1300,8 @@ my sub reserved-name(@found, Str $name, Int $line)
 }
 my sub generated-name(@found, Str $name, Int $line)
 {
-  @found.push($line => "'$name' has the shape of a name xtpl generates, so it cannot be declared. "
-                       ~ "Reserved: a leading '__', and '<kind>_<depth>_<index>' -- fo_0_0, fv_1_2, s_1_0, b_0_x.")
+  @found.push($line => "'$name' has the shape of a name xc generates, so it cannot be declared. "
+                       ~ "Reserved: '<kind>_<depth>_<index>' -- fo_0_0, fv_1_2, s_1_0, b_0_x.")
     if XC::Grammar::is-generated($name);
 }
 

@@ -106,9 +106,9 @@ sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
       $i++;
       next;
     }
-    if $c == 47 && $next == 47
+    if ($c == 47 && $next == 47) || ($c == 38 && $next == 38)
     {
-      $i++ while $i < $n && $u[$i] != 10;    # '//' to the end of the line
+      $i++ while $i < $n && $u[$i] != 10;    # '//' or '&&' to the end of the line
       next;
     }
     if $c == 47 && $next == 42
@@ -240,15 +240,16 @@ our sub is-reserved(Str $n --> Bool) { RESERVED{$n.lc}:exists }
 # only say that the line does not parse.
 our sub refused(Str $n --> Bool) { !($*ANY-NAME // False) && is-reserved($n) }
 
-# The shape of a name xtpl generates: a leading '__', a short temporary
-# '<kind>_<depth>_<index>', or a slot 's_'/'b_'. Only a function-level
+# The shape of a name xc generates: a short temporary '<kind>_<depth>_<index>',
+# or a slot 's_'/'b_'. Not a leading '__', which xtpl's names had and xc's
+# have not: TL++ takes 'Local __APPUSER' (tried: xcu_g, xcu_h), and real
+# sources declare it. Only a function-level
 # 'local'/'private' refuses it -- the only declaration emitted with the name
 # as written. xc's own output declares such names, so reading it back
 # (checking that it compiles to itself) sets '$*GENERATED-OK'.
 our sub is-generated(Str $n --> Bool)
 {
-  so ($n.starts-with('__')
-      || $n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | ch | df | dr | fs | hd | hi | i | j | ky | ls
+  so ($n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | bv | ch | df | dr | fs | hd | hi | i | j | ky | ls
                          | lm | lo | n | ok | ol | op | o | pv | pb | rd | rc | sn | sp | s | v ]
                        | et | gt | ht | pt ] '_' \d+ '_' \d+ $ /
       || $n ~~ m:i/ ^ <[sb]> '_' \d+ '_' \w+ $ /)
@@ -1416,14 +1417,20 @@ token name     { <[A..Za..z_]> \w* }
 # not continue anything -- the comment token has already taken it.
 token ws { <!ww> [ \h || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 token linecont    { ';' \h* [ <.linecomment> || <.blockcomment> ]? \h* \v }
-token linecomment { '//' \N* }
+# '&&' too, Clipper's, to the end of the line (tried: xcu_a, xcu_b).
+token linecomment { [ '//' || '&&' ] \N* }
+# A line that starts with '*' -- at column 1 or indented, in a function or
+# above the includes -- is a comment, Clipper's (tried: xcu_c to xcu_j). Only
+# between statements: after a ';' the next line goes on with the statement,
+# where a '*' multiplies, and <.ws> takes that line, not <.gap>.
+token starcomment { ^^ \h* '*' \N* }
 
 # The end of a line (or of the file), and whatever comes before the next
 # statement: blank lines, comment-only lines, and the indentation.
 # A ';' with more on its line ends a statement too: 'conout(1); n++'. At the
 # end of a line it is a continuation, and the whitespace rule takes it.
 token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ || ';' <!before \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ]> ] }
-token gap { [ \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
+token gap { [ <.starcomment> || \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
 # Every line end records how far the parse got, for the driver's error
 # message: the first line it could not continue past. 'try', because the
 # grammar is also used without a driver, where '$*FURTHEST' does not exist.

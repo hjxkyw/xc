@@ -134,18 +134,14 @@ check "a local after a statement: said so -- a malformed one is still a line tha
 # A name xc keeps for itself: the grammar refuses it, and bin/xc, reading the
 # file again with any name allowed, says which one and why -- in xtpl's words,
 # on xtpl's line, for xtpl's own two cases.
-check "a reserved word or a generated name declared: xtpl's message, on xtpl's line",
+check "a reserved word declared: xtpl's message; a generated name: xtpl's, but '__', which xc lets through",
 {
-  my $ok = True;
-  for <reserved_word generated_name> -> $case
-  {
-    my $err = "xtpl/errors/$case.err".IO.slurp.trim;
-    my ($line, $message) = $err ~~ / ^ 'SyntaxError: ' [ 'Line ' (\d+) ': ' ]? (.+) $ / ?? ($0, ~$1) !! (Nil, $err);
-    my %r = xc('--check', "xtpl/errors/$case.xtpl");
-    my $want = $line.defined ?? "$case.xtpl:$line: $message" !! "$case.xtpl:";
-    $ok &&= %r<code> == 1 && %r<err>.contains($want) && %r<err>.contains($message);
-  }
-  $ok
+  my $err = "xtpl/errors/reserved_word.err".IO.slurp.trim.subst(/ ^ 'SyntaxError: ' /, '');
+  my %r = xc('--check', "xtpl/errors/reserved_word.xtpl");
+  my %g = xc('--check', "xtpl/errors/generated_name.xtpl");
+  %r<code> == 1 && %r<err>.contains("reserved_word.xtpl:2: $err")
+    && %g<code> == 1 && %g<err>.contains("generated_name.xtpl:12: 'fo_0_0' has the shape of a name xc generates, "
+                                         ~ "so it cannot be declared. Reserved: '<kind>_<depth>_<index>' -- fo_0_0, fv_1_2, s_1_0, b_0_x.")
 };
 
 check "a reserved word as a parameter, a loop's variable, a block local; a generated name in a block is a block local",

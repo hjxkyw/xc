@@ -146,7 +146,9 @@ my @xtpl =
   # generated-name shapes
   False, 'generated as a local: FO_0_0',        "  local FO_0_0 := 1",
   False, 'generated as a private: fo_0_0',      "  private fo_0_0 := 1",
-  False, 'generated as a local: __x',           "  local __x := 1",
+  # xtpl's names started with '__' and xc's do not: TL++ takes 'Local
+  # __APPUSER' (tried: xcu_g, xcu_h), and so does xc -- decided otherwise.
+  True,  'not generated any more: a local __x',  "  local __x := 1",
   True,  'generated in a block local',          "  if n > 0\n    local fo_0_0 := 1\n  endif",
   True,  'generated in a header: if local',     "  if local fo_0_0 := 1, fo_0_0 > 0\n  endif",
   True,  'generated in a for local',            "  for local fo_0_0 := 1 to 2\n  next",

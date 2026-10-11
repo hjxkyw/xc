@@ -224,6 +224,38 @@ same "'conout', 'eval', 'aadd', 'substr', 'userexception' are names too (outputs
   ~ "Return conout + eval + aadd + substr + userexception\n";
 check "'len' is not (xcr_h: C2003)", { !parse($head ~ "User Function f()\n  Local len := 1\nReturn len\n") };
 
+# ---- Clipper's comments, and names that start with '__' ----------------------
+# Tried on AppServer 24.3.1.9 (xcu_a to xcu_j): all of them compile, in a .prw
+# and in a .tlpp.
+same "'&&' to the end of the line",
+  "User Function f(a)\n  Local n := 1  && comentario\n  n += a  && outro\nreturn n\n";
+same "a line that starts with '*': at column 1, indented, in a function",
+  "User Function f(a)\n  Local n := 1\n* comentario na coluna 1\n    * comentario recuado\n  n++\nreturn n\n";
+check "a banner of '*' lines at the top of the file, above the includes",
+{
+  my $src = "*****\n* banner\n*****\n" ~ $head ~ "User Function f()\nreturn 1\n";
+  my $m = parse($src);
+  $m && emit($m.made, $src) eq $src
+};
+same "after a line a ';' carries on, a '*' multiplies",
+  "User Function f(a)\n  Local n := a ;\n           * 2\nreturn n\n";
+same "'&&' and '*' in a string are text",
+  "User Function f()\n  conout(\"a && b\")\n  conout(\"* c\")\nreturn nil\n";
+check "a rewritten statement keeps its '&&' comment, written '//'",
+{
+  my $src = $head ~ "User Function f(a)\n  a := 1 if a == Nil  && sem valor\nreturn a\n";
+  my $m = parse($src);
+  emit($m.made, $src).contains("  If a == Nil  // sem valor\n    a := 1\n  EndIf\n")
+};
+check "a ':=' in an '&&' comment is no assignment: the call is a call",
+{
+  my $src = $head ~ "User Function f(a)\n  conout(a)  && a := 2\nreturn a\n";
+  my $m = parse($src);
+  $m && emit($m.made, $src) eq $src
+};
+same "a local whose name starts with '__' (TMS.prw: 'local __APPUSER')",
+  "User Function f()\n  Local __APPUSER := 1\n  __APPUSER++\nreturn __APPUSER\n";
+
 # ---- what the checks make of them ------------------------------------------------
 check "'Default' reads what it sets: no 'never read'",
 {
