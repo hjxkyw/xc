@@ -305,7 +305,22 @@ my class Checker
     my $k = $name.lc;
     if $!scope.names{$k}:exists
     {
-      @!found.push($line => "'$name' is already declared in this block.");
+      # In a block -- xtpl's block locals, which xc renames -- xtpl's rule: an
+      # error. A function's own -- a parameter declared again as a Local, a
+      # Local twice -- the AppServer takes, with its warning W0011 (tried:
+      # xcv_a to xcv_h), and real sources have it: one variable, and the
+      # second's value a write to it.
+      if $!scope.outer.defined
+      {
+        @!found.push($line => "'$name' is already declared in this block.");
+      }
+      else
+      {
+        my %v := $!scope.names{$k};
+        @!warned.push($line => "'$name' is declared again (first on line {%v<line>}): the AppServer takes it, "
+                               ~ "with its warning W0011, \"Variable {$name.uc} redefined\"");
+        %v<writes>++ if $written;
+      }
       return;
     }
     my %v = name => $name, line => $line, kind => $kind, reads => 0, writes => +$written,

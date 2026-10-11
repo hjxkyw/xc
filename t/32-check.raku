@@ -47,6 +47,26 @@ sub warns(Str $what, Str $lines, *@warnings)
 }
 
 # ---- declared ----------------------------------------------------------------
+# A function's own name declared again: the AppServer takes it, with W0011
+# (xcv_a to xcv_h). A block local twice in its block: xtpl's error.
+check "warns: a parameter declared again as a Local, with a value or not -- one variable, still read",
+{
+  my %r = result("static function PosValida(oModel)\n  local oModel := FWModelActive()\n  local nOp := oModel:GetOperation()\nreturn nOp\n");
+  my %c = result("user function f(cDoc)\n  local cDoc\nreturn cDoc\n");
+  !%r<errors> && %r<warnings> eqv ("2: 'oModel' is declared again (first on line 1): the AppServer takes it, with its warning W0011, \"Variable OMODEL redefined\"",)
+    && !%c<errors> && %c<warnings> eqv ("2: 'cDoc' is declared again (first on line 1): the AppServer takes it, with its warning W0011, \"Variable CDOC redefined\"",)
+};
+check "warns: a Local declared twice in the function -- the second's value is a write",
+{
+  my %r = result("user function f()\n  local aD := \{\}\n  local nY := 0\n  local aD := \{1\}\nreturn nY\n");
+  !%r<errors> && %r<warnings> eqv ("4: 'aD' is declared again (first on line 2): the AppServer takes it, with its warning W0011, \"Variable AD redefined\"",
+                                   "2: 'aD' is assigned but never read").sort.List
+};
+check "refuses: a block local declared twice in its block -- xtpl's rule for its own construct",
+{
+  result("user function f(n)\n  if n > 0\n    local nT := 5\n    local nT := 6\n    conout(nT)\n  endif\nreturn n\n")<errors>
+    eqv ("4: 'nT' is already declared in this block.",)
+};
 passes 'a parameter, a local, a static, a public',
   "  local nL := a\n  static nS := 0\n  public nP := 1\n  nL := nS + nP\n  a := nL";
 passes 'a private, even in a function the file calls: it is dynamic',
