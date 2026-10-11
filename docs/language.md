@@ -84,19 +84,24 @@ more code after it on the same line ends a statement and starts another.
 User Function Soma(nA, nB)
   Local nTotal := nA + ;   // the first
                   nB
-  conout(1); conout(2)
+* a comment line, Clipper's
+  conout(1); conout(2)    && two statements
 Return nTotal
 ```
 
-**Comments** are `// ...` to the end of the line and `/* ... */`, which may
-span lines. AdvPL's `&&` and `*` comments are not read.
+**Comments** are `// ...` and Clipper's `&& ...` to the end of the line,
+`/* ... */`, which may span lines, and Clipper's comment line: a line whose
+first character is `*`, at column 1 or indented, in a function or above the
+includes. After a line that ends in `;`, the next line carries on the
+statement, and a `*` there multiplies. A statement xc rewrites gets its
+comment back as `// ...`.
 
 **Case.** Keywords and names are read without regard to case: `IF`, `If` and
 `if` are the same word, and so are `nTotal` and `NTOTAL`. The output keeps
 the case written.
 
-**Names** are a letter or `_`, then letters, digits and `_`. Some cannot be
-declared: see [Names xc keeps](#names-xc-keeps).
+**Names** are a letter or `_`, then letters, digits and `_` -- `__APPUSER`
+too. Some cannot be declared: see [Names xc keeps](#names-xc-keeps).
 
 ## Literals
 
@@ -1311,7 +1316,7 @@ parses, in xtpl's words.
 | a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
-| a name of xc's shape declared | `'fo_0_0' has the shape of a name xtpl generates, so it cannot be declared. ...` |
+| a name of xc's shape declared | `'fo_0_0' has the shape of a name xc generates, so it cannot be declared. ...` |
 | a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
 | more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3.` |
@@ -1415,6 +1420,7 @@ that name is yours, `oObj:Count()`, and so is a variable. A class of your own ca
 `XtplQueue` would clash with the runtime's.
 
 **Generated names.** xc's own locals have shapes a function may not declare
-as a `Local` or a `Private` of its own: a leading `__`,
-`<kind>_<depth>_<index>` -- `fo_0_0`, `fv_1_2`, `fi_0_0` -- and the slots,
-`s_0_0`, `b_0_x`.
+as a `Local` or a `Private` of its own: `<kind>_<depth>_<index>` --
+`fo_0_0`, `fv_1_2`, `fi_0_0` -- and the slots, `s_0_0`, `b_0_x`. A leading
+`__`, which xtpl kept for its own names, is free: TL++ takes `Local
+__APPUSER`, and so does xc.
