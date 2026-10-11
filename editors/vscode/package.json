@@ -1,0 +1,109 @@
+{
+  "name": "xtpl",
+  "displayName": "xtpl",
+  "description": "xtpl -- TL++ with xtpl's extensions -- for Visual Studio Code: highlighting, and xc's checks as you save.",
+  "version": "0.1.0",
+  "publisher": "hjxkyw",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hjxkyw/xc"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "xtpl",
+        "aliases": [
+          "xtpl",
+          "XTPL"
+        ],
+        "extensions": [
+          ".xtpl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "xtpl",
+        "scopeName": "source.xtpl",
+        "path": "./syntaxes/xtpl.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[xtpl]": {
+        "files.encoding": "windows1252",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    },
+    "configuration": {
+      "title": "xtpl",
+      "properties": {
+        "xtpl.xc.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where xc's `bin/xc` is. Empty: `bin/xc` in a folder of the workspace, when there is one."
+        },
+        "xtpl.xc.raku": {
+          "type": "string",
+          "default": "rakupp",
+          "markdownDescription": "The Raku that runs xc: `rakupp`, or a path to it."
+        },
+        "xtpl.xc.includes": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where the include files are, after the source's own folder: `a;b`, as xc's and the AppServer's `-includes`."
+        },
+        "xtpl.xc.dictionary": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "An exported SX3 (`.csv`), to check the fields against (xc's `--dict`). Empty: none."
+        },
+        "xtpl.xc.checkOnSave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run xc's checks on a file when it is opened and each time it is saved."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "xtpl.check",
+        "title": "xtpl: Check this file with xc"
+      },
+      {
+        "command": "xtpl.compile",
+        "title": "xtpl: Compile this file to TL++"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "xtpl.check",
+          "when": "editorLangId == xtpl"
+        },
+        {
+          "command": "xtpl.compile",
+          "when": "editorLangId == xtpl"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node test/grammar.test.js && node test/xcoutput.test.js"
+  },
+  "devDependencies": {
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.2.0"
+  }
+}

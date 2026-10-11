@@ -103,12 +103,20 @@ The self-tests are pure computation -- no table, no file, no screen -- so
 they run on any environment. They need AppServer 19.3.1 or later: aPick
 and aRoll draw with `Random()`.
 
+## Editing in VS Code
+
+`editors/vscode/` is an extension for `.xtpl` files: highlighting, xc's
+checks as diagnostics on open and on save, and a command that compiles the
+file. See [its README](editors/vscode/README.md) for installing it -- a
+package, or the folder linked into VS Code's extensions.
+
 ## What is where
 
 | | |
 |---|---|
 | `bin/xc` | the compiler |
 | `docs/` | the language reference, `language.md` -- `t/45` compiles its examples |
+| `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `t/` | xc's tests, in Raku; `t/lib/` what several of them share |
