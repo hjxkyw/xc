@@ -29,6 +29,9 @@
 # (XC::Types). 'local nX := "a" as Numeric' is an error; 'local nX := f() as
 # Numeric' says nothing. xtpl did not check it.
 #
+# The verbs' names -- map, count, first, join, ... -- are xtpl's: a function
+# of the file cannot have one. A call to it would be the runtime's anyway.
+#
 # A name nothing declares is a warning, not an error -- a choice xtpl did not
 # make: plain TL++ uses the system's globals (cFilAnt, dDataBase, CRLF from
 # totvs.ch) without declaring them, and it compiles unchanged. The messages
@@ -142,6 +145,13 @@ my class Checker
     for $p.functions -> $f
     {
       %!funcs{$f.name.lc} = %(name => $f.name, kind => $f.type.lc, params => $f.params.elems, line => $f.line);
+      # A verb's name is xtpl's: a call to it is the runtime's, wherever it
+      # is, so a function of the file by that name could never be reached.
+      if is-runtime-verb($f.name)
+      {
+        @!found.push($f.line => "'{$f.name}' is the name of one of xtpl's verbs: a call to {$f.name.lc}() is the "
+                                ~ "runtime's u_xtpl_{$f.name.lc}, never a function of the file. Give it another name.");
+      }
     }
     for $p.externals.grep(!*.alias) -> $x
     {

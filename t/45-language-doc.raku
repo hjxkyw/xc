@@ -82,7 +82,7 @@ mkdir $dir;
 sub messages(Str $name, Str $src --> List)
 {
   my $path = $dir.add("$name.xtpl");
-  spurt $path, $src;
+  spurt $path, $src.encode('windows-1252');      # bin/xc takes cp1252 only
   my $p = run $*EXECUTABLE, 'bin/xc', '--check', $path.Str, :out, :err;
   my $said = $p.out.slurp(:close) ~ $p.err.slurp(:close);
   $path.unlink;

@@ -148,6 +148,18 @@ check 'passes: an omitted argument does not count',
 {
   !problems($two ~ "user function f()\n  local a := s(1, , )\nreturn a\n")
 };
+check "refuses: a function of the file named like a verb -- static, user, or bare",
+{
+  problems("static function Count(a)\nreturn len(a)\nuser function first()\nreturn 1\nfunction join()\nreturn 2\n")
+    eqv ("1: 'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.",
+         "3: 'first' is the name of one of xtpl's verbs: a call to first() is the runtime's u_xtpl_first, never a function of the file. Give it another name.",
+         "5: 'join' is the name of one of xtpl's verbs: a call to join() is the runtime's u_xtpl_join, never a function of the file. Give it another name.")
+};
+check "passes: a method named like a verb, and a variable -- 'oQ:Count()' is no call to count()",
+{
+  !problems("class Fila\n  method Count()\nendclass\nmethod Count() class Fila\nreturn 0\n"
+            ~ "user function f(oQ)\n  local count := oQ:Count()\nreturn count\n")
+};
 
 # ---- chains ------------------------------------------------------------------
 refuses "a variable declared 'as numeric' as a chain's source",

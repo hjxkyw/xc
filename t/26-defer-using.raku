@@ -67,13 +67,42 @@ sub normalised(Str $text)
   @out
 }
 
+# A defer in a block runs at an exit only if it was reached: xc sets a flag
+# where it is written and runs it under the flag; xtpl ran it at every exit
+# after it, reached or not. Without the flag's lines the two agree.
+sub without-flags(@lines)
+{
+  my @out;
+  my @flag;                                  # each If open: whether it is a flag's
+  for @lines -> $l
+  {
+    next if $l eq 'fdf := .t.';
+    if $l.starts-with('if ')
+    {
+      @flag.push($l eq 'if fdf');
+      next if $l eq 'if fdf';
+    }
+    elsif $l eq 'endif'
+    {
+      next if @flag.pop;
+    }
+    @out.push($l);
+  }
+  @out
+}
+
 for <19_defer_pinning 21_using> -> $t
 {
-  check "$t: the same statements as xtpl's output",
+  check "$t: the same statements as xtpl's output{$t eq '19_defer_pinning' ?? ', but the defer\'s flag' !! ''}",
   {
-    normalised(compile(slurp("xtpl/tests/$t.xtpl"))) eqv normalised(slurp("xtpl/tests/$t.tlpp"))
+    without-flags(normalised(compile(slurp("xtpl/tests/$t.xtpl")))) eqv normalised(slurp("xtpl/tests/$t.tlpp"))
   };
 }
+check "19_defer_pinning: the defer in its If is flagged, and runs under the flag",
+{
+  my @n = normalised(compile(slurp("xtpl/tests/19_defer_pinning.xtpl")));
+  @n.first('fdf := .t.').defined && @n.join("\n").contains("if fdf\nlogit(na)\nendif\nreturn nt")
+};
 
 # ---- defer -------------------------------------------------------------------
 lowers "before each 'return', the last one first; the 'defer' lines leave no trace",
@@ -92,9 +121,23 @@ lowers "a body of declarations and defers only (xtpl's 18_defer_only)",
   "  local nCount := n\n  defer closeCursor()\n  defer logExit(nCount)",
   "  local nCount := n\n  logExit(nCount)\n  closeCursor()";
 
-lowers 'a defer inside a block still runs at every exit: it is registered, not reached',
+lowers 'a defer inside a block runs at an exit after the block only if it was reached: its flag',
   "  if n > 0\n    defer bye()\n  endif\n  return n",
-  "  if n > 0\n  endif\n  bye()\n  return n";
+  "  if n > 0\n    fdf_0_0 := .T.\n  endif\n  If fdf_0_0\n    bye()\n  EndIf\n  return n";
+lowers 'a return after it in its own block: reached for sure, no flag there',
+  "  if n > 0\n    defer bye()\n    return 1\n  endif\n  return n",
+  "  if n > 0\n    fdf_0_0 := .T.\n    bye()\n    return 1\n  endif\n  If fdf_0_0\n    bye()\n  EndIf\n  return n";
+lowers 'a return before it in a loop around both: it may have run in an earlier round',
+  "  for nI := 1 to n\n    return -1 if nI > 5\n    defer bye()\n  next\n  return 0",
+  "  for nI := 1 to n\n    If nI > 5\n      If fdf_0_0\n        bye()\n      EndIf\n      return -1\n    EndIf\n    fdf_0_0 := .T.\n  next\n  If fdf_0_0\n    bye()\n  EndIf\n  return 0";
+lowers 'a return before it, no loop around both: it has not run',
+  "  if n > 9\n    return -1\n  endif\n  if n > 0\n    defer bye()\n  endif\n  return 0",
+  "  if n > 9\n    return -1\n  endif\n  if n > 0\n    fdf_0_0 := .T.\n  endif\n  If fdf_0_0\n    bye()\n  EndIf\n  return 0";
+check "the flag is a Local of the function, .F. until the defer's line is reached",
+{
+  my $out = compile(qq[#include "totvs.ch"\n#include "tlpp-core.th"\nuser function f(n)\n  local x := 1\n  if n > 0\n    defer bye(x)\n  endif\nreturn x\n]);
+  $out.contains("  local x := 1\n  Local fdf_0_0 := .F.  // whether 'defer bye(x)' was reached\n")
+};
 
 lowers 'a chain in a defer body is lowered where it is spliced',
   "  defer cA |> validate() |> flush()\n  return 1",

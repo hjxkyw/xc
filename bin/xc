@@ -16,6 +16,9 @@
 #   --dict sx3.csv      checks the fields used against an exported SX3
 #   --dict-strict       and what it finds is an error, not a warning
 #
+# A source is windows-1252 (cp1252), as Protheus' are, and so is its .tlpp; a
+# file in UTF-8 is refused.
+#
 # A file that does not parse, that the checks refuse, or that uses what xc
 # cannot lower yet gets no .tlpp, and the others go on; the exit code is 1 if
 # any failed. Warnings are printed, and stop nothing.
@@ -91,31 +94,40 @@ sub folder-of(Str $p --> Str)
   $cut >= 0 ?? $p.substr(0, $cut) !! '.'
 }
 
+# Why a source's bytes are UTF-8, not windows-1252 (cp1252) -- or Str when
+# they are cp1252. They are UTF-8 when they start with its byte-order mark,
+# or when what is beyond ASCII in them is valid UTF-8: cp1252 text with an
+# accent almost never is ('é' is one byte, E9, and UTF-8 never has E9 before a
+# letter). Pure ASCII is both, and fine. The five bytes cp1252 leaves
+# undefined (81 8D 8F 90 9D) pass: Windows reads them as themselves, and so
+# does xc -- they come out as they went in.
+sub utf8-reason(Blob $b --> Str)
+{
+  my $fix = "Protheus' sources are windows-1252 (cp1252): save it so";
+  return "it starts with UTF-8's byte-order mark. $fix" if $b.elems >= 3 && $b[0] == 0xEF && $b[1] == 0xBB && $b[2] == 0xBF;
+  my $first = $b.list.first(* >= 0x80, :k);
+  return Str without $first;
+  return Str without try $b.decode('utf-8');
+  my $line = 1 + $b.subbuf(0, $first).list.grep(10).elems;
+  "it is UTF-8 -- the first character beyond ASCII is on line $line. $fix"
+}
+
 # One source: read, parsed, checked, lowered, and -- but with --check --
 # written. What stops it is reported, and it returns False.
 sub compile(Str $in, Str $out --> Bool)
 {
   # Read as bytes, not with 'slurp': 'slurp' turns every "\r\n" into "\n", and
-  # a CRLF source has to come out CRLF. UTF-8 when the bytes are valid UTF-8,
-  # windows-1252 otherwise -- what Protheus sources are, when they are not
-  # UTF-8 -- and the output goes back in the same encoding, with the same line
-  # ends and the same byte-order mark, as xtpl does.
+  # a CRLF source has to come out CRLF. Windows-1252 (cp1252), what Protheus'
+  # sources are, and the output goes back so, with the same line ends. A file
+  # in UTF-8 is refused: read as cp1252, each of its accents would be two
+  # characters, and come out so.
   my $bytes = $in.IO.slurp(:bin);
-  my $encoding = 'utf-8';
-  my $src = try $bytes.decode('utf-8');
-  without $src
+  with utf8-reason($bytes) -> $why
   {
-    $encoding = 'windows-1252';
-    $src = $bytes.decode('windows-1252');
+    note "$in: $why";
+    return False;
   }
-  # The byte-order mark, seen on the bytes: Rakudo's UTF-8 decoder drops it,
-  # rakupp's keeps it -- so taken off the text only if it is still there.
-  my $bom = '';
-  if $encoding eq 'utf-8' && $bytes.elems >= 3 && $bytes[0] == 0xEF && $bytes[1] == 0xBB && $bytes[2] == 0xBF
-  {
-    $bom = "\x[FEFF]";
-    $src = $src.substr(1) if $src.starts-with("\x[FEFF]");
-  }
+  my $src = $bytes.decode('windows-1252');
 
   # How far the parse got: the grammar records the end of every line it could
   # finish. The first line it could not is the one to show.
@@ -205,7 +217,7 @@ sub compile(Str $in, Str $out --> Bool)
   }
   else
   {
-    spurt($out, ($bom ~ $tlpp).encode($encoding));
+    spurt($out, $tlpp.encode('windows-1252'));
     say "$in -> $out";
   }
   True

@@ -221,7 +221,7 @@ check 'bin/xc writes file.tlpp next to file.xtpl',
 check 'bin/xc: a parse error names the line, and no .tlpp is written',
 {
   my $in = $dir.add('bad.xtpl');
-  spurt $in, "user function f(a)\r\n  // ção\r\n  n := 1\r\n  n := := 2\r\nreturn n\r\n";
+  spurt $in, "user function f(a)\r\n  // ção\r\n  n := 1\r\n  n := := 2\r\nreturn n\r\n".encode('windows-1252');
   my ($code, $, $err) = xc($in.Str);
   $code == 1 && $err.contains('bad.xtpl:4: cannot parse this line: n := := 2')
     && !$dir.add('bad.tlpp').e

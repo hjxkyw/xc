@@ -228,6 +228,14 @@ check "--corpus: xc compiles xtpl's corpus into one folder, the AppServer compil
     && @made.elems == 74 && $c.dir.elems == 74 && $dir.add('logs/corpus/xc.log').e && @made.grep('xtpl_runtime.tlpp') && !@made.grep('54_selftest.tlpp')
     && !@made.grep('51_legacy.tlpp') && %r<text>.contains('Protheus took all 73 programs, and the runtime')
 };
+check "--corpus: xtpl's UTF-8 sources go to xc as cp1252 copies, beside the compiled folder, and come out cp1252",
+{
+  my $copies = $dir.add('cp1252/corpus');
+  my $out = $dir.add('corpus/46_tlpp_forms.tlpp').slurp(:bin);
+  $copies.add('46_tlpp_forms.xtpl').e && $copies.add('33_effect_chains.xtpl').e && !$copies.add('45_foreach_lines.xtpl').e
+    && $out.list.first(* >= 0x80).defined && !(try $out.decode('utf-8')).defined
+    && $out.decode('windows-1252').contains('ção')
+};
 check '--compile-only runs nothing; --run-only compiles nothing',
 {
   my %c = protheus(|@base, '--compile-only');

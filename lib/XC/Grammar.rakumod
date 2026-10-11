@@ -248,7 +248,7 @@ our sub refused(Str $n --> Bool) { !($*ANY-NAME // False) && is-reserved($n) }
 our sub is-generated(Str $n --> Bool)
 {
   so ($n.starts-with('__')
-      || $n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | ch | dr | fs | hd | hi | i | j | ky | ls
+      || $n ~~ m:i/ ^ [ f [ a | al | ar | bg | bs | ch | df | dr | fs | hd | hi | i | j | ky | ls
                          | lm | lo | n | ok | ol | op | o | pv | pb | rd | rc | sn | sp | s | v ]
                        | et | gt | ht | pt ] '_' \d+ '_' \d+ $ /
       || $n ~~ m:i/ ^ <[sb]> '_' \d+ '_' \w+ $ /)

@@ -441,7 +441,7 @@ class Emitter
   has %!used;
   has %!slots;                     # the slots made: s_0_0, ... (lower case)
   has %!slot-users;                # slot => the block locals in it, for its comment
-  has @!hoist;                     # [name, comment]
+  has @!hoist;                     # [name, comment, value]: value '' for none
   has %!hoisted;
 
   # While a fused stage's lambda is rendered, its parameter stands for the
@@ -457,9 +457,18 @@ class Emitter
   # it and the loop it leaves.
   has @!closers;
 
-  # The function's defers, in the order written: [where, lines]. A 'return'
-  # runs those written before it, the last one first.
+  # The function's defers, in the order written: %(from, lines, at, flag). An
+  # exit runs the ones that ran before it, the last written first. 'at' is
+  # where the defer is (%!paths), 'flag' the Local that says it ran -- when
+  # some exit cannot be sure of it -- or Str.
   has @!defers;
+
+  # Where each statement of the function is: %(path, loops). 'path' is the
+  # bodies down to it, each "<body>\t<index>" (the function's own is 'root',
+  # a statement's k-th body "<its WHICH>/k"); 'loops' the WHICHs of the loops
+  # around it. Strings, not nested lists: rakupp 4.0.1 flattens a List inside
+  # a list assignment.
+  has %!paths;
 
   # The names the function declares: a 'using alias' word that is one of
   # them is a variable holding the alias, not the alias itself.
@@ -921,6 +930,7 @@ class Emitter
     self!plan-renames($f);
 
     # The defers, lowered once each, with their comment on their last line.
+    self!place-statements($f);
     @!defers = ();
     walk($f.body, -> $s
     {
@@ -929,9 +939,25 @@ class Emitter
         my @lines = self!stmt-lines($s.stmt);
         my $comment = split-comment(self!slice($s))[1];
         @lines[*-1] ~= "  $comment" if $comment;
-        @!defers.push([$s.src-from, @lines.List]);
+        @!defers.push(%(from => $s.src-from, lines => @lines.List, at => %!paths{~$s.WHICH}, flag => Str,
+                        text => split-comment(self!slice($s))[0].trim.subst(/ \s+ /, ' ', :g)));
       }
     });
+    # A defer runs at an exit only if its line was reached. Where that is
+    # certain -- the exit comes after it in its own body, or the defer is in
+    # the function's -- it runs as it is; where not -- an exit after the block
+    # it is in, the function's end, an earlier line of a loop around both --
+    # a flag set where it is written says whether it ran.
+    my @returns;
+    walk($f.body, -> $s { @returns.push($s) if $s ~~ ReturnStmt });
+    my $natural = so $f.body && $f.body[*-1] !~~ ReturnStmt;
+    for @!defers -> %d
+    {
+      next unless @returns.first({ self!defer-at(%d, $_) eq 'maybe' }).defined
+                  || ($natural && %d<at><path>.elems > 1);
+      my $what = %d<text>.chars > 43 ?? %d<text>.substr(0, 40) ~ '...' !! %d<text>;
+      %d<flag> = self!gen('fdf', "whether '$what' was reached", value => '.F.');
+    }
 
     # A chain from a source as the value of a prologue declaration runs as a
     # loop, which is a statement, and statements come after the
@@ -958,13 +984,13 @@ class Emitter
     self!collect($f.body, True);
 
     # The natural end: unless the body ends in a 'return', every defer runs
-    # after its last statement.
+    # after its last statement -- one in a block only if it was reached.
     my $last = $f.body ?? $f.body[*-1] !! Any;
     if @!defers && $last.defined && $last !~~ ReturnStmt
     {
       my $at = self!line-end($last.src-from + code-end(self!slice($last)));
       my $indent = self!indent-at($f.body[0].src-from);
-      my @lines = @!defers.reverse.map({ |.[1] });
+      my @lines = @!defers.reverse.map({ .<at><path>.elems == 1 ?? |.<lines> !! |self!guarded($_) });
       @!edits.push([$at, $at, @lines.map({ $!nl ~ $indent ~ $_ }).join]);
     }
     # Inserted at the end of the prologue, after the hoisted Locals and before
@@ -1195,21 +1221,21 @@ class Emitter
   }
 
   # A Local to add after the function's prologue, once per name.
-  method !hoist(Str $name, Str $comment)
+  method !hoist(Str $name, Str $comment, Str $value = '')
   {
     return if %!hoisted{$name.lc}++;
-    @!hoist.push([$name, $comment]);
+    @!hoist.push([$name, $comment, $value]);
   }
 
   # A hidden name, in the shape xtpl reserves for generated names, and not
   # used anywhere in the function.
-  method !gen(Str $kind, Str $comment --> Str)
+  method !gen(Str $kind, Str $comment, Str :$value = '' --> Str)
   {
     my $n = 0;
     $n++ while %!used{"{$kind}_0_$n"};
     my $name = "{$kind}_0_$n";
     %!used{$name} = True;
-    self!hoist($name, $comment);
+    self!hoist($name, $comment, $value);
     $name
   }
 
@@ -1220,14 +1246,14 @@ class Emitter
     my @body = $f.body;
     my $indent = @body ?? self!indent-at(@body[0].src-from) !! '  ';
     my @decls = prologue-of(@body);
-    my @lines = @!hoist.map(-> [$name, $comment]
+    my @lines = @!hoist.map(-> [$name, $comment, $value]
     {
       # A slot says which block locals it holds.
       my @u = |(%!slot-users{$name.lc} // ());
       my $c = !@u    ?? $comment
            !! @u == 1 ?? "a slot: the block local {@u[0]}"
            !!            "a slot: the block locals {@u.join(', ')}";
-      "{$indent}Local $name  // $c"
+      "{$indent}Local {$name}{$value ?? " := $value" !! ''}  // $c"
     });
     if @decls
     {
@@ -1278,12 +1304,21 @@ class Emitter
           self!replace($s, False, @lines, :@notes);
         }
         # A 'defer' leaves where it is written; its body runs at the exits.
+        # One with a flag sets it there: reached.
         when Deferred
         {
+          my %d = @!defers.first({ .<from> == $s.src-from });
           my $from = self!line-start($s.src-from);
           my $end  = self!line-end($s.src-from + code-end(self!slice($s)));
-          $end++ if $end < $!src.chars;              # the line break too
-          @!edits.push([$from, $end, '']);
+          if %d<flag>
+          {
+            @!edits.push([$from, $end, self!indent-at($s.src-from) ~ "{%d<flag>} := .T."]);
+          }
+          else
+          {
+            $end++ if $end < $!src.chars;            # the line break too
+            @!edits.push([$from, $end, '']);
+          }
           $walked = True;                            # its body is spliced, not edited here
         }
         # A 'return' runs the pending defers and closes what is open.
@@ -1586,13 +1621,73 @@ class Emitter
     }
   }
 
-  # What a 'return' at $s does first: the defers written before it, the last
-  # one first -- they may still want the areas -- then everything open,
+  # What a 'return' at $s does first: the defers that ran before it, the last
+  # written first -- they may still want the areas -- then everything open,
   # innermost first.
   method !return-exits(Stmt $s --> List)
   {
-    (|@!defers.grep({ .[0] < $s.src-from }).reverse.map({ |.[1] }),
-     |@!closers.reverse.grep(*.key ne 'loop').map({ |.value })).List
+    my @lines;
+    for @!defers.reverse -> %d
+    {
+      given self!defer-at(%d, $s)
+      {
+        when 'yes'   { @lines.append(%d<lines>.list) }
+        when 'maybe' { @lines.append(self!guarded(%d)) }
+      }
+    }
+    (|@lines, |@!closers.reverse.grep(*.key ne 'loop').map({ |.value })).List
+  }
+
+  # Whether a defer has run when the 'return' $r runs: 'yes', 'no', or
+  # 'maybe' -- then its flag says. Written before the return, it certainly
+  # ran when the return is in its own body, after it (in the function's body,
+  # that is every return after it); otherwise maybe. Written after it, it may
+  # have run in an earlier round of a loop around both; otherwise not.
+  method !defer-at(%d, Stmt $r --> Str)
+  {
+    my @dp = %d<at><path>.list;
+    my @rp = %!paths{~$r.WHICH}<path>.list;
+    if %d<from> < $r.src-from
+    {
+      my $n = @dp.elems;
+      if @rp.elems >= $n && @rp[^($n - 1)].join("\n") eq @dp[^($n - 1)].join("\n")
+      {
+        my ($db, $di) = @dp[$n - 1].split("\t");
+        my ($rb, $ri) = @rp[$n - 1].split("\t");
+        return 'yes' if $rb eq $db && +$ri > +$di;
+      }
+      return 'maybe';
+    }
+    my @dl = %d<at><loops>.list;
+    %!paths{~$r.WHICH}<loops>.first({ $_ (elem) @dl }).defined ?? 'maybe' !! 'no'
+  }
+
+  # A defer's lines under its flag.
+  method !guarded(%d --> List)
+  {
+    ("If {%d<flag>}", |%d<lines>.map({ "  $_" }), 'EndIf').List
+  }
+
+  # Where each statement of a function is (%!paths).
+  method !place-statements($f)
+  {
+    %!paths = ();
+    my sub visit(@body, Str $key, @above, @loops)
+    {
+      for @body.kv -> $i, $s
+      {
+        my @here = |@above, "$key\t$i";
+        %!paths{~$s.WHICH} = %(path => @here.List, loops => @loops.List);
+        my $loop = $s ~~ WhileStmt || $s ~~ ForStmt || $s ~~ ForInStmt || $s ~~ ForTimesStmt;
+        my @inner = $loop ?? (|@loops, ~$s.WHICH) !! @loops;
+        my $k = 0;
+        for bodies-of($s) -> @b
+        {
+          visit(@b, "{~$s.WHICH}/{$k++}", @here, @inner);
+        }
+      }
+    }
+    visit($f.body, 'root', (), ());
   }
 
   # What an 'exit' or 'loop' does first: close what is open between it and the

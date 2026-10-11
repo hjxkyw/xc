@@ -77,7 +77,9 @@ check 'pinned: passed by reference; read by a defer; named in raw text',
   my $r = out-of("  if a > 0\n    local nR := 1\n    f(\@nR)\n  endif\n  if a > 1\n    local nS := 1\n    conout(nS)\n  endif");
   my $d = out-of("  if a > 0\n    local nD := 1\n    defer conout(nD)\n  endif\n  if a > 1\n    local nS := 1\n    conout(nS)\n  endif");
   my $w = out-of("  if a > 0\n    local nW := 1\n    raw ANOTE nW\n  endif\n  if a > 1\n    local nS := 1\n    conout(nS)\n  endif");
-  locals($r)[0] eq 'nR  // a block local' && locals($d)[0] eq 'nD  // a block local' && locals($w)[0] eq 'nW  // a block local'
+  # The defer's: its flag first -- whether it was reached -- then the local.
+  locals($r)[0] eq 'nR  // a block local' && locals($d).grep(!*.starts-with('fdf_'))[0] eq 'nD  // a block local'
+    && locals($w)[0] eq 'nW  // a block local'
 };
 check 'not pinned: its value handed to a function, or stored -- the slot gets a new value next time',
 {

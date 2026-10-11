@@ -133,9 +133,21 @@ my $src = "user function f(a)\r\n  // ção\r\n  local n := 0\r\n  for o in a\r\
 sub run-xc(Blob $bytes --> Blob)
 {
   my $in = $dir.add('in.xtpl');
+  my $out = $dir.add('in.tlpp');
+  $out.unlink if $out.e;
   spurt $in, $bytes;
-  run $*EXECUTABLE, 'bin/xc', $in.Str, :out, :err;
-  $dir.add('in.tlpp').slurp(:bin)
+  my $p = run $*EXECUTABLE, 'bin/xc', $in.Str, :out, :err;
+  $p.out.slurp(:close);
+  $p.err.slurp(:close);
+  $out.e ?? $out.slurp(:bin) !! Blob
+}
+# What bin/xc says of a source, and whether it wrote anything.
+sub said(Blob $bytes --> Str)
+{
+  my $in = $dir.add('in.xtpl');
+  spurt $in, $bytes;
+  my $p = run $*EXECUTABLE, 'bin/xc', '--check', $in.Str, :out, :err;
+  $p.out.slurp(:close) ~ $p.err.slurp(:close)
 }
 # On the bytes: decoded, "\r\n" is one character, and it matches '\n' too.
 sub crlf-only(Blob $b)
@@ -147,17 +159,31 @@ sub crlf-only(Blob $b)
 
 check 'a CRLF source comes out CRLF on every line, generated ones included',
 {
-  crlf-only(run-xc($src.encode('utf-8')))
+  crlf-only(run-xc($src.encode('windows-1252')))
 };
 check 'a windows-1252 source comes out windows-1252',
 {
   my $out = run-xc($src.encode('windows-1252'));
   $out.decode('windows-1252').contains('// ção') && crlf-only($out)
 };
-check 'a UTF-8 byte-order mark is kept',
+check 'a UTF-8 source is refused -- the line of its first accent named -- and nothing is written',
 {
-  my $out = run-xc(Blob.new(0xEF, 0xBB, 0xBF) ~ $src.encode('utf-8'));
-  $out.list[0..2] eqv (0xEF, 0xBB, 0xBF) && $out.subbuf(3).decode('utf-8').starts-with('#include')
+  my $said = said($src.encode('utf-8'));
+  !run-xc($src.encode('utf-8')).defined
+    && $said.contains("in.xtpl: it is UTF-8 -- the first character beyond ASCII is on line 2. "
+                      ~ "Protheus' sources are windows-1252 (cp1252): save it so")
+};
+check "a UTF-8 byte-order mark is refused, ASCII or not after it",
+{
+  !run-xc(Blob.new(0xEF, 0xBB, 0xBF) ~ "user function f()\nreturn 1\n".encode('utf-8')).defined
+    && said(Blob.new(0xEF, 0xBB, 0xBF) ~ "user function f()\nreturn 1\n".encode('utf-8')).contains("it starts with UTF-8's byte-order mark")
+};
+check "plain ASCII is both, and fine; the bytes cp1252 leaves undefined come out as they went in",
+{
+  my $odd = Blob.new("user function f()\n  local c := \"".encode('windows-1252').list, 0x81, 0x9D,
+                     "\"\n  local n := 0\n  for o in c\n    n++\n  next\nreturn n\n".encode('windows-1252').list);
+  run-xc("user function f()\nreturn 1\n".encode('utf-8')).defined
+    && run-xc($odd).list.join(',').contains('34,129,157,34')
 };
 
 .unlink for $dir.dir;
