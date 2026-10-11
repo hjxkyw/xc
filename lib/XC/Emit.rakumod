@@ -922,12 +922,36 @@ class Emitter
         if $b[0] < $a[1] && $b[1] > $b[0];
     }
 
-    my $out = $!src;
+    # The edits spliced in from the end of the source, each at offsets of the
+    # text as the ones after it left it -- but without a new copy of the whole
+    # text per edit, which was quadratic on a large file. Everything before
+    # the last edit spliced is still the source as it was; what comes after
+    # it is kept as pieces, last first, and joined once. (An insertion inside
+    # a removal -- a defer moved to the end of the line it is removed from --
+    # loses what the removal reaches into, as splicing does.)
+    my @rev;
+    my $before = $!src.chars;
     for @!edits.sort({ -.[0], -.[1] }) -> [$from, $to, $text]
     {
-      $out = $out.substr(0, $from) ~ $text ~ $out.substr($to);
+      if $to <= $before
+      {
+        @rev.push($!src.substr($to, $before - $to)) if $before > $to;
+      }
+      else
+      {
+        my $drop = $to - $before;
+        while $drop > 0 && @rev
+        {
+          my $p = @rev.pop;
+          if $p.chars <= $drop { $drop -= $p.chars }
+          else                 { @rev.push($p.substr($drop)); $drop = 0 }
+        }
+      }
+      @rev.push($text);
+      $before = $from;
     }
-    add-includes($out, $!nl)
+    @rev.push($!src.substr(0, $before));
+    add-includes(@rev.reverse.join, $!nl)
   }
 
   # A parameter's '<const>' or '<contained>' leaves the header, and a comment

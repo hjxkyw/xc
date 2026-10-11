@@ -68,6 +68,10 @@ method !row(Int $o --> Int)
   $lo
 }
 
+# Whether a match offset is a character offset as it is: char() is then the
+# offset itself.
+method offsets-are-chars(--> Bool) { !$!bytes || $!ascii }
+
 # A match offset as a character offset. Every node the grammar builds asks
 # for two -- tens of thousands for a file of a few hundred lines, most of them
 # the same offsets again, as the grammar backtracks. So: nothing to do when

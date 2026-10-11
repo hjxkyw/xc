@@ -44,77 +44,59 @@ use XC::Commands;
 # comments, is there an assignment operator ('assign') or a '|>' ('pipe')?
 # If not, the alternative cannot match and is not tried. It only ever skips
 # what would fail: when it cannot tell -- a bracket closed that it did not see
-# open, or no text to read -- it says yes, and the parse goes as before.
+# open, a '/* */' that goes on past what it read -- it says yes, and the
+# parse goes as before.
+#
+# The text is the rest of the line, and the lines a ';' carries it on to,
+# which <sees> takes in a lookahead: not the offset where the rule is, which
+# costs (see "an ASCII copy" below).
 
-# The text, in the units match offsets count: UTF-8 bytes under rakupp,
-# characters under Rakudo. Only ASCII punctuation is looked for, and UTF-8
-# never uses an ASCII byte inside a longer character.
-my grammar OffsetProbe
+# Whether the text starts, past blanks, with the word 'private',
+# 'public' or 'static' -- a declaration that may come after a statement.
+# ('static function' is not one: 'function' is reserved, and the declaration
+# fails.)
+sub decl-ahead(Str $text --> Bool)
 {
-  token TOP { . <x> }
-  token x   { '!' }
-}
-my $offsets-in-bytes = OffsetProbe.parse('é!')<x>.from == 2;
-
-sub text-units(Str $t)
-{
-  # Rakudo counts graphemes, and "\r\n" is one: one unit each, the line end
-  # as a "\n" -- not .ords, which gives it two and shifts every later offset.
-  $offsets-in-bytes ?? $t.encode.list.Array !! $t.comb.map({ $_ eq "\r\n" ?? 10 !! .ord }).Array
-}
-
-# Whether the text at $from, past spaces, is the word 'private', 'public' or
-# 'static' -- a declaration that may come after a statement. ('static
-# function' is not one: 'function' is reserved, and the declaration fails.)
-sub decl-ahead(Int $from --> Bool)
-{
-  my $u = $*UNITS // return False;
-  my $i = $from;
-  $i++ while $i < $u.elems && ($u[$i] == 32 || $u[$i] == 9);
-  for 'private', 'public', 'static' -> $word
-  {
-    my $n = $word.chars;
-    next unless $i + $n <= $u.elems;
-    next unless (^$n).map({ $u[$i + $_] +| 0x20 }) eqv $word.ords.map(* +| 0x20);
-    my $after = $i + $n < $u.elems ?? $u[$i + $n] !! 0;
-    # Not part of a longer word: 'privateX' is a name.
-    return True unless 48 <= $after <= 57 || 65 <= $after <= 90 || 97 <= $after <= 122 || $after == 95;
-  }
-  False
+  so $text ~~ m:i/ ^ <[\x20\x09]>* [ 'private' || 'public' || 'static' ] <![0..9A..Za..z_]> /
 }
 
 # $item: an argument or a lambda's body, which also ends at a ',' or at a
 # bracket closing what it is in.
-sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
+sub ahead(Str $text, Str $what, Bool $item --> Bool)
 {
-  my $u = $*UNITS // return True;
-  my $n = $u.elems;
+  # Not a sign of what is looked for, nor of what makes it unsure -- a ';',
+  # a '/*', and for a statement a bracket it did not see open: no.
+  return False unless $text.contains($what eq 'pipe' ?? '|>' !! '=') || $text.contains(';') || $text.contains('/*')
+                      || (!$item && ($text.contains(')') || $text.contains(']') || $text.contains('}')));
+  my @u = $text.ords;
+  my $n = @u.elems;
   my $depth = 0;
   my $last = 0;                              # the last code character: ';' continues the line
-  my $i = $from;
+  my $i = 0;
   while $i < $n
   {
-    my $c = $u[$i];
-    my $next = $i + 1 < $n ?? $u[$i + 1] !! 0;
-    if $c == 34 || ($c == 39 && !($i > 0 && 48 <= $u[$i - 1] <= 57 && 48 <= $next <= 57))
+    my $c = @u[$i];
+    my $next = $i + 1 < $n ?? @u[$i + 1] !! 0;
+    if $c == 34 || ($c == 39 && !($i > 0 && 48 <= @u[$i - 1] <= 57 && 48 <= $next <= 57))
     {
       # A string, to its closing quote or the end of the line. (A "'" between
       # two digits groups them: '12'345'.)
       $i++;
-      $i++ while $i < $n && $u[$i] != $c && $u[$i] != 10;
+      $i++ while $i < $n && @u[$i] != $c && @u[$i] != 10;
       $last = $c;
       $i++;
       next;
     }
     if ($c == 47 && $next == 47) || ($c == 38 && $next == 38)
     {
-      $i++ while $i < $n && $u[$i] != 10;    # '//' or '&&' to the end of the line
+      $i++ while $i < $n && @u[$i] != 10;    # '//' or '&&' to the end of the line
       next;
     }
     if $c == 47 && $next == 42
     {
       $i += 2;                               # '/* ... */'
-      $i++ while $i + 1 < $n && !($u[$i] == 42 && $u[$i + 1] == 47);
+      $i++ while $i + 1 < $n && !(@u[$i] == 42 && @u[$i + 1] == 47);
+      return True if $i + 1 >= $n;           # it goes on past what was read: cannot tell
       $i += 2;
       next;
     }
@@ -145,7 +127,7 @@ sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
         if $c == 61 && $what eq 'assign'
         {
           if $next == 61 { $i += 2; $last = 61; next }
-          my $prev = $i > 0 ?? $u[$i - 1] !! 0;
+          my $prev = $i > 0 ?? @u[$i - 1] !! 0;
           return True unless $prev == 60 || $prev == 62 || $prev == 33;
         }
       }
@@ -157,19 +139,111 @@ sub ahead(Int $from, Str $what, Bool :$item = False --> Bool)
     $last = $c unless $c == 32 || $c == 9 || $c == 13;
     $i++;
   }
-  False
+  # The end of the text: of the statement, unless a ';' carries it on to a
+  # line not read.
+  $last == 59
 }
 
-# The text for ahead(), in the units of the match offsets.
-# And where the source uses the commands and translations it brings with it
+# <sees('assign')>, <sees('pipe')>, <sees('bind item')>, ...: what ahead()
+# says of the rest of the line ('item': as an item). One string: a Bool
+# argument reaches rakupp's rule as a string. <declsoon>: the prologue is not
+# over, or what follows is a declaration that may come after it.
+token sees(Str $how)
+{
+  :my $rest;
+  <?before ( [ \N*? ';' \h* [ [ '//' || '&&' ] \N* ]? \v ]* \N* ) { $rest = ~$0 }>
+  <?{ ahead($rest, $how.words[0], $how.ends-with(' item')) }>
+}
+token declsoon
+{
+  <?{ !($*PAST-PROLOGUE // False) }> || [ :my $rest; <?before (\N*) { $rest = ~$0 }> <?{ decl-ahead($rest) }> ]
+}
+
+# Match offsets are UTF-8 bytes under rakupp 4.0.1, characters elsewhere.
+my grammar OffsetProbe
+{
+  token TOP { . <x> }
+  token x   { '!' }
+}
+my $offsets-in-bytes = OffsetProbe.parse('é!')<x>.from == 2;
+
+# The state of the parse under way, which the rules' code reads at every turn:
+# variables of the module, not dynamic ones -- rakupp looks a dynamic
+# variable up through every frame of the call stack, and a grammar's stack is
+# deep. parse() sets them, and puts back what was there before.
+my $user;                    # the uses of the source's own commands
+my $user-on = False;         # whether there are any
+my @ends;                    # the line ends the parse took, for $*FURTHEST
+
+# ---- an ASCII copy, for speed ------------------------------------------------
+#
+# rakupp 5 takes time in proportion to the offset for each '.from' and '.to'
+# of a match -- and some thirty times more again when the text has one
+# character beyond ASCII in it. The actions read where every node came from,
+# so on a Protheus source, with its accents, a parse went quadratic: half a
+# minute for a file of 1,000 lines, five for one of 4,600. (Reported; Rakudo's
+# are constant.)
+#
+# So the grammar reads a copy in which each character beyond ASCII is one
+# ASCII character that the rules take the same way: one that '\w' takes -- a
+# letter, 'ª', 'º' -- is '8', which '\w' takes too and which cannot start a
+# name either; a non-breaking space, a blank to the rules, is a space; any
+# other is "\x01", which only a string, a comment or raw text takes. The copy
+# is as long as the source, so every offset is the source's, and XC::Actions
+# takes the text of a match that has a stand-in in it from the source itself
+# -- with a space among them only when the source has a non-breaking space.
+# A character beyond windows-1252 leaves the source as it is: correct, only
+# slower.
+#
+# Under rakupp 4.0.1, whose offsets are UTF-8 bytes, the source is read as
+# it is.
+sub ascii-copy(Str $t --> Str)
+{
+  return $t if $offsets-in-bytes || $t.encode.elems == $t.codes;
+  state %stand-in = Blob.new(0x80 .. 0xFF).decode('windows-1252').comb
+                      .grep({ $_ eq "\xA0" || $_ !~~ / ^ \s $ / })
+                      .map({ $_ => ($_ eq "\xA0" ?? ' ' !! $_ ~~ / ^ \w $ / ?? '8' !! "\x01") });
+  state @from = %stand-in.keys.sort;
+  state @to   = %stand-in{@from};
+  my $copy = $t.trans(@from => @to);
+  $copy.encode.elems == $copy.codes && $copy.chars == $t.chars ?? $copy !! $t
+}
+
+# Where the source uses the commands and translations it brings with it
 # (XC::Commands): its folder and the include folders, when bin/xc says them.
+#
+# How far a parse that fails got -- the first line it could not continue past
+# -- is $*FURTHEST, for the driver's message, when the caller has one: the end
+# of the furthest line end it took. Only then is it worked out: a match's
+# '.to' costs (see above), and a parse that succeeds has no use for it.
 method parse($target, |c)
 {
-  my $*UNITS = text-units($target);
+  my $text = ascii-copy($target);
   my $dir = $*XC-DIR // Str;
   my @dirs = ($*XC-INCLUDES // ()).list;
-  my $*USER = in-units($target, user-spans($target, :$dir, :@dirs));
-  callsame;
+  my $outer-user  = $user;
+  my $outer-on    = $user-on;
+  my @outer-ends  = @ends;
+  LEAVE
+  {
+    $user    = $outer-user;
+    $user-on = $outer-on;
+    @ends    = @outer-ends;
+  }
+  $user = in-units($target, user-spans($target, :$dir, :@dirs));
+  $user-on = so $user<cmd> || $user<trans>;
+  @ends = ();
+  with c<actions> -> $a
+  {
+    if $a.can('copied')
+    {
+      $a.copied = $text ne $target;
+      $a.spaced = $a.copied && $target.contains("\xA0");
+    }
+  }
+  my $m = callwith($text, |c);
+  try $*FURTHEST = max(0, |@ends.map(*.to)) unless $m;
+  $m
 }
 
 # The spans in the units of the match offsets: characters, or -- rakupp
@@ -184,32 +258,27 @@ sub in-units(Str $t, %spans --> Hash)
 }
 
 # Whether the source uses commands of its own at all.
-sub user-active(--> Bool)
-{
-  my $u = $*USER // return False;
-  so $u<cmd> || $u<trans>
-}
+sub user-active(--> Bool) { $user-on }
 
 # A use of the source's own commands at $from: its length, when it is one of
 # the kind asked ('stmt' or 'header'), else 0.
 sub user-cmd(Int $from, Str $kind --> Int)
 {
-  my $u = $*USER // return 0;
-  my $c = $u<cmd>{$from} // return 0;
+  my $c = ($user // return 0)<cmd>{$from} // return 0;
   $c[1] eq $kind ?? $c[0] - $from !! 0
 }
 sub user-trans(Int $from --> Int)
 {
-  my $u = $*USER // return 0;
-  my $to = $u<trans>{$from} // return 0;
+  my $to = ($user // return 0)<trans>{$from} // return 0;
   $to - $from
 }
 
 # A statement made by one of the source's own commands, taken whole; one that
 # stands for a function's header, with its body; a translation as a value.
-token usercmd   { <?{ user-cmd($/.from, 'stmt') > 0 }>   :my $n = user-cmd($/.from, 'stmt');   . ** {$n} }
-token userhead  { <?{ user-cmd($/.from, 'header') > 0 }> :my $n = user-cmd($/.from, 'header'); . ** {$n} }
-token usertrans { <?{ user-trans($/.from) > 0 }>         :my $n = user-trans($/.from);         . ** {$n} }
+# Where the source has none -- most of them -- not even where the rule is.
+token usercmd   { <?{ $user-on }> :my $n = user-cmd($/.from, 'stmt');   <?{ $n > 0 }> . ** {$n} }
+token userhead  { <?{ $user-on }> :my $n = user-cmd($/.from, 'header'); <?{ $n > 0 }> . ** {$n} }
+token usertrans { <?{ $user-on }> :my $n = user-trans($/.from);         <?{ $n > 0 }> . ** {$n} }
 rule  userfunc  { <userhead> <.nl> <funcbody> }
 token ttrans    { <usertrans> }
 
@@ -571,7 +640,7 @@ rule statement
   # so is a 'static' -- Protheus takes one after a statement, file-wide. None
   # closes the prologue here: a 'local' after one is then parsed, and the
   # checks can say what is wrong with it.
-  || [ <?{ !($*PAST-PROLOGUE // False) || decl-ahead($/.from) }> <declaration> ]
+  || [ <.declsoon> <declaration> ]
   || <ifcallst>
   || <ifst>
   || <whilest>
@@ -615,8 +684,8 @@ token noopst { :i [ 'endfunction' || 'endfunc' || 'endmethod' || 'default' <?bef
 # eats the space, and '>>' would then demand a word end at the start of the
 # next word. <.ws> already refuses to split a word, so 'deferred' does not
 # match.
-rule deferst { :i 'defer' [ [ <?{ ahead($/.from, 'assign') }> <assignment> ]
-                          || [ <?{ ahead($/.from, 'pipe') }> <pipest> ] || <callst> ] }
+rule deferst { :i 'defer' [ [ <.sees('assign')> <assignment> ]
+                          || [ <.sees('pipe')> <pipest> ] || <callst> ] }
 
 # ---- xtpl: 'using alias' -- a scoped work area -------------------------------
 #
@@ -756,8 +825,8 @@ rule simple
   || <loopst>
   || <breakst>
   || <defaultst>
-  || [ <?{ ahead($/.from, 'assign') }> [ <assignment> || <nilassign> ] ]
-  || [ <?{ ahead($/.from, 'pipe') }> <pipest> ]
+  || [ <.sees('assign')> [ <assignment> || <nilassign> ] ]
+  || [ <.sees('pipe')> <pipest> ]
   || <incst>
   || <callst>
 }
@@ -997,7 +1066,7 @@ rule assignment
 }
 
 # 'a := b := 0': the value an assignment of its own, from the right.
-token chained { <?{ ahead($/.from, 'bind') }> <assignment> }
+token chained { <.sees('bind')> <assignment> }
 
 token assignop { ':=' || '+=' || '-=' || '*=' || '/=' || '=' }
 
@@ -1093,7 +1162,7 @@ token fbkw     { :i 'fallback' >> }
 # not rules: the part is exactly what it holds, not the space around it.
 # 'If lOk := aRet[1]': an assignment is a value, the condition too. ':=' and
 # the like only: 'If a = b' compares.
-token cond      { [ <?{ ahead($/.from, 'bind', :item) }> <assignment> ] || <expr> }
+token cond      { [ <.sees('bind item')> <assignment> ] || <expr> }
 token guarded   { <expr> }
 token fallback  { <expr> }
 token pexpr     { <expr> }
@@ -1249,7 +1318,7 @@ token listitem { <passign> || <guardexpr> }
 
 # An assignment in parentheses is an expression -- 'if !( lOk := f() )'. Only
 # when one is there, by ahead(): no capture is left when it is not.
-token passign { <?{ ahead($/.from, 'bind', :item) }> <assignment> }
+token passign { <.sees('bind item')> <assignment> }
 
 # A call qualified by a TL++ dotted path:
 #
@@ -1290,7 +1359,7 @@ rule arglist     { <slot> [ ',' <slot> ]* }
 rule slot        { <arg>? }
 
 # An assignment is a valid argument too: 'If( c, a, cA := u )'.
-rule arg         { <byref> || [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
+rule arg         { <byref> || [ <.sees('assign item')> <assignment> ] || <expr> }
 # '@::cTab': a member of the object, by reference, too; and an element of an
 # array, '@aCampos[nX][8]'.
 rule byref       { '@' [ <selfacc> || [ <name> <trailer>* ] ] }
@@ -1327,7 +1396,7 @@ rule codeblock
 }
 
 # Inside a code block an assignment IS an expression.
-rule blockexpr   { [ <?{ ahead($/.from, 'assign', :item) }> <assignment> ] || <expr> }
+rule blockexpr   { [ <.sees('assign item')> <assignment> ] || <expr> }
 
 # ---- xtpl: lambda ------------------------------------------------------------
 #
@@ -1431,8 +1500,7 @@ token starcomment { ^^ \h* '*' \N* }
 # end of a line it is a continuation, and the whitespace rule takes it.
 token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ || ';' <!before \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ]> ] }
 token gap { [ <.starcomment> || \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
-# Every line end records how far the parse got, for the driver's error
-# message: the first line it could not continue past. 'try', because the
-# grammar is also used without a driver, where '$*FURTHEST' does not exist.
-token nl  { <.eol> <.gap> { try $*FURTHEST = $/.to if $/.to > $*FURTHEST } }
-token mark { <?> { try $*FURTHEST = $/.to if $/.to > $*FURTHEST } }
+# Every line end is kept, to say how far the parse got if it fails (parse):
+# the match itself, whose '.to' is read only then.
+token nl  { <.eol> <.gap> { @ends.push($/) } }
+token mark { <?> { @ends.push($/) } }

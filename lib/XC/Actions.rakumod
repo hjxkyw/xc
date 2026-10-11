@@ -20,9 +20,22 @@ unit class XC::Actions;
 has Str $.source;
 has XC::Source $!pos;
 
+# Whether the grammar read a copy of the source -- every character beyond
+# ASCII in it one ASCII character, '8' or "\x01" (XC::Grammar, ascii-copy)
+# -- and whether a space in it may stand for a non-breaking space of the
+# source. XC::Grammar.parse says so.
+has Bool $.copied is rw = False;
+has Bool $.spaced is rw = False;
+
+has Bool $!as-is = False;      # match offsets are character offsets already
+
 submethod TWEAK()
 {
-  $!pos = XC::Source.new(text => $_) with $!source;
+  with $!source
+  {
+    $!pos = XC::Source.new(text => $_);
+    $!as-is = $!pos.offsets-are-chars;
+  }
 }
 
 method !line($m --> Int)
@@ -33,13 +46,26 @@ method !line($m --> Int)
 }
 
 # A match's start and end as character offsets.
-method !from($m --> Int) { $!pos.char($m.from) }
-method !to($m --> Int)   { $!pos.char($m.to) }
+method !from($m --> Int) { $!as-is ?? $m.from !! $!pos.char($m.from) }
+method !to($m --> Int)   { $!as-is ?? $m.to   !! $!pos.char($m.to) }
+
+# A match's text, as the source has it: when the grammar read a copy, a text
+# with a stand-in in it -- or a '8' or "\x01" of its own -- is the source's,
+# at the same offsets. Every text that becomes part of the tree -- a name, a
+# literal, a raw line -- comes through here; a keyword or an operator, ASCII
+# in both, need not.
+method !text($m --> Str)
+{
+  my $t = ~$m;
+  return $t unless $!copied && ($t.contains('8') || $t.contains("\x01") || ($!spaced && $t.contains(' ')));
+  my $f = self!from($m);
+  $!source.substr($f, self!to($m) - $f)
+}
 
 # Records where an expression came from. The same node can pass up through
 # several levels ('(a)' is the node 'a'); the widest span wins, and it still
 # denotes that node.
-method !spanned(Expr $e, $/)
+method !spanned($e, $/)
 {
   $e.src-from = self!from($/);
   $e.src-to   = self!to($/);
@@ -94,7 +120,7 @@ method TOP($/)
     }
     elsif $t<preproc>
     {
-      @directives.push((~$t<preproc>).trim);
+      @directives.push(self!text($t<preproc>).trim);
     }
     elsif $t<externalst>
     {
@@ -113,11 +139,11 @@ method TOP($/)
       my $n = $t<namespacest>;
       if (~$n).trim.lc.starts-with('using')
       {
-        @usings.push(~$n<dottedname>);
+        @usings.push(self!text($n<dottedname>));
       }
       else
       {
-        $ns = ~$n<dottedname>;
+        $ns = self!text($n<dottedname>);
       }
     }
   }
@@ -138,12 +164,10 @@ method externalst($/)
 {
   my $x = External.new(
     alias => ?$<isalias>,
-    names => $<xname>.map(~*).list,
+    names => $<xname>.map({ self!text($_) }).list,
     line  => self!line($/),
   );
-  $x.src-from = self!from($/);
-  $x.src-to   = self!to($/);
-  make $x;
+  make self!spanned($x, $/);
 }
 
 method function($/)
@@ -151,22 +175,22 @@ method function($/)
   my @w = (~$<funckind>).lc.words;
   make FunctionDef.new(
     type        => @w > 1 ?? @w[0] !! '',
-    name        => ~$<name>,
+    name        => self!text($<name>),
     params      => $<params> ?? $<params><param>.map(*.made).list !! (),
     annotations => $<annotation>.map(*.made).list,
     body        => $<funcbody>.made,
     line        => self!line($<funckind>),
-    rettype-word => $<rettype> ?? ~$<rettype><typespec><typename> !! Str,
+    rettype-word => $<rettype> ?? self!text($<rettype><typespec><typename>) !! Str,
   );
 }
 
 method param($/)
 {
   make Param.new(
-    name       => ~$<name>,
-    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! UNKNOWN,
-    type-word  => $<typespec> ?? ~$<typespec><typename> !! Str,
-    attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
+    name       => self!text($<name>),
+    declared   => $<typespec> ?? type-of-name(self!text($<typespec><typename>)) !! UNKNOWN,
+    type-word  => $<typespec> ?? self!text($<typespec><typename>) !! Str,
+    attributes => $<attrs> ?? self!text($<attrs>).comb(/\w+/).map(*.lc).list !! (),
     attrs-from => $<attrs> ?? self!to($<name>) !! -1,
     attrs-to   => $<attrs> ?? self!to($<attrs>) !! -1,
   );
@@ -182,8 +206,8 @@ method classdecl($/)
     else            { @methods.push($m<methdecl>.made) }
   }
   make ClassDef.new(
-    name    => ~$<cname>,
-    supers  => $<supers> ?? $<supers>.map(~*).list !! (),
+    name    => self!text($<cname>),
+    supers  => $<supers> ?? $<supers>.map({ self!text($_) }).list !! (),
     members => @members,
     methods => @methods,
     line    => self!line($/),
@@ -196,8 +220,8 @@ method datadecl($/)
   make $<datavar>.map(-> $d
   {
     DataMember.new(
-      name       => ~$d<dname>,
-      type       => $d<dtype> ?? ~$d<dtype> !! Str,
+      name       => self!text($d<dname>),
+      type       => $d<dtype> ?? self!text($d<dtype>) !! Str,
       visibility => $vis,
     )
   }).list;
@@ -208,10 +232,10 @@ method methdecl($/)
   my ($constructor, $returns) = False, Str;
   for $<methtag> -> $t
   {
-    if $t<ret> { $returns = ~$t<ret> } else { $constructor = True }
+    if $t<ret> { $returns = self!text($t<ret>) } else { $constructor = True }
   }
   make MethodSig.new(
-    name        => ~$<mname>,
+    name        => self!text($<mname>),
     params      => $<params><param>.map(*.made).list,
     visibility  => $<visib> ?? ~$<visib>.trim.lc !! Str,
     constructor => $constructor,
@@ -222,10 +246,10 @@ method methdecl($/)
 method methodimpl($/)
 {
   make MethodImpl.new(
-    class-name => ~$<cname>,
-    name       => ~$<mname>,
+    class-name => self!text($<cname>),
+    name       => self!text($<mname>),
     params     => $<params><param>.map(*.made).list,
-    returns    => $<ret> ?? ~$<ret> !! $<retafter> ?? ~$<retafter> !! Str,
+    returns    => $<ret> ?? self!text($<ret>) !! $<retafter> ?? self!text($<retafter>) !! Str,
     body       => $<funcbody>.made,
     line       => self!line($/),
   );
@@ -235,7 +259,7 @@ method methodimpl($/)
 method interfacedecl($/)
 {
   make ClassDef.new(
-    name    => ~$<cname>,
+    name    => self!text($<cname>),
     members => (),
     methods => $<classmember>.grep(*.<methdecl>).map(*.<methdecl>.made).list,
     line    => self!line($/),
@@ -247,22 +271,22 @@ method userfunc($/)
 {
   make MethodImpl.new(
     class-name => '',
-    name       => (~$<userhead>).words[0] // 'command',
+    name       => self!text($<userhead>).words[0] // 'command',
     params     => (),
     returns    => Str,
     body       => $<funcbody>.made,
     line       => self!line($/),
   );
 }
-method usercmd($/)   { make RawStmt.new(lines => (~$/,), line => self!line($/)) }
-method usertrans($/) { make self!spanned(UserTrans.new(text => ~$/), $/) }
+method usercmd($/)   { make RawStmt.new(lines => (self!text($/),), line => self!line($/)) }
+method usertrans($/) { make self!spanned(UserTrans.new(text => self!text($/)), $/) }
 
 # A web service's method: a method of the service, its header as written.
 method wsmethodimpl($/)
 {
   make MethodImpl.new(
-    class-name => ~$<wshead><svc>,
-    name       => (~$<wshead>).words[1] // 'wsmethod',
+    class-name => self!text($<wshead><svc>),
+    name       => self!text($<wshead>).words[1] // 'wsmethod',
     params     => (),
     returns    => Str,
     body       => $<funcbody>.made,
@@ -276,14 +300,14 @@ method selfacc($/)
 {
   my $base = SelfRef.new;
   make $<arglist>
-    ?? MethodCall.new(base => $base, name => ~$<member>, args => $<arglist>.made.list)
-    !! Member.new(base => $base, name => ~$<member>);
+    ?? MethodCall.new(base => $base, name => self!text($<member>), args => $<arglist>.made.list)
+    !! Member.new(base => $base, name => self!text($<member>));
 }
 
 method annotation($/)
 {
   make Annotation.new(
-    name => ~$<name>,
+    name => self!text($<name>),
     args => $<arglist> ?? $<arglist>.made !! (),
     line => self!line($/),
   );
@@ -314,26 +338,19 @@ method statement($/)
   }
   die "no node for '{$/.hash.keys.sort.join(',')}': {(~$/).trim}" without $node;
   # The inner statement of a modifier has a span of its own, for the emitter.
-  with $<simple> -> $s
-  {
-    $s.made.src-from = self!from($s);
-    $s.made.src-to   = self!to($s);
-  }
-  $node.src-from = self!from($/);
-  $node.src-to   = self!to($/);
-  make $node;
+  self!spanned($<simple>.made, $<simple>) if $<simple>;
+  make self!spanned($node, $/);
 }
 
 method simple($/) { make $/.hash.values[0].made }
 
-method noopst($/) { make NoOpStmt.new(word => ~$/, line => self!line($/)) }
+method noopst($/) { make NoOpStmt.new(word => self!text($/), line => self!line($/)) }
 
 method deferst($/)
 {
   my $m = $<assignment> // $<pipest> // $<callst>;
   my $stmt = $m.made;
-  $stmt.src-from = self!from($m);      # the deferred statement's own span
-  $stmt.src-to   = self!to($m);
+  self!spanned($stmt, $m);            # the deferred statement's own span
   make Deferred.new(stmt => $stmt, line => self!line($/));
 }
 
@@ -341,8 +358,7 @@ method deferst($/)
 method execst($/)
 {
   my $call = CallStmt.new(call => $<expr>.made, line => self!line($/));
-  $call.src-from = self!from($<expr>);
-  $call.src-to   = self!to($<expr>);
+  self!spanned($call, $<expr>);
   make Modified.new(
     stmt => $call,
     op   => (~$<modifier><kw>).lc,
@@ -392,9 +408,9 @@ method lvalue($/)
           !! $<subjacc> ?? $<subjacc>.made
           !! $<pexpr>   ?? $<pexpr>.made
           !! $<call>    ?? $<call>.made
-          !!               Name.new(name => ~$<name>);
+          !!               Name.new(name => self!text($<name>));
   make self!spanned(self!trailed($base, $<macro> // $<selfacc> // $<subjacc> // $<pexpr> // $<call> // $<name>,
-                                 $<trailer>, $/), $/);
+                                 $<trailer>, $/, :outer), $/);
 }
 
 method callst($/)
@@ -408,9 +424,9 @@ method callst($/)
           !! $<macro>     ?? $<macro>.made
           !! $<inalias>   ?? $<inalias>.made
           !! $<pexpr>   ?? $<pexpr>.made
-          !!               Name.new(name => ~$<name>);
+          !!               Name.new(name => self!text($<name>));
   make CallStmt.new(
-    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<macrocall> // $<nscall> // $<macro> // $<inalias> // $<pexpr> // $<name>, $<trailer>, $/), $/),
+    call => self!spanned(self!trailed($base, $<call> // $<subjacc> // $<selfacc> // $<macrocall> // $<nscall> // $<macro> // $<inalias> // $<pexpr> // $<name>, $<trailer>, $/, :outer), $/),
     line => self!line($/),
   );
 }
@@ -455,7 +471,7 @@ method whilest($/)
 method forst($/)
 {
   my $node = ForStmt.new(
-    var       => ~$<var>,
+    var       => self!text($<var>),
     var-local => ?$<varlocal>,
     from      => $<from>.made,
     to        => $<to>.made,
@@ -479,8 +495,8 @@ method forrange($/)
 method forinst($/)
 {
   my $node = ForInStmt.new(
-    elem   => ~$<elem>,
-    index  => $<idx> ?? ~$<idx> !! Str,
+    elem   => self!text($<elem>),
+    index  => $<idx> ?? self!text($<idx>) !! Str,
     source => $<srange> ?? $<srange>.made !! $<source>.made,
     body   => $<block>.made,
     line   => self!line($/),
@@ -518,20 +534,20 @@ method subjacc($/)
 {
   my $base = SubjectRef.new;
   make $<arglist>
-    ?? MethodCall.new(base => $base, name => ~$<member>, args => $<arglist>.made.list)
-    !! Member.new(base => $base, name => ~$<member>);
+    ?? MethodCall.new(base => $base, name => self!text($<member>), args => $<arglist>.made.list)
+    !! Member.new(base => $base, name => self!text($<member>));
 }
 
 # A command, or a directive in a function: raw text, the whole of it.
-method cmdst($/) { make RawStmt.new(lines => (~$/,), line => self!line($/)) }
-method dirst($/) { make RawStmt.new(lines => ((~$/).trim,), line => self!line($/)) }
+method cmdst($/) { make RawStmt.new(lines => (self!text($/),), line => self!line($/)) }
+method dirst($/) { make RawStmt.new(lines => (self!text($/).trim,), line => self!line($/)) }
 
 method rawst($/)
 {
   # The block has a list of lines; the one-line form has a single match, and
   # '.map' over a single match would walk its (empty) positional captures.
-  my @lines = $<rawblock> ?? $<rawblock><rawline>.map(*.Str)
-                          !! (~$<rawone><rawline>,);
+  my @lines = $<rawblock> ?? $<rawblock><rawline>.map({ self!text($_) })
+                          !! (self!text($<rawone><rawline>),);
   make RawStmt.new(
     block => ?$<rawblock>,
     lines => @lines,
@@ -542,7 +558,7 @@ method rawst($/)
 method usingst($/)
 {
   make UsingAlias.new(
-    area  => ~$<area>,
+    area  => self!text($<area>),
     order => $<order> ?? $<order>.made !! Expr,
     body  => $<block>.made,
     line  => self!line($/),
@@ -553,7 +569,7 @@ method tryst($/)
 {
   make TryStmt.new(
     body      => $<seqblock>.made,
-    error-var => $<errvar> ?? ~$<errvar> !! Str,
+    error-var => $<errvar> ?? self!text($<errvar>) !! Str,
     handler   => $<recover> ?? $<recover>.made !! (),
     finally   => $<finblock> ?? $<finblock>.made !! (),
     line      => self!line($/),
@@ -585,7 +601,7 @@ method seqst($/)
   make SequenceStmt.new(
     body        => $<seqblock>.made,
     has-recover => ?$<recover>,
-    error-var   => $<errvar> ?? ~$<errvar> !! Str,
+    error-var   => $<errvar> ?? self!text($<errvar>) !! Str,
     recover     => $<recover> ?? $<recover>.made !! (),
     line        => self!line($/),
   );
@@ -613,11 +629,11 @@ method !make-declarator($/)
   my $value = $<chained> // $<guardexpr> // $<expr>;
   Declarator.new(
     type-first    => ?($<typespec> && $value && $<typespec>.from < $value.from),
-    typespec-text => $<typespec> ?? (~$<typespec>).trim !! Str,
-    name       => ~$<name>,
-    attributes => $<attrs> ?? (~$<attrs>).comb(/\w+/).map(*.lc).list !! (),
+    typespec-text => $<typespec> ?? self!text($<typespec>).trim !! Str,
+    name       => self!text($<name>),
+    attributes => $<attrs> ?? self!text($<attrs>).comb(/\w+/).map(*.lc).list !! (),
     init       => $value ?? $value.made !! Expr,
-    declared   => $<typespec> ?? type-of-name(~$<typespec><typename>) !! $<dims> ?? type-of-name('array') !! UNKNOWN,
+    declared   => $<typespec> ?? type-of-name(self!text($<typespec><typename>)) !! $<dims> ?? type-of-name('array') !! UNKNOWN,
     dims       => $<dims> ?? $<dims><expr>.map(*.made).list !! (),
     line       => self!line($/),
   )
@@ -633,8 +649,11 @@ method hdrdecl($/)    { make self!make-declarator($/) }
 method expr($/)
 {
   # The source gets its own span first: the emitter renders it on its own,
-  # and a folded operator ('a + b') has no span otherwise.
-  make self!spanned(pipeline(self!spanned($<elvis>.made, $<elvis>), $<feed>), $/);
+  # and a folded operator ('a + b') has no span otherwise. With no stage the
+  # source is the expression, and the expression's span is the one it keeps.
+  my $source = $<elvis>.made;
+  self!spanned($source, $<elvis>) if $<feed>;
+  make self!spanned(pipeline($source, $<feed>), $/);
 }
 
 # 'a ?: b ?: c' chains to the right: a ?: (b ?: c).
@@ -678,7 +697,7 @@ method stage($/)
 {
   make $<nscall> ?? $<nscall>.made
     !! $<call>   ?? $<call>.made
-    !!              Call.new(name => ~$<name>, args => ());
+    !!              Call.new(name => self!text($<name>), args => ());
 }
 
 # A pipeline as a statement, for its effects. It sits in a CallStmt like any
@@ -748,7 +767,7 @@ method postfix($/)
     my $operand = self!trailed($<primary>.made, $<primary>, $<trailer>, $/);
     return make self!spanned(incdec($operand, ~$<incop>, 'post'), $/);
   }
-  make self!spanned($<literal> ?? $<literal>.made !! self!trailed($<primary>.made, $<primary>, $<trailer>, $/), $/);
+  make self!spanned($<literal> ?? $<literal>.made !! self!trailed($<primary>.made, $<primary>, $<trailer>, $/, :outer), $/);
 }
 
 # Each trailer makes a function that takes what is to its left.
@@ -756,7 +775,7 @@ method trailer($/) { make $/.hash.values[0].made }
 
 method tmethod($/)
 {
-  my $name = ~$<member>;
+  my $name = self!text($<member>);
   my @args = $<arglist>.made.list;
   make -> $base { MethodCall.new(base => $base, name => $name, args => @args) }
 }
@@ -769,7 +788,7 @@ method thash($/)
 
 method tsafe($/)
 {
-  my $name = ~$<member>;
+  my $name = self!text($<member>);
   with $<arglist> -> $args
   {
     my @args = $args.made.list;
@@ -783,13 +802,13 @@ method tsafe($/)
 
 method tmember($/)
 {
-  my $name = ~$<member>;
+  my $name = self!text($<member>);
   make -> $base { Member.new(base => $base, name => $name) }
 }
 
 method ttrans($/)
 {
-  my $text = ~$<usertrans>;
+  my $text = self!text($<usertrans>);
   make -> $base { UserTrans.new(base => $base, text => $text) }
 }
 
@@ -812,7 +831,7 @@ method tfield($/)
     my $m = .<macro>.made;
     return make -> $base { AliasField.new(base => $base, field => '', macro => $m) };
   }
-  my $name = ~$<member>;
+  my $name = self!text($<member>);
   make -> $base { AliasField.new(base => $base, field => $name) }
 }
 
@@ -826,7 +845,7 @@ method primary($/)
       !! $<literal>      ?? $<literal>.made
       !! $<nscall>       ?? $<nscall>.made
       !! $<call>         ?? $<call>.made
-      !! $<name>         ?? Name.new(name => ~$<name>)
+      !! $<name>         ?? Name.new(name => self!text($<name>))
       !! $<listitem>     ?? self!spanned(ExprList.new(items => (($<passign> // $<guardexpr>).made, |$<listitem>.map(*.made))), $/)
       !! $<passign>      ?? $<passign>.made
       !! $<guardexpr>    ?? $<guardexpr>.made
@@ -842,7 +861,7 @@ method primary($/)
 
 method macro($/)
 {
-  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>),
+  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => self!text($<name>)),
                  called => ?$<mcall>, args => $<mcall> ?? $<mcall><arglist>.made.list !! ());
 }
 
@@ -854,28 +873,28 @@ method ifcallst($/)
 
 method macrocall($/)
 {
-  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => ~$<name>),
+  make Macro.new(target => $<expr> ?? $<expr>.made !! Name.new(name => self!text($<name>)),
                  called => True, args => $<mcall><arglist>.made.list);
 }
 
 method aliasfield($/)
 {
-  make $<expr>       ?? InAlias.new(alias => ~$<alias>,
+  make $<expr>       ?? InAlias.new(alias => self!text($<alias>),
                                    expr => $<listitem> ?? ExprList.new(items => ($<expr>.made, |$<listitem>.map(*.made)))
                                                        !! $<expr>.made)
-    !! $<fieldmacro> ?? AliasField.new(alias => ~$<alias>, field => '', macro => $<fieldmacro><macro>.made)
-    !!                  AliasField.new(alias => ~$<alias>, field => ~$<field>);
+    !! $<fieldmacro> ?? AliasField.new(alias => self!text($<alias>), field => '', macro => $<fieldmacro><macro>.made)
+    !!                  AliasField.new(alias => self!text($<alias>), field => self!text($<field>));
 }
 
 method jsonliteral($/)
 {
-  make JsonLit.new(type => 'JSON', text => (~$/).trim,
+  make JsonLit.new(type => 'JSON', text => self!text($/).trim,
                    pairs => $<pair>.map(*.made).list);
 }
 
 method hashliteral($/)
 {
-  make HashLit.new(type => 'Object', text => (~$/).trim,
+  make HashLit.new(type => 'Object', text => self!text($/).trim,
                    pairs => $<hashpair>.map(*.made).list);
 }
 
@@ -887,7 +906,7 @@ method arrayliteral($/)
   # '{}' is one empty element: none. An empty one among others is Nil.
   my @items = $<aitem>.map({ .<expr> ?? .<expr>.made !! Omitted.new });
   @items = () if @items == 1 && @items[0] ~~ Omitted;
-  make ArrayLit.new(type => 'Array', text => (~$/).trim, items => @items);
+  make ArrayLit.new(type => 'Array', text => self!text($/).trim, items => @items);
 }
 
 method listitem($/) { make ($<passign> // $<guardexpr>).made }
@@ -896,15 +915,15 @@ method inalias($/)  { make $<aliasfield>.made }
 
 method lambda($/)
 {
-  make Lambda.new(type => 'Block', text => (~$/).trim,
-                  params => $<lparam>.map(~*).list,
+  make Lambda.new(type => 'Block', text => self!text($/).trim,
+                  params => $<lparam>.map({ self!text($_) }).list,
                   body   => ($<lbody>.made,));
 }
 
 method codeblock($/)
 {
-  make CodeBlock.new(type => 'Block', text => (~$/).trim,
-                     params => $<name>.map(~*).list,
+  make CodeBlock.new(type => 'Block', text => self!text($/).trim,
+                     params => $<name>.map({ self!text($_) }).list,
                      body   => $<blockexpr>.map(*.made).list);
 }
 
@@ -916,14 +935,14 @@ method blockexpr($/)
 
 method call($/)
 {
-  make self!spanned(Call.new(name => ~$<name>, args => $<arglist>.made.list), $/);
+  make self!spanned(Call.new(name => self!text($<name>), args => $<arglist>.made.list), $/);
 }
 
 # The whole path is the name; the dots stay in it, and no segment is a variable
 # read (they are namespace parts), so walk-expr does not go into them.
 method nscall($/)
 {
-  make self!spanned(Call.new(name => ~$<qname>, args => $<arglist>.made.list), $/);
+  make self!spanned(Call.new(name => self!text($<qname>), args => $<arglist>.made.list), $/);
 }
 
 # 'f()' has a single empty position and no arguments; 'f( , 1)' has two, and
@@ -940,9 +959,9 @@ method arg($/)
          $<byref>      ?? Ref.new(target => $<byref><selfacc>
                                           ?? $<byref><selfacc>.made
                                           !! $<byref><trailer>
-                                          ?? self!trailed(Name.new(name => ~$<byref><name>), $<byref><name>,
+                                          ?? self!trailed(Name.new(name => self!text($<byref><name>)), $<byref><name>,
                                                           $<byref><trailer>, $<byref>)
-                                          !! self!spanned(Name.new(name => ~$<byref><name>), $<byref><name>))
+                                          !! self!spanned(Name.new(name => self!text($<byref><name>)), $<byref><name>))
       !! $<assignment> ?? assign-expr($<assignment>.made)
       !!                  $<expr>.made, $/);
 }
@@ -956,7 +975,7 @@ method literal($/)
            !! $<logical> ?? 'Logical'
            !! $<nildef>  ?? 'Variant'
            !!               UNKNOWN,
-    text => ~$/,
+    text => self!text($/),
   );
 }
 
@@ -964,10 +983,10 @@ method literal($/)
 method string($/)
 {
   my $s = $<dqstring> // $<sqstring>;
-  my @parts = $s<spart>.map({ .<interp> ?? .<interp><expr>.made !! ~.<text> });
+  my @parts = $s<spart>.map({ .<interp> ?? .<interp><expr>.made !! self!text(.<text>) });
   make @parts.grep(Expr)
-    ?? Interp.new(type => 'Character', text => ~$/, parts => @parts)
-    !! Literal.new(type => 'Character', text => ~$/);
+    ?? Interp.new(type => 'Character', text => self!text($/), parts => @parts)
+    !! Literal.new(type => 'Character', text => self!text($/));
 }
 
 # ---- helpers -----------------------------------------------------------------
@@ -977,10 +996,11 @@ method string($/)
 # The base with its trailers applied, each step spanning from the start of the
 # whole ($whole) to the end of its trailer: the emitter may rewrite any of
 # them ('o:hCfg' in 'o:hCfg{"k"} := 1'). The base gets its own match's span
-# when it has none.
-method !trailed(Expr $base, $base-match, $trailers, $whole --> Expr)
+# when it has none -- unless it is what comes back, no trailer after it, and
+# the caller gives that a span of its own ($outer).
+method !trailed(Expr $base, $base-match, $trailers, $whole, Bool :$outer = False --> Expr)
 {
-  self!spanned($base, $base-match) if $base.src-from < 0 && $base-match.defined;
+  self!spanned($base, $base-match) if $base.src-from < 0 && $base-match.defined && !($outer && !$trailers);
   my $from = self!from($whole);
   my $e = $base;
   for $trailers.list -> $t
@@ -1034,8 +1054,9 @@ sub branches($conds, $bodies)
 # 'a + b - c', with the operator of each round.
 sub fold-ops($/, Str $child, Str $opname)
 {
-  my @parts = $/{$child}.map(*.made);
-  return @parts[0] if @parts == 1;
+  my $kids = $/{$child};
+  return $kids[0].made if $kids.elems == 1;     # most levels: one child, passed on
+  my @parts = $kids.map(*.made);
   my @ops = $/{$opname}.map({ (~$_).lc });
   my $acc = @parts.shift;
   for @parts.kv -> $i, $r
