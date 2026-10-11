@@ -45,11 +45,12 @@
 # Besides a name nothing declares: a variable assigned but never read (or
 # declared and never used), a function that returns a value on one path and
 # nothing on another, and a field of an area nothing in the function opened --
-# xtpl's, in xtpl's words. And its warnings about fusion, now that xc fuses as
-# xtpl does: a chain whose stage stops the fusing ("this chain does not fuse
-# -- 'sort' stops it"), a 'fallback' that turns it off, and a left side of
-# '|>' that is more than was meant ('a > 1 |> f' feeds 'a > 1'). Which stages
-# fuse is XC::Emit's decision (fusion-split), not a copy of it.
+# xtpl's, in xtpl's words. And two of its warnings about chains: a 'fallback'
+# that turns fusion off, and a left side of '|>' that is more than was meant
+# ('a > 1 |> f' feeds 'a > 1'). Which stages fuse is XC::Emit's decision
+# (fuse-from), not a copy of it. xtpl's third -- "this chain does not fuse --
+# 'sort' stops it" -- is not given: xc starts a loop again after a stage that
+# stops one, so nothing after that stage is lost.
 #
 # THE DICTIONARY
 #
@@ -1016,42 +1017,22 @@ my class Checker
 
   # A chain: a source it can walk.
   # ---- fusion ----------------------------------------------------------------
-  # xtpl's three warnings about it, on its conditions and in its words.
+  # xtpl's warnings about it, on its conditions and in its words -- but "this
+  # chain does not fuse": in xc a stage that stops a loop does not stop the
+  # chain's fusing, which starts again after it (fuse-from).
   method !fusion(Pipeline $p)
   {
     my @stages = $p.stages.list;
     return unless @stages;
     my $at = %!chain-at{$p.WHICH} // 'value';
     self!loose-left($p) if $at ne 'value' && !%!guarded{$p.WHICH};
-    my %split = fusion-split($p, -> $n { self!find($n).defined });
-    my $run  = %split<fused>.elems;
-    my $fold = %split<terminal>.defined;
-    my $taken = $run + ($fold ?? 1 !! 0);
-    # Run for its effects, a chain fuses whole or not at all: nothing to say.
-    return if $at eq 'effect' && ($fold || $run != @stages || $run < 1);
-    if %!guarded{$p.WHICH}
-    {
-      # Over a source it is an error already; over an array, a guard needs an
-      # expression, so a chain that would have fused does not.
-      self!warning("'fallback' turns off fusion for this chain -- a guard needs an expression and a fused "
-                   ~ "loop is not one, so each stage builds an array again. Guard the part that can fail "
-                   ~ "instead, and leave the chain outside it.")
-        if !is-source($p.source) && array-chain-fuses(%split, $at eq 'effect');
-      return;
-    }
-    # A terminal ends the fused run by design: what follows it carries on from
-    # the array it built, and is not what stopped anything.
-    return if $fold || $taken >= @stages || @stages < 2;
-    my $stop = @stages[$taken];
-    # Only when a stage after the stop would have fused -- what the stop
-    # cost. With none -- 'cName |> alltrim |> upper', 'aX |> filter(...) |>
-    # distinct', 'aX |> sort |> reverse' -- nothing could have fused, and there
-    # is nothing to do about it. xtpl warned anyway, of a string chain too.
-    my &declared = -> $n { self!find($n).defined };
-    return unless @stages[$taken ^.. *].first({ stage-fuses($_, &declared) });
-    my $why = is-runtime-verb($stop.name) ?? 'it needs the whole collection' !! 'xtpl cannot see inside it';
-    self!warning("this chain does not fuse -- '{$stop.name}' stops it, because $why, so it and every "
-                 ~ "stage after it builds an array");
+    # Over a source it is an error already; over an array, a guard needs an
+    # expression, so a chain that would have fused does not.
+    self!warning("'fallback' turns off fusion for this chain -- a guard needs an expression and a fused "
+                 ~ "loop is not one, so each stage builds an array again. Guard the part that can fail "
+                 ~ "instead, and leave the chain outside it.")
+      if %!guarded{$p.WHICH} && !is-source($p.source)
+         && fuse-from(@stages, -> $n { self!find($n).defined }, $at eq 'effect').defined;
   }
 
   # 'a > 1 |> f': the whole left side of '|>' is fed in. A comparison or a

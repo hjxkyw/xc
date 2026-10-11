@@ -8,7 +8,10 @@ use XC::Emit;
 # array whose stages can be written into a loop becomes that loop instead --
 # no array between the stages, a 'take' or a 'first' that stops it -- when at
 # least two of its stages fuse, or, run for its effects, all of them: xtpl's
-# rule. Anywhere else, and when its first stage cannot fuse, it stays calls.
+# rule. Not xtpl's: a stage that cannot be written into a loop does not end
+# the fusing. It is a call, and the loop starts again after it -- over the
+# array it made -- where the stages left would fuse by the same rule. Inside
+# an expression a chain stays calls.
 #
 # The terminals now fused -- over arrays and over rows()/lines() too: aprod,
 # amax, amin, join, reduce, fold, maxby, minby, chunkby; the stages: scan,
@@ -69,15 +72,60 @@ lowers 'one stage with no block: a call -- there is nothing to save',
 lowers 'a first stage that cannot fuse: calls',
   "  n := a |> sort |> take(3)",
   "  n := u_xtpl_take(u_xtpl_sort(a), 3)";
-lowers 'a block held in a variable cannot be written into a loop: calls',
+lowers 'a block held in a variable cannot be written into a loop: a call, and the loop after it',
   "  n := a |> filter(bOk) |> map([x] x * 2)",
-  "  n := u_xtpl_map(u_xtpl_filter(a, bOk), \{|x| x * 2\})";
+  "  fs_0_0 := u_xtpl_filter(a, bOk)\n  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(fs_0_0)\n    fv_0_0 := fs_0_0[fi_0_0]\n"
+  ~ "    fv_0_0 := fv_0_0 * 2\n    AAdd(fo_0_0, fv_0_0)\n  Next\n  n := fo_0_0";
 lowers 'inside an expression: calls',
   "  n := len(a |> filter([x] x > 0) |> map([x] x * 2))",
   "  n := len(u_xtpl_map(u_xtpl_filter(a, \{|x| x > 0\}), \{|x| x * 2\}))";
-lowers 'run for its effects, a stage that cannot fuse: calls',
+lowers 'run for its effects, a stage that cannot fuse after the loop: the loop collects for it',
   "  a |> tap([x] conout(x)) |> sort",
-  "  u_xtpl_sort(u_xtpl_tap(a, \{|x| conout(x)\}))";
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    conout(fv_0_0)\n    AAdd(fo_0_0, fv_0_0)\n  Next\n"
+  ~ "  u_xtpl_sort(fo_0_0)";
+
+# ---- a loop again, after a stage that cannot fuse ----------------------------
+lowers 'a first stage that cannot fuse: a call, bound once, and the loop over what it made',
+  "  n := a |> split(\";\") |> map([x] alltrim(x)) |> filter([x] !Empty(x))",
+  "  fs_0_0 := u_xtpl_split(a, \";\")\n  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(fs_0_0)\n    fv_0_0 := fs_0_0[fi_0_0]\n"
+  ~ "    fv_0_0 := alltrim(fv_0_0)\n    If !Empty(fv_0_0)\n      AAdd(fo_0_0, fv_0_0)\n    EndIf\n  Next\n  n := fo_0_0";
+lowers 'two stages that cannot fuse, one after the other: both calls, around each other',
+  "  n := a |> sort |> reverse |> map([x] x * 2)",
+  "  fs_0_0 := u_xtpl_reverse(u_xtpl_sort(a))\n  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(fs_0_0)\n    fv_0_0 := fs_0_0[fi_0_0]\n"
+  ~ "    fv_0_0 := fv_0_0 * 2\n    AAdd(fo_0_0, fv_0_0)\n  Next\n  n := fo_0_0";
+lowers 'a stop in the middle: a loop, a call over what it collected, and a loop again',
+  "  n := a |> filter([x] x > 0) |> sortby([x] -x) |> map([x] x * 2) |> take(3)",
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 0\n      AAdd(fo_0_0, fv_0_0)\n    EndIf\n  Next\n"
+  ~ "  fs_0_0 := u_xtpl_sortby(fo_0_0, \{|x| -x\})\n  fn_0_0 := 0\n  fo_0_1 := \{\}\n  For fi_0_1 := 1 To Len(fs_0_0)\n"
+  ~ "    fv_0_1 := fs_0_0[fi_0_1]\n    fv_0_1 := fv_0_1 * 2\n    If fn_0_0 >= 3\n      Exit\n    EndIf\n    fn_0_0++\n"
+  ~ "    AAdd(fo_0_1, fv_0_1)\n  Next\n  n := fo_0_1";
+lowers 'a function of the source in the middle, a terminal after it: the loop after it walks what it returned',
+  "  n := a |> map([x] x * 2) |> myHelper(3) |> count([x] x > 1)",
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    fv_0_0 := fv_0_0 * 2\n    AAdd(fo_0_0, fv_0_0)\n  Next\n"
+  ~ "  fs_0_0 := myHelper(fo_0_0, 3)\n  fo_0_1 := 0\n  For fi_0_1 := 1 To Len(fs_0_0)\n    fv_0_1 := fs_0_0[fi_0_1]\n"
+  ~ "    If fv_0_1 > 1\n      fo_0_1++\n    EndIf\n  Next\n  n := fo_0_1";
+lowers 'right after a terminal, a stage that fuses: the loop after it walks what the first collected',
+  "  n := a |> map([x] x) |> chunkby([x] x) |> map([c] len(c))",
+  "  fch_0_0 := \{\}\n  fky_0_0 := Nil\n  fop_0_0 := .F.\n  fsn_0_0 := Nil\n  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n"
+  ~ "    fv_0_0 := a[fi_0_0]\n    fv_0_0 := fv_0_0\n    fsn_0_0 := fv_0_0\n    If !fop_0_0\n      fop_0_0 := .T.\n"
+  ~ "      fky_0_0 := fsn_0_0\n    ElseIf !(fsn_0_0 == fky_0_0)\n      AAdd(fo_0_0, fch_0_0)\n      fch_0_0 := \{\}\n"
+  ~ "      fky_0_0 := fsn_0_0\n    EndIf\n    AAdd(fch_0_0, fv_0_0)\n  Next\n  If fop_0_0\n    AAdd(fo_0_0, fch_0_0)\n  EndIf\n"
+  ~ "  fo_0_1 := \{\}\n  For fi_0_1 := 1 To Len(fo_0_0)\n    fv_0_1 := fo_0_0[fi_0_1]\n    fv_0_1 := len(fv_0_1)\n"
+  ~ "    AAdd(fo_0_1, fv_0_1)\n  Next\n  n := fo_0_1";
+lowers 'after the stop, nothing that fuses: calls over what the loop collected, a function named a block',
+  "  n := a |> filter([x] x > 0) |> sortby(upper) |> take(3)",
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    If fv_0_0 > 0\n      AAdd(fo_0_0, fv_0_0)\n    EndIf\n  Next\n"
+  ~ "  n := u_xtpl_take(u_xtpl_sortby(fo_0_0, \{|__it| upper(__it)\}), 3)";
+lowers 'run for its effects, a stage that cannot fuse first: a call, and the loop, which collects nothing',
+  "  a |> sort |> tap([x] conout(x))",
+  "  fs_0_0 := u_xtpl_sort(a)\n  For fi_0_0 := 1 To Len(fs_0_0)\n    fv_0_0 := fs_0_0[fi_0_0]\n    conout(fv_0_0)\n  Next";
+lowers 'run for its effects, nothing after the stop fuses: the calls are a statement, and run',
+  "  a |> map([x] x * 2) |> sort |> save()",
+  "  fo_0_0 := \{\}\n  For fi_0_0 := 1 To Len(a)\n    fv_0_0 := a[fi_0_0]\n    fv_0_0 := fv_0_0 * 2\n    AAdd(fo_0_0, fv_0_0)\n  Next\n"
+  ~ "  save(u_xtpl_sort(fo_0_0))";
+lowers 'run for its effects, a terminal after the stop: calls, as when nothing fused',
+  "  a |> sort |> filter([x] x > 0) |> count",
+  "  u_xtpl_count(u_xtpl_filter(u_xtpl_sort(a), \{|x| x > 0\}))";
 
 # ---- where -------------------------------------------------------------------
 lowers 'under a postfix if: the loop inside the If',

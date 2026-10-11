@@ -1117,8 +1117,8 @@ The verbs that take a block: `map`, `filter`, `reject`, `tap`, `takewhile`,
 ### When a chain is a loop
 
 A chain that is the whole value of a statement -- `x := chain`, a `Local`'s
-value, `Return chain`, or a statement of its own -- becomes one loop, with
-no array built between its stages, when at least two of its stages fuse, or
+value, `Return chain`, or a statement of its own -- becomes a loop, with no
+array built between its stages, where at least two stages in a row fuse, or
 one that carries a block (a lambda written in the stage, or a function's
 name):
 
@@ -1159,26 +1159,33 @@ Return aCodes
   no block, with their plain arguments.
 - `take`, `takewhile`, `anyof`, `allof`, `noneof` and `first` leave the loop
   as soon as they know.
-- A chain run for its effect fuses only when all of its stages do, and none
-  is a terminal.
-- Any other stage stops the fusing: it and every stage after it apply, as
-  calls, to what the loop collected. xc warns about it, in xtpl's words, when
-  a stage after it would have fused -- what the stop cost, as the `take(3)`
-  below. With none -- `cName |> alltrim |> upper`, `aX |> filter(...) |>
-  sort` -- nothing was lost, and it says nothing.
+- Any other stage -- `sortby`, `split`, a function of the source, a block
+  held in a variable -- is a call, and does not stop the fusing. It applies
+  to what the loop before it collected (to the array, when it comes first),
+  and a loop starts again after it, over what it returned, where the stages
+  left fuse by the rules above. Two such stages in a row are two calls, one
+  around the other.
+- Run for its effect, the chain's last loop collects nothing: it fuses when
+  every stage left does, and none is a terminal. Otherwise what is left is
+  calls, a statement of their own.
 
 ```xtpl
-User Function NoFuse(aOrders)
-  Local aTop := aOrders |> filter([o] o:nValue > 0) |> sortby([o] o:nValue) |> take(3)
+User Function TopThree(aOrders)
+  Local aTop := aOrders |> filter([o] o:nValue > 0) |> sortby([o] -o:nValue) |> take(3) |> map([o] o:cCode)
 Return aTop
 ```
 
 ```tlpp
-User Function NoFuse(aOrders)
+User Function TopThree(aOrders)
   Local aTop
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
-  Local fo_0_0  // the result of the chain
+  Local fo_0_0  // what a loop collected, for the stages after it
+  Local fs_0_0  // the array walked
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local fo_0_1  // the result of the chain
   fo_0_0 := {}
   For fi_0_0 := 1 To Len(aOrders)
     fv_0_0 := aOrders[fi_0_0]
@@ -1186,13 +1193,52 @@ User Function NoFuse(aOrders)
       AAdd(fo_0_0, fv_0_0)
     EndIf
   Next
-  aTop := u_xtpl_take(u_xtpl_sortby(fo_0_0, {|o| o:nValue}), 3)
+  fs_0_0 := u_xtpl_sortby(fo_0_0, {|o| -o:nValue})
+  fn_0_0 := 0
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(fs_0_0)
+    fv_0_1 := fs_0_0[fi_0_1]
+    If fn_0_0 >= 3
+      Exit
+    EndIf
+    fn_0_0++
+    fv_0_1 := fv_0_1:cCode
+    AAdd(fo_0_1, fv_0_1)
+  Next
+  aTop := fo_0_1
 Return aTop
 ```
 
-```text
-nofuse.xtpl:2: warning: this chain does not fuse -- 'sortby' stops it, because it needs the whole collection, so it and every stage after it builds an array
+A call first is bound once, and the loop walks what it returned:
+
+```xtpl
+User Function Parts(cLine)
+  Local aParts := cLine |> split(";") |> map([p] alltrim(p)) |> filter([p] !Empty(p))
+Return aParts
 ```
+
+```tlpp
+User Function Parts(cLine)
+  Local aParts
+  Local fs_0_0  // the array walked
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fs_0_0 := u_xtpl_split(cLine, ";")
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(fs_0_0)
+    fv_0_0 := fs_0_0[fi_0_0]
+    fv_0_0 := alltrim(fv_0_0)
+    If !Empty(fv_0_0)
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aParts := fo_0_0
+Return aParts
+```
+
+xtpl stops fusing at the first stage that cannot fuse, and warns: "this
+chain does not fuse -- 'sortby' stops it". xc does neither.
 
 Anywhere else -- inside an expression, an argument, a condition -- a chain
 is one call per stage, which is what it means; fusing only saves the work.
@@ -1350,7 +1396,6 @@ with any name allowed, to say which name it was and why.
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
-| a stage that stops the fusing, with one after it that would have fused | `this chain does not fuse -- 'sortby' stops it, ...` |
 | more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `fallback` around a chain that would fuse | `'fallback' turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |

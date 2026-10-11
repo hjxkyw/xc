@@ -80,9 +80,9 @@ lowers 'inside an argument, without touching the rest',
 lowers 'the whole sum as the source',
   'x := a + b |> reverse',
   'x := u_xtpl_reverse(a + b)';
-lowers 'a pipeline as a statement',
-  'aP |> tap([p] conout(p)) |> save()',
-  'save(u_xtpl_tap(aP, {|p| conout(p)}))';
+lowers 'a pipeline as a statement, nothing in it to fuse',
+  'aP |> distinct |> save()',
+  'save(u_xtpl_distinct(aP))';
 lowers 'a qualified stage',
   'x := a |> pkg.util.f(1)',
   'x := pkg.util.f(a, 1)';

@@ -265,37 +265,27 @@ passes "Integer, Decimal and Double are numbers; 'in', 'has' and '%%' logical",
   ~ "  local lDiv := 9 %% 3 as Logical\n  a := \{nI, nD, lIn, lDiv\}";
 
 # ---- fusion: xtpl's warnings -------------------------------------------------
-# t/31 has every one of them in xtpl's corpus; these are the edges.
-my $sort = "this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array";
-warns "a verb that needs the whole collection stops the fusing, and a stage after it would have fused",
-  "  a := a |> filter([x] x > 1) |> sort |> take(3)", "2: $sort";
-warns "even with nothing fused before it",
-  "  a := a |> sort |> take(3)", "2: $sort";
-warns "a function xtpl cannot see into, with a stage after it that would fuse",
-  "  a := a |> myHelper(3) |> filter([x] x > 1)",
-  "2: this chain does not fuse -- 'myHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array";
-warns "inside an expression too",
-  "  a := len(a |> filter([x] x > 1) |> sort |> take(2))", "2: $sort";
-# xtpl warned of these too. No stage after the stop would have fused: nothing
-# was lost, and there is nothing to do about it -- a string chain, above all.
+# t/31 has every one of them in xtpl's corpus; these are the edges. Not
+# xtpl's "this chain does not fuse -- 'sort' stops it": in xc a loop starts
+# again after the stage that stopped it (t/36), and nothing is lost.
+passes "a verb that needs the whole collection, a stage after it that fuses: the loop starts again",
+  "  a := a |> filter([x] x > 1) |> sort |> take(3)\n  a := a |> sort |> take(3)";
+passes "a function xc cannot see into, the same",
+  "  a := a |> myHelper(3) |> filter([x] x > 1)";
+passes "inside an expression, where nothing fuses",
+  "  a := len(a |> filter([x] x > 1) |> sort |> take(2))";
 passes "a string chain: functions xc cannot see into, nothing that could fuse",
   "  a := a |> alltrim |> upper";
-passes "a function at the end, after what fused: nothing after it",
-  "  a := a |> filter([x] x > 1) |> myHelper(3)";
-passes "a verb that needs the whole collection at the end",
-  "  a := a |> filter([x] x > 1) |> sort";
-passes "after the stop, only stages that do not fuse either",
-  "  a := a |> distinct |> reverse\n  a := a |> alltrim |> split(\",\")";
-passes "after the stop, a stage that fuses but is not written to: a block held in a variable",
+passes "a block held in a variable, which cannot be written into a loop",
   "  local bOk := \{|x| x > 1\}\n  a := a |> sort |> filter(bOk)";
-passes "one stage: nothing to fuse", "  a := a |> sort";
-passes "every stage fused", "  a := a |> filter([x] x > 1) |> map([x] x * 2) |> count";
-passes "after a terminal: the rest carries on from its array, nothing stopped", "  a := a |> map([x] x) |> chunkby([x] x) |> sort";
-passes "run for its effects: it fuses whole or not at all -- nothing to say", "  a |> tap([x] conout(x)) |> sort";
+passes "run for its effects, a stage that does not fuse after one that does", "  a |> tap([x] conout(x)) |> sort";
 warns "'fallback' around a chain that would have fused",
   "  a := a |> filter([x] x > 1) |> asum fallback 0",
   "2: 'fallback' turns off fusion for this chain -- a guard needs an expression and a fused loop is not one, so each stage builds an array again. Guard the part that can fail instead, and leave the chain outside it.";
 passes "'fallback' around one that would not have: nothing lost", "  a := a |> sort fallback \{\}";
+warns "'fallback' around one that would have fused after a stage that stops a loop",
+  "  a := a |> sort |> filter([x] x > 1) fallback \{\}",
+  "2: 'fallback' turns off fusion for this chain -- a guard needs an expression and a fused loop is not one, so each stage builds an array again. Guard the part that can fail instead, and leave the chain outside it.";
 warns "the whole left side of '|>' is fed in: a comparison there",
   "  a := a > 1 |> alltrim",
   "2: the whole left side of '|>' is the first argument, so 'a > 1' is what gets fed in. Put brackets around the part you meant to chain.";

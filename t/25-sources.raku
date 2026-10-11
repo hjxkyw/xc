@@ -183,6 +183,22 @@ check 'a stage that does not fuse applies to what was collected',
 {
   body-of("  x := lines(cP) |> map([l] upper(l)) |> sort").ends-with("x := u_xtpl_sort(fo_0_0)")
 };
+check 'stages that fuse after it: a loop again, over what the call made',
+{
+  my $b = body-of("  x := lines(cP) |> map([l] upper(l)) |> sort |> filter([l] !empty(l))");
+  $b.contains("  fs_0_0 := u_xtpl_sort(fo_0_0)\n  fo_0_1 := \{\}\n  For fi_0_0 := 1 To Len(fs_0_0)\n")
+    && $b.contains("    If !empty(fv_0_1)\n      AAdd(fo_0_1, fv_0_1)") && $b.ends-with("x := fo_0_1")
+};
+check 'run for its effects, a tap after the stop: it runs, in a loop of its own',
+{
+  my $b = body-of("  lines(cP) |> map([l] upper(l)) |> sort |> tap([l] conout(l))");
+  $b.ends-with("  fs_0_0 := u_xtpl_sort(fo_0_0)\n  For fi_0_0 := 1 To Len(fs_0_0)\n    fv_0_1 := fs_0_0[fi_0_0]\n"
+               ~ "    conout(fv_0_1)\n  Next")
+};
+check 'run for its effects, nothing after the stop that fuses: the calls are a statement, and run',
+{
+  body-of("  lines(cP) |> map([l] upper(l)) |> sort |> save()").ends-with("  save(u_xtpl_sort(fo_0_0))")
+};
 check 'reject, allof, first with a condition',
 {
   my $a = body-of("  x := lines(cP) |> reject([l] empty(l)) |> allof([l] len(l) > 3)");

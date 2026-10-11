@@ -25,16 +25,18 @@ my %skip = '51_legacy.xtpl' => 'xtpl --legacy mode';
 # The warnings xc shares with xtpl -- never read, returns, areas not opened,
 # and, where a test has a <name>.dict.csv beside it, the dictionary's -- are
 # xtpl's own, in the .warn next to each test: xc gives the same ones, no more
-# and no less -- its fusion warnings too, now that xc fuses as it does. But for these, where xc warns and xtpl does not: xtpl counts a
-# variable's reads by matching its name in text, and sees one in a member of
-# the same name ('?.cCity') or in the lines it generated itself (for a
-# postfix 'if', a hash read, a fused chain, '?:'). The variables are only
-# ever assigned.
+# and no less -- two of its warnings about chains too. Not "this chain does
+# not fuse": xc starts a loop again after the stage that stops one, so there
+# is nothing to warn about. And but for these, where xc warns and xtpl does
+# not: xtpl counts a variable's reads by matching its name in text, and sees
+# one in a member of the same name ('?.cCity') or in the lines it generated
+# itself (for a postfix 'if', a hash read, a fused chain, '?:'). The
+# variables are only ever assigned.
 my regex shared
 {
   'never read' | 'never used' | 'returns nothing' | 'reach its end' | 'nothing in this function opened'
   | 'is not in the dictionary' | 'is not a field of' | 'assigned a ' | 'compared with a ' | 'characters, but is assigned'
-  | 'this chain does not fuse' | 'turns off fusion' | "the whole left side of '|>'"
+  | 'turns off fusion' | "the whole left side of '|>'"
 }
 my %extra =
   '13_operand_span.xtpl' => ("line 11: 'cCity' is assigned but never read",),
@@ -42,26 +44,17 @@ my %extra =
   '27_hash.xtpl'         => ("line 13: 'xValor' is assigned but never read",),
   '31_feed.xtpl'         => ("line 9: 'aCodes' is assigned but never read", "line 10: 'aTop' is assigned but never read"),
   '53_kitchen_sink.xtpl' => ("line 13: 'cName' is assigned but never read", "line 14: 'cPick' is assigned but never read"),
-  # xtpl keeps no .warn for its examples; this is what it says on them, of the
-  # kinds above -- xtpl v116 run on each of the 15, and this the only one.
-  'notificacao.xtpl'     => ("line 98: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
+  # xtpl keeps no .warn for its examples; xtpl v116 run on each of the 15 says
+  # nothing of the kinds above.
   # Not xtpl's: xc's own example, written for its parser tests, which check
   # its lines and statements as they are -- two locals are only assigned.
   'saldo.xtpl'           => ("line 23: 'jResposta' is assigned but never read", "line 24: 'hCache' is assigned but never read"),
   ;
 
-# And where xtpl warns and xc does not, on purpose: a chain with no stage after
-# the one that stops the fusing that would have fused -- nothing was lost,
-# and there is nothing to do about it. Two are string chains, which build no
-# array at all; the others end in a verb that needs the whole collection.
-my %dropped =
-  '14_strings.xtpl'      => ("line 17: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
-  '25_continuation.xtpl' => ("line 19: this chain does not fuse -- 'distinct' stops it, because it needs the whole collection, so it and every stage after it builds an array",),
-  '31_feed.xtpl'         => ("line 20: this chain does not fuse -- 'distinct' stops it, because it needs the whole collection, so it and every stage after it builds an array",
-                             "line 23: this chain does not fuse -- 'myOwnHelper' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array"),
-  '32_fusion.xtpl'       => ("line 35: this chain does not fuse -- 'sort' stops it, because it needs the whole collection, so it and every stage after it builds an array",),
-  'notificacao.xtpl'     => ("line 98: this chain does not fuse -- 'alltrim' stops it, because xtpl cannot see inside it, so it and every stage after it builds an array",),
-  ;
+# And where xtpl gives one of the shared warnings and xc does not, on
+# purpose: none now. (There were: xtpl's "this chain does not fuse" where no
+# stage after the stop would have fused; xc gives that warning no more.)
+my %dropped;
 
 # The output as Protheus takes it: in TL++ every Local and Static of a
 # function comes before its first statement -- and a Private or a Public is a

@@ -170,16 +170,18 @@ sub call-name(Str $name --> Str)
 #
 # rows() and lines() are sources, not functions: a chain from one becomes a
 # loop over the work area or the file, with the stages inside it, and nothing
-# is materialised. These stages fuse into the loop; a terminal ends it; any
-# other stage applies, as an ordinary call, to what the loop collected.
+# is materialised. These stages fuse into the loop; a terminal ends it; the
+# stages after it are a chain over what the loop collected.
 #
 # A chain over an ARRAY fuses the same way -- one loop, no array between the
 # stages, a 'take' that stops it -- when it is a statement's whole value and
 # at least two of its stages fuse (all of them, for a chain run for its
 # effects), as xtpl does; or one, when that one carries a block: 'aX |>
 # map([x] x * 2)' is a loop, not u_xtpl_map's Eval of a block per element.
-# Anywhere else it stays one call per stage, which is what a chain means;
-# fusing only saves the work.
+# Unlike xtpl, a stage that cannot be part of a loop -- 'sortby', 'split' --
+# does not end the fusing: it is a call, and a loop starts again after it
+# (fuse-from). Anywhere else a chain stays one call per stage, which is what a
+# chain means; fusing only saves the work.
 my constant FUSED        = set <filter reject map tap take takewhile drop dropwhile expand distinctadjacent
                                 scan pairwise>;
 my constant TERMINAL     = set <asum count anyof allof noneof first aprod amax amin join reduce fold maxby minby
@@ -330,15 +332,18 @@ sub is-runtime-verb(Str $name --> Bool) is export { so VERBS{$name.lc} }
 # source a missing lambda is an error (chain-problems), so the stages from the
 # start are taken as they come. A Hash, not a List of Lists: rakupp 4.0.1
 # flattens a List inside any list assignment, even one itemized with '$( )'.
-#
-# Shared with XC::Check, whose warnings say what does not fuse: one decision,
-# not two that could drift apart. &declared answers whether a name is a
-# variable of the function -- 'filter(bOk)' is a block held in one, not a
-# function to call.
-sub fusion-split(Expr $chain, &declared --> Hash) is export
+# &declared answers whether a name is a variable of the function --
+# 'filter(bOk)' is a block held in one, not a function to call.
+sub fusion-split(Expr $chain, &declared --> Hash)
 {
-  my @stages = $chain ~~ Pipeline ?? $chain.stages.list !! ();
-  my $array = $chain ~~ Pipeline && !is-source($chain.source);
+  split-stages($chain ~~ Pipeline ?? $chain.stages.list !! (), $chain ~~ Pipeline && !is-source($chain.source),
+               &declared)
+}
+
+# The same, of a chain's stages from wherever the walk starts: over an array
+# ($array), or over a source.
+sub split-stages(@stages, Bool $array, &declared --> Hash)
+{
   my (@fused, $terminal, @rest);
   my $expanded = False;
   for @stages -> $st
@@ -365,9 +370,8 @@ sub fusion-split(Expr $chain, &declared --> Hash) is export
 # Whether an array chain, split, runs as a loop where it stands: two stages
 # that fuse, or one that carries a block -- its lambda, or a function's name
 # (inlinable already says it is no variable). Run for its effects: all of its
-# stages fuse, and none is a terminal. Shared with XC::Check, whose warnings
-# say when a chain would have fused.
-sub array-chain-fuses(%split, Bool $for-effect --> Bool) is export
+# stages fuse, and none is a terminal.
+sub array-chain-fuses(%split, Bool $for-effect --> Bool)
 {
   my $fused = %split<fused>.elems;
   my $terminal = %split<terminal>.defined;
@@ -378,13 +382,25 @@ sub array-chain-fuses(%split, Bool $for-effect --> Bool) is export
   so $st.args.first(* ~~ Lambda) || (TAKES-BLOCK{$st.name.lc} && $st.args && $st.args[0] ~~ Name)
 }
 
-# Whether a stage would be part of a fused loop where it stands, if nothing
-# before it stopped the fusing: a stage or a terminal that fuses, written so it
-# can be. XC::Check asks it of the stages after the one that stopped a chain.
-sub stage-fuses($st, &declared --> Bool) is export
+# Where a chain over an array becomes a loop: the first of its stages from
+# which what is left fuses (array-chain-fuses) -- the stages before it apply
+# to the array as calls -- or Int when it fuses from none. A loop that has
+# stages after it collects a value for them, even in a chain run for its
+# effects; the stages after it are a chain of their own, over what it
+# collected, and become a loop the same way. So a stage that cannot be
+# written into a loop -- 'sortby', a block held in a variable, a function of
+# the source -- ends one loop, and the next can start right after it.
+#
+# Shared with XC::Check, whose 'fallback' warning says when a chain would have
+# fused: one decision, not two that could drift apart.
+sub fuse-from(@stages, &declared, Bool $for-effect --> Int) is export
 {
-  my $n = $st.name.lc;
-  so (FUSED{$n} || TERMINAL{$n}) && stage-inlinable($st, &declared)
+  for ^@stages -> $i
+  {
+    my %split = split-stages(@stages[$i .. *], True, &declared);
+    return $i if array-chain-fuses(%split, $for-effect && !%split<rest>);
+  }
+  Int
 }
 
 # Whether a stage can be written into a loop: its block written in the stage
@@ -726,12 +742,17 @@ class Emitter
     stage-inlinable($st, -> $n { so %!declared{$n} })
   }
 
-  # An array chain fused where it stands: the whole value of a statement
-  # (array-chain-fuses says when).
+  method !fuse-from(@stages, Bool $for-effect --> Int)
+  {
+    fuse-from(@stages, -> $n { so %!declared{$n} }, $for-effect)
+  }
+
+  # An array chain fused where it stands: the whole value of a statement, of
+  # which some stages from some point on fuse (fuse-from says which).
   method !fusable-array($e, Bool $for-effect --> Bool)
   {
     return False unless $e ~~ Pipeline && !is-source($e.source);
-    array-chain-fuses(self!split($e), $for-effect)
+    self!fuse-from($e.stages.list, $for-effect).defined
   }
 
   # The chain a statement runs as a loop: one from a source, or an array chain
@@ -1742,15 +1763,47 @@ class Emitter
     self!with-edits($s, exprs-of($s)).lines.List
   }
 
-  # A chain from a source, as a loop: the lines, and the text of its result.
-  # The stages go inside the loop in order -- a filter an If around the rest,
-  # a map the new element, a take a count that stops the walk -- and the
-  # terminal, or an AAdd when there is none, collects. Any stage after that
-  # applies to what was collected, as an ordinary call.
+  # A chain from a source, or one over an array that fuses, as a loop: the
+  # lines, and the text of its result. $collect: the result is used -- not a
+  # chain run for its effects.
   method !stream(Expr $chain, Bool $collect --> List)
   {
     my $call = source-call($chain);
-    my %split = self!split($chain);
+    my @stages = $chain ~~ Pipeline ?? $chain.stages.list !! ();
+    return self!walk($call, Str, @stages, $collect) if $call.defined;
+    # An array: the loop starts where fuse-from says, and the stages before
+    # it apply as calls. A name is walked as it is; anything else -- those
+    # calls with it -- is bound once, as xtpl does.
+    my $src  = $chain.source;
+    my $from = self!fuse-from(@stages, !$collect) // 0;
+    return self!walk(Expr, self!expr($src), @stages, $collect) if $from == 0 && $src ~~ Name;
+    my $fs = self!gen('fs', 'the array walked');
+    my $bind = "$fs := {self!calls(self!expr($src), @stages[^$from])}";
+    my ($result, @lines) = self!walk(Expr, $fs, @stages[$from .. *], $collect);
+    ($result, $bind, |@lines).List
+  }
+
+  # Stages applied to the text of an array as calls, each one around the one
+  # before.
+  method !calls(Str $text, @stages --> Str)
+  {
+    my $acc = $text;
+    for @stages -> $st
+    {
+      $acc = call-name($st.name) ~ '(' ~ ($acc, |$st.args.map({ self!block-arg($st.name, $_) })).join(', ') ~ ')';
+    }
+    $acc
+  }
+
+  # The loop of a chain: over a source ($call), or over the array whose text
+  # is $over. The stages go inside it in order -- a filter an If around the
+  # rest, a map the new element, a take a count that stops the walk -- and the
+  # terminal, or an AAdd when there is none, collects. The stages after that
+  # are a chain over what was collected: calls, and a loop again from where
+  # one can start (fuse-from).
+  method !walk($call, Str $over, @stages, Bool $collect --> List)
+  {
+    my %split = split-stages(@stages, !$call.defined, -> $n { so %!declared{$n} });
     my $fused    = %split<fused>;
     my $terminal = %split<terminal>;
     my $rest     = %split<rest>;
@@ -1773,23 +1826,11 @@ class Emitter
     }
     elsif !$call.defined
     {
-      # An array: a name is walked as it is, anything else is bound once --
-      # as xtpl does.
-      my $src = $chain.source;
-      my $arr;
-      if $src ~~ Name
-      {
-        $arr = self!expr($src);
-      }
-      else
-      {
-        $arr = self!gen('fs', 'the array walked');
-        @setup.push("$arr := {self!expr($src)}");
-      }
+      # An array, bound already: a name, or the array walked.
       my $fi = self!gen('fi', 'the position in the array walked');
       $fv    = self!gen('fv', 'the element walked');
-      $head  = "For $fi := 1 To Len($arr)";
-      $read  = "$fv := {$arr}[$fi]";
+      $head  = "For $fi := 1 To Len($over)";
+      $read  = "$fv := {$over}[$fi]";
       $end   = 'Next';
       $elem  = $fv;
     }
@@ -1967,7 +2008,7 @@ class Emitter
     my $t = $terminal.defined ?? $terminal.name.lc !! '';
     if $t || $collect || $rest
     {
-      $fo = self!gen('fo', 'the result of the chain');
+      $fo = self!gen('fo', $rest ?? 'what a loop collected, for the stages after it' !! 'the result of the chain');
       my $cond = $terminal.defined && $terminal.args && $t !(elem) <reduce fold join> ?? lambda($terminal) !! Str;
       given $t
       {
@@ -2063,12 +2104,27 @@ class Emitter
 
     my @loop = $head, |(($read // ()).map({ "  $_" })), |(@body, @close).flat.map({ "  $_" }),
                |(($advance // ()).map({ "  $_" })), $end;
-    my $result = $fo // 'Nil';
-    for @$rest -> $st
+    my @lines = |@setup, |@ahead, |@loop, |@finish, |@teardown;
+    return ($fo // 'Nil', |@lines).List unless @$rest;
+
+    # The stages after the loop, over what it collected. None from which a
+    # loop can start: calls -- a statement of their own when the chain is run
+    # for its effects, which they may be part of.
+    my @after = @$rest;
+    my $from = self!fuse-from(@after, !$collect);
+    without $from
     {
-      $result = call-name($st.name) ~ '(' ~ ($result, |$st.args.map({ self!part($_) })).join(', ') ~ ')';
+      my $calls = self!calls($fo, @after);
+      return $collect ?? ($calls, |@lines).List !! ('Nil', |@lines, $calls).List;
     }
-    ($result, |@setup, |@ahead, |@loop, |@finish, |@teardown).List
+    my $arr = $fo;
+    if $from > 0
+    {
+      $arr = self!gen('fs', 'the array walked');
+      @lines.push("$arr := {self!calls($fo, @after[^$from])}");
+    }
+    my ($result, @more) = self!walk(Expr, $arr, @after[$from .. *], $collect);
+    ($result, |@lines, |@more).List
   }
 
   # An end of a range: a number or a name as it is, anything else bound once
@@ -2415,15 +2471,7 @@ class Emitter
           ?? %!field{.base.name.lc} ~ .name
           !! self!with-edits($_, subexprs($_))
       }
-      when Pipeline
-      {
-        my $acc = self!expr(.source);
-        for .stages -> $st
-        {
-          $acc = call-name($st.name) ~ '(' ~ ($acc, |$st.args.map({ self!block-arg($st.name, $_) })).join(', ') ~ ')';
-        }
-        $acc
-      }
+      when Pipeline { self!calls(self!expr(.source), .stages.list) }
       when Call
       {
         # A verb: the first argument is the data, any after it may be a
