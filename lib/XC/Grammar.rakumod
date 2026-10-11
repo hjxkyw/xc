@@ -174,6 +174,7 @@ my $offsets-in-bytes = OffsetProbe.parse('é!')<x>.from == 2;
 my $user;                    # the uses of the source's own commands
 my $user-on = False;         # whether there are any
 my @ends;                    # the line ends the parse took, for $*FURTHEST
+my $parting = False;         # a part of a source is parsed (in-parts)
 
 # ---- an ASCII copy, for speed ------------------------------------------------
 #
@@ -209,6 +210,196 @@ sub ascii-copy(Str $t --> Str)
   $copy.encode.elems == $copy.codes && $copy.chars == $t.chars ?? $copy !! $t
 }
 
+# ---- a large source, a part at a time ----------------------------------------
+#
+# What a '.from' or a '.to' costs under rakupp grows with the offset of the
+# match in the text parsed (see "an ASCII copy"), even in ASCII. So a large
+# source is parsed in parts, each a run of whole top-level items -- TOP takes
+# them one after another anyway -- and each part as a text of its own, its
+# offsets small. XC::Actions adds where the part starts to every offset it
+# reads ('base') and puts the parts' trees together ('merge'); the result is
+# a Parts, which answers as the match of the whole would: true, '.made', and
+# '<toplevel>'.
+#
+# A part starts where the whole text has a top-level item start: at a line
+# that opens a function, a method's implementation, a class, an interface or
+# a web service, with no annotation above it, and that is not carried on from
+# the line before (';'), nor inside a '/* */', a BeginSql or BeginContent
+# block, a raw block, a class's or an interface's body, a web service's
+# declaration, or a use of the source's own commands, nor where one starts.
+# A part that does not parse puts it all back as it was: the source is read
+# whole, and what is said about it is what was always said.
+#
+# $*XC-PART: how long a part grows before the next one starts, in characters
+# (8,192); a source under eight times that is read whole -- below 64 KB the
+# offsets are small enough as they are. The tests set it to 1 -- a part at
+# every place one may start -- and compare.
+
+my class Parts does Associative
+{
+  has @.parts;
+  has $.made;
+  method Bool { True }
+  method AT-KEY($k) { @!parts.map({ |.{$k} }).List }
+  method EXISTS-KEY($k) { so @!parts.first({ .{$k}:exists }) }
+}
+
+# Whether a piece of a line, not in a comment where it starts, leaves a
+# '/* */' open at its end: its strings and '//' or '&&' comments skipped.
+sub opens-comment(Str $s --> Bool)
+{
+  my @c = $s.ords;
+  my $n = @c.elems;
+  my $i = 0;
+  my $open = False;
+  while $i < $n
+  {
+    my $c = @c[$i];
+    my $next = $i + 1 < $n ?? @c[$i + 1] !! 0;
+    if $open
+    {
+      if $c == 42 && $next == 47 { $open = False; $i += 2; next }
+      $i++;
+      next;
+    }
+    if $c == 34 || $c == 39
+    {
+      $i++;
+      $i++ while $i < $n && @c[$i] != $c;
+      $i++;
+      next;
+    }
+    last if ($c == 47 && $next == 47) || ($c == 38 && $next == 38);
+    if $c == 47 && $next == 42 { $open = True; $i += 2; next }
+    $i++;
+  }
+  $open
+}
+
+# The offsets where a part may start, in order: each the start of a line
+# that starts a top-level item.
+sub part-starts(Str $t --> List)
+{
+  my @starts;
+  my $at = 0;
+  my $in = '';                   # the block a line is in, if any
+  my $comment = False;           # inside a '/* */' where the line starts
+  my $carried = False;           # the line before goes on into this one
+  my $notes = Int;               # where the annotations above a header start
+  for $t.lines(:!chomp) -> $line
+  {
+    my $here = $at;
+    $at += $line.chars;
+    my $l = $line.trim-leading.lc;
+    # Raw text -- SQL, content, a raw block: only its end is looked for.
+    if $in eq 'sql' | 'content' | 'raw'
+    {
+      $in = '' if $in eq 'sql'     && $l ~~ / ^ 'endsql' <!ww> /
+               || $in eq 'content' && $l ~~ / ^ 'endcontent' <!ww> /
+               || $in eq 'raw'     && $l ~~ / ^ 'end' \h+ 'raw' <!ww> /;
+      next;
+    }
+    if $comment
+    {
+      my $close = $line.index('*/');
+      next without $close;
+      my $code = $line.substr($close + 2);
+      $comment = so $code.contains('/*') && opens-comment($code);
+      $carried = so $code ~~ / ';' \h* [ [ '//' || '&&' ] \N* ]? \v? $ /;
+      $notes = Int;
+      next;
+    }
+    my $was-carried = $carried;
+    $carried = so $line ~~ / ';' \h* [ [ '//' || '&&' ] \N* ]? \v? $ /;
+    $comment = so $line.contains('/*') && opens-comment($line);
+    if $was-carried
+    {
+      $notes = Int;
+      next;
+    }
+    if $in
+    {
+      $in = '' if $in eq 'class'     && $l ~~ / ^ [ 'endclass' || 'end' \h+ 'class' ] <!ww> /
+               || $in eq 'interface' && $l ~~ / ^ [ 'endinterface' || 'end' \h+ 'interface' ] <!ww> /
+               || $in eq 'ws'        && $l ~~ / ^ 'end' \h* [ 'wsrestful' || 'wsservice' || 'wsstruct' || 'wsclient' ] <!ww> /;
+      next;
+    }
+    my $start = False;
+    if $l ~~ / ^ [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' <!ww> /
+       || $l ~~ / ^ [ 'method' || 'operator' ] \h+ \w+ \h* '(' \N* <!ww> 'class' \h+ \w /
+       || $l ~~ / ^ 'wsmethod' <!ww> /
+    {
+      $start = True;
+    }
+    elsif $l ~~ / ^ 'class' \h+ \w /                  { $start = True; $in = 'class' }
+    elsif $l ~~ / ^ 'interface' \h+ \w /              { $start = True; $in = 'interface' }
+    elsif $l ~~ / ^ [ 'wsrestful' || 'wsservice' || 'wsstruct' || 'wsclient' ] <!ww> / { $start = True; $in = 'ws' }
+    elsif $l ~~ / ^ 'beginsql' <!ww> /                { $in = 'sql' }
+    elsif $l ~~ / ^ 'begincontent' <!ww> /            { $in = 'content' }
+    elsif $l ~~ / ^ 'raw' \h* [ [ '//' || '&&' ] \N* ]? \v? $ / { $in = 'raw' }
+    # Not at a header with annotations above it: after a function, those are
+    # statements of its body, and the header ends it -- the part would give
+    # them to the next one.
+    if $start
+    {
+      @starts.push($here) if $here > 0 && !$notes.defined;
+      $notes = Int;
+    }
+    elsif $l ~~ / ^ '@' <[a..z_]> /
+    {
+      $notes //= $here;
+    }
+    elsif !($l eq '' || $l ~~ / ^ [ '//' || '&&' || '*' || \v ] /)
+    {
+      $notes = Int;
+    }
+  }
+  @starts.List
+}
+
+# The source in parts, each parsed on its own -- or Nil, when there is no
+# second part or one does not parse.
+sub in-parts($grammar, Str $text, Int $size, Capture $c)
+{
+  my $a = $c<actions>;
+  my @may = part-starts($text);
+  # Not inside a use of the source's own commands, nor where one starts: a
+  # command may be a statement of the function above.
+  for |$user<cmd>.map({ +.key => .value[0] }), |$user<trans>.map({ +.key => +.value }) -> $span
+  {
+    @may = @may.grep({ !($span.key <= $_ < $span.value) });
+  }
+  my @from = 0;
+  @from.push($_) for @may.grep({ $_ - @from[*-1] >= $size });
+  return Nil if @from == 1;
+  my @to = |@from[1 .. *], $text.chars;
+  my $whole = $user;
+  my @parts;
+  {
+    # (A LEAVE fires on every way out of its block, a 'return' before it
+    # too: so here, where all it puts back has been set.)
+    LEAVE
+    {
+      $user = $whole;
+      $a.base = 0;
+      $parting = False;
+    }
+    $parting = True;
+    for ^@from -> $k
+    {
+      my ($f, $t) = @from[$k], @to[$k];
+      $user = %( cmd   => $whole<cmd>.grep({ $f <= .key < $t }).map({ .key - $f => [.value[0] - $f, .value[1]] }).Hash,
+                 trans => $whole<trans>.grep({ $f <= .key < $t }).map({ .key - $f => .value - $f }).Hash );
+      $a.base = $f;
+      @ends = ();
+      my $m = $grammar.parse($text.substr($f, $t - $f), |$c);
+      return Nil unless $m;
+      @parts.push($m);
+    }
+  }
+  Parts.new(parts => @parts, made => $a.merge(@parts.map(*.made)))
+}
+
 # Where the source uses the commands and translations it brings with it
 # (XC::Commands): its folder and the include folders, when bin/xc says them.
 #
@@ -218,31 +409,41 @@ sub ascii-copy(Str $t --> Str)
 # '.to' costs (see above), and a parse that succeeds has no use for it.
 method parse($target, |c)
 {
+  # A part: in-parts has set everything up.
+  return callwith($target, |c) if $parting;
   my $text = ascii-copy($target);
   my $dir = $*XC-DIR // Str;
   my @dirs = ($*XC-INCLUDES // ()).list;
   my $outer-user  = $user;
   my $outer-on    = $user-on;
   my @outer-ends  = @ends;
-  LEAVE
+  my $m;
   {
-    $user    = $outer-user;
-    $user-on = $outer-on;
-    @ends    = @outer-ends;
-  }
-  $user = in-units($target, user-spans($target, :$dir, :@dirs));
-  $user-on = so $user<cmd> || $user<trans>;
-  @ends = ();
-  with c<actions> -> $a
-  {
-    if $a.can('copied')
+    LEAVE
+    {
+      $user    = $outer-user;
+      $user-on = $outer-on;
+      @ends    = @outer-ends;
+    }
+    $user = in-units($target, user-spans($target, :$dir, :@dirs));
+    $user-on = so $user<cmd> || $user<trans>;
+    @ends = ();
+    my $a = c<actions>;
+    if $a.defined && $a.can('copied')
     {
       $a.copied = $text ne $target;
       $a.spaced = $a.copied && $target.contains("\xA0");
     }
+    # A large source -- the whole file, not a rule of it -- in parts.
+    my $size = $*XC-PART // 8192;
+    if !(c<rule>:exists) && !$offsets-in-bytes && $text.chars >= 8 * $size && $a.defined && $a.can('merge')
+    {
+      $m = in-parts(self, $text, $size, c);
+      @ends = ();
+    }
+    $m //= callwith($text, |c);
+    try $*FURTHEST = max(0, |@ends.map(*.to)) unless $m;
   }
-  my $m = callwith($text, |c);
-  try $*FURTHEST = max(0, |@ends.map(*.to)) unless $m;
   $m
 }
 

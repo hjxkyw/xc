@@ -27,6 +27,11 @@ has XC::Source $!pos;
 has Bool $.copied is rw = False;
 has Bool $.spaced is rw = False;
 
+# Where the text parsed starts in the source: a large source is parsed in
+# parts (XC::Grammar, in-parts), and every offset of a part's matches is from
+# its start.
+has Int $.base is rw = 0;
+
 has Bool $!as-is = False;      # match offsets are character offsets already
 
 submethod TWEAK()
@@ -42,12 +47,12 @@ method !line($m --> Int)
 {
   die "XC::Actions needs the source text: XC::Actions.new(source => \$src)"
     without $!source;
-  $!pos.line($m.from)
+  $!pos.line($!base + $m.from)
 }
 
 # A match's start and end as character offsets.
-method !from($m --> Int) { $!as-is ?? $m.from !! $!pos.char($m.from) }
-method !to($m --> Int)   { $!as-is ?? $m.to   !! $!pos.char($m.to) }
+method !from($m --> Int) { $!as-is ?? $!base + $m.from !! $!pos.char($!base + $m.from) }
+method !to($m --> Int)   { $!as-is ?? $!base + $m.to   !! $!pos.char($!base + $m.to) }
 
 # A match's text, as the source has it: when the grammar read a copy, a text
 # with a stand-in in it -- or a '8' or "\x01" of its own -- is the source's,
@@ -85,6 +90,22 @@ sub joined(Binary $b --> Binary)
 }
 
 # ---- the file ----------------------------------------------------------------
+# The trees of a source's parts, in order, as the one tree of the whole.
+method merge(@programs --> Program)
+{
+  Program.new(
+    namespace   => @programs.map(*.namespace).first(*.defined) // Str,
+    usings      => @programs.map({ |.usings }),
+    directives  => @programs.map({ |.directives }),
+    annotations => @programs.map({ |.annotations }),
+    functions   => @programs.map({ |.functions }),
+    classes     => @programs.map({ |.classes }),
+    methods     => @programs.map({ |.methods }),
+    externals   => @programs.map({ |.externals }),
+    statics     => @programs.map({ |.statics }),
+  )
+}
+
 method TOP($/)
 {
   # 'Str', not untyped: with no namespace it stays Str -- undefined, of the type
