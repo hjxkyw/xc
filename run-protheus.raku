@@ -29,6 +29,8 @@
 # 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
 # the AppServer compiles that folder, with the runtime, in one run too.
 # Nothing is run: what it checks is that Protheus takes all of xc's output.
+# The few of xtpl's sources that are UTF-8 -- xc takes windows-1252 only, as
+# Protheus' sources are -- go to xc as cp1252 copies, in build/cp1252/corpus/.
 #
 # What the AppServer says goes whole into a log -- build/logs/<folder>/
 # compile.log, run-u_selftest.log, ...; never in the folder it compiles,
@@ -206,6 +208,25 @@ if $corpus
                                                     && .basename ne '51_legacy.xtpl' && .basename ne '54_selftest.xtpl' }),
                 |$root.add('xtpl/examples').dir.grep(*.d).map({ |.dir.grep(*.extension eq 'xtpl') });
   @sources = @sources.sort;
+  # Protheus' sources are windows-1252 (cp1252), and xc refuses UTF-8; xtpl's
+  # files are kept byte for byte, and a few of them are UTF-8. Those go to xc
+  # as cp1252 copies, in a folder of their own beside the compiled one -- the
+  # AppServer would compile them too, in it.
+  my $copies = $out.parent.add('cp1252').add($out.basename);
+  @sources = @sources.map(-> $s
+  {
+    my $b = $s.slurp(:bin);
+    if $b.list.first(* >= 0x80).defined && (try $b.decode('utf-8')).defined
+    {
+      mkdir $copies;
+      spurt $copies.add($s.basename), $b.decode('utf-8').encode('windows-1252');
+      $copies.add($s.basename)
+    }
+    else
+    {
+      $s
+    }
+  });
   say "xc: compiling {+@sources} programs of xtpl's corpus into {shown($out)}";
   mkdir $out;
   my $p = run $*EXECUTABLE, native($root.add('bin/xc')), "--outdir={native($out)}", |@sources.map({ native($_) }),

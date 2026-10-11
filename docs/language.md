@@ -33,9 +33,11 @@ plain TL++ comes out unchanged, but for two includes: `totvs.ch` at the top
 when the file does not include it, and `tlpp-core.th` after the last `.ch`
 include when it does not include that.
 
-**Encoding and line ends.** A source is read as UTF-8, or as windows-1252
-when it is not valid UTF-8, and the output is written in the same encoding,
-with the same line ends and the same byte order mark, if any.
+**Encoding and line ends.** A source is windows-1252 (cp1252), as Protheus'
+sources are, and so is its output, with the same line ends. A file in UTF-8
+-- one that starts with UTF-8's byte order mark, or whose characters beyond
+ASCII are written as UTF-8 -- is refused, with the line of its first such
+character. Plain ASCII is both, and fine.
 
 **Comments of a rewritten statement.** A statement xc rewrites loses its
 trailing comment to the rewrite and gets it back, two spaces after the new
@@ -692,14 +694,52 @@ Return 1
 ```
 
 A statement -- a call, an assignment or a chain -- to run on the way out of
-the function, the last written first. xc writes it before every `Return`
-that comes after it in the text, the function's last one included, and
-ahead of the areas a `using alias` puts back: they may still want them.
+the function, if its line was reached, the last written first. xc writes it
+before every `Return` it may have run before -- the function's last one
+included -- ahead of the areas a `using alias` puts back: they may still
+want them. It runs with the values its variables have then, not when its
+line was reached.
 
-A `defer` goes by its place in the text, not by whether its line ran: one
-inside an `If` runs at the returns after the `If` even when the `If` was
-not taken. It takes no modifier -- in `defer f() if c` there would be no
-telling whose `if` it is.
+A `defer` in the function's own body is reached before every `Return` after
+it, and runs there as it is. One in a block may not be: xc gives it a flag,
+`.F.` until its line is reached, and runs it under the flag wherever that is
+not certain -- after its block, at the function's end, at an earlier line of
+a loop around both. A `Return` after it in its own block runs it as it is.
+In a loop it runs once, however many times its line was reached.
+
+```xtpl
+User Function DefBlk(lOpen)
+  Local nH := 0
+  If lOpen
+    nH := FOpen("dados.txt")
+    defer FClose(nH)
+    return -1 if nH < 0
+  EndIf
+  conout("meio")
+Return nH
+```
+
+```tlpp
+User Function DefBlk(lOpen)
+  Local nH := 0
+  Local fdf_0_0 := .F.  // whether 'defer FClose(nH)' was reached
+  If lOpen
+    nH := FOpen("dados.txt")
+    fdf_0_0 := .T.
+    If nH < 0
+      FClose(nH)
+      return -1
+    EndIf
+  EndIf
+  conout("meio")
+If fdf_0_0
+  FClose(nH)
+EndIf
+Return nH
+```
+
+It takes no modifier -- in `defer f() if c` there would be no telling whose
+`if` it is.
 
 ### using alias
 
@@ -1268,6 +1308,7 @@ parses, in xtpl's words.
 | an `external` assigned | `'cEmpAnt' is external (line 1) and cannot be assigned.` |
 | a `Local` after a `Private` or `Public` | `'local' after 'private' (line 3): a private or a public is a statement, and every local comes before the first statement.` |
 | a type by its letter, or `Char` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
+| a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
 | a name of xc's shape declared | `'fo_0_0' has the shape of a name xtpl generates, so it cannot be declared. ...` |
@@ -1366,11 +1407,11 @@ AppServer, and so to xc. A statement cannot start with a word that starts
 one -- `return (.t.)` is a `Return`, not a call to `return` -- but after `:`
 or `->` a member may be called anything: `oDlg:End()`.
 
-**The verbs' names** are the runtime's: a call to `first(...)`, `count(...)`,
+**The verbs' names** are xtpl's: a call to `first(...)`, `count(...)`,
 `join(...)`, `split(...)`, `keys(...)`, `sort(...)`, ... is
-`u_xtpl_first(...)` and so on, wherever it is. A static function of your own
-by one of those names is not reached by its plain name; give it another. A
-method of that name is yours: `oObj:Count()`. A class of your own called
+`u_xtpl_first(...)` and so on, wherever it is, and no function of the file
+may be called that -- static, user or bare -- it is an error. A method of
+that name is yours, `oObj:Count()`, and so is a variable. A class of your own called
 `XtplQueue` would clash with the runtime's.
 
 **Generated names.** xc's own locals have shapes a function may not declare

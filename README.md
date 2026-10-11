@@ -30,7 +30,8 @@ rakupp bin/xc --dict sx3.csv --dict-strict file.xtpl    # and what it finds stop
 ```
 
 The exit code is 0 when every file went through, 1 when one did not, and 2
-when the command line itself is wrong.
+when the command line itself is wrong. A source is windows-1252 (cp1252), as
+Protheus' sources are, and so is what xc writes; a file in UTF-8 is refused.
 
 A source may bring commands and translations of its own -- `#xcommand`,
 `#xtranslate`, in the file or in an include file. xc reads them from the
