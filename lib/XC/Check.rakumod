@@ -372,14 +372,20 @@ my class Checker
     }
   }
 
-  # A name's declaration, and whether a closure lies between here and it.
+  # A name's declaration, and whether a closure lies between here and it --
+  # 'captured', missing when none does (most often: no copy made then).
   method !find(Str $k --> Map)
   {
     my $s = $!scope;
     my $crossed = False;
     while $s.defined
     {
-      return %( |$s.names{$k}, captured => $crossed ).Map if $s.names{$k}:exists;
+      my $v = $s.names{$k};
+      if $v.defined
+      {
+        return $v unless $crossed;
+        return %( |$v, captured => True ).Map;
+      }
       $crossed ||= $s.closure;
       $s = $s.outer;
     }
@@ -826,6 +832,27 @@ my class Checker
   method !expr($e)
   {
     return unless $e.defined && $e ~~ Expr;
+    # The two most common by their very class, before the 'when's below: a
+    # name is read, a plain literal holds nothing.
+    my $k = $e.^name;
+    if $k eq 'Name'
+    {
+      self!read($e.name);
+      return;
+    }
+    if $k eq 'Literal'
+    {
+      self!unclosed($e) if $e.type eq 'Character';
+      return;
+    }
+    # And the next most common, which the 'when's below would only reach
+    # after a dozen tests of their class: what is inside them is read.
+    if $k eq 'Index' || $k eq 'Member' || $k eq 'MethodCall'
+       || ($k eq 'Binary' && !(COMPARE{$e.op} && ($e.left ~~ AliasField || $e.right ~~ AliasField)))
+    {
+      self!expr($_) for subexprs($e);
+      return;
+    }
     self!unclosed($e) if ($e ~~ Literal || $e ~~ Interp) && $e.type eq 'Character';
     given $e
     {
@@ -935,12 +962,15 @@ my class Checker
     }
     # More arguments than parameters: AdvPL drops the rest, and the code runs.
     # A warning -- xtpl refused it, and real sources have it.
-    my %f = %!funcs{$n} // %!funcs{$plain} // return;
+    # (No '// return': a 'return' inside an expression costs a hundred and
+    # fifty microseconds under rakupp, and this is every call of the file.)
+    my $f = %!funcs{$n} // %!funcs{$plain};
+    return without $f;
     my $given = $c.args.grep({ $_ !~~ Omitted }).elems;
-    if $given > %f<params>
+    if $given > $f<params>
     {
-      self!warning("{%f<name>}() takes {%f<params>} parameter{%f<params> == 1 ?? '' !! 's'} "
-                   ~ "(line {%f<line>}), but is given $given -- the rest are dropped.");
+      self!warning("{$f<name>}() takes {$f<params>} parameter{$f<params> == 1 ?? '' !! 's'} "
+                   ~ "(line {$f<line>}), but is given $given -- the rest are dropped.");
     }
   }
 
@@ -948,7 +978,8 @@ my class Checker
   # area. A variable holding the alias ('(cAlias)->x') cannot be checked.
   method !field(AliasField $f)
   {
-    my $word = self!alias-word($f) // return;
+    my $word = self!alias-word($f);
+    return without $word;
     my $a = $word.uc;
     unless %!opened{$a} || %!external-alias{$a} || $a.starts-with('__') || %!warned-alias{$a}++
     {
@@ -995,8 +1026,10 @@ my class Checker
   method !dict-type(AliasField $ref, $lit, Bool $assigned)
   {
     return unless %!dictionary;
-    my $word = self!alias-word($ref) // return;
-    my $entry = %!dictionary{$word.uc}{$ref.field.uc} // return;
+    my $word = self!alias-word($ref);
+    return without $word;
+    my $entry = %!dictionary{$word.uc}{$ref.field.uc};
+    return without $entry;
     my $kind = $entry[0];
     my $size = $entry[1];
     return unless $kind;

@@ -287,8 +287,11 @@ sub expression-end(@toks, Int $i is copy, @stops, Bool $commas, Bool $exact --> 
 # Where a translation of the source's that starts at token $i ends, or -1.
 sub translation-end(@toks, Int $i --> Int)
 {
-  my $by = $*XC-TRANSLATES // return -1;
-  my $rules = $by{@toks[$i][0].lc} // return -1;
+  # (No '// return -1': a 'return' inside an expression is slow under rakupp.)
+  my $by = $*XC-TRANSLATES;
+  return -1 without $by;
+  my $rules = $by{@toks[$i][0].lc};
+  return -1 without $rules;
   for $rules.list -> $r
   {
     my $end = match-elems($r.pattern, @toks, $i, $r.exact, ());

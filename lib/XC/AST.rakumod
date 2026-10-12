@@ -52,6 +52,14 @@ class Expr is export
   has Int $.line     is rw = 0;
   has Int $.src-from is rw = -1;
   has Int $.src-to   is rw = -1;
+  has $.memo-kids is rw;           # what subexprs() found (see there)
+  has $.memo-flat is rw;           # what flat-exprs() found
+
+  # The expressions right below this one, in reading order, without the
+  # missing ones (the empty side of a '!', the base of an 'SA1->'): each
+  # class says its own -- a method, not a table by class name: under rakupp
+  # looking at an object's class costs as much as a call.
+  method kids(--> List) { () }
 }
 
 class Literal is Expr is export
@@ -71,12 +79,14 @@ class UserTrans is Expr is export
 {
   has Str  $.text;
   has Expr $.base;                 # what it follows, when it is a trailer
+  method kids(--> List) { $!base.defined ?? ($!base,) !! () }
 }
 
 class Call is Expr is export
 {
   has Str  $.name;
   has Expr @.args;
+  method kids(--> List) { @!args.grep(*.defined).List }
 }
 
 # Also the unary forms: '!' and 'neg', with 'left' undefined.
@@ -85,6 +95,7 @@ class Binary is Expr is export
   has Str  $.op;
   has Expr $.left;
   has Expr $.right;
+  method kids(--> List) { $!left.defined ?? ($!right.defined ?? ($!left, $!right) !! ($!left,)) !! ($!right.defined ?? ($!right,) !! ()) }
 }
 
 # ---- what comes after an expression ------------------------------------------
@@ -92,6 +103,7 @@ class Index is Expr is export             # a[i, j]
 {
   has Expr $.base;
   has Expr @.indices;
+  method kids(--> List) { ($!base, |@!indices).grep(*.defined).List }
 }
 
 # The '::' of '::x' -- the object itself, as the implicit base of a Member or
@@ -106,6 +118,7 @@ class Member is Expr is export            # o:nX  (and ::nX, based on SelfRef)
 {
   has Expr $.base;
   has Str  $.name;
+  method kids(--> List) { $!base.defined ?? ($!base,) !! () }
 }
 
 # ---- xtpl: operators with a node of their own --------------------------------
@@ -121,6 +134,7 @@ class HashIndex is Expr is export
 {
   has Expr $.base;
   has Expr $.key;
+  method kids(--> List) { $!base.defined ?? ($!key.defined ?? ($!base, $!key) !! ($!base,)) !! ($!key.defined ?? ($!key,) !! ()) }
 }
 
 # '1..100', only on the right of an 'in' or as the source of a pipeline.
@@ -128,6 +142,7 @@ class Interval is Expr is export
 {
   has Expr $.lo;
   has Expr $.hi;
+  method kids(--> List) { $!lo.defined ?? ($!hi.defined ?? ($!lo, $!hi) !! ($!lo,)) !! ($!hi.defined ?? ($!hi,) !! ()) }
 }
 
 class MethodCall is Expr is export        # o:Sum(1, 2)
@@ -135,6 +150,7 @@ class MethodCall is Expr is export        # o:Sum(1, 2)
   has Expr $.base;
   has Str  $.name;
   has Expr @.args;
+  method kids(--> List) { ($!base, |@!args).grep(*.defined).List }
 }
 
 # 'o?.Method(1)': a method call that yields Nil when the base is Nil.
@@ -148,6 +164,7 @@ class AliasField is Expr is export
   has Str  $.alias;
   has Str  $.field;
   has Expr $.macro;                # '->&(cField)': the field named when it runs
+  method kids(--> List) { $!base.defined ?? ($!macro.defined ?? ($!base, $!macro) !! ($!base,)) !! ($!macro.defined ?? ($!macro,) !! ()) }
 }
 
 # An expression evaluated in a work area: 'SA1->( DbGoTop() )'. The area as
@@ -157,6 +174,7 @@ class InAlias is Expr is export
   has Expr $.base;
   has Str  $.alias;
   has Expr $.expr;
+  method kids(--> List) { $!base.defined ?? ($!expr.defined ?? ($!base, $!expr) !! ($!base,)) !! ($!expr.defined ?? ($!expr,) !! ()) }
 }
 
 # ---- the rest ----------------------------------------------------------------
@@ -167,11 +185,13 @@ class Macro is Expr is export
   has Expr $.target;
   has Bool $.called = False;       # '&cFunc.()': called, with these
   has Expr @.args;
+  method kids(--> List) { ($!target, |@!args).grep(*.defined).List }
 }
 
 class Ref is Expr is export              # '@aX' in an argument: read and written
 {
   has Expr $.target;
+  method kids(--> List) { $!target.defined ?? ($!target,) !! () }
 }
 
 class Omitted is Expr is export { }
@@ -180,6 +200,7 @@ class Omitted is Expr is export { }
 class ExprList is Expr is export
 {
   has Expr @.items;
+  method kids(--> List) { @!items.grep(*.defined).List }
 }      # the empty position in 'f( , 1)'
 
 # An assignment where an expression goes: 'If(c, a, cA := u)', '{|| n := 1}'.
@@ -191,6 +212,7 @@ class AssignExpr is Expr is export
   # 'n++' is '+= 1' that gives the value before; '++n', the one after. ''
   # for a plain assignment.
   has Str  $.incdec = '';
+  method kids(--> List) { $!target.defined ?? ($!value.defined ?? ($!target, $!value) !! ($!target,)) !! ($!value.defined ?? ($!value,) !! ()) }
 }
 
 # Literals with parts. Still Literal -- with the type and the text --, so
@@ -201,21 +223,38 @@ class KeyValue is export
   has Expr $.value;
 }
 
-class ArrayLit is Literal is export { has Expr     @.items; }
+class ArrayLit is Literal is export
+{
+  has Expr @.items;
+  method kids(--> List) { @!items.grep(*.defined).List }
+}
 
 # '"total = ${nTotal} items"' -- a string with xtpl's interpolation. Still a
 # Literal of type 'Character', with its text as written; 'parts' holds the
 # pieces in order, a Str for each run of text and an Expr for each '${ }'. A
 # string with no '${' stays a plain Literal. Lowering joins the parts with
 # '+', wrapping each expression in 'cValToChar'.
-class Interp is Literal is export { has @.parts; }
-class JsonLit  is Literal is export { has KeyValue @.pairs; }
-class HashLit  is Literal is export { has KeyValue @.pairs; }
+class Interp is Literal is export
+{
+  has @.parts;
+  method kids(--> List) { @!parts.grep({ .defined && $_ ~~ Expr }).List }
+}
+class JsonLit is Literal is export
+{
+  has KeyValue @.pairs;
+  method kids(--> List) { @!pairs.map({ |(.key, .value) }).grep(*.defined).List }
+}
+class HashLit is Literal is export
+{
+  has KeyValue @.pairs;
+  method kids(--> List) { @!pairs.map({ |(.key, .value) }).grep(*.defined).List }
+}
 
 class CodeBlock is Literal is export
 {
   has Str  @.params;
   has Expr @.body;
+  method kids(--> List) { @!body.grep(*.defined).List }
 }
 
 # '[o] o:nValue' -- xtpl's lambda. It is a code block with a single body, so
@@ -232,6 +271,7 @@ class Guard is Expr is export
 {
   has Expr $.expr;
   has Expr $.fallback;
+  method kids(--> List) { $!expr.defined ?? ($!fallback.defined ?? ($!expr, $!fallback) !! ($!expr,)) !! ($!fallback.defined ?? ($!fallback,) !! ()) }
 }
 
 # 'aOrders |> filter([o] ...) |> map([o] ...)' -- the source and the stages, in
@@ -243,6 +283,7 @@ class Pipeline is Expr is export
 {
   has Expr $.source;
   has Call @.stages;
+  method kids(--> List) { ($!source, |@!stages).grep(*.defined).List }
 }
 
 # ---- statements --------------------------------------------------------------
@@ -254,6 +295,8 @@ class Stmt is export
   has Int $.line = 0;
   has Int $.src-from is rw = -1;   # source offsets, as for Expr
   has Int $.src-to   is rw = -1;
+  has $.memo-exprs  is rw;         # what exprs-of() and bodies-of() found
+  has $.memo-bodies is rw;
 }
 
 class Declarator is export
@@ -543,82 +586,49 @@ class Program is export
 
 # ---- walking -----------------------------------------------------------------
 
-# The expressions right below one, by class: a table, not a chain of 'when's.
-# Walks ask for them some thousands of times per file, and most nodes are
-# names and literals -- which the chain tested against every class, a
-# junction among them, before its default: over a third of the emitter's time.
-# The exact class, so subclasses (SafeMember, SafeCall, Lambda) are listed
-# with what they get from their parent.
-my %LEAVES = (Literal, Name, SelfRef, SubjectRef, Omitted).map({ .^name => True });
-my %KIDS =
-  UserTrans.^name  => -> $e { $e.base },
-  Binary.^name     => -> $e { $e.left, $e.right },
-  Call.^name       => -> $e { |$e.args },
-  Index.^name      => -> $e { $e.base, |$e.indices },
-  Member.^name     => -> $e { $e.base },
-  SafeMember.^name => -> $e { $e.base },
-  MethodCall.^name => -> $e { $e.base, |$e.args },
-  SafeCall.^name   => -> $e { $e.base, |$e.args },
-  AliasField.^name => -> $e { |($e.base, $e.macro).grep(*.defined) },
-  ExprList.^name   => -> $e { |$e.items },
-  InAlias.^name    => -> $e { $e.base, $e.expr },
-  Macro.^name      => -> $e { |($e.target, |$e.args).grep(*.defined) },
-  Ref.^name        => -> $e { $e.target },
-  AssignExpr.^name => -> $e { $e.target, $e.value },
-  ArrayLit.^name   => -> $e { |$e.items },
-  Interp.^name     => -> $e { |$e.parts.grep(Expr) },
-  JsonLit.^name    => -> $e { |$e.pairs.map({ .key, .value }).flat },
-  HashLit.^name    => -> $e { |$e.pairs.map({ .key, .value }).flat },
-  CodeBlock.^name  => -> $e { |$e.body },
-  Lambda.^name     => -> $e { |$e.body },
-  Pipeline.^name   => -> $e { $e.source, |$e.stages },
-  Guard.^name      => -> $e { $e.expr, $e.fallback },
-  HashIndex.^name  => -> $e { $e.base, $e.key },
-  Interval.^name   => -> $e { $e.lo, $e.hi };
-
 # Missing parts (the empty side of a '!', the base of an 'SA1->') do not
 # appear.
+#
+# Each node's answer is kept on it, and so are exprs-of()'s and bodies-of()'s
+# on a statement: a tree is not changed once the parse has made it, and the
+# checks and the emitter walk it over and over -- under rakupp every look at
+# a class, every call, costs microseconds.
 sub subexprs(Expr $e --> List) is export
 {
-  my $class = $e.^name;
-  return () if %LEAVES{$class};
-  with %KIDS{$class} -> &kids
-  {
-    return kids($e).grep(*.defined).List;
-  }
-  # A class the table does not know: the long way.
-  my @s = do given $e
-  {
-    when Binary     { .left, .right }
-    when Call       { |.args }
-    when Index      { .base, |.indices }
-    when Member     { .base }
-    when MethodCall { .base, |.args }
-    when AliasField { |(.base, .macro).grep(*.defined) }
-    when ExprList   { |.items }
-    when InAlias    { .base, .expr }
-    when Macro      { (.target, |.args).grep(*.defined) }
-    when Ref        { .target }
-    when AssignExpr { .target, .value }
-    when ArrayLit   { |.items }
-    when Interp     { |.parts.grep(Expr) }
-    when JsonLit | HashLit { |.pairs.map({ .key, .value }).flat }
-    when CodeBlock  { |.body }
-    when Pipeline   { .source, |.stages }
-    when Guard      { .expr, .fallback }
-    when HashIndex  { .base, .key }
-    when Interval   { .lo, .hi }
-    default         { () }
-  };
-  @s.grep(*.defined).List
+  my $kept = $e.memo-kids;
+  return $kept.List if $kept.defined;
+  my $found = kids-of($e);
+  $e.memo-kids = $found;
+  $found.List
 }
+
+sub kids-of(Expr $e --> List) { $e.kids }
 
 # Calls &f on an expression and on every one inside it, in reading order.
 sub walk-expr(Expr $e, &f) is export
 {
   return without $e;
-  f($e);
-  walk-expr($_, &f) for subexprs($e);
+  f($_) for flat-exprs($e);
+}
+
+sub flat-into(Expr $e, @all)
+{
+  @all.push($e);
+  flat-into($_, @all) for kids-of($e);
+}
+
+# An expression and every one inside it, in reading order -- kept on the
+# node it was asked for (not on each one inside: a long chain of '+' is a
+# tree as deep as it is long).
+sub flat-exprs(Expr $e --> List) is export
+{
+  my $kept = $e.memo-flat;
+  return $kept.List if $kept.defined;
+  my @all;
+  flat-into($e, @all);
+  my $found = @all.List;
+  $e.memo-flat = $found;
+  $found.List
 }
 
 # The expressions a statement holds, without going into its bodies -- 'walk'
@@ -647,6 +657,15 @@ my %EXPRS =
   DefaultStmt.^name  => -> $s { |$s.pairs.map({ |(.target, .value) }) };
 
 sub exprs-of(Stmt $s --> List) is export
+{
+  my $kept = $s.memo-exprs;
+  return $kept.List if $kept.defined;
+  my $found = stmt-exprs($s);
+  $s.memo-exprs = $found;
+  $found.List
+}
+
+sub stmt-exprs(Stmt $s --> List)
 {
   my $class = $s.^name;
   return () if %NO-EXPRS{$class};
@@ -699,6 +718,15 @@ my %BODIES =
 # The bodies a statement holds, in reading order. It is what any analysis
 # needs to go down the tree without knowing every kind of statement.
 sub bodies-of(Stmt $s --> List) is export
+{
+  my $kept = $s.memo-bodies;
+  return $kept.List if $kept.defined;
+  my $found = stmt-bodies($s);
+  $s.memo-bodies = $found;
+  $found.List
+}
+
+sub stmt-bodies(Stmt $s --> List)
 {
   my $class = $s.^name;
   return ().List if %NO-BODIES{$class};

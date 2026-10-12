@@ -528,7 +528,18 @@ class Emitter
   # body only. Each maps the name, lower case, to the new one.
   has %!renames;
 
-  submethod TWEAK() { $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n" }
+  # Whether the source may hold a chain or a source at all: a '|>', a
+  # 'lo..hi', a rows() or a lines() call each needs its text there. Without
+  # one, what looks for them -- in every statement, at every node -- has
+  # nothing to find, and is not asked.
+  has Bool $!chains;
+
+  submethod TWEAK()
+  {
+    $!nl = $!src.contains("\r\n") ?? "\r\n" !! "\n";
+    my $l = $!src.lc;
+    $!chains = so $l.contains('|>') || $l.contains('..') || $l.contains('rows') || $l.contains('lines');
+  }
 
   # ---- lines -----------------------------------------------------------------
   # "\r\n" is one character in Raku, so a line break is found as any of the
@@ -566,68 +577,65 @@ class Emitter
     for |$p.functions, |$p.methods -> $f
     {
       self!declare-names($f);
-      walk($f.body, -> $s
+      if $!chains
       {
-        my $what = do given $s
+        walk($f.body, -> $s
         {
-          when ForInStmt    { source-call(.source).defined && source-kind(source-call(.source)) eq 'rows'
-                                ?? "'for ... in' over rows()" !! Str }
-          default           { Str }
-        };
-        @found.push($s.line => $what) with $what;
-
-        # A source only reads at the head of a chain in a statement that can
-        # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
-        # as the source of a 'for'.
-        my @tops = self!stream-values($s);
-        my $for = $s ~~ ForInStmt && is-source($s.source) ?? $s.source !! Expr;
-        my %heads;                     # the source calls that head a chain
-        for exprs-of($s) -> $e
-        {
-          walk-expr($e, { %heads{.source.WHICH} = True if $_ ~~ Pipeline && is-source(.source) });
-        }
-        # A range is also the right side of 'in': a membership test, no loop.
-        my %in-range;
-        for exprs-of($s) -> $e
-        {
-          walk-expr($e, { %in-range{.right.WHICH} = True if $_ ~~ Binary && .op eq 'in' && .right ~~ Interval });
-        }
-        for exprs-of($s) -> $e
-        {
-          walk-expr($e, -> $x
+          my $what = do given $s
           {
-            my $w = self!expr-extension($x);
-            @found.push($s.line => $w) with $w;
-            if is-source($x)
+            when ForInStmt    { source-call(.source).defined && source-kind(source-call(.source)) eq 'rows'
+                                  ?? "'for ... in' over rows()" !! Str }
+            default           { Str }
+          };
+          @found.push($s.line => $what) with $what;
+
+          # A source only reads at the head of a chain in a statement that can
+          # run the loop first -- 'x := ...', 'return ...', the chain alone -- or
+          # as the source of a 'for'.
+          my @tops = self!stream-values($s);
+          my $for = $s ~~ ForInStmt && is-source($s.source) ?? $s.source !! Expr;
+          # One walk: the source calls that head a chain, the ranges on the
+          # right of an 'in' -- a membership test, no loop -- and every source,
+          # in reading order, to look at once the other two are known.
+          my %heads;
+          my %in-range;
+          my @sources;
+          for exprs-of($s) -> $e
+          {
+            walk-expr($e, -> $x
             {
-              my $ok = @tops.first({ source-call($_) === $x }).defined || ($for.defined && $for === $x)
-                    || %in-range{$x.WHICH};
-              unless $ok
+              if $x ~~ Pipeline
               {
-                my $what = $x ~~ Interval ?? 'a range' !! "{$x.name.lc}()";
-                @found.push($s.line => %heads{$x.WHICH}
-                  ?? "a chain from $what where it cannot run as a loop first "
-                     ~ "(it goes in 'x := ...', 'return ...' or a statement of its own)"
-                  !! $x ~~ Interval
-                     ?? "a range outside 'in' and the head of a chain"
-                     !! "'{$x.name.lc}()' outside the head of a chain (it is a source)");
+                %heads{$x.source.WHICH} = True if is-source($x.source);
               }
+              elsif $x ~~ Binary
+              {
+                %in-range{$x.right.WHICH} = True if $x.op eq 'in' && $x.right ~~ Interval;
+              }
+              @sources.push($x) if is-source($x);
+            });
+          }
+          for @sources -> $x
+          {
+            my $ok = @tops.first({ source-call($_) === $x }).defined || ($for.defined && $for === $x)
+                  || %in-range{$x.WHICH};
+            unless $ok
+            {
+              my $what = $x ~~ Interval ?? 'a range' !! "{$x.name.lc}()";
+              @found.push($s.line => %heads{$x.WHICH}
+                ?? "a chain from $what where it cannot run as a loop first "
+                   ~ "(it goes in 'x := ...', 'return ...' or a statement of its own)"
+                !! $x ~~ Interval
+                   ?? "a range outside 'in' and the head of a chain"
+                   !! "'{$x.name.lc}()' outside the head of a chain (it is a source)");
             }
-          });
-        }
-        @found.append(self!chain-problems($_, $s)) for @tops;
-      });
+          }
+          @found.append(self!chain-problems($_, $s)) for @tops;
+        });
+      }
       @found.append(self!scope-problems($f));
     }
     @found.unique(:as({ .key ~ "\0" ~ .value })).sort(*.key).List
-  }
-
-  method !expr-extension(Expr $x --> Str)
-  {
-    given $x
-    {
-      default         { Str }
-    }
   }
 
   # Block locals become Locals of the function, with the names as written --
@@ -759,6 +767,7 @@ class Emitter
   # that fuses.
   method !fused-value(Stmt $s --> Expr)
   {
+    return Expr unless $!chains;
     with self!stream-value($s) -> $c { return $c }
     given $s
     {
@@ -772,6 +781,7 @@ class Emitter
   # A value that is a loop: a chain from a source, or an array chain that fuses.
   method !loop-value($e --> Bool)
   {
+    return False unless $!chains;
     so $e.defined && (source-call($e).defined || self!fusable-array($e, False))
   }
 
@@ -1345,8 +1355,17 @@ class Emitter
     {
       next if %!done{$s.WHICH};
       my $walked = False;             # set by a branch that walks the bodies itself
+      my $k = $s.^name;
       given $s
       {
+        # The most common statements, when none of the branches below is
+        # theirs: a call, an assignment, a 'local' of the function's own --
+        # their expressions, and nothing else. (One test, not a score.)
+        when { ($k eq 'CallStmt' || $k eq 'Assignment' || ($k eq 'Declaration' && $top && .scope eq 'local'))
+               && !self!fused-value($_).defined && !needs-lowering($_) }
+        {
+          self!expressions($s, exprs-of($s));
+        }
         # A block local: an assignment where it was, a Local at the top. One
         # with no value is reset to Nil, so each entry starts fresh.
         # 'when { ... }', not 'when T && ...': a type object is false, so '&&'
@@ -1680,8 +1699,9 @@ class Emitter
         }
       }
       # A Modified is lowered whole, with what it holds. A loop's body is
-      # marked, so an 'exit' in it knows what it leaves.
-      unless $s ~~ Modified || $walked
+      # marked, so an 'exit' in it knows what it leaves. (A statement with
+      # no body has nothing to collect.)
+      if bodies-of($s) && !($s ~~ Modified || $walked)
       {
         my $loop = $s ~~ WhileStmt || $s ~~ ForStmt || $s ~~ ForInStmt || $s ~~ ForTimesStmt;
         @!closers.push('loop' => ()) if $loop;
@@ -2546,7 +2566,7 @@ class Emitter
 
   method !contains-lowering(Expr $e --> Bool)
   {
-    self!lowers-itself($e) || so subexprs($e).first({ self!contains-lowering($_) })
+    so flat-exprs($e).first({ self!lowers-itself($_) })
   }
 
   # '"total ${n} items"' -> '("total " + cValToChar(n) + " items")', in the

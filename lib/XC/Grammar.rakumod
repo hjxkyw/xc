@@ -60,14 +60,47 @@ sub decl-ahead(Str $text --> Bool)
   so $text ~~ m:i/ ^ <[\x20\x09]>* [ 'private' || 'public' || 'static' ] <![0..9A..Za..z_]> /
 }
 
+# Strings and comments, which ahead() reads past: its own reading of them, as
+# a regex. (A "'" between two digits groups them -- '12'345' -- and is no
+# string.)
+my regex noise
+{
+     '"' <-["\n]>* '"'?
+  || [ <!after \d> "'" || "'" <!before \d> ] <-['\n]>* "'"?
+  || [ '//' || '&&' ] \N*
+  || '/*' .*? '*/'
+}
+
+# What every assignment operator has: ':=', '+=', '-=', '*=', '/=', '?='.
+my constant BINDS = <:= += -= *= /= ?=>;
+
 # $item: an argument or a lambda's body, which also ends at a ',' or at a
 # bracket closing what it is in.
-sub ahead(Str $text, Str $what, Bool $item --> Bool)
+our sub ahead(Str $text, Str $what, Bool $item --> Bool)
 {
-  # Not a sign of what is looked for, nor of what makes it unsure -- a ';',
-  # a '/*', and for a statement a bracket it did not see open: no.
-  return False unless $text.contains($what eq 'pipe' ?? '|>' !! '=') || $text.contains(';') || $text.contains('/*')
-                      || (!$item && ($text.contains(')') || $text.contains(']') || $text.contains('}')));
+  # Not a sign of what is looked for anywhere, nor a '/*' that may hide one:
+  # no, before reading anything. (What follows <sees> needs one: every
+  # assignment operator has a '=', a chain a '|>'.)
+  return False unless $text.contains($what eq 'pipe' ?? '|>' !! '=') || $text.contains('/*');
+  # First the code alone, without strings and comments -- a regex does that
+  # in microseconds, where the loop below takes two or three for every
+  # character. Unless a ';' or an unclosed '/*' leaves it unsure: with no
+  # '|>' there is no chain; with none of the operators and no '=' an
+  # assignment could take -- one that is not part of '==', '<=', '>=', '!='
+  # and the like -- there is no assignment; and for a condition, which never
+  # takes '=' alone, none of the operators is enough. (The loop also says yes
+  # at a bracket it did not see open, for a statement: it cannot tell. With
+  # nothing an assignment could be made of, the answer is no all the same.)
+  my $code = $text.subst(&noise, '', :g);
+  unless $code.contains(';') || $code.contains('/*')
+  {
+    return False unless $code.contains($what eq 'pipe' ?? '|>' !! '=');
+    if $what ne 'pipe' && !BINDS.first({ $code.contains($_) })
+    {
+      return False if $what eq 'bind' && $item;
+      return False unless $code ~~ / <!after <[<>!=:+\-*/?]>> '=' <!before '='> /;
+    }
+  }
   my @u = $text.ords;
   my $n = @u.elems;
   my $depth = 0;
@@ -467,14 +500,22 @@ sub user-active(--> Bool) { $user-on }
 
 # A use of the source's own commands at $from: its length, when it is one of
 # the kind asked ('stmt' or 'header'), else 0.
+#
+# (Not 'my $c = ... // return 0': under rakupp a 'return' inside an expression
+# costs a hundred and fifty microseconds -- an exception, it seems -- and
+# these are asked at every statement and every value.)
 sub user-cmd(Int $from, Str $kind --> Int)
 {
-  my $c = ($user // return 0)<cmd>{$from} // return 0;
+  return 0 without $user;
+  my $c = $user<cmd>{$from};
+  return 0 without $c;
   $c[1] eq $kind ?? $c[0] - $from !! 0
 }
 sub user-trans(Int $from --> Int)
 {
-  my $to = ($user // return 0)<trans>{$from} // return 0;
+  return 0 without $user;
+  my $to = $user<trans>{$from};
+  return 0 without $to;
   $to - $from
 }
 
@@ -833,38 +874,57 @@ token typename
 rule statement
 {
   [
-     <usercmd>
-  || <cmdst>
-  || <dirst>
-  # An annotation is the whole line: '@oJSON := x' is an assignment.
-  || [ <annotation> <?before <.eol>> ]
-  || <seqst>
-  || <tryst>
-  || <transst>
-  # A 'private' or 'public' is a statement in TL++, allowed anywhere one is;
-  # so is a 'static' -- Protheus takes one after a statement, file-wide. None
-  # closes the prologue here: a 'local' after one is then parsed, and the
-  # checks can say what is wrong with it.
-  || [ <.declsoon> <declaration> ]
-  || <ifcallst>
-  || <ifst>
-  || <whilest>
-  || <forst>
-  || <forinst>
-  || <fortimesst>
-  || <docasest>
-  || <execst>
-  || <deferst>
-  || <usingst>
-  || <withst>
-  || <rawst>
-  || <noopst>
-  || [ <simple> <modifier>? ]
+     [<?{ $user-on }><usercmd>]
+  # Every statement but a simple one starts with one of a few words, or '@'
+  # or '#': when the line starts otherwise, none of them is tried.
+  || [ <?before <.stmtstart>>
+       [
+          <cmdst>
+       || <dirst>
+       # An annotation is the whole line: '@oJSON := x' is an assignment.
+       || [ <annotation> <?before <.eol>> ]
+       || <seqst>
+       || <tryst>
+       || <transst>
+       # A 'private' or 'public' is a statement in TL++, allowed anywhere one
+       # is; so is a 'static' -- Protheus takes one after a statement,
+       # file-wide. None closes the prologue here: a 'local' after one is then
+       # parsed, and the checks can say what is wrong with it.
+       || [ <.declsoon> <declaration> ]
+       || <ifcallst>
+       || <ifst>
+       || <whilest>
+       || <forst>
+       || <forinst>
+       || <fortimesst>
+       || <docasest>
+       || <execst>
+       || <deferst>
+       || <usingst>
+       || <withst>
+       || <rawst>
+       || <noopst>
+       ] ]
+  || [ <simple> [<?[iIwW]><modifier>]? ]
   ]
   # Any other statement closes the prologue -- a 'Default' too: it is an 'If'
   # once the preprocessor is done with it, and a local after it is an error.
   { try $*PAST-PROLOGUE = True unless $<declaration> }
 }
+
+# The first words of the statements above that are not simple ones -- each
+# rule's first word, whole -- and of TOTVS' commands: a statement that starts
+# with another word, or with no word, can only be a simple one ('@' and '#'
+# aside). A word, then a lookup: cheaper than trying a score of rules that
+# each fail at their first letter.
+my constant STMT-WORDS = set <
+  begin try local private public static if do while for exec defer using with
+  raw endfunction endfunc endmethod default
+  define activate redefine set menu publish replace add prepare reset append
+  count menuitem endmenu tcquery connect disconnect send get paramtype throw
+  vtpause vtread vtclear vtsave vtrestore beginsql begincontent
+>;
+token stmtstart { [ (<[A..Za..z_]> \w*) <?{ STMT-WORDS{(~$0).lc}:exists }> ] || <[@#]> }
 
 # 'EndFunction', 'EndFunc', 'EndMethod': no keywords of TL++'s. The AppServer
 # takes such a word as a name on its own -- a line that does nothing, with a
@@ -1025,16 +1085,20 @@ token rawnl   { \r\n || \v }
 
 rule simple
 {
-     <returnst>
-  || <exitst>
-  || <loopst>
-  || <breakst>
-  || <defaultst>
+     [ <?before <.simpleword>>
+       [ <returnst>
+       || <exitst>
+       || <loopst>
+       || <breakst>
+       || <defaultst> ] ]
   || [ <.sees('assign')> [ <assignment> || <nilassign> ] ]
   || [ <.sees('pipe')> <pipest> ]
   || <incst>
   || <callst>
 }
+
+my constant SIMPLE-WORDS = set <return exit loop break default>;
+token simpleword { (<[A..Za..z_]> \w*) <?{ SIMPLE-WORDS{(~$0).lc}:exists }> }
 
 # 'Break' [value]: out to a 'begin sequence''s recover. ('word'>>, no space:
 # in a rule a space before '>>' puts the whitespace first, and '>>' then
@@ -1046,7 +1110,16 @@ rule defaultst { :i 'default'>> <defpair>+ % ',' }
 rule defpair   { <lvalue> ':=' <guardexpr> }
 
 # 'n++', '++n', 'a[i]--': TL++'s increment and decrement, as a statement.
-rule incst  { [ <incop> <lvalue> ] || [ <lvalue> <incop> ] }
+# 'a[i]--' only when the line has a '++' or a '--': without one, a call
+# statement -- most statements -- was read whole as the target, to find no
+# '++' after it, and then again as the call.
+rule incst  { [ <incop> <lvalue> ] || [ <.incsoon> <lvalue> <incop> ] }
+token incsoon
+{
+  :my $rest;
+  <?before ( [ \N*? ';' \h* [ [ '//' || '&&' ] \N* ]? \v ]* \N* ) { $rest = ~$0 }>
+  <?{ $rest.contains('++') || $rest.contains('--') }>
+}
 token incop { '++' || '--' }
 
 # ---- xtpl: '?=' -- assign if Nil ---------------------------------------------
@@ -1302,16 +1375,13 @@ rule callst
              || [ '(' ~ ')' <pexpr> <trailer>* ] ]
 }
 
-token stmtword
-{
-  :i [ 'return' || 'local' || 'private' || 'public' || 'static'
-    || 'if' || 'elseif' || 'else' || 'endif'
-    || 'while' || 'enddo' || 'for' || 'next' || 'exit' || 'loop'
-    || 'do' || 'case' || 'endcase' || 'otherwise'
-    || 'begin' || 'recover' || 'end'
-    || 'namespace' || 'using'
-  ] >>
-}
+# The word, then a lookup: a score of words tried one by one cost more, at
+# every statement and every assignment.
+my constant STMT-KEYWORDS = set <
+  return local private public static if elseif else endif while enddo for next
+  exit loop do case endcase otherwise begin recover end namespace using
+>;
+token stmtword { (<[A..Za..z_]> \w*) <?{ STMT-KEYWORDS{(~$0).lc}:exists }> }
 
 # ---- expressions, by precedence ----------------------------------------------
 #
@@ -1339,7 +1409,23 @@ token stmtword
 # Not inside a lambda or code block: the body runs later, and lifting a stage
 # out of it would run the stage first. The lambda and the code block set
 # '$*IN-BLOCK', and with it set no expression inside accepts '|>'.
-rule expr        { <elvis> <feed>* }
+token expr       { [ <unary> <!before <.opnext>> ] || [ <elvis> <feed>* ] }
+
+# Most expressions are one value -- a name, a literal, a call -- and nothing
+# after it: the levels below would each pass it on, a dozen rules and as many
+# operators looked for, to make the very node <unary> makes. So a value
+# with no operator after it is the expression; when one may follow, the
+# levels read it all. (What may follow is told by its first character, or the
+# word 'in' or 'has': a '.' may be '.and.' or '..', a '-' '->', but the levels
+# then read it as ever.)
+#
+# 'expr', 'unary', 'postfix' and 'primary' are tokens with their whitespace
+# written out, not rules: every value goes through them, and a rule looks
+# for whitespace after each of its parts -- three or four looks per value,
+# where each part already ends past the whitespace after it. Each takes it
+# where a rule would have found some; a '[:s ... ]' keeps a rule's reading for
+# a part that is rare.
+token opnext { <[*/%+\-.<>=!$#?|^]> || :i [ 'in' || 'has' ] >> }
 
 # ---- xtpl: 'fallback' --------------------------------------------------------
 #
@@ -1356,7 +1442,7 @@ rule expr        { <elvis> <feed>* }
 #
 # Both parts are named: an <expr> and an <alt=expr> at the same level would
 # come back together as a list in $<expr>.
-rule guardexpr { <guarded> [ <!{ $*IN-BLOCK // False }> <fbkw> <fallback> ]? }
+rule guardexpr { <guarded> [ <?[fF]> <!{ $*IN-BLOCK // False }> <fbkw> <fallback> ]? }
 token fbkw     { :i 'fallback' >> }
 
 # ---- parts with a name: tokens of their own, not aliases ---------------------
@@ -1390,15 +1476,15 @@ token finblock  { <closedbody> }
 # ---- xtpl: '?:' -- elvis -----------------------------------------------------
 # The value on the left, unless it is Nil. Between '.or.' and '|>', and it
 # chains to the right: 'first() ?: second() ?: "last"'.
-rule elvis     { <orexpr> [ <elvisop> <orexpr> ]* }
+rule elvis     { <orexpr> [ <?[?]> <elvisop> <orexpr> ]* }
 token elvisop  { '?:' }
-rule feed      { <!{ $*IN-BLOCK // False }> '|>' <stage> }
+rule feed      { <?[|]> <!{ $*IN-BLOCK // False }> '|>' <stage> }
 rule stage     { <nscall> || <call> || <name> }
-rule orexpr    { <andexpr> [ <orop> <andexpr> ]* }
+rule orexpr    { <andexpr> [ <?[.]> <orop> <andexpr> ]* }
 token orop     { :i '.or.' }
-rule andexpr   { <notexpr> [ <andop> <notexpr> ]* }
+rule andexpr   { <notexpr> [ <?[.]> <andop> <notexpr> ]* }
 token andop    { :i '.and.' }
-rule notexpr   { <negate>? <cmpexpr> }
+rule notexpr   { [ <?[!.]> <negate> ]? <cmpexpr> }
 token negate   { '!' || [ :i '.not.' ] }
 
 # ---- comparison, with xtpl's 'in' and 'has' ----------------------------------
@@ -1411,7 +1497,7 @@ token negate   { '!' || [ :i '.not.' ] }
 # 'in' runs to the comma, the bracket or the '.and.'/'.or.' of the same level.
 # The right of 'in' is the only place, besides the source of a pipeline,
 # where a 'lo..hi' fits.
-rule cmpexpr   { <rangeexpr> <cmptail>* }
+rule cmpexpr   { <rangeexpr> [ <?[=!<>$#iIhH]> <cmptail> ]* }
 rule cmptail   { [ <op=inop> <inrhs> ] || [ <op=cmpop> <rangeexpr> ] }
 # AdvPL's own two as well: '=' compares in an expression (the loose
 # equality; as a statement it is still an assignment, which <statement> tries
@@ -1435,42 +1521,52 @@ rule inrhs     { <lo> [ '..' <hi> ]? }
 # 'for i in 1..n': a range as the source of a 'for'. xtpl takes it, and emits
 # 'x := 1..n' -- not TL++; xc counts.
 rule forrange  { <lo> '..' <hi> }
-rule addexpr   { <mulexpr> [ <addop> <mulexpr> ]* }
+rule addexpr   { <mulexpr> [ <?[+\-]> <addop> <mulexpr> ]* }
 token addop    { '+' || '-' }
-rule mulexpr   { <powexpr> [ <mulop> <powexpr> ]* }
+rule mulexpr   { <powexpr> [ <?[*/%]> <mulop> <powexpr> ]* }
 # AdvPL's power: 'nVal ^ 2', 'nVal ** 2' -- tighter than '*'.
-rule powexpr   { <unary> [ <powop> <unary> ]* }
+rule powexpr   { <unary> [ <?[*^]> <powop> <unary> ]* }
 token powop    { '**' || '^' }
 # '%%' -- divisible by -- before AdvPL's '%', which passes through untouched.
 # Inside '%exp:...%' a '%' is its end.
 token mulop    { '%%' || '*' || '/' || [ '%' <?{ !$in-exp }> ] }
 # '++n' and '--n' in an expression: on a variable, an element, a field --
 # never a literal ('--5' is not one).
-rule unary     { [ <incop> <!before <.ws> <literal>> <postfix> ] || [ <sign>? <postfix> ] }
+token unary
+{
+     [ <?[+\-]> <incop> <.ws> <!before <.ws><.ws><literal>> <postfix> ]
+  || [ [ <?[+\-]> <sign> <.ws> ]? <.ws> <postfix> ]
+}
 token sign     { '-' || '+' }
 
 # A literal takes no trailer: strings and numbers have no members or indices.
 # Without this, '{ "a": nX }' matched as an ARRAY whose item was member 'nX'
 # of the string "a" -- the pair's ':' became a member's, and the JSON fell
 # back to an array.
-rule postfix
+#
+# Each part only where it can start: a literal at a digit, a '.', a quote or
+# 'Nil'; a trailer at a sign of its own, or when the source has translations
+# (one may follow a value); an increment at '+' or '-'. (A token for where a
+# literal starts: in a rule, a space inside '<?before ...>' is whitespace to
+# match, which a digit after a digit is not.)
+token postfix
 {
-     <literal>
-  || [ <primary> <trailer>* <incop>? ]
+     [ <?litstart> <literal> <.ws> ]
+  || [ <primary> [ [ <?{ $user-on }> || <?[{?:\[\-]> ] <trailer> ]* [ <?[+\-]> <incop> <.ws> ]? ]
 }
 
 # One rule per form, so the tree knows which one matched.
 # A translation may follow a value too: json.ch's 'oJson[#"name"]'.
+# The rest each start with a sign of their own -- '{', '?', ':', '[', '-' --
+# and each is tried only at its own: after most values none of them follows.
 rule trailer
 {
-     <ttrans>
-  || <thash>
-  || <tsafe>
-  || <tmethod>
-  || <tmember>
-  || <tindex>
-  || <tinalias>
-  || <tfield>
+     [<?{ $user-on }><ttrans>]
+  || <?[{]><thash>
+  || <?[?]><tsafe>
+  || <?[:]>[ <tmethod> || <tmember> ]
+  || <?[\[]><tindex>
+  || <?[\-]>[ <tinalias> || <tfield> ]
 }
 
 # ':' followed by a method WITH arguments: 'MSDialog():New(...)'. Before the
@@ -1501,24 +1597,20 @@ rule tfield   { '->' [ <fieldmacro> || <member> ] }
 # 'Next'. The reserved list applies where a statement starts, not here.
 token member { <[A..Za..z_]> \w* }
 
-rule primary
+# In the same order as ever, each form behind the first character it can
+# start with: a name is not tried as nine other things first. And a name is a
+# call through a namespace, a call or a field only when what follows it -- a
+# '.' and a letter, a '(', a '->' -- says it may be.
+token primary
 {
-     <usertrans>
-  || <selfacc>
-  || <subjacc>
-  || <lambda>
-  || <macro>
-  || <literal>
-  || <sqlexp>
-  || <codeblock>
-  || <jsonliteral>
-  || <hashliteral>
-  || <arrayliteral>
-  || <nscall>
-  || <call>
-  || <aliasfield>
-  || <name>
-  || [ '(' ~ ')' [ [ <passign> || <guardexpr> ] [ ',' <listitem> ]* ] ]
+     [ <?{ $user-on }> <usertrans> ] <.ws>
+  || <?[:]> [ <selfacc> || <subjacc> ] <.ws>
+  || <?[\[]> <lambda> <.ws>
+  || <?[&]> <macro> <.ws>
+  || <?[%]> <sqlexp> <.ws>
+  || <?[{]> [ <codeblock> || <jsonliteral> || <hashliteral> || <arrayliteral> ] <.ws>
+  || <?[A..Za..z_]> [ <?before \w+ '.' \w> <nscall> || <?before \w+ <.ws> '('> <call> || <?before \w+ <.ws> '->'> <aliasfield> || <name> ] <.ws>
+  || [:s '(' ~ ')' [ [ <passign> || <guardexpr> ] [ ',' <listitem> ]* ] ]
 }
 
 # '%exp:x%', the value of x, outside BeginSql too (tried: xcx_h -- houstonsantos'
@@ -1580,7 +1672,7 @@ rule arglist     { <slot> [ ',' <slot> ]* }
 rule slot        { <arg>? }
 
 # An assignment is a valid argument too: 'If( c, a, cA := u )'.
-rule arg         { <byref> || [ <.sees('assign item')> <assignment> ] || <expr> }
+rule arg         { [<?[@]><byref>] || [ <.sees('assign item')> <assignment> ] || <expr> }
 # '@::cTab': a member of the object, by reference, too; and an element of an
 # array, '@aCampos[nX][8]'.
 rule byref       { '@' [ <selfacc> || [ <name> <trailer>* ] ] }
@@ -1658,7 +1750,8 @@ rule lvalue      { [ '(' ~ ')' <pexpr> <trailer>+ ] || [ <call> <trailer>+ ] || 
                 || [ '@'? [ <selfacc> || <subjacc> || <name> ] <trailer>* ] }
 
 # ---- terminals ---------------------------------------------------------------
-token literal  { <number> || <string> || <logical> || <nildef> }
+token litstart { <[0..9.\"\']> || :i 'nil' <!ww> }
+token literal  { <?[0..9.]> <number> || <?["']> <string> || <?[.]> <logical> || <?[nN]> <nildef> }
 # Digits may be grouped with an apostrophe, as C++14 does with the same
 # character: '12'345'678', '1'234.567'8'. Only between two digits -- never
 # first, last, doubled, beside the point, or before a space -- so it cannot be
@@ -1684,14 +1777,14 @@ token number   { [ \d+ [ "'" \d+ ]* [ '.' \d+ [ "'" \d+ ]* ]? ] || [ '.' \d+ ] }
 #
 # xtpl does not interpolate a string in a 'local' initializer -- it passes
 # through as written. xc interpolates it wherever it is.
-token string   { [ <!{ $*IN-DQ // False }> <dqstring> ] || [ <!{ $*IN-SQ // False }> <sqstring> ] }
+token string   { [ <?["]> <!{ $*IN-DQ // False }> <dqstring> ] || [ <?[']> <!{ $*IN-SQ // False }> <sqstring> ] }
 # A string not closed by the end of its line ends there: the AppServer takes
 # 'cQ := "SELECT X' (tried: xcr_a, xcr_b), and real sources have it. The
 # checks warn.
 token dqstring { :my $*IN-DQ = True; '"' <spart=dqpart>* [ '"' || <?before \n || $> ] }
 token sqstring { :my $*IN-SQ = True; "'" <spart=sqpart>* [ "'" || <?before \n || $> ] }
-token dqpart   { <interp> || <text=dqtext> }
-token sqpart   { <interp> || <text=sqtext> }
+token dqpart   { <?[$]> <interp> || <text=dqtext> }
+token sqpart   { <?[$]> <interp> || <text=sqtext> }
 token dqtext   { [ <-["$\n]> || '$' <!before '{'> ]+ }
 token sqtext   { [ <-['$\n]> || '$' <!before '{'> ]+ }
 token interp   { '${' <.ws> <expr> <.ws> '}' }
@@ -1705,7 +1798,7 @@ token name     { <[A..Za..z_]> \w* }
 # A comment may follow the ';': 'aNums ;   // note' still continues. A ';'
 # INSIDE a comment is just comment text, so '// ;' at the end of a line does
 # not continue anything -- the comment token has already taken it.
-token ws { <!ww> [ \h || <.linecont> || <.linecomment> || <.blockcomment> ]* }
+token ws { <!ww> [ \h || <?[;]> <.linecont> || <?before '//' || '&&'> <.linecomment> || <?before '/*'> <.blockcomment> ]* }
 token linecont    { ';' \h* [ <.linecomment> || <.blockcomment> ]? \h* \v }
 # '&&' too, Clipper's, to the end of the line (tried: xcu_a, xcu_b).
 token linecomment { [ '//' || '&&' ] \N* }
@@ -1719,8 +1812,8 @@ token starcomment { ^^ \h* '*' \N* }
 # statement: blank lines, comment-only lines, and the indentation.
 # A ';' with more on its line ends a statement too: 'conout(1); n++'. At the
 # end of a line it is a continuation, and the whitespace rule takes it.
-token eol { \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ || ';' <!before \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ]> ] }
-token gap { [ <.starcomment> || \s || <.linecont> || <.linecomment> || <.blockcomment> ]* }
+token eol { \h* [ <?before '//' || '&&'> <.linecomment> || <?before '/*'> <.blockcomment> ]? \h* [ \v || $ || ';' <!before \h* [ <.linecomment> || <.blockcomment> ]? \h* [ \v || $ ]> ] }
+token gap { [ ^^ <?before \h* '*'> <.starcomment> || \s || <?[;]> <.linecont> || <?before '//' || '&&'> <.linecomment> || <?before '/*'> <.blockcomment> ]* }
 # Every line end is kept, to say how far the parse got if it fails (parse):
 # the match itself, whose '.to' is read only then.
 token nl  { <.eol> <.gap> { @ends.push($/) } }

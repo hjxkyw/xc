@@ -19,6 +19,8 @@ unit class XC::Source;
 
 has Str $.text;
 has @!rows;                    # per line: [char-start, byte-start, ascii?, text]
+has Int @!starts;              # per line: where it starts, as match offsets count
+has Int $!last = 0;            # the row of the offset asked for last
 has Bool $!bytes;              # match offsets are UTF-8 bytes (rakupp), not characters
 has Bool $!ascii;              # the whole text is ASCII: every byte a character
 has %!memo;                    # byte offset => character offset, once worked out
@@ -53,19 +55,29 @@ submethod TWEAK()
     $b += $line.encode.bytes;
   }
   @!rows.push([$c, $b, True, '']);          # the end of the text
+  my $col = $!bytes ?? 1 !! 0;
+  @!starts = @!rows.map(*[$col]);
 }
 
-# The row holding a match offset: the last one starting at or before it.
+# The row holding a match offset: the last one starting at or before it. The
+# parse asks for offsets mostly in order, so the row of the one before, or the
+# next, is the answer most of the time; the rest search.
 method !row(Int $o --> Int)
 {
-  my $col = $!bytes ?? 1 !! 0;
-  my ($lo, $hi) = 0, @!rows.end;
+  my $r = $!last;
+  my $end = @!starts.end;
+  if @!starts[$r] <= $o
+  {
+    return $r if $r == $end || $o < @!starts[$r + 1];
+    return $!last = $r + 1 if $r + 1 == $end || $o < @!starts[$r + 2];
+  }
+  my ($lo, $hi) = 0, $end;
   while $lo < $hi
   {
     my $mid = ($lo + $hi + 1) div 2;
-    if @!rows[$mid][$col] <= $o { $lo = $mid } else { $hi = $mid - 1 }
+    if @!starts[$mid] <= $o { $lo = $mid } else { $hi = $mid - 1 }
   }
-  $lo
+  $!last = $lo
 }
 
 # Whether a match offset is a character offset as it is: char() is then the

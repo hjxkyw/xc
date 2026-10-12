@@ -70,8 +70,21 @@ method !text($m --> Str)
 # Records where an expression came from. The same node can pass up through
 # several levels ('(a)' is the node 'a'); the widest span wins, and it still
 # denotes that node.
+#
+# A match's '.from' and '.to' cost in proportion to the offset under rakupp;
+# the length of its text does not. So '.to' is '.from' and the length, and a
+# match as long as the span its node has already -- a match holds the node's
+# own, so then it is the same one -- asks for neither.
 method !spanned($e, $/)
 {
+  if $!as-is
+  {
+    my $n = $/.Str.chars;
+    return $e if $e.src-from >= 0 && $e.src-to - $e.src-from == $n;
+    $e.src-from = $!base + $/.from;
+    $e.src-to   = $e.src-from + $n;
+    return $e;
+  }
   $e.src-from = self!from($/);
   $e.src-to   = self!to($/);
   $e
@@ -510,7 +523,7 @@ method forst($/)
 
 method forrange($/)
 {
-  make self!spanned(Interval.new(lo => $<lo>.made, hi => $<hi>.made), $/);
+  make self!spanned(Interval.new(lo => self!add-of($<lo><addexpr>), hi => self!add-of($<hi><addexpr>)), $/);
 }
 
 method forinst($/)
@@ -667,23 +680,99 @@ method hdrdecl($/)    { make self!make-declarator($/) }
 #
 # Each level with a single child passes the child on. An 'orexpr' that is just
 # an 'andexpr' is not an 'or' of anything, and must not become an 'or' node.
+#
+# The levels from 'elvis' down to 'unary' have no action methods: rakupp
+# spends some microseconds on every action it calls, and a lone name goes
+# through a dozen levels that only pass it on. 'expr' -- and the few others
+# that hold a level -- walk down the match instead, each level making what its
+# method would have made.
 method expr($/)
 {
   # The source gets its own span first: the emitter renders it on its own,
   # and a folded operator ('a + b') has no span otherwise. With no stage the
   # source is the expression, and the expression's span is the one it keeps.
-  my $source = $<elvis>.made;
-  self!spanned($source, $<elvis>) if $<feed>;
-  make self!spanned(pipeline($source, $<feed>), $/);
+  # A lone value (XC::Grammar, 'expr') is what the levels would have made of
+  # it.
+  if $<unary>
+  {
+    make self!spanned(self!unary-of($<unary>), $/);
+  }
+  else
+  {
+    my $source = self!elvis-of($<elvis>);
+    self!spanned($source, $<elvis>) if $<feed>;
+    make self!spanned(pipeline($source, $<feed>), $/);
+  }
 }
 
 # 'a ?: b ?: c' chains to the right: a ?: (b ?: c).
-method elvis($/)
+method !elvis-of($m)
 {
-  my @p = $<orexpr>.map(*.made);
+  my $kids = $m<orexpr>;
+  return self!or-of($kids[0]) if $kids.elems == 1;
+  my @p = $kids.map({ self!or-of($_) });
   my $acc = @p.pop;
   $acc = joined(Binary.new(op => '?:', left => $_, right => $acc)) for @p.reverse;
-  make $acc;
+  $acc
+}
+
+method !or-of($m)
+{
+  my $kids = $m<andexpr>;
+  return self!and-of($kids[0]) if $kids.elems == 1;
+  folded($kids.map({ self!and-of($_) }), $m<orop>)
+}
+
+method !and-of($m)
+{
+  my $kids = $m<notexpr>;
+  return self!not-of($kids[0]) if $kids.elems == 1;
+  folded($kids.map({ self!not-of($_) }), $m<andop>)
+}
+
+method !not-of($m)
+{
+  $m<negate> ?? self!spanned(Binary.new(op => '!', left => Expr, right => self!cmp-of($m<cmpexpr>)), $m)
+             !! self!cmp-of($m<cmpexpr>)
+}
+
+method !cmp-of($m)
+{
+  my $acc = self!range-of($m<rangeexpr>);
+  for $m<cmptail>.list -> $t
+  {
+    $acc = joined(Binary.new(op => (~$t<op>).lc, left => $acc,
+                             right => self!range-of($t<inrhs>.defined ?? $t<inrhs> !! $t<rangeexpr>)));
+  }
+  $acc
+}
+
+# A 'rangeexpr' or an 'inrhs': 'lo', or 'lo..hi'.
+method !range-of($m)
+{
+  my $lo = self!add-of($m<lo><addexpr>);
+  $m<hi> ?? interval($lo, self!add-of($m<hi><addexpr>)) !! $lo
+}
+
+method !add-of($m)
+{
+  my $kids = $m<mulexpr>;
+  return self!mul-of($kids[0]) if $kids.elems == 1;
+  folded($kids.map({ self!mul-of($_) }), $m<addop>)
+}
+
+method !mul-of($m)
+{
+  my $kids = $m<powexpr>;
+  return self!pow-of($kids[0]) if $kids.elems == 1;
+  folded($kids.map({ self!pow-of($_) }), $m<mulop>)
+}
+
+method !pow-of($m)
+{
+  my $kids = $m<unary>;
+  return self!unary-of($kids[0]) if $kids.elems == 1;
+  folded($kids.map({ self!unary-of($_) }), $m<powop>)
 }
 
 # Without 'fallback' it is just the expression; most have none, and must not
@@ -695,8 +784,6 @@ method fallback($/)  { make $<expr>.made }
 method pexpr($/)     { make $<expr>.made }
 method key($/)       { make $<expr>.made }
 method source($/)    { make $<expr>.made }
-method lo($/)        { make $<addexpr>.made }
-method hi($/)        { make $<addexpr>.made }
 method lbody($/)     { make $<blockexpr>.made }
 method then($/)      { make $<body>.made }
 method thenc($/)     { make $<closedbody>.made }
@@ -726,35 +813,11 @@ method stage($/)
 method pipest($/)
 {
   make CallStmt.new(
-    call => self!spanned(pipeline(self!spanned($<elvis>.made, $<elvis>), $<feed>), $/),
+    call => self!spanned(pipeline(self!spanned(self!elvis-of($<elvis>), $<elvis>), $<feed>), $/),
     line => self!line($/),
   );
 }
 
-method orexpr($/)  { make fold-ops($/, 'andexpr', 'orop') }
-method andexpr($/) { make fold-ops($/, 'notexpr', 'andop') }
-
-method notexpr($/)
-{
-  make $<negate> ?? self!spanned(Binary.new(op => '!', left => Expr, right => $<cmpexpr>.made), $/)
-                 !! $<cmpexpr>.made;
-}
-
-method cmpexpr($/)
-{
-  my $acc = $<rangeexpr>.made;
-  for $<cmptail>.list -> $t
-  {
-    $acc = joined(Binary.new(op => (~$t<op>).lc, left => $acc, right => ($t<inrhs> // $t<rangeexpr>).made));
-  }
-  make $acc;
-}
-
-method rangeexpr($/) { make interval($<lo>.made, $<hi>) }
-method inrhs($/)     { make interval($<lo>.made, $<hi>) }
-method addexpr($/)   { make fold-ops($/, 'mulexpr', 'addop') }
-method mulexpr($/)   { make fold-ops($/, 'powexpr', 'mulop') }
-method powexpr($/)   { make fold-ops($/, 'unary',   'powop') }
 
 # An increment or decrement is an assignment of one more, or one less: what
 # handles '+=' handles it -- the checks, a hash element's lowering -- and the
@@ -771,12 +834,12 @@ method incst($/)
                       value => Literal.new(type => 'Numeric', text => '1'), line => self!line($/));
 }
 
-method unary($/)
+method !unary-of($m)
 {
-  return make self!spanned(incdec($<postfix>.made, ~$<incop>, 'pre'), $/) if $<incop>;
-  make $<sign> && ~$<sign> eq '-'
-    ?? self!spanned(Binary.new(op => 'neg', left => Expr, right => $<postfix>.made), $/)
-    !! $<postfix>.made;
+  return self!spanned(incdec($m<postfix>.made, ~$m<incop>, 'pre'), $m) if $m<incop>;
+  $m<sign> && ~$m<sign> eq '-'
+    ?? self!spanned(Binary.new(op => 'neg', left => Expr, right => $m<postfix>.made), $m)
+    !! $m<postfix>.made
 }
 
 # A primary and its trailers, from the inside out: 'o:x(1)[2]' is the Index
@@ -1023,6 +1086,8 @@ method string($/)
 method !trailed(Expr $base, $base-match, $trailers, $whole, Bool :$outer = False --> Expr)
 {
   self!spanned($base, $base-match) if $base.src-from < 0 && $base-match.defined && !($outer && !$trailers);
+  # Most values have no trailer: then no offset to ask for (they cost).
+  return $base unless $trailers;
   my $from = self!from($whole);
   my $e = $base;
   for $trailers.list -> $t
@@ -1038,6 +1103,7 @@ method !trailed(Expr $base, $base-match, $trailers, $whole, Bool :$outer = False
 # expressions have no '|>' and must not gain a node.
 sub pipeline(Expr $source, $feeds)
 {
+  return $source unless $feeds;
   my @stages = $feeds.list.map(*<stage>.made);
   @stages ?? Pipeline.new(source => $source, stages => @stages) !! $source
 }
@@ -1047,14 +1113,13 @@ sub pipeline(Expr $source, $feeds)
 # either, and in a condition with something else to lower ('a in b .and. n in
 # 1..100') the emitter could not place its rewrite -- the range test was left
 # as written, which is not TL++.
-sub interval(Expr $lo, $hi)
+sub interval(Expr $lo, Expr $hi)
 {
-  return $lo unless $hi;
-  my $i = Interval.new(lo => $lo, hi => $hi.made);
-  if $lo.src-from >= 0 && $hi.made.src-to >= 0
+  my $i = Interval.new(lo => $lo, hi => $hi);
+  if $lo.src-from >= 0 && $hi.src-to >= 0
   {
     $i.src-from = $lo.src-from;
-    $i.src-to   = $hi.made.src-to;
+    $i.src-to   = $hi.src-to;
   }
   $i
 }
@@ -1074,12 +1139,12 @@ sub branches($conds, $bodies)
 }
 
 # 'a + b - c', with the operator of each round.
-sub fold-ops($/, Str $child, Str $opname)
+# Operands and the operators between them, from the left: 'a - b - c' is
+# '(a - b) - c'.
+sub folded($parts, $ops)
 {
-  my $kids = $/{$child};
-  return $kids[0].made if $kids.elems == 1;     # most levels: one child, passed on
-  my @parts = $kids.map(*.made);
-  my @ops = $/{$opname}.map({ (~$_).lc });
+  my @parts = $parts.list;
+  my @ops = $ops.map({ (~$_).lc });
   my $acc = @parts.shift;
   for @parts.kv -> $i, $r
   {
