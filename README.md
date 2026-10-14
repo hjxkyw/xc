@@ -113,34 +113,36 @@ package, or the folder linked into VS Code's extensions.
 ## The C++ port
 
 `cpp/` is xc in C++20 -- no modules, nothing beyond the standard library,
-built with GCC, Clang and MSVC. So far the parser: it reads every source
-the Raku xc reads, into the same tree. The Raku xc stays the reference
-until the C++ one does all it does; `tools/compare-cpp.raku` compares the
-two, tree for tree:
+built with GCC, Clang and MSVC. So far the parser and the checks: it reads
+every source the Raku xc reads, into the same tree, and says the same
+errors and warnings of it. The Raku xc stays the reference until the C++
+one does all it does; `tools/compare-cpp.raku` compares the two, tree for
+tree and message for message:
 
 ```
 cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
 cmake --build cpp/build --config Release
 rakupp tools/compare-cpp.raku xtpl protheus      # files or folders
+rakupp tools/compare-cpp.raku --dict=sx3.csv xtpl  # the checks with a dictionary
 ```
 
 (On Windows, from a Visual Studio developer prompt; the program is then
 `cpp\build\Release\xc.exe`, which `compare-cpp.raku` finds.)
 
-`tools/ast-json.raku` writes the Raku xc's tree of a source as JSON, which
-is what the comparison reads.
+`tools/ast-json.raku` writes the Raku xc's tree of a source as JSON, and
+what its checks say, which is what the comparison reads.
 
 ## What is where
 
 | | |
 |---|---|
 | `bin/xc` | the compiler |
-| `cpp/` | xc in C++, so far the parser -- see "The C++ port" |
+| `cpp/` | xc in C++, so far the parser and the checks -- see "The C++ port" |
 | `docs/` | the language reference, `language.md` -- `t/45` compiles its examples |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `t/` | xc's tests, in Raku; `t/lib/` what several of them share |
-| `tools/` | `ast-json.raku`, a source's tree as JSON, and `compare-cpp.raku`, the C++ xc against it |
+| `tools/` | `ast-json.raku`, a source's tree and checks as JSON, and `compare-cpp.raku`, the C++ xc against it |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, and xc's example `saldo` -- see `xtpl/README.md` |

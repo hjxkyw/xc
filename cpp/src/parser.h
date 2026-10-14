@@ -23,6 +23,13 @@
 
 namespace xc
 {
+  // A reserved word, refused where a name is declared ('local len').
+  bool is_reserved(const std::string& name);
+
+  // The shape of a name xc generates: '<kind>_<depth>_<index>', or a slot
+  // 's_'/'b_'.
+  bool is_generated(const std::string& name);
+
   // The forms a statement holds an expression as.
   enum class Form { Value, GuardExpr, Cond, Expr, LValue, CallSt, PipeSt };
 

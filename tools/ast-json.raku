@@ -2,9 +2,14 @@
 #
 #   rakupp tools/ast-json.raku tree  FILE...    the whole tree, one line a file
 #   rakupp tools/ast-json.raku roots FILE...    each expression a statement holds
+#   rakupp tools/ast-json.raku check FILE...    what the checks say of it
 #   rakupp tools/ast-json.raku --out=DIR --list=LIST [--from=N] [--to=M]
-#                                               both, for each file of LIST:
-#                                               DIR/<n>.tree and DIR/<n>.roots
+#                                               all three, for each file of
+#                                               LIST: DIR/<n>.tree,
+#                                               DIR/<n>.roots, DIR/<n>.check
+#   --dict=sx3.csv [--strict] before the rest   the checks with a
+#                                               dictionary, as bin/xc's
+#                                               --dict and --dict-strict
 #
 # A node is an object: "node", its class's name, then each attribute in the
 # order the class declares them (its own, then its parents'), the memos left
@@ -24,6 +29,10 @@
 # guardexpr, cond, expr, lvalue, callst, pipest --, its offset, 1 if it is
 # inside a 'with object', and its tree.
 #
+# The checks: a line for each error, then one for each warning, in the
+# order XC::Check gives them -- 'error' or 'warning', the line, and the
+# message as a JSON string.
+#
 # The source is read as bin/xc reads it, but without a folder: the commands
 # of the include files beside it are not looked for. From the repository's
 # top, as the tests are run.
@@ -33,6 +42,7 @@ use XC::Grammar;
 use XC::Actions;
 use XC::AST;
 use XC::Commands;
+use XC::Check;
 
 # ---- offsets: characters to bytes --------------------------------------------
 my @CRLF;                # where each "\r\n" is, in characters
@@ -217,14 +227,26 @@ sub stmt-roots($s, Bool $with, @out, Str $src)
 }
 
 # ---- a source ----------------------------------------------------------------
-# The tree's JSON and the roots' lines -- or Str when the grammar does not
-# read the source.
+# What the checks say of a program, as bin/xc asks them.
+my %DICTIONARY;
+my $STRICT = False;
+sub checks(Program $p, Str $src --> Str)
+{
+  my %c = check-all($p, lines => $src.lines.elems, dictionary => %DICTIONARY, strict => $STRICT, source => $src);
+  my @lines;
+  @lines.push("error {.key} {str-json(.value)}") for %c<errors>.list;
+  @lines.push("warning {.key} {str-json(.value)}") for %c<warnings>.list;
+  @lines ?? @lines.join("\n") !! 'none'
+}
+
+# The tree's JSON, the roots' lines and the checks' -- or Str when the
+# grammar does not read the source.
 sub one(Str $file --> List)
 {
   my $src = $file.IO.slurp(:bin).decode('windows-1252');
   my $*FURTHEST = 0;
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-  return (Str, Str) unless $m;
+  return (Str, Str, Str) unless $m;
   crlf-of($src);
   my %spans = user-spans($src, dir => Str, dirs => ());
   my $trans = 'trans' ~ %spans<trans>.sort(+*.key).map({ " {byte-of(+.key)} {byte-of(+.value)}" }).join;
@@ -235,14 +257,14 @@ sub one(Str $file --> List)
   stmt-roots($_, False, @out, $src) for $m.made.statics;
   my @lines = "file $file", $trans;
   @lines.push("{.[1]} {byte-of(.[0].src-from)} {.[2] ?? 1 !! 0} {json(.[0])}") for @out;
-  ($tree, @lines.join("\n"))
+  ($tree, @lines.join("\n"), checks($m.made, $src))
 }
 
 multi sub MAIN('tree', *@files)
 {
   for @files -> $f
   {
-    my ($tree, $) = one($f);
+    my ($tree, $, $) = one($f);
     say $tree // 'null';
   }
 }
@@ -251,19 +273,33 @@ multi sub MAIN('roots', *@files)
 {
   for @files -> $f
   {
-    my ($, $roots) = one($f);
+    my ($, $roots, $) = one($f);
     say $roots // "file $f\nnone";
   }
 }
 
-multi sub MAIN(Str :$out!, Str :$list!, Int :$from = 0, Int :$to = 1_000_000)
+multi sub MAIN('check', Str :$dict, Bool :$strict = False, *@files)
 {
+  %DICTIONARY = load-dictionary($dict) if $dict.defined;
+  $STRICT = $strict;
+  for @files -> $f
+  {
+    my ($, $, $checks) = one($f);
+    say $checks // 'null';
+  }
+}
+
+multi sub MAIN(Str :$out!, Str :$list!, Int :$from = 0, Int :$to = 1_000_000, Str :$dict, Bool :$strict = False)
+{
+  %DICTIONARY = load-dictionary($dict) if $dict.defined;
+  $STRICT = $strict;
   mkdir $out;
   my @files = $list.IO.lines.grep(*.chars);
   for $from ..^ min($to, @files.elems) -> $i
   {
-    my ($tree, $roots) = one(@files[$i]);
+    my ($tree, $roots, $checks) = one(@files[$i]);
     "$out/$i.tree".IO.spurt(($tree // 'null') ~ "\n");
     "$out/$i.roots".IO.spurt(($roots // "file {@files[$i]}\nnone") ~ "\n");
+    "$out/$i.check".IO.spurt(($checks // 'null') ~ "\n");
   }
 }

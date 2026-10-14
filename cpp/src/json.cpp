@@ -849,4 +849,11 @@ namespace xc
     w.expr(e);
     return std::move(w.out);
   }
+
+  std::string json_string(const std::string& s)
+  {
+    Writer w;
+    w.str(s);
+    return std::move(w.out);
+  }
 }

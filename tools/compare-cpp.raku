@@ -1,7 +1,8 @@
 # The C++ xc against the Raku one: every source given read by both, the
-# trees compared -- the whole source, and each expression on its own.
+# trees compared -- the whole source, and each expression on its own -- and
+# what the checks say of it.
 #
-#   rakupp tools/compare-cpp.raku [--xc=PATH] [--keep=DIR] FILE-OR-FOLDER...
+#   rakupp tools/compare-cpp.raku [--xc=PATH] [--keep=DIR] [--dict=sx3.csv [--strict]] FILE-OR-FOLDER...
 #
 # A folder is every .xtpl, .prw, .prx and .tlpp under it. The Raku trees go
 # to a folder of their own (--keep: that one, and kept), made by
@@ -21,7 +22,7 @@ sub built(--> Str)
   <cpp/build/xc cpp/build/xc.exe cpp/build/Release/xc.exe cpp/build/Debug/xc.exe>.first(*.IO.f) // 'cpp/build/xc'
 }
 
-sub MAIN(Str :$xc = built(), Str :$keep, *@paths)
+sub MAIN(Str :$xc = built(), Str :$keep, Str :$dict, Bool :$strict = False, *@paths)
 {
   die "no C++ xc at $xc: cmake -S cpp -B cpp/build && cmake --build cpp/build --config Release" unless $xc.IO.f;
   my @files = @paths.map({ |sources($_) });
@@ -32,15 +33,18 @@ sub MAIN(Str :$xc = built(), Str :$keep, *@paths)
   $list.IO.spurt(@files.map({ .IO.absolute ~ "\n" }).join);
   my $tool = $?FILE.IO.parent.add('ast-json.raku').Str;
   my $lib = $?FILE.IO.parent.parent.add('lib').Str;
-  run $*EXECUTABLE, "-I$lib", $tool, "--out=$dir", "--list=$list";
+  my @dict = $dict.defined ?? ("--dict=$dict", |($strict ?? '--strict' !! ())) !! ();
+  run $*EXECUTABLE, "-I$lib", $tool, "--out=$dir", "--list=$list", |@dict;
   my @trees = (^@files).map({ "$dir/$_.tree" });
   my @roots = (^@files).map({ "$dir/$_.roots" });
+  my @checks = (^@files).map({ "$dir/$_.check" });
   my $t = run $xc, '--tree', |@trees;
   my $r = run $xc, '--roots', |@roots;
+  my $c = run $xc, '--check', |($dict.defined ?? ('--dict', $dict, |($strict ?? '--strict' !! ())) !! ()), |@checks;
   unless $keep
   {
     unlink $_ for $dir.IO.dir;
     rmdir $dir;
   }
-  exit($t.exitcode || $r.exitcode ?? 1 !! 0);
+  exit($t.exitcode || $r.exitcode || $c.exitcode ?? 1 !! 0);
 }
