@@ -7,6 +7,8 @@
 //                                its offset, as its form; the trees compared
 //   xc --tree N.tree...          the whole source -- named by N.roots beside
 //                                it --, its tree compared
+//   xc --check N.check...        what the checks say of it, compared
+//   ... --dict sx3.csv [--strict]  with a dictionary
 //   ... --time                   and how long the reading took
 
 #include <chrono>
@@ -18,6 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "check.h"
 #include "json.h"
 #include "parser.h"
 
@@ -275,16 +278,151 @@ namespace
   }
 }
 
+namespace
+{
+  // The file N.roots beside a golden file names.
+  bool source_of(const std::string& path, std::size_t ext, std::string& file)
+  {
+    std::string roots = path.substr(0, path.size() - ext) + ".roots";
+    std::ifstream rin(roots, std::ios::binary);
+    std::string line;
+    std::getline(rin, line);
+    if (line.rfind("file ", 0) != 0)
+    {
+      std::cerr << roots << ": no 'file' line\n";
+      return false;
+    }
+    file = line.substr(5);
+    return true;
+  }
+
+  // Raku's .lines.elems: "\r\n", "\n" and "\r" end a line; no empty last
+  // one.
+  int lines_in(const std::string& t)
+  {
+    int n = 0;
+    std::size_t i = 0;
+    std::size_t b = 0;
+    while (i < t.size())
+    {
+      if (t[i] == '\n' || t[i] == '\r')
+      {
+        n++;
+        i += (t[i] == '\r' && i + 1 < t.size() && t[i + 1] == '\n') ? 2 : 1;
+        b = i;
+      }
+      else
+      {
+        i++;
+      }
+    }
+    return n + (b < t.size() ? 1 : 0);
+  }
+
+  // One .check file: false when the checks say something else.
+  bool compare_check(const std::string& path, bool time, const xc::Dictionary& dictionary, bool strict,
+                     Totals& totals)
+  {
+    std::string file;
+    if (!source_of(path, 6, file))
+    {
+      return false;
+    }
+    std::string expect;
+    if (!slurp(path, expect))
+    {
+      std::cerr << path << ": cannot read it\n";
+      return false;
+    }
+    while (!expect.empty() && expect.back() == '\n')
+    {
+      expect.pop_back();
+    }
+    std::string src;
+    if (!slurp(file, src))
+    {
+      std::cerr << file << ": cannot read it\n";
+      return false;
+    }
+    totals.files++;
+    xc::UserSpans spans = xc::user_spans(src, std::nullopt, {});
+    xc::Tree tree;
+    xc::Parser parser(src, spans.trans, tree, spans.cmd);
+    auto t0 = std::chrono::steady_clock::now();
+    xc::Program* prog = parser.parse();
+    std::string got;
+    if (!prog)
+    {
+      got = "null";
+    }
+    else
+    {
+      xc::Checked c = xc::check_all(prog, lines_in(src), dictionary, strict, src);
+      for (const xc::Finding& f : c.errors)
+      {
+        got += "error " + std::to_string(f.line) + " " + xc::json_string(f.message) + "\n";
+      }
+      for (const xc::Finding& f : c.warnings)
+      {
+        got += "warning " + std::to_string(f.line) + " " + xc::json_string(f.message) + "\n";
+      }
+      if (got.empty())
+      {
+        got = "none";
+      }
+      else
+      {
+        got.pop_back();
+      }
+    }
+    totals.seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    if (got == expect)
+    {
+      if (time)
+      {
+        std::cout << file << ": the same\n";
+      }
+      return true;
+    }
+    totals.differ++;
+    std::cout << file << ":\n";
+    std::istringstream a(expect);
+    std::istringstream b(got);
+    std::string la;
+    std::string lb;
+    int shown = 0;
+    while (shown < 6)
+    {
+      bool ha = static_cast<bool>(std::getline(a, la));
+      bool hb = static_cast<bool>(std::getline(b, lb));
+      if (!ha && !hb)
+      {
+        break;
+      }
+      if (ha && hb && la == lb)
+      {
+        continue;
+      }
+      std::cout << "  raku: " << (ha ? la : "-") << "\n  c++:  " << (hb ? lb : "-") << "\n";
+      shown++;
+    }
+    return false;
+  }
+}
+
 int main(int argc, char** argv)
 {
   std::vector<std::string> args(argv + 1, argv + argc);
-  if (args.empty() || (args[0] != "--roots" && args[0] != "--tree"))
+  if (args.empty() || (args[0] != "--roots" && args[0] != "--tree" && args[0] != "--check"))
   {
-    std::cerr << "usage: xc --roots|--tree [--time] FILE...\n";
+    std::cerr << "usage: xc --roots|--tree|--check [--time] FILE...\n";
     return 2;
   }
   bool trees = args[0] == "--tree";
+  bool checks = args[0] == "--check";
   bool time = false;
+  bool strict = false;
+  xc::Dictionary dictionary;
   Totals totals;
   bool ok = true;
   for (std::size_t i = 1; i < args.size(); i++)
@@ -294,9 +432,29 @@ int main(int argc, char** argv)
       time = true;
       continue;
     }
-    ok = (trees ? compare_tree(args[i], time, totals) : compare_roots(args[i], time, totals)) && ok;
+    if (args[i] == "--strict")
+    {
+      strict = true;
+      continue;
+    }
+    if (args[i] == "--dict" && i + 1 < args.size())
+    {
+      try
+      {
+        dictionary = xc::load_dictionary(args[++i]);
+      }
+      catch (const std::exception& e)
+      {
+        std::cerr << e.what() << "\n";
+        return 2;
+      }
+      continue;
+    }
+    ok = (checks  ? compare_check(args[i], time, dictionary, strict, totals)
+          : trees ? compare_tree(args[i], time, totals)
+                  : compare_roots(args[i], time, totals)) && ok;
   }
-  if (trees)
+  if (trees || checks)
   {
     std::cout << totals.files << " files, " << totals.differ << " differ";
   }

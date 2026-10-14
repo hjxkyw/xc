@@ -42,7 +42,12 @@ namespace xc
   inline bool is_alpha(int c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
   inline int  lower(int c)    { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
 
-  // Raku's .lc and .trim, for the bytes of a source.
+  // Raku's .lc, .uc and .trim, for the bytes of a source.
   std::string lc(std::string_view s);
+  std::string uc(std::string_view s);
   std::string trim(std::string_view s);
+
+  // UTF-8 as windows-1252, when it is UTF-8 at all: false when it is not. A
+  // character windows-1252 does not have is '?'.
+  bool utf8_to_cp1252(const std::string& in, std::string& out);
 }

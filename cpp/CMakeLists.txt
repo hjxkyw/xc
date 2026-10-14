@@ -18,12 +18,15 @@ endif()
 
 add_executable(xc
   src/ahead.cpp
+  src/chains.cpp
   src/chars.cpp
+  src/check.cpp
   src/commands.cpp
   src/json.cpp
   src/main.cpp
   src/parser.cpp
   src/statements.cpp
+  src/walk.cpp
 )
 
 if(MSVC)

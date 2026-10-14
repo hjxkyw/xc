@@ -51,50 +51,6 @@ namespace xc
       return any;
     }
 
-    // The shape of a name xc generates: '<kind>_<depth>_<index>', or a slot
-    // 's_'/'b_' (the grammar's is-generated).
-    bool is_generated(const std::string& name)
-    {
-      std::string n = lc(name);
-      static const char* kinds[] =
-      {
-        "fa", "fal", "far", "fbg", "fbs", "fbv", "fch", "fdf", "fdr", "ffs", "fhd", "fhi", "fi", "fj",
-        "fky", "fls", "flm", "flo", "fn", "fok", "fol", "fop", "fo", "fpv", "fpb", "frd", "frc", "fsn",
-        "fsp", "fs", "fv", "et", "gt", "ht", "pt",
-      };
-      for (const char* k : kinds)
-      {
-        std::string kind = k;
-        if (n.size() > kind.size() && n.compare(0, kind.size(), kind) == 0 && n[kind.size()] == '_')
-        {
-          std::size_t i = kind.size() + 1;
-          if (digits(n, i) && i < n.size() && n[i] == '_')
-          {
-            i++;
-            if (digits(n, i) && i == n.size())
-            {
-              return true;
-            }
-          }
-        }
-      }
-      if (n.size() > 2 && (n[0] == 's' || n[0] == 'b') && n[1] == '_')
-      {
-        std::size_t i = 2;
-        if (digits(n, i) && i < n.size() && n[i] == '_')
-        {
-          i++;
-          std::size_t k = i;
-          while (k < n.size() && is_w(static_cast<unsigned char>(n[k])))
-          {
-            k++;
-          }
-          return k > i && k == n.size();
-        }
-      }
-      return false;
-    }
-
     // The type's full name, from what was written (XC::AST's type-of-name).
     std::string type_of_name(const std::string& name)
     {
@@ -160,6 +116,56 @@ namespace xc
       }
       return out;
     }
+  }
+
+  // Names refused where one is declared (the grammar's is-reserved).
+  bool is_reserved(const std::string& name)
+  {
+    return RESERVED.count(lc(name)) > 0;
+  }
+
+  // The shape of a name xc generates: '<kind>_<depth>_<index>', or a slot
+  // 's_'/'b_' (the grammar's is-generated).
+  bool is_generated(const std::string& name)
+  {
+    std::string n = lc(name);
+    static const char* kinds[] =
+    {
+      "fa", "fal", "far", "fbg", "fbs", "fbv", "fch", "fdf", "fdr", "ffs", "fhd", "fhi", "fi", "fj",
+      "fky", "fls", "flm", "flo", "fn", "fok", "fol", "fop", "fo", "fpv", "fpb", "frd", "frc", "fsn",
+      "fsp", "fs", "fv", "et", "gt", "ht", "pt",
+    };
+    for (const char* k : kinds)
+    {
+      std::string kind = k;
+      if (n.size() > kind.size() && n.compare(0, kind.size(), kind) == 0 && n[kind.size()] == '_')
+      {
+        std::size_t i = kind.size() + 1;
+        if (digits(n, i) && i < n.size() && n[i] == '_')
+        {
+          i++;
+          if (digits(n, i) && i == n.size())
+          {
+            return true;
+          }
+        }
+      }
+    }
+    if (n.size() > 2 && (n[0] == 's' || n[0] == 'b') && n[1] == '_')
+    {
+      std::size_t i = 2;
+      if (digits(n, i) && i < n.size() && n[i] == '_')
+      {
+        i++;
+        std::size_t k = i;
+        while (k < n.size() && is_w(static_cast<unsigned char>(n[k])))
+        {
+          k++;
+        }
+        return k > i && k == n.size();
+      }
+    }
+    return false;
   }
 
   // ---- the small pieces of a line -------------------------------------------

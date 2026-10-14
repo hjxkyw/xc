@@ -16,4 +16,7 @@ namespace xc
 {
   std::string to_json(const Expr* e);
   std::string to_json(const Program* p);
+
+  // A string alone, so.
+  std::string json_string(const std::string& s);
 }
