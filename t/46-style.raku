@@ -1,7 +1,8 @@
 # The house style that a test can see: a separator line -- a comment that is
 # a run of dashes, with a title in it or not -- ends at column 80, in xc's
-# own files: the library, bin/xc, the tests, the scripts, the self-test and
-# the runtime. xtpl/ is xtpl's, as it came, and is not looked at.
+# own files: the library, bin/xc, the tests, the scripts and tools, the
+# self-test, the runtime, and the C++ port's sources. xtpl/ is xtpl's, as it
+# came, and is not looked at.
 
 my $root = $*PROGRAM.IO.absolute.IO.parent.parent;
 
@@ -13,8 +14,9 @@ sub files-under(IO::Path $dir)
 
 my @files = |files-under($root.add('lib')), |files-under($root.add('t')),
             |files-under($root.add('protheus')), |files-under($root.add('runtime')),
+            |files-under($root.add('tools')), |files-under($root.add('cpp').add('src')),
             $root.add('bin').add('xc'), |$root.dir.grep({ .f && .extension eq 'raku' }).sort;
-@files = @files.grep({ .f && .extension (elem) <raku rakumod xtpl tlpp prw ''> });
+@files = @files.grep({ .f && .extension (elem) <raku rakumod xtpl tlpp prw cpp h ''> });
 
 my ($ok, $total) = 0, 0;
 sub check(Str $what, &test)
