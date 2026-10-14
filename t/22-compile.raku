@@ -140,6 +140,11 @@ check "and '\\r' alone, and the code after the comment counted in code-end",
   split-comment("a + ; // one\r  b // two") eqv ("a + ; \r  b", "// one // two")
     && code-end("a + ; // one\r\n  b // two\r\n") == 16
 };
+check 'the includes found on lines that end in a lone "\\r", as on any other',
+{
+  my $src = qq[// x\r#include "totvs.ch"\r#include "tlpp-core.th"\ruser function f()\rreturn 1\r];
+  compile($src) eq $src
+};
 check 'the last .ch on the last line, with no line end: tlpp-core.th on a line of its own',
 {
   compile(qq[user function f()\nreturn 1\n#include "rwmake.ch"])
@@ -192,6 +197,10 @@ lowers 'attributes dropped, the other declarators kept -- and said in a comment'
 lowers "a parameter's attributes leave the header, and a comment says them -- the line's own after it",
   "user function f(aR <contained>, nX <const> as Numeric)   // the rows\nreturn nX\n\nstatic function g(nZ <const>)\nreturn nZ\n",
   "user function f(aR, nX as Numeric)   // aR [contained], nX [const] -- the rows\nreturn nX\n\nstatic function g(nZ)  // nZ [const]\nreturn nZ\n";
+
+lowers "the line's own comment written close -- '//x' -- and with '&&': the note goes before it",
+  "user function f(nX <const>) //x note\nreturn nX\n\nstatic function g(nZ <const>)  && old\nreturn nZ\n",
+  "user function f(nX) // nX [const] --x note\nreturn nX\n\nstatic function g(nZ)  // nZ [const] -- old\nreturn nZ\n";
 
 lowers 'a string holding // in a rewritten line keeps its text',
   "user function f(n)\n  c := \"http://x\" if n > 0\nreturn c\n",

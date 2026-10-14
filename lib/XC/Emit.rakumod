@@ -115,6 +115,31 @@ sub split-comment(Str $text --> List) is export
   ($code.trim-trailing, $comment)
 }
 
+# Where the first comment of a piece of source starts, outside strings, as
+# split-comment() finds them; Int when it has none.
+sub comment-at(Str $text --> Int)
+{
+  my ($i, $n, $quote) = 0, $text.chars, '';
+  while $i < $n
+  {
+    my $c = $text.substr($i, 1);
+    if $quote
+    {
+      $quote = '' if $c eq $quote || $c eq "\n" | "\r\n" | "\r";
+    }
+    elsif $c eq '"' || ($c eq "'" && !is-separator($text, $i))
+    {
+      $quote = $c;
+    }
+    elsif $text.substr($i, 2) eq '//' | '&&' | '/*' || star-comment($text, $i)
+    {
+      return $i;
+    }
+    $i++;
+  }
+  Int
+}
+
 # Where the code of a piece of source ends: before its trailing blanks and
 # comments. A node's span can run on over them, since grammar rules swallow the
 # whitespace after them.
@@ -985,11 +1010,15 @@ class Emitter
     my $from = self!line-start(@with[*-1].attrs-to);
     my $end  = self!line-end(@with[*-1].attrs-to);
     my $line = $!src.substr($from, $end - $from);
-    my ($code, $comment) = split-comment($line);
-    if $comment && $comment.starts-with('//')
+    my $comment = split-comment($line)[1];
+    # Where the line's own comment starts: its '//' (or '&&') becomes the
+    # note's. (Looked for as split-comment() gives it back, '//x' was not
+    # found -- that says '// x' -- and the note took the line's first two
+    # characters instead.)
+    my $at = comment-at($line);
+    if $comment && $at.defined && $line.substr($at, 2) eq '//' | '&&'
     {
-      my $at = $from + $line.index($comment, $code.chars);
-      @!edits.push([$at, $at + 2, "// $note --"]);
+      @!edits.push([$from + $at, $from + $at + 2, "// $note --"]);
     }
     else
     {
@@ -2746,7 +2775,10 @@ sub last-from(Str $text, Regex $re --> Int)
 # (xcq_i: totvs.ch, rwmake.ch, tlpp-core.th).
 sub add-includes(Str $out, Str $nl --> Str)
 {
-  my &included = -> Str $h { so $out ~~ m:i/ ^^ \h* '#' \h* 'include' \h* '"' $h '"' / };
+  # Line by line: '^^' does not match after a lone "\r" under rakupp, and
+  # does under Rakudo.
+  my @all = $out.lines;
+  my &included = -> Str $h { so @all.first({ $_ ~~ m:i/ ^ \h* '#' \h* 'include' \h* '"' $h '"' / }).defined };
   my @top;
   @top.push('totvs.ch') unless included('totvs.ch');
   my $text = $out;
