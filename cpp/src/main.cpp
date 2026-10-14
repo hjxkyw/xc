@@ -228,8 +228,23 @@ namespace
       return false;
     }
     totals.files++;
+    // The source's own commands, found here: as the Raku xc found them?
+    xc::UserSpans spans = xc::user_spans(src, std::nullopt, {});
+    bool same_spans = spans.trans == trans && spans.cmd.size() == cmd.size();
+    for (const auto& [from, c] : spans.cmd)
+    {
+      auto it = cmd.find(from);
+      same_spans = same_spans && it != cmd.end() && it->second.end == c.end && it->second.header == c.header;
+    }
+    if (!same_spans && cmd_line != "null")
+    {
+      totals.differ++;
+      std::cout << file << ": the source's own commands differ: " << spans.cmd.size() << " commands, "
+                << spans.trans.size() << " translations here; " << cmd.size() << " and " << trans.size() << " there\n";
+      return false;
+    }
     xc::Tree tree;
-    xc::Parser parser(src, trans, tree, cmd);
+    xc::Parser parser(src, spans.trans, tree, spans.cmd);
     auto t0 = std::chrono::steady_clock::now();
     xc::Program* prog = parser.parse();
     totals.seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();

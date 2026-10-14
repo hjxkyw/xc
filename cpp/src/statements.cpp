@@ -1114,6 +1114,9 @@ namespace xc
       p_ = start;
       return false;
     }
+    // Without parentheses the Raku actions read the parameters of no match:
+    // one, undefined.
+    m->params = { nullptr };
     if (c(p_) == '(')
     {
       int s2 = p_;

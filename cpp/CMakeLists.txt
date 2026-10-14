@@ -19,6 +19,7 @@ endif()
 add_executable(xc
   src/ahead.cpp
   src/chars.cpp
+  src/commands.cpp
   src/json.cpp
   src/main.cpp
   src/parser.cpp

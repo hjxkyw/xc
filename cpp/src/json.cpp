@@ -436,6 +436,11 @@ namespace xc
 
   void Writer::param(const Param* p)
   {
+    if (!p)
+    {
+      out += "null";
+      return;
+    }
     open("Param");
     key("name");
     str(p->name);

@@ -604,7 +604,9 @@ namespace xc
   // token expr { [ <unary> <!before <.opnext>> ] || [ <elvis> <feed>* ] }
   //
   // The value read alone first is the operators' first operand too: they
-  // would read it again the same, so they are given it.
+  // would read it again the same, so they are given it -- unless it starts
+  // with a '!' or a '.not.' (a translation of the source's can): the
+  // operators read that as a negation first.
   Expr* Parser::expr()
   {
     int start = p_;
@@ -614,6 +616,11 @@ namespace xc
       if (!opnext())
       {
         return span(u, start, p_);
+      }
+      if (c(start) == '!' || (c(start) == '.' && iword_at(start, ".not.")))
+      {
+        u = nullptr;
+        p_ = start;
       }
     }
     else

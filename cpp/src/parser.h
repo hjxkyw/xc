@@ -19,19 +19,12 @@
 
 #include "ahead.h"
 #include "ast.h"
+#include "commands.h"
 
 namespace xc
 {
   // The forms a statement holds an expression as.
   enum class Form { Value, GuardExpr, Cond, Expr, LValue, CallSt, PipeSt };
-
-  // A use of one of the source's own commands (XC::Commands): where it
-  // ends, and whether it stands for a function's header.
-  struct UserCmd
-  {
-    int end = 0;
-    bool header = false;
-  };
 
   class Parser
   {
