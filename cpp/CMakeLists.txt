@@ -22,10 +22,13 @@ add_executable(xc
   src/chars.cpp
   src/check.cpp
   src/commands.cpp
+  src/emit.cpp
   src/json.cpp
+  src/lower.cpp
   src/main.cpp
   src/parser.cpp
   src/statements.cpp
+  src/text.cpp
   src/walk.cpp
 )
 

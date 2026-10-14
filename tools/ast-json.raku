@@ -3,10 +3,12 @@
 #   rakupp tools/ast-json.raku tree  FILE...    the whole tree, one line a file
 #   rakupp tools/ast-json.raku roots FILE...    each expression a statement holds
 #   rakupp tools/ast-json.raku check FILE...    what the checks say of it
+#   rakupp tools/ast-json.raku emit  FILE...    the TL++ it becomes
 #   rakupp tools/ast-json.raku --out=DIR --list=LIST [--from=N] [--to=M]
-#                                               all three, for each file of
+#                                               all four, for each file of
 #                                               LIST: DIR/<n>.tree,
-#                                               DIR/<n>.roots, DIR/<n>.check
+#                                               DIR/<n>.roots, DIR/<n>.check,
+#                                               DIR/<n>.out
 #   --dict=sx3.csv [--strict] before the rest   the checks with a
 #                                               dictionary, as bin/xc's
 #                                               --dict and --dict-strict
@@ -33,6 +35,11 @@
 # order XC::Check gives them -- 'error' or 'warning', the line, and the
 # message as a JSON string.
 #
+# The TL++: a line 'ok' and the output, as bin/xc writes it (windows-1252,
+# its own line ends); or 'not-lowered' and a line for each problem, its
+# line and what, as a JSON string; or 'died' and the message, so. Emitted
+# whatever the checks say -- bin/xc would stop at an error first.
+#
 # The source is read as bin/xc reads it, but without a folder: the commands
 # of the include files beside it are not looked for. From the repository's
 # top, as the tests are run.
@@ -43,6 +50,7 @@ use XC::Actions;
 use XC::AST;
 use XC::Commands;
 use XC::Check;
+use XC::Emit;
 
 # ---- offsets: characters to bytes --------------------------------------------
 my @CRLF;                # where each "\r\n" is, in characters
@@ -239,14 +247,26 @@ sub checks(Program $p, Str $src --> Str)
   @lines ?? @lines.join("\n") !! 'none'
 }
 
-# The tree's JSON, the roots' lines and the checks' -- or Str when the
-# grammar does not read the source.
-sub one(Str $file --> List)
+# The TL++ a program becomes, as bytes.
+sub emitted(Program $p, Str $src --> Blob)
+{
+  my $out = try emit($p, $src);
+  if $! ~~ X::XC::NotLowered
+  {
+    return ("not-lowered\n" ~ $!.problems.map({ "{.key} {str-json(.value)}\n" }).join).encode('windows-1252');
+  }
+  return ("died {str-json($!.message)}\n").encode('windows-1252') if $!;
+  ("ok\n" ~ $out).encode('windows-1252')
+}
+
+# The tree's JSON, the roots' lines, the checks' and the TL++ -- or Str when
+# the grammar does not read the source.
+sub one(Str $file, Bool :$emit = False --> List)
 {
   my $src = $file.IO.slurp(:bin).decode('windows-1252');
   my $*FURTHEST = 0;
   my $m = XC::Grammar.parse($src, actions => XC::Actions.new(source => $src));
-  return (Str, Str, Str) unless $m;
+  return (Str, Str, Str, Blob) unless $m;
   crlf-of($src);
   my %spans = user-spans($src, dir => Str, dirs => ());
   my $trans = 'trans' ~ %spans<trans>.sort(+*.key).map({ " {byte-of(+.key)} {byte-of(+.value)}" }).join;
@@ -257,14 +277,15 @@ sub one(Str $file --> List)
   stmt-roots($_, False, @out, $src) for $m.made.statics;
   my @lines = "file $file", $trans;
   @lines.push("{.[1]} {byte-of(.[0].src-from)} {.[2] ?? 1 !! 0} {json(.[0])}") for @out;
-  ($tree, @lines.join("\n"), checks($m.made, $src))
+  my $checks = checks($m.made, $src);
+  ($tree, @lines.join("\n"), $checks, $emit ?? emitted($m.made, $src) !! Blob)
 }
 
 multi sub MAIN('tree', *@files)
 {
   for @files -> $f
   {
-    my ($tree, $, $) = one($f);
+    my ($tree, $, $, $) = one($f);
     say $tree // 'null';
   }
 }
@@ -273,7 +294,7 @@ multi sub MAIN('roots', *@files)
 {
   for @files -> $f
   {
-    my ($, $roots, $) = one($f);
+    my ($, $roots, $, $) = one($f);
     say $roots // "file $f\nnone";
   }
 }
@@ -284,8 +305,17 @@ multi sub MAIN('check', Str :$dict, Bool :$strict = False, *@files)
   $STRICT = $strict;
   for @files -> $f
   {
-    my ($, $, $checks) = one($f);
+    my ($, $, $checks, $) = one($f);
     say $checks // 'null';
+  }
+}
+
+multi sub MAIN('emit', *@files)
+{
+  for @files -> $f
+  {
+    my ($, $, $, $out) = one($f, :emit);
+    $*OUT.write($out // "null\n".encode);
   }
 }
 
@@ -297,9 +327,10 @@ multi sub MAIN(Str :$out!, Str :$list!, Int :$from = 0, Int :$to = 1_000_000, St
   my @files = $list.IO.lines.grep(*.chars);
   for $from ..^ min($to, @files.elems) -> $i
   {
-    my ($tree, $roots, $checks) = one(@files[$i]);
+    my ($tree, $roots, $checks, $emitted) = one(@files[$i], :emit);
     "$out/$i.tree".IO.spurt(($tree // 'null') ~ "\n");
     "$out/$i.roots".IO.spurt(($roots // "file {@files[$i]}\nnone") ~ "\n");
     "$out/$i.check".IO.spurt(($checks // 'null') ~ "\n");
+    "$out/$i.out".IO.spurt($emitted // "null\n".encode);
   }
 }

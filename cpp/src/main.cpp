@@ -8,6 +8,7 @@
 //   xc --tree N.tree...          the whole source -- named by N.roots beside
 //                                it --, its tree compared
 //   xc --check N.check...        what the checks say of it, compared
+//   xc --emit N.out...           the TL++ it becomes, compared
 //   ... --dict sx3.csv [--strict]  with a dictionary
 //   ... --time                   and how long the reading took
 
@@ -21,6 +22,7 @@
 #include <vector>
 
 #include "check.h"
+#include "emit.h"
 #include "json.h"
 #include "parser.h"
 
@@ -410,14 +412,96 @@ namespace
   }
 }
 
+namespace
+{
+  // One .out file: false when the TL++ is not the same.
+  bool compare_emit(const std::string& path, bool time, Totals& totals)
+  {
+    std::string file;
+    if (!source_of(path, 4, file))
+    {
+      return false;
+    }
+    std::string expect;
+    if (!slurp(path, expect))
+    {
+      std::cerr << path << ": cannot read it\n";
+      return false;
+    }
+    std::string src;
+    if (!slurp(file, src))
+    {
+      std::cerr << file << ": cannot read it\n";
+      return false;
+    }
+    totals.files++;
+    xc::UserSpans spans = xc::user_spans(src, std::nullopt, {});
+    xc::Tree tree;
+    xc::Parser parser(src, spans.trans, tree, spans.cmd);
+    auto t0 = std::chrono::steady_clock::now();
+    xc::Program* prog = parser.parse();
+    std::string got;
+    if (!prog)
+    {
+      got = "null\n";
+    }
+    else
+    {
+      try
+      {
+        got = "ok\n" + xc::emit(prog, src);
+      }
+      catch (const xc::NotLowered& e)
+      {
+        got = "not-lowered\n";
+        for (const xc::Finding& f : e.problems)
+        {
+          got += std::to_string(f.line) + " " + xc::json_string(f.message) + "\n";
+        }
+      }
+      catch (const std::exception& e)
+      {
+        got = "died " + xc::json_string(e.what()) + "\n";
+      }
+    }
+    totals.seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    if (got == expect)
+    {
+      if (time)
+      {
+        std::cout << file << ": the same\n";
+      }
+      return true;
+    }
+    totals.differ++;
+    std::size_t k = 0;
+    while (k < expect.size() && k < got.size() && expect[k] == got[k])
+    {
+      k++;
+    }
+    std::size_t from = expect.rfind('\n', k > 0 ? k - 1 : 0);
+    from = from == std::string::npos ? 0 : from + 1;
+    for (int n = 0; n < 2 && from > 0; n++)
+    {
+      std::size_t p = expect.rfind('\n', from - 2);
+      from = p == std::string::npos ? 0 : p + 1;
+    }
+    std::cout << file << ": differs at byte " << k << "\n"
+              << "  raku: " << xc::json_string(expect.substr(from, k - from + 160)) << "\n"
+              << "  c++:  " << xc::json_string(got.substr(from, k - from + 160)) << "\n";
+    return false;
+  }
+}
+
 int main(int argc, char** argv)
 {
   std::vector<std::string> args(argv + 1, argv + argc);
-  if (args.empty() || (args[0] != "--roots" && args[0] != "--tree" && args[0] != "--check"))
+  if (args.empty() || (args[0] != "--roots" && args[0] != "--tree" && args[0] != "--check" && args[0] != "--emit"))
   {
-    std::cerr << "usage: xc --roots|--tree|--check [--time] FILE...\n";
+    std::cerr << "usage: xc --roots|--tree|--check|--emit [--time] FILE...\n";
     return 2;
   }
+  bool emits = args[0] == "--emit";
   bool trees = args[0] == "--tree";
   bool checks = args[0] == "--check";
   bool time = false;
@@ -450,11 +534,12 @@ int main(int argc, char** argv)
       }
       continue;
     }
-    ok = (checks  ? compare_check(args[i], time, dictionary, strict, totals)
+    ok = (emits   ? compare_emit(args[i], time, totals)
+          : checks  ? compare_check(args[i], time, dictionary, strict, totals)
           : trees ? compare_tree(args[i], time, totals)
                   : compare_roots(args[i], time, totals)) && ok;
   }
-  if (trees || checks)
+  if (trees || checks || emits)
   {
     std::cout << totals.files << " files, " << totals.differ << " differ";
   }

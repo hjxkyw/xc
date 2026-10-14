@@ -1,6 +1,6 @@
 # The C++ xc against the Raku one: every source given read by both, the
-# trees compared -- the whole source, and each expression on its own -- and
-# what the checks say of it.
+# trees compared -- the whole source, and each expression on its own --,
+# what the checks say of it, and the TL++ it becomes.
 #
 #   rakupp tools/compare-cpp.raku [--xc=PATH] [--keep=DIR] [--dict=sx3.csv [--strict]] FILE-OR-FOLDER...
 #
@@ -38,13 +38,15 @@ sub MAIN(Str :$xc = built(), Str :$keep, Str :$dict, Bool :$strict = False, *@pa
   my @trees = (^@files).map({ "$dir/$_.tree" });
   my @roots = (^@files).map({ "$dir/$_.roots" });
   my @checks = (^@files).map({ "$dir/$_.check" });
+  my @outs = (^@files).map({ "$dir/$_.out" });
   my $t = run $xc, '--tree', |@trees;
   my $r = run $xc, '--roots', |@roots;
   my $c = run $xc, '--check', |($dict.defined ?? ('--dict', $dict, |($strict ?? '--strict' !! ())) !! ()), |@checks;
+  my $e = run $xc, '--emit', |@outs;
   unless $keep
   {
     unlink $_ for $dir.IO.dir;
     rmdir $dir;
   }
-  exit($t.exitcode || $r.exitcode || $c.exitcode ?? 1 !! 0);
+  exit($t.exitcode || $r.exitcode || $c.exitcode || $e.exitcode ?? 1 !! 0);
 }
