@@ -124,6 +124,22 @@ check "CRLF: 'end using', 'end with' and 'end raw' found where they are, line fo
   $a.defined && $b.defined && $b.contains("\r\n") && $b.subst("\r\n", "\n", :g) eq $a
     && $a.contains('// done') && $a.contains('// set') && $a.contains('// noted')
 };
+# A '//' comment ends at its line end, whichever it is: a statement that runs
+# on with ';' past one, rewritten, keeps the lines after it. (With CRLF the
+# comment ran on to the end of the statement, and took its last line with it:
+# 'x := a +' and the line 'b if c' left behind.)
+check "CRLF: a comment inside a statement that runs on with ';' ends at its line, as with LF",
+{
+  my $lf = qq[user function f(a, b, c)\n  local x := 0\n  x := a + ; // one\n       b if c\nreturn x\n];
+  my ($a, $b) = compile($lf), compile($lf.subst("\n", "\r\n", :g));
+  $a.defined && $b.defined && $b.contains("\r\n") && $b.subst("\r\n", "\n", :g) eq $a
+    && $a.contains("    x := a + ; \n           b\n  EndIf")
+};
+check "and '\\r' alone, and the code after the comment counted in code-end",
+{
+  split-comment("a + ; // one\r  b // two") eqv ("a + ; \r  b", "// one // two")
+    && code-end("a + ; // one\r\n  b // two\r\n") == 16
+};
 check 'the last .ch on the last line, with no line end: tlpp-core.th on a line of its own',
 {
   compile(qq[user function f()\nreturn 1\n#include "rwmake.ch"])

@@ -48,6 +48,15 @@ sub star-comment(Str $text, Int $i --> Bool)
   !($line ~~ / ';' \h* $ /)
 }
 
+# Where the line holding offset $i ends: at the first line end of any of the
+# three kinds. "\r\n" is one character, and '.index("\n")' does not find it:
+# in a CRLF source a '//' comment ran on to the end of the text, and took the
+# lines after it with it.
+sub eol-from(Str $text, Int $i --> Int)
+{
+  ("\n", "\r\n", "\r").map({ $text.index($_, $i) // $text.chars }).min
+}
+
 # Splits a piece of source into its code and its comments, outside strings.
 # The comments come back joined on one line, a block comment as its text: a
 # rewritten line has only its end to put them on.
@@ -85,7 +94,7 @@ sub split-comment(Str $text --> List) is export
     }
     elsif $text.substr($i, 2) eq '//' | '&&' || star-comment($text, $i)
     {
-      my $end = $text.index("\n", $i) // $n;
+      my $end = eol-from($text, $i);
       @comments.push($text.substr($i + 2, $end - $i - 2).trim);
       $i = $end;
     }
@@ -127,7 +136,7 @@ sub code-end(Str $text --> Int) is export
     }
     elsif $text.substr($i, 2) eq '//' | '&&' || star-comment($text, $i)
     {
-      $i = $text.index("\n", $i) // $n;
+      $i = eol-from($text, $i);
     }
     elsif $text.substr($i, 2) eq '/*'
     {
