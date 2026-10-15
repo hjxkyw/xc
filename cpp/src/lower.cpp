@@ -1118,6 +1118,7 @@ namespace xc
   void Emitter::replace(const Stmt* s, bool block, Lines lines, const Lines& notes)
   {
     std::string comment = split_comment(slice(s)).second;
+    if (lines.empty()) { lines.push_back(""); }
     std::size_t at = block ? 0 : lines.size() - 1;
     for (std::size_t i = 0; i < notes.size() && i < lines.size(); i++)
     {
@@ -1143,7 +1144,7 @@ namespace xc
   void Emitter::header_to(const Stmt* s, int end, std::size_t at, Lines lines)
   {
     std::string comment = split_comment(text(s->from, end)).second;
-    if (!comment.empty()) { lines[at] += "  " + comment; }
+    if (!comment.empty() && at < lines.size()) { lines[at] += "  " + comment; }
     edit(s->from, end, join_at(s->from, lines));
   }
 

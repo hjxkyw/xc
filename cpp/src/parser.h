@@ -58,6 +58,10 @@ namespace xc
     // where it ended.
     Expr* read(Form form, int at, bool in_with, int& end);
 
+    // The whole source as one declaration ('local a := 1, b'), or null:
+    // what bin/xc reads the line a source stopped at as.
+    Declaration* read_declaration();
+
   private:
     struct Trailer;
 
@@ -234,6 +238,7 @@ namespace xc
     Stmt* ifst();
     Stmt* whilest();
     Stmt* forst();
+    Stmt* forst_with(bool local, bool& took);
     Stmt* forinst();
     Stmt* fortimesst();
     Stmt* docasest();

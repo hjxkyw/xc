@@ -2721,6 +2721,17 @@ namespace xc
     return -1;
   }
 
+  Declaration* Parser::read_declaration()
+  {
+    p_ = 0;
+    in_with_ = false;
+    in_block_ = in_dq_ = in_sq_ = in_exp_ = 0;
+    past_prologue_ = false;
+    top_level_ = false;
+    Declaration* d = declaration();
+    return d && p_ == n_ ? d : nullptr;
+  }
+
   // rule declaration { <declkind> <declarator>+ % ',' }
   // rule declkind { :i [ 'local' || 'private' || 'public' || 'static' ] }
   Declaration* Parser::declaration()
@@ -2944,7 +2955,23 @@ namespace xc
   //   [ :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
   //   || :i 'end' 'for' >> ]
   // }
+  //
+  // A quantified group followed by a blank in a rule is one Raku goes back
+  // into: when what follows 'local' does not read, the loop is read again
+  // without it -- 'for local := 1 to 3' is over a variable named 'local',
+  // refused as a reserved word (which bin/xc then says, reading the file
+  // with any name allowed).
   Stmt* Parser::forst()
+  {
+    bool took = false;
+    if (Stmt* s = forst_with(true, took))
+    {
+      return s;
+    }
+    return took ? forst_with(false, took) : nullptr;
+  }
+
+  Stmt* Parser::forst_with(bool local, bool& took)
   {
     int start = p_;
     auto fail = [&]() -> Stmt* { p_ = start; return nullptr; };
@@ -2954,11 +2981,13 @@ namespace xc
     }
     auto s = make<ForStmt>();
     s->line = line(start);
+    if (local)
     {
       int save = p_;
       if (ilit("local") && ws())
       {
         s->var_local = true;
+        took = true;
       }
       else
       {

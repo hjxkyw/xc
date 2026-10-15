@@ -113,32 +113,39 @@ package, or the folder linked into VS Code's extensions.
 ## The C++ port
 
 `cpp/` is xc in C++20 -- no modules, nothing beyond the standard library,
-built with GCC, Clang and MSVC. So far the parser, the checks and the
-emitter: it reads every source the Raku xc reads, into the same tree, says
-the same errors and warnings of it, and writes the same TL++, byte for
-byte. The Raku xc stays the reference until the C++ one does all it does;
-`tools/compare-cpp.raku` compares the two, tree for tree, message for
-message and byte for byte:
+built with GCC, Clang and MSVC. It is the whole compiler: `cpp/build/xc`
+takes what `bin/xc` takes, and says and writes what it does -- the same
+tree of every source, the same errors and warnings, the same TL++ byte for
+byte -- in a fraction of the time (the 889 sources of the survey, read,
+checked and lowered, in about a third of a second).
 
 ```
 cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
 cmake --build cpp/build --config Release
-rakupp tools/compare-cpp.raku xtpl protheus      # files or folders
+cpp/build/xc --check xtpl/tests                  # as rakupp bin/xc
+```
+
+The Raku xc stays the reference. `tools/compare-cpp.raku` compares the
+two, tree for tree, message for message and byte for byte -- with
+`cpp/build/xc-compare`, against what `tools/ast-json.raku` writes of the
+Raku xc's tree, checks and TL++ -- and runs both drivers on the same
+files:
+
+```
+rakupp tools/compare-cpp.raku xtpl protheus        # files or folders
 rakupp tools/compare-cpp.raku --dict=sx3.csv xtpl  # the checks with a dictionary
 ```
 
-(On Windows, from a Visual Studio developer prompt; the program is then
-`cpp\build\Release\xc.exe`, which `compare-cpp.raku` finds.)
-
-`tools/ast-json.raku` writes the Raku xc's tree of a source as JSON, what
-its checks say and the TL++ it writes, which is what the comparison reads.
+(On Windows, from a Visual Studio developer prompt; the programs are then
+`cpp\build\Release\xc.exe` and `xc-compare.exe`, which `compare-cpp.raku`
+finds.)
 
 ## What is where
 
 | | |
 |---|---|
 | `bin/xc` | the compiler |
-| `cpp/` | xc in C++, so far the parser, the checks and the emitter -- see "The C++ port" |
+| `cpp/` | xc in C++ -- see "The C++ port" |
 | `docs/` | the language reference, `language.md` -- `t/45` compiles its examples |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
