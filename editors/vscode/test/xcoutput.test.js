@@ -1,4 +1,4 @@
-// xc's output read as diagnostics (xcoutput.js): what bin/xc prints, as it
+// xc's output read as diagnostics (xcoutput.js): what xc prints, as it
 // prints it, on Linux and on Windows.
 
 'use strict';

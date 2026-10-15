@@ -1,9 +1,9 @@
 // The xtpl extension: xc's checks as diagnostics, and a command that compiles
 // the file. The highlighting is the grammar in syntaxes/, which needs no code.
 //
-// xc runs as it does from a shell -- 'rakupp bin/xc --check file.xtpl' -- on
-// the file as saved: a source is windows-1252, and xc reads the bytes on disk.
-// The settings under 'xtpl.xc' say where xc is and what to give it.
+// xc -- the C++ xc -- runs as it does from a shell, 'xc --check file.xtpl',
+// on the file as saved: a source is windows-1252, and xc reads the bytes on
+// disk. The settings under 'xtpl.xc' say where xc is and what to give it.
 
 'use strict';
 
@@ -16,7 +16,29 @@ const { parseXcOutput } = require('./xcoutput');
 let diagnostics;
 let output;
 
-// Where bin/xc is: the setting, or bin/xc in a folder of the workspace.
+// Where CMake leaves xc in a clone of xc: cpp/build, or a configuration's
+// folder under it (Visual Studio's generators).
+const BUILT = [
+  ['cpp', 'build', 'xc'],
+  ['cpp', 'build', 'xc.exe'],
+  ['cpp', 'build', 'Release', 'xc.exe'],
+  ['cpp', 'build', 'Debug', 'xc.exe'],
+];
+
+function isFile(p)
+{
+  try
+  {
+    return fs.statSync(p).isFile();
+  }
+  catch (e)
+  {
+    return false;
+  }
+}
+
+// Where xc is: the setting; else xc built in a folder of the workspace; else
+// xc on the PATH.
 function xcPath()
 {
   const given = vscode.workspace.getConfiguration('xtpl.xc').get('path');
@@ -26,13 +48,16 @@ function xcPath()
   }
   for (const folder of vscode.workspace.workspaceFolders || [])
   {
-    const candidate = path.join(folder.uri.fsPath, 'bin', 'xc');
-    if (fs.existsSync(candidate))
+    for (const parts of BUILT)
     {
-      return candidate;
+      const candidate = path.join(folder.uri.fsPath, ...parts);
+      if (isFile(candidate))
+      {
+        return candidate;
+      }
     }
   }
-  return '';
+  return process.platform === 'win32' ? 'xc.exe' : 'xc';
 }
 
 // The arguments for xc, before the file.
@@ -53,27 +78,24 @@ function xcOptions()
   return options;
 }
 
-// Runs xc on a file; calls back with what it printed, both streams.
+// Runs xc on a file; calls back with what it printed, both streams. It runs
+// in the file's workspace folder, so that the settings' paths may be relative
+// to it.
 function runXc(args, file, done)
 {
   const xc = xcPath();
-  if (!xc)
-  {
-    vscode.window.showWarningMessage(
-      "xtpl: where is xc? Set 'xtpl.xc.path' to its bin/xc, or open the xc folder in the workspace.");
-    return;
-  }
-  const raku = vscode.workspace.getConfiguration('xtpl.xc').get('raku') || 'rakupp';
-  const cwd = path.dirname(path.dirname(xc));
-  const all = [xc, ...args, file];
-  output.appendLine(`$ ${raku} ${all.join(' ')}`);
-  execFile(raku, all, { cwd, timeout: 300000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) =>
+  const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file));
+  const cwd = folder ? folder.uri.fsPath : path.dirname(file);
+  const all = [...args, file];
+  output.appendLine(`$ ${xc} ${all.join(' ')}`);
+  execFile(xc, all, { cwd, timeout: 60000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) =>
   {
     const said = (stdout || '') + (stderr || '');
     output.append(said);
-    if (error && error.code === 'ENOENT')
+    if (error && (error.code === 'ENOENT' || error.code === 'EACCES'))
     {
-      vscode.window.showErrorMessage(`xtpl: '${raku}' was not found. Set 'xtpl.xc.raku' to where rakupp is.`);
+      vscode.window.showErrorMessage(
+        `xtpl: xc was not found at '${xc}'. Build it (cpp/build), or set 'xtpl.xc.path' to the program.`);
       return;
     }
     done(said);
