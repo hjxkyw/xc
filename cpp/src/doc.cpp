@@ -365,7 +365,7 @@ int main(int argc, char** argv)
 
   // No example lost: the count is the document's, and a block that went
   // missing from it -- a fence broken by an edit -- shows here.
-  long examples = std::count_if(blocks.begin(), blocks.end(), [](const Block& b) { return b.info == "xtpl"; });
+  std::ptrdiff_t examples = std::count_if(blocks.begin(), blocks.end(), [](const Block& b) { return b.info == "xtpl"; });
   d.check("the examples were all found (" + std::to_string(examples) + ")", examples >= 20);
 
   std::cout << "  " << d.ok << " of " << d.total << " doc checks\n";

@@ -2,6 +2,7 @@
 // the chains as loops, and the expressions (see emit.h).
 
 #include <algorithm>
+#include <stdexcept>
 
 #include "chains.h"
 #include "chars.h"

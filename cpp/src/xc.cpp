@@ -21,6 +21,7 @@
 // does.
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -41,9 +42,9 @@ namespace fs = std::filesystem;
 namespace
 {
 #ifdef _WIN32
-  const bool WINDOWS = true;
+  constexpr bool WINDOWS = true;
 #else
-  const bool WINDOWS = false;
+  constexpr bool WINDOWS = false;
 #endif
 
   const std::string USAGE =
@@ -131,7 +132,7 @@ namespace
   std::string file_key(const std::string& p)
   {
     std::string s = p;
-    if (WINDOWS)
+    if constexpr (WINDOWS)
     {
       std::replace(s.begin(), s.end(), '\\', '/');
       bool absolute = (s.size() >= 3 && xc::is_alpha(static_cast<unsigned char>(s[0])) && s[1] == ':' && s[2] == '/')

@@ -18,9 +18,9 @@ namespace xc
   namespace
   {
 #ifdef _WIN32
-    const bool WINDOWS = true;
+    constexpr bool WINDOWS = true;
 #else
-    const bool WINDOWS = false;
+    constexpr bool WINDOWS = false;
 #endif
 
     // What is said of a source quotes it: windows-1252, said in UTF-8, as
@@ -43,7 +43,7 @@ namespace xc
       if (first == b.size()) { return std::nullopt; }
       std::string ignored;
       if (!utf8_to_cp1252(b, ignored)) { return std::nullopt; }
-      long line = 1 + std::count(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(first), '\n');
+      std::ptrdiff_t line = 1 + std::count(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(first), '\n');
       return "it is UTF-8 -- the first character beyond ASCII is on line " + std::to_string(line) + ". " + fix;
     }
 
@@ -154,7 +154,7 @@ namespace xc
   std::string folder_of(const std::string& p)
   {
     std::size_t cut = p.rfind('/');
-    if (WINDOWS)
+    if constexpr (WINDOWS)
     {
       std::size_t b = p.rfind('\\');
       if (b != std::string::npos && (cut == std::string::npos || b > cut)) { cut = b; }
