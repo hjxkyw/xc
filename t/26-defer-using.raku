@@ -67,37 +67,6 @@ sub normalised(Str $text)
   @out
 }
 
-# A defer in a block runs at an exit only if it was reached: xc sets a flag
-# where it is written and runs it under the flag; xtpl ran it at every exit
-# after it, reached or not. Without the flag's lines the two agree.
-sub without-flags(@lines)
-{
-  my @out;
-  my @flag;                                  # each If open: whether it is a flag's
-  for @lines -> $l
-  {
-    next if $l eq 'fdf := .t.';
-    if $l.starts-with('if ')
-    {
-      @flag.push($l eq 'if fdf');
-      next if $l eq 'if fdf';
-    }
-    elsif $l eq 'endif'
-    {
-      next if @flag.pop;
-    }
-    @out.push($l);
-  }
-  @out
-}
-
-for <19_defer_pinning 21_using> -> $t
-{
-  check "$t: the same statements as xtpl's output{$t eq '19_defer_pinning' ?? ', but the defer\'s flag' !! ''}",
-  {
-    without-flags(normalised(compile(slurp("xtpl/tests/$t.xtpl")))) eqv normalised(slurp("xtpl/tests/$t.tlpp"))
-  };
-}
 check "19_defer_pinning: the defer in its If is flagged, and runs under the flag",
 {
   my @n = normalised(compile(slurp("xtpl/tests/19_defer_pinning.xtpl")));

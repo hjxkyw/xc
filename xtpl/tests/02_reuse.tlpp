@@ -1,68 +1,65 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 02_reuse.tlpp -- when a block local shares a slot and when it cannot
+// 02_reuse.xtpl -- when a block local shares a slot and when it cannot
 // -----------------------------------------------------------------------------
 
 user function testReuse(lFlag)
-
-  Local nTotal := 100
-  Local aHandlers := {}
-  Local aCarrier := {}
-
-  Local s_1_0        // um slot, dividido por aGiven, aInner, aLent, aRows, aScratch, aWork, cSecond, i, nFirst, nOuter
-  Local b_1_nFactor  // o local de bloco 'nFactor', fixado: tem armazenamento so dele
-  Local b_2_cBuffer  // o local de bloco 'cBuffer', fixado: tem armazenamento so dele
-  Local s_1_nSquare  // o local de bloco 'nSquare'
-  Local s_2_nInner   // o local de bloco 'nInner'
+  local nTotal := 100
+  local aHandlers := {}
+  local aCarrier := {}
+  Local s_0_0  // a slot: the block locals 'nFirst', 'cSecond', 'nOuter', 'i', 'aRows', 'aInner', 'aWork' [contained], 'aScratch', 'aLent', 'aGiven'
+  Local s_0_1  // a slot: the block locals 'nInner', 'nSquare'
+  Local nFactor  // a block local
+  Local cBuffer  // a block local
 
   // Sibling blocks reuse one slot: each writes before it reads, so nothing
   // can leak across.
   if nTotal > 0
-    s_1_0 := 1
-    conout("first: " + cValToChar(s_1_0))
+    s_0_0 := 1  // nFirst
+    conout("first: " + cValToChar(s_0_0))
   endif
 
   if nTotal > 0
-    s_1_0 := "same storage, different type"
-    conout("second: " + s_1_0)
+    s_0_0 := "same storage, different type"  // cSecond
+    conout("second: " + s_0_0)
   endif
 
   // Nesting is not sharing: the inner block is one level deeper.
   if nTotal > 0
-    s_1_0 := 1
+    s_0_0 := 1  // nOuter
     if nTotal > 1
-      s_2_nInner := 2
-      conout("sum: " + cValToChar(s_1_0 + s_2_nInner))
+      s_0_1 := 2  // nInner
+      conout("sum: " + cValToChar(s_0_0 + s_0_1))
     endif
   endif
 
   // A loop body re-enters its block on every pass, so the slot is cleared
   // each time rather than carrying the previous iteration's value.
-  for s_1_0 := 1 to 3
-    s_1_nSquare := Nil
-    s_1_nSquare := s_1_0 * s_1_0
-    conout("square: " + cValToChar(s_1_nSquare))
+  For s_0_0 := 1 To 3
+    s_0_1 := Nil  // nSquare
+    s_0_1 := s_0_0 * s_0_0
+    conout("square: " + cValToChar(s_0_1))
   next
 
   // PINNED 1 -- captured by a code block, which outlives the block.
   if nTotal > 0
-    b_1_nFactor := 10
-    aadd(aHandlers, {|| b_1_nFactor * 2})
+    nFactor := 10
+    aadd(aHandlers, {|| nFactor * 2})
   endif
 
   // NOT pinned -- its value handed to a function we cannot see into: what
   // processRows may keep is the array, not the variable, and the next block
   // in the slot gives the slot a new array.
   if nTotal > 0
-    s_1_0 := {}
-    processRows(s_1_0)
+    s_0_0 := {}  // aRows
+    processRows(s_0_0)
   endif
 
   // NOT pinned -- stored in aCarrier: the array is stored, not the variable.
   if nTotal > 0
-    s_1_0 := {}
-    aadd(aCarrier, s_1_0)
+    s_0_0 := {}  // aInner
+    aadd(aCarrier, s_0_0)
   endif
 
   // NOT pinned, and CHECKED -- <contained> is a promise the compiler checks:
@@ -70,40 +67,40 @@ user function testReuse(lFlag)
   // reference or read by a defer. Breaking it is a compile error, not a
   // silent risk.
   if nTotal > 0
-    s_1_0 := {}
-    aadd(s_1_0, "contained")
-    conout("first row: " + s_1_0[1])
+    s_0_0 := {}  // aWork [contained]
+    aadd(s_0_0, "contained")
+    conout("first row: " + s_0_0[1])
   endif
 
   // NOT pinned -- a reference built and read entirely in place.
   if nTotal > 0
-    s_1_0 := {}
-    aadd(s_1_0, "stays home")
-    conout("kept: " + cValToChar(len(s_1_0)))
+    s_0_0 := {}  // aScratch
+    aadd(s_0_0, "stays home")
+    conout("kept: " + cValToChar(len(s_0_0)))
   endif
 
   // NOT pinned -- handed to processRows and used after: processRows gets the
   // array, not the variable, so the slot can be shared. aLent stays usable to
   // the end of the block.
   if nTotal > 0
-    s_1_0 := {}
-    aadd(s_1_0, "borrowed")
-    processRows(s_1_0)
-    conout("still ours: " + cValToChar(len(s_1_0)))
+    s_0_0 := {}  // aLent
+    aadd(s_0_0, "borrowed")
+    processRows(s_0_0)
+    conout("still ours: " + cValToChar(len(s_0_0)))
   endif
 
   // NOT pinned -- built and left: nothing reaches aGiven after its block.
   if nTotal > 0
-    s_1_0 := {}
-    aadd(s_1_0, "handed off")
+    s_0_0 := {}  // aGiven
+    aadd(s_0_0, "handed off")
   endif
 
   // PINNED 2 -- passed by reference ('@'): the callee gets the variable
   // itself, and xc does not assume it lets go, so it keeps a Local of its own.
   if nTotal > 0
-    b_2_cBuffer := ""
-    fillBuffer(@b_2_cBuffer)
-    conout("buffer: " + b_2_cBuffer)
+    cBuffer := ""
+    fillBuffer(@cBuffer)
+    conout("buffer: " + cBuffer)
   endif
 
   return nTotal

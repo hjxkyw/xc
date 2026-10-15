@@ -1,27 +1,24 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 46_tlpp_forms.tlpp -- formas de TLPP que o xtpl nÃ£o conhecia.
+// 46_tlpp_forms.xtpl -- formas de TLPP que o xtpl não conhecia.
 //
-// Todas as trÃªs vieram de um programa real. A primeira falhava em silÃªncio:
-// 'main function' nÃ£o era reconhecido como cabeÃ§alho, entÃ£o nenhuma funÃ§Ã£o era
+// Todas as três vieram de um programa real. A primeira falhava em silêncio:
+// 'main function' não era reconhecido como cabeçalho, então nenhuma função era
 // reconhecida, nada ficava dentro de uma, e o arquivo inteiro era copiado sem
-// alteraÃ§Ã£o â€” sem erro e sem aviso. O 'main function' em si estÃ¡ em
-// test_main_form, onde o nome da funÃ§Ã£o bate com o do arquivo.
+// alteração — sem erro e sem aviso. O 'main function' em si está em
+// test_main_form, onde o nome da função bate com o do arquivo.
 //
-// 'as object' Ã© a anotaÃ§Ã£o de tipo do prÃ³prio TLPP, mantida e reemitida.
+// 'as object' é a anotação de tipo do próprio TLPP, mantida e reemitida.
 //
-// Um namespace pontuado se distingue de 'nA.And.nB' â€” lexicamente idÃªnticos â€”
+// Um namespace pontuado se distingue de 'nA.And.nB' — lexicamente idênticos —
 // por o caminho inteiro terminar em uma chamada.
 // -----------------------------------------------------------------------------
 
 user function tlppForms(nX)
-
-  Local oTool as object
-  Local nTotal := 0 as numeric
-  Local aItens := {}
-  Local oOutro as object
-
+  local oTool as object
+  local nTotal := 0 as numeric
+  local aItens := {}, oOutro as object
 
   oTool := totvs.tools.Alguma.Coisa():New()
   oOutro := outro.pacote.Classe():New()
@@ -34,11 +31,9 @@ user function tlppForms(nX)
   return nTotal + len(aItens)
 
 static function auxiliar()
-
   return 1
 
 user function tambem()
-
   return auxiliar()
 
 // -----------------------------------------------------------------------------

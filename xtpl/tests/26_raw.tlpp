@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 26_raw.tlpp -- handing lines to the AdvPL preprocessor untouched
+// 26_raw.xtpl -- handing lines to the AdvPL preprocessor untouched
 //
 // A #command or #xtranslate rewrites syntax, not identifiers, so a line like
 // '@ 10, 5 SAY ... GET ...' is not AdvPL yet -- it becomes AdvPL only after
@@ -16,12 +16,10 @@
 #xtranslate ANOTE <x> => conout("nota: " + <x>)
 
 user function testRaw(oDlg)
-
-  Local cNome := ""
-  Local nTotal := 0
-  Local cSql := ""
-
-  Local b_1_cAux  // o local de bloco 'cAux', fixado: tem armazenamento so dele
+  local cNome := ""
+  local nTotal := 0
+  local cSql := ""
+  Local cAux  // a block local
 
   // one line
   MOSTRE cValToChar(nTotal) QUANDO nTotal > 0
@@ -33,8 +31,8 @@ user function testRaw(oDlg)
   // a block local used inside raw: renamed like anywhere else, and pinned,
   // because GET passes it by reference and the dialog outlives the block
   if nTotal > 0
-    b_1_cAux := ""
-    ANOTE b_1_cAux
+    cAux := ""
+    ANOTE cAux
   endif
 
   // interpolation runs inside raw too: a raw line already has its declared

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// romaneio.tlpp -- montar um romaneio, sem reler o cadastro de produtos.
+// romaneio.xtpl -- montar um romaneio, sem reler o cadastro de produtos.
 //
 // Um caso comum: uma lista de itens, cada um com um produto, e para cada um
 // e preciso a descricao e o peso que estao na SB1. Mil itens de cem produtos
@@ -74,62 +74,52 @@
 // ============================================================================
 
 user function romaneio(aItens)
+  local hPeso := THashMap():New()
+  local hDescricao := THashMap():New()
+  local nPesoTotal := 0
+  local nLidos := 0
+  local aLinhas := {}
+  Local oItem  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
 
-  Local hPeso
-  Local hDescricao
-  Local nPesoTotal := 0
-  Local nLidos := 0
-  Local aLinhas := {}
+  fs_0_0 := aItens
+  For fi_0_0 := 1 To Len(fs_0_0)
+    oItem := fs_0_0[fi_0_0]
 
-  Local ht_1_0       // o valor lido de um hash
-  Local s_1_each     // o local de bloco 'each'
-  Local s_1_eachi    // o local de bloco 'eachi'
-  Local s_1_oItem    // o local de bloco 'oItem'
-  Local s_3_usearea  // o local de bloco 'usearea'
-  Local s_3_useord   // o local de bloco 'useord'
-  Local s_3_userec   // o local de bloco 'userec'
-
-  hPeso := THashMap():New()
-  hDescricao := THashMap():New()
-
-  s_1_each := aItens
-
-  For s_1_eachi := 1 To Len(s_1_each)
-    s_1_oItem := s_1_each[s_1_eachi]
-
-    If empty(s_1_oItem:cProduto)
+    If empty(oItem:cProduto)
       loop
     EndIf
 
     // O cache: so vai ao cadastro na primeira vez que ve o produto.
-    if !(u_xtpl_in(s_1_oItem:cProduto, hPeso))
-      s_3_usearea := Alias()
+    if !u_xtpl_in(oItem:cProduto, hPeso)
+      far_0_0 := Alias()
       DbSelectArea("SB1")
-      s_3_userec := SB1->(RecNo())
-      s_3_useord := SB1->(IndexOrd())
+      frc_0_0 := SB1->(RecNo())
+      fol_0_0 := SB1->(IndexOrd())
       SB1->(DbSetOrder(1))
-        SB1->(DbSeek(xFilial("SB1") + s_1_oItem:cProduto))
-        hPeso:Set(s_1_oItem:cProduto, SB1->B1_PESO)
-        hDescricao:Set(s_1_oItem:cProduto, alltrim(SB1->B1_DESC))
-      SB1->(DbSetOrder(s_3_useord))
-      SB1->(DbGoto(s_3_userec))
-      If !Empty(s_3_usearea)
-        DbSelectArea(s_3_usearea)
+        SB1->(DbSeek(xFilial("SB1") + oItem:cProduto))
+        hPeso:Set(oItem:cProduto, SB1->B1_PESO)
+        hDescricao:Set(oItem:cProduto, alltrim(SB1->B1_DESC))
+      SB1->(DbSetOrder(fol_0_0))
+      SB1->(DbGoto(frc_0_0))
+      If !Empty(far_0_0)
+        DbSelectArea(far_0_0)
       EndIf
       nLidos := nLidos + 1
     endif
 
-    ht_1_0 := Nil
-    hPeso:Get(s_1_oItem:cProduto, @ht_1_0)
-    nPesoTotal := nPesoTotal + (ht_1_0 * s_1_oItem:nQuant)
+    nPesoTotal := nPesoTotal + (u_xtpl_hget(hPeso, oItem:cProduto) * oItem:nQuant)
 
-    ht_1_0 := Nil
-    hDescricao:Get(s_1_oItem:cProduto, @ht_1_0)
-    aadd(aLinhas, {s_1_oItem:cProduto, ht_1_0, s_1_oItem:nQuant})
+    aadd(aLinhas, {oItem:cProduto, u_xtpl_hget(hDescricao, oItem:cProduto), oItem:nQuant})
 
   next
 
-  conout("romaneio: " + cValToChar(len(aItens)) + " itens, " + cValToChar(nLidos) + " produtos lidos, " + cValToChar(nPesoTotal) + " kg")
+  xconout("romaneio: ", len(aItens), " itens, ", nLidos, " produtos lidos, ", ;
+          nPesoTotal, " kg")
 
   // O hash nao guarda ordem, entao a ordem sai do array de linhas, que a tem.
   return aLinhas

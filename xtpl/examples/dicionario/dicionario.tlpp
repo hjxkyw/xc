@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// dicionario.tlpp -- listar os campos de uma tabela, lendo o SX3.
+// dicionario.xtpl -- listar os campos de uma tabela, lendo o SX3.
 //
 // ESTE EXEMPLO RODA. Os outros da pasta usam SA1, SE1, SC6 de mentira, para
 // mostrar a forma; este le o dicionario de verdade, que existe em qualquer
@@ -70,33 +70,34 @@
 // ============================================================================
 
 user function dicionario()
-
-  Local cTabela := "SA1"
-  Local nErro := 0
-  Local aCampos := {}
-  Local nBytes := 0
-
-  Local s_1_0      // um slot, dividido por each, usearea
-  Local s_1_1      // um slot, dividido por aLinha, userec
-  Local fi_0_0     // o indice do percurso
-  Local fo_0_0     // o resultado da cadeia
-  Local fo_1_0     // o resultado da cadeia
-  Local fv_0_0     // o elemento em percurso
-  Local fv_1_0     // o elemento em percurso
-  Local s_1_eachi  // o local de bloco 'eachi'
+  local cTabela := "SA1"
+  local nErro := 0
+  local aCampos := {}
+  local nBytes := 0
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local far_0_1  // the area selected before the walk
+  Local frc_0_1  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local aLinha  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... in'
 
   nErro := TCLink()
-
   if nErro < 0
     conout("dicionario: TCLink falhou com " + cValToChar(nErro))
     return 1
   endif
 
+
   if !TCCanOpen("SX3")
     conout("dicionario: SX3 nao pode ser aberta")
     TCUnlink()
     return 2
-
   endif
 
   DbUseArea(.T., "TOPCONN", "SX3", "SX3", .F., .F.)
@@ -105,29 +106,38 @@ user function dicionario()
     conout("dicionario: SX3 nao abriu")
     TCUnlink()
     return 3
-
   endif
 
-  s_1_0 := Alias()
+
+  far_0_0 := Alias()
   DbSelectArea("SX3")
-  s_1_1 := SX3->(RecNo())
+  frc_0_0 := SX3->(RecNo())
 
     // Uma passada pela SX3 inteira, ficando com os campos desta tabela.
+    far_0_1 := Alias()
+    DbSelectArea("SX3")
+    frc_0_1 := SX3->(RecNo())
     SX3->(DbGoTop())
-    fo_1_0 := {}
+    fo_0_0 := {}
     While !SX3->(Eof())
       If alltrim(SX3->X3_ARQUIVO) == cTabela
-        fv_1_0 := {alltrim(SX3->X3_CAMPO), SX3->X3_TIPO, SX3->X3_TAMANHO, alltrim(SX3->X3_TITULO)}
-        AAdd(fo_1_0, fv_1_0)
+        fv_0_0 := {alltrim(SX3->X3_CAMPO),                ;
+                                SX3->X3_TIPO,                          ;
+                                SX3->X3_TAMANHO,                       ;
+                                alltrim(SX3->X3_TITULO)}
+        AAdd(fo_0_0, fv_0_0)
       EndIf
       SX3->(DbSkip())
     EndDo
-    aCampos := fo_1_0
+    SX3->(DbGoto(frc_0_1))
+    If !Empty(far_0_1)
+      DbSelectArea(far_0_1)
+    EndIf
+    aCampos := fo_0_0
 
-  SX3->(DbGoto(s_1_1))
-
-  If !Empty(s_1_0)
-    DbSelectArea(s_1_0)
+  SX3->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
   EndIf
 
   // A soma sai do array que a passada ja construiu, sem tocar no disco de
@@ -135,24 +145,21 @@ user function dicionario()
   // a tabela inteira outra vez -- e repetiria o filtro, que e a parte pior:
   // dois lugares para mudar quando a regra mudar, e o segundo e o que fica
   // para tras.
-  fo_0_0 := 0
-
+  fo_0_1 := 0
   For fi_0_0 := 1 To Len(aCampos)
-    fv_0_0 := aCampos[fi_0_0]
-    fv_0_0 := fv_0_0[3]
-    fo_0_0 := fo_0_0 + fv_0_0
+    fv_0_1 := aCampos[fi_0_0]
+    fv_0_1 := fv_0_1[3]
+    fo_0_1 := fo_0_1 + fv_0_1
   Next
-
-  nBytes := fo_0_0
+  nBytes := fo_0_1
 
   conout((cValToChar(cTabela) + " tem " + cValToChar(len(aCampos)) + " campos, " + cValToChar(nBytes) + " bytes por registro"))
 
-  s_1_0 := aCampos
-
-  For s_1_eachi := 1 To Len(s_1_0)
-    s_1_1 := s_1_0[s_1_eachi]
-    conout("  " + padr(s_1_1[1], 15) + " " + s_1_1[2] + " " + padl(alltrim(str(s_1_1[3])), 4) + "   " + s_1_1[4])
-
+  fs_0_0 := aCampos
+  For fi_0_1 := 1 To Len(fs_0_0)
+    aLinha := fs_0_0[fi_0_1]
+    conout("  " + padr(aLinha[1], 15) + " " + aLinha[2] + " " +          ;
+           padl(alltrim(str(aLinha[3])), 4) + "   " + aLinha[4])
   next
 
   SX3->(DbCloseArea())

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 30_queue.tlpp -- a ring-buffer queue, and method names that collide.
+// 30_queue.xtpl -- a ring-buffer queue, and method names that collide.
 //
 // AdvPL arrays are already dynamic, so a stack is AAdd plus ATail plus aSize
 // and a linked list buys nothing. Taking from the FRONT is the gap: ADel then
@@ -14,25 +14,19 @@
 // -----------------------------------------------------------------------------
 
 user function testQueue(aPedidos, oModelo)
+  local oFila := u_xtpl_queue()
+  local oGrande := u_xtpl_queue(256)
+  local nTotal := 0
+  local xItem := Nil
+  local nOutro := 0
+  Local oPedido  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
 
-  Local oFila
-  Local oGrande
-  Local nTotal := 0
-  Local xItem := Nil
-  Local nOutro := 0
-
-  Local s_1_each     // o local de bloco 'each'
-  Local s_1_eachi    // o local de bloco 'eachi'
-  Local s_1_oPedido  // o local de bloco 'oPedido'
-
-  oFila := u_xtpl_queue()
-  oGrande := u_xtpl_queue(256)
-
-  s_1_each := aPedidos
-
-  For s_1_eachi := 1 To Len(s_1_each)
-    s_1_oPedido := s_1_each[s_1_eachi]
-    oFila:Push(s_1_oPedido)
+  fs_0_0 := aPedidos
+  For fi_0_0 := 1 To Len(fs_0_0)
+    oPedido := fs_0_0[fi_0_0]
+    oFila:Push(oPedido)
   next
 
   while !oFila:IsEmpty()

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 01_decl_shapes.tlpp -- declarator lists that told the two paths apart.
+// 01_decl_shapes.xtpl -- declarator lists that told the two paths apart.
 //
 // Both found by fuzz_paths.py, which generates programs and diffs the grammar
 // path against the regex one.
@@ -17,14 +17,10 @@
 // -----------------------------------------------------------------------------
 
 user function testDeclShapes(nX)
-
-  Local v1 := 0
-  Local v2 := 1
-  Local v3 := 2
-  Local v4
-  Local v5 := 3  // no spaces anywhere
-  Local v6 := {}  // spaces everywhere
-
+  local v1 := 0, v2 := 1  // v1 [const, contained]
+  local v3 := 2, v4                       // ends on a bare name
+  local v5 := 3  // [const] -- no spaces anywhere
+  local v6 := {}  // [contained] -- spaces everywhere
 
   aadd(v6, v1 + v2 + v3 + v5)
   v4 := len(v6)

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 43_rows.tlpp -- a chain over a work area.
+// 43_rows.xtpl -- a chain over a work area.
 //
 // A work area is already a lazy sequence with an ugly calling convention:
 // DbGoTop to start, Eof to test, DbSkip to advance. Fusing over one walks the
@@ -13,18 +13,24 @@
 // -----------------------------------------------------------------------------
 
 user function testRows(cAlias, nLimit)
-
-  Local nTotal := 0
-  Local aCodes := {}
-  Local aFirst := {}
-
-  Local fal_0_0  // o alias da area percorrida
-  Local far_0_0  // a area que estava selecionada antes do percurso
-  Local flm_0_0  // o limite de um take
-  Local fn_0_0   // quantos elementos ja passaram
-  Local fo_0_0   // o resultado da cadeia
-  Local frc_0_0  // o registro em que a area estava antes do percurso
-  Local fv_0_0   // o elemento em percurso
+  local nTotal := 0
+  local aCodes := {}
+  local aFirst := {}
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fal_0_0  // the alias of the area walked
+  Local far_0_1  // the area selected before the walk
+  Local frc_0_1  // the record the area was on before the walk
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local far_0_2  // the area selected before the walk
+  Local frc_0_2  // the record the area was on before the walk
+  Local fv_0_2  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local flm_0_0  // the limit of a take
+  Local fo_0_2  // the result of the chain
 
   // a literal alias is written out, because SA1->A1_COD is what gets read
   far_0_0 := Alias()
@@ -32,7 +38,6 @@ user function testRows(cAlias, nLimit)
   frc_0_0 := SA1->(RecNo())
   SA1->(DbGoTop())
   fo_0_0 := 0
-
   While !SA1->(Eof())
     If SA1->A1_SALDO > 0
       fv_0_0 := SA1->A1_VALOR
@@ -40,65 +45,54 @@ user function testRows(cAlias, nLimit)
     EndIf
     SA1->(DbSkip())
   EndDo
-
   SA1->(DbGoto(frc_0_0))
-
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
   EndIf
-
   nTotal := fo_0_0
 
   // anything else is bound once and reached through the parenthesised form
   fal_0_0 := cAlias
-  far_0_0 := Alias()
+  far_0_1 := Alias()
   DbSelectArea(fal_0_0)
-  frc_0_0 := (fal_0_0)->(RecNo())
+  frc_0_1 := (fal_0_0)->(RecNo())
   (fal_0_0)->(DbGoTop())
-  fo_0_0 := {}
-
+  fo_0_1 := {}
   While !(fal_0_0)->(Eof())
-    fv_0_0 := (fal_0_0)->A1_COD
-    AAdd(fo_0_0, fv_0_0)
+    fv_0_1 := (fal_0_0)->A1_COD
+    AAdd(fo_0_1, fv_0_1)
     (fal_0_0)->(DbSkip())
   EndDo
-
-  (fal_0_0)->(DbGoto(frc_0_0))
-
-  If !Empty(far_0_0)
-    DbSelectArea(far_0_0)
+  (fal_0_0)->(DbGoto(frc_0_1))
+  If !Empty(far_0_1)
+    DbSelectArea(far_0_1)
   EndIf
-
-  aCodes := fo_0_0
+  aCodes := fo_0_1
 
   // take stops the walk rather than reading to Eof
-  far_0_0 := Alias()
+  far_0_2 := Alias()
   DbSelectArea("SA1")
-  frc_0_0 := SA1->(RecNo())
+  frc_0_2 := SA1->(RecNo())
   SA1->(DbGoTop())
   flm_0_0 := nLimit
   fn_0_0 := 0
-  fo_0_0 := {}
-
+  fo_0_2 := {}
   While !SA1->(Eof())
     If SA1->A1_SALDO > 0
-      fv_0_0 := SA1->A1_COD
+      fv_0_2 := SA1->A1_COD
       If fn_0_0 >= flm_0_0
         Exit
       EndIf
-      fn_0_0 := fn_0_0 + 1
-      AAdd(fo_0_0, fv_0_0)
+      fn_0_0++
+      AAdd(fo_0_2, fv_0_2)
     EndIf
     SA1->(DbSkip())
   EndDo
-
-  SA1->(DbGoto(frc_0_0))
-
-  If !Empty(far_0_0)
-    DbSelectArea(far_0_0)
+  SA1->(DbGoto(frc_0_2))
+  If !Empty(far_0_2)
+    DbSelectArea(far_0_2)
   EndIf
-
-  aFirst := fo_0_0
+  aFirst := fo_0_2
 
   return nTotal + len(aCodes) + len(aFirst)
 

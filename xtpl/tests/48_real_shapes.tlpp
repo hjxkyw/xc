@@ -1,10 +1,10 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 48_real_shapes.tlpp -- formas que sÃ³ apareceram num arquivo de verdade.
+// 48_real_shapes.xtpl -- formas que só apareceram num arquivo de verdade.
 //
-// Um mÃ©todo com parÃ¢metro tipado, o tipo depois do inicializador, e uma
-// expressÃ£o avaliada na Ã¡rea de trabalho de outro alias. Nenhuma delas tinha
+// Um método com parâmetro tipado, o tipo depois do inicializador, e uma
+// expressão avaliada na área de trabalho de outro alias. Nenhuma delas tinha
 // surgido em setenta e cinco fixtures.
 // -----------------------------------------------------------------------------
 
@@ -13,18 +13,15 @@ class MinhaTool
 endclass
 
 method process(jPayLoad as json) as json class MinhaTool
-
-  Local jResp as json
-  Local nMoeda := 1 as numeric  // tipo depois do inicializador
-  Local cAlias as character
-
+  local jResp    as json
+  local nMoeda   := 1  as numeric          // tipo depois do inicializador
+  local cAlias   as character
 
   jResp := JsonObject():New()
 
   DbSelectArea("SC9")
-
   if SC9->(MsSeek(xFilial("SC9") + jPayLoad["numero"]))
-    // dentro de ALIAS->( ... ) um nome solto Ã© campo daquele alias
+    // dentro de ALIAS->( ... ) um nome solto é campo daquele alias
     if SA1->(MsSeek(xFilial("SA1") + SC9->(C9_CLIENTE + C9_LOJA)))
       jResp["cliente"] := alltrim(SA1->A1_NOME)
     endif

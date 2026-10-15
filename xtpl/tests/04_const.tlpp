@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 04_const.tlpp -- <const>, and what it does not promise
+// 04_const.xtpl -- <const>, and what it does not promise
 //
 // <const> fixes the BINDING. For a scalar that is full immutability, because
 // the value is the binding. For an array or object it is shallow: the name
@@ -10,15 +10,12 @@
 // -----------------------------------------------------------------------------
 
 user function testConst(aH)
-
-  Local nLimite := 1000
-  Local cAlias := "SA1"
-  Local aTaxas := {10, 20, 30}
-  // <const> fixes the name, not the contents: a callee given this array can still change its elements
-  Local nTotal := 0
-
-  Local s_1_nBase      // o local de bloco 'nBase'
-  Local s_1_nContador  // o local de bloco 'nContador'
+  local nLimite := 1000  // [const]
+  local cAlias := "SA1"  // [const]
+  local aTaxas := {10, 20, 30}  // [const]
+  local nTotal := 0
+  Local nBase  // a block local [const]
+  Local nContador  // a block local
 
   // reading is what a const is for
   nTotal := nLimite * 2
@@ -36,10 +33,10 @@ user function testConst(aH)
 
   // an attribute list, and a const beside an ordinary declarator
   if nTotal > 0
-    s_1_nBase := 50
-    s_1_nContador := Nil
-    s_1_nContador := s_1_nBase + 1
-    conout(cValToChar(s_1_nContador))
+    nBase := 50  // [const]
+    nContador := Nil
+    nContador := nBase + 1
+    conout(cValToChar(nContador))
   endif
 
   return nTotal

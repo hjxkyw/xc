@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// pedido.tlpp -- somar os itens de um pedido, parando quando ele acaba.
+// pedido.xtpl -- somar os itens de um pedido, parando quando ele acaba.
 //
 // Um caso comum: SC6 esta indexada por filial + numero do pedido, e os itens
 // de um pedido ficam juntos. Somar o valor deles e uma leitura curta -- desde
@@ -55,68 +55,77 @@
 // ============================================================================
 
 user function pedido(cNumero)
+  local nTotal := 0
+  local nItens := 0
+  local cChave := xFilial("SC6") + cNumero
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
+  Local far_0_1  // the area selected before the walk
+  Local frc_0_1  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local far_0_2  // the area selected before the walk
+  Local frc_0_2  // the record the area was on before the walk
+  Local fo_0_1  // the result of the chain
 
-  Local nTotal := 0
-  Local nItens := 0
-  Local cChave
-
-  Local fo_1_0       // o resultado da cadeia
-  Local frc_1_0      // o registro em que a area estava antes do percurso
-  Local fv_1_0       // o elemento em percurso
-  Local s_1_usearea  // o local de bloco 'usearea'
-  Local s_1_useord   // o local de bloco 'useord'
-  Local s_1_userec   // o local de bloco 'userec'
-
-  cChave := xFilial("SC6") + cNumero
-
-  s_1_usearea := Alias()
+  far_0_0 := Alias()
   DbSelectArea("SC6")
-  s_1_userec := SC6->(RecNo())
-  s_1_useord := SC6->(IndexOrd())
+  frc_0_0 := SC6->(RecNo())
+  fol_0_0 := SC6->(IndexOrd())
   SC6->(DbSetOrder(1))
 
     // Uma passada: para no primeiro item de outro pedido, ignora os
     // cancelados, e soma o valor do resto.
-    frc_1_0 := SC6->(RecNo())
+    far_0_1 := Alias()
+    DbSelectArea("SC6")
+    frc_0_1 := SC6->(RecNo())
     SC6->(DbSeek(cChave))
-    fo_1_0 := 0
+    fo_0_0 := 0
     While !SC6->(Eof())
       If !(SC6->C6_NUM == cNumero)
         Exit
       EndIf
       If empty(SC6->C6_BLQ)
-        fv_1_0 := SC6->C6_VALOR
-        fo_1_0 := fo_1_0 + fv_1_0
+        fv_0_0 := SC6->C6_VALOR
+        fo_0_0 := fo_0_0 + fv_0_0
       EndIf
       SC6->(DbSkip())
     EndDo
-    SC6->(DbGoto(frc_1_0))
-    nTotal := fo_1_0
+    SC6->(DbGoto(frc_0_1))
+    If !Empty(far_0_1)
+      DbSelectArea(far_0_1)
+    EndIf
+    nTotal := fo_0_0
 
     // A segunda passada re-le os mesmos dez registros, nao a tabela.
-    frc_1_0 := SC6->(RecNo())
+    far_0_2 := Alias()
+    DbSelectArea("SC6")
+    frc_0_2 := SC6->(RecNo())
     SC6->(DbSeek(cChave))
-    fo_1_0 := 0
+    fo_0_1 := 0
     While !SC6->(Eof())
       If !(SC6->C6_NUM == cNumero)
         Exit
       EndIf
       If empty(SC6->C6_BLQ)
-        fo_1_0 := fo_1_0 + 1
+        fo_0_1++
       EndIf
       SC6->(DbSkip())
     EndDo
-    SC6->(DbGoto(frc_1_0))
-    nItens := fo_1_0
+    SC6->(DbGoto(frc_0_2))
+    If !Empty(far_0_2)
+      DbSelectArea(far_0_2)
+    EndIf
+    nItens := fo_0_1
 
-  SC6->(DbSetOrder(s_1_useord))
-  SC6->(DbGoto(s_1_userec))
-
-  If !Empty(s_1_usearea)
-    DbSelectArea(s_1_usearea)
+  SC6->(DbSetOrder(fol_0_0))
+  SC6->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
   EndIf
 
-  conout("pedido " + cValToChar(cNumero) + ": " + cValToChar(nItens) + " itens, " + cValToChar(nTotal) + " em valor")
+  xconout("pedido ", cNumero, ": ", nItens, " itens, ", nTotal, " em valor")
 
   return nTotal
 

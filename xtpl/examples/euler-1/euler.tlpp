@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// euler.tlpp -- o primeiro problema do Project Euler, em xtpl
+// euler.xtpl -- o primeiro problema do Project Euler, em xtpl
 // soma todos os numeros de 1 a 999 que sao divisiveis por 3 ou por 5
 //
 // um loop de 1 a 999
@@ -18,25 +18,20 @@
 // -----------------------------------------------------------------------------
 
 user function euler1()
-
-  Local nSoma
-
-  Local fi_0_0  // o indice do percurso
-  Local fo_0_0  // o resultado da cadeia
-  Local fv_0_0  // o elemento em percurso
-
+  local nSoma
+  Local fi_0_0  // the counter of a range
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
   fo_0_0 := 0
-
   For fi_0_0 := 1 To 999
     fv_0_0 := fi_0_0
-    If (fv_0_0 % 3) == 0 .or. (fv_0_0 % 5) == 0
+    If ((fv_0_0 % 3) == 0) .or. ((fv_0_0 % 5) == 0)
       fo_0_0 := fo_0_0 + fv_0_0
     EndIf
   Next
-
   nSoma := fo_0_0
 
-  conout("euler 1: " + cValToChar(nSoma) + "   esperado: 233168")
+  xconout("euler 1: ", nSoma, "   esperado: 233168")
 
   return nSoma
 

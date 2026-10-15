@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// integra.tlpp -- ler um JSON de um servico, com um caminho de erro por passo.
+// integra.xtpl -- ler um JSON de um servico, com um caminho de erro por passo.
 //
 // Um caso comum: chamar um servico, ler a resposta, e continuar mesmo quando
 // alguma coisa no meio falha. Cada passo pode quebrar de um jeito diferente,
@@ -51,15 +51,11 @@
 // ============================================================================
 
 user function integra(cUrl, cChave)
-
-  Local cResposta := ""
-  Local jDados := nil
-  Local aItens := {}
-  Local nQuantos := 0
-  Local cErro := ""
-
-  Local et_0_0  // o valor testado por '?:'
-  Local gt_0_0  // o valor protegido por 'fallback'
+  local cResposta := ""
+  local jDados := nil
+  local aItens := {}
+  local nQuantos := 0
+  local cErro := ""
 
   // 1. A chamada de rede. Quebra de varios jeitos -- timeout, DNS, servico
   //    fora do ar -- e todos chegam aqui como erro de runtime.
@@ -85,13 +81,10 @@ user function integra(cUrl, cChave)
   // 3. Um campo que pode nao existir. Aqui nao se quer erro nenhum: a
   //    ausencia e uma resposta legitima, e '?:' da o valor de quando vier
   //    vazio.
-  gt_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})
-  et_0_0 := gt_0_0
-  aItens := If(et_0_0 != Nil, et_0_0, {})
-
+  aItens := u_xtpl_elvis(u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil}), {|| {}})
   nQuantos := len(aItens)
 
-  conout("integra: " + cValToChar(nQuantos) + " itens de " + cValToChar(cUrl))
+  xconout("integra: ", nQuantos, " itens de ", cUrl)
 
   return aItens
 

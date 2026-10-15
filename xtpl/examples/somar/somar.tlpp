@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// somar.tlpp -- somar campo a campo as linhas correspondentes de dois arquivos.
+// somar.xtpl -- somar campo a campo as linhas correspondentes de dois arquivos.
 //
 // Cada arquivo tem linhas de campos numericos separados por virgula. A linha
 // N de um e somada com a linha N do outro, campo a campo:
@@ -59,36 +59,34 @@
 using namespace tlpp.regex
 
 user function somar(cArqA, cArqB)
-
-  Local nLinhasA := 0
-  Local nLinhasB := 0
-  Local aLinhasA
-  Local aLinhasB
-  Local aSomas := {}
-  Local nDesiguais := 0
-  Local nSujas := 0
-  Local nX := 0
-
-  Local b_0_aCamposA  // o local de bloco 'aCamposA', fixado: tem armazenamento so dele
-  Local b_0_aCamposB  // o local de bloco 'aCamposB', fixado: tem armazenamento so dele
-  Local b_0_cCampoA   // o local de bloco 'cCampoA', fixado: tem armazenamento so dele
-  Local b_0_cCampoB   // o local de bloco 'cCampoB', fixado: tem armazenamento so dele
-  Local b_0_lIgual    // o local de bloco 'lIgual', fixado: tem armazenamento so dele
-  Local b_0_lLimpa    // o local de bloco 'lLimpa', fixado: tem armazenamento so dele
-  Local fo_0_0        // o resultado da cadeia
-  Local fok_0_0       // se o arquivo abriu
-  Local fv_0_0        // o elemento em percurso
-  Local pt_0_0        // o resultado de uma etapa que nao fundiu
-
+  local nLinhasA := 0
+  local nLinhasB := 0
+  local aLinhasA
+  local aLinhasB
+  local aSomas
+  local nDesiguais
+  local nSujas
+  local nX
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fok_0_1  // whether the file opened
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fs_0_0  // the array walked
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local fs_0_1  // the array walked
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
   fok_0_0 := File(cArqA)
-
   If fok_0_0
     FT_FUse(cArqA)
     FT_FGoTop()
   EndIf
-
   fo_0_0 := {}
-
   While fok_0_0 .And. !FT_FEof()
     fv_0_0 := FT_FReadLn()
     nLinhasA += 1
@@ -96,51 +94,62 @@ user function somar(cArqA, cArqB)
     AAdd(fo_0_0, fv_0_0)
     FT_FSkip()
   EndDo
-
   If fok_0_0
     FT_FUse()
   EndIf
-
   aLinhasA := fo_0_0
-
-  fok_0_0 := File(cArqB)
-
-  If fok_0_0
+  fok_0_1 := File(cArqB)
+  If fok_0_1
     FT_FUse(cArqB)
     FT_FGoTop()
   EndIf
-
-  fo_0_0 := {}
-
-  While fok_0_0 .And. !FT_FEof()
-    fv_0_0 := FT_FReadLn()
+  fo_0_1 := {}
+  While fok_0_1 .And. !FT_FEof()
+    fv_0_1 := FT_FReadLn()
     nLinhasB += 1
-    fv_0_0 := u_xtpl_split(alltrim(fv_0_0), ",")
-    AAdd(fo_0_0, fv_0_0)
+    fv_0_1 := u_xtpl_split(alltrim(fv_0_1), ",")
+    AAdd(fo_0_1, fv_0_1)
     FT_FSkip()
   EndDo
-
-  If fok_0_0
+  If fok_0_1
     FT_FUse()
   EndIf
-
-  aLinhasB := fo_0_0
+  aLinhasB := fo_0_1
+  aSomas := {}
+  nDesiguais := 0
+  nSujas := 0
+  nX := 0
 
   // O zip de fora anda linha a linha; o de dentro, campo a campo.
-  aSomas := u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| u_xtpl_zip(b_0_aCamposA, b_0_aCamposB, {|b_0_cCampoA, b_0_cCampoB| val(b_0_cCampoA) + val(b_0_cCampoB)})})
+  aSomas := u_xtpl_zip(aLinhasA, aLinhasB, {|aCamposA, aCamposB| u_xtpl_zip(aCamposA, aCamposB, {|cCampoA, cCampoB| val(cCampoA) + val(cCampoB)})})
 
   // O que o zip descartou em silencio, dito em voz alta. Os dois de novo
   // andam linha a linha, mas perguntam outra coisa de cada par.
-  pt_0_0 := u_xtpl_count(u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| len(b_0_aCamposA) == len(b_0_aCamposB)}), {|b_0_lIgual| !b_0_lIgual})
-  nDesiguais := pt_0_0
+  fs_0_0 := u_xtpl_zip(aLinhasA, aLinhasB, {|aCamposA, aCamposB| len(aCamposA) == len(aCamposB)})
+  fo_0_2 := 0
+  For fi_0_0 := 1 To Len(fs_0_0)
+    fv_0_2 := fs_0_0[fi_0_0]
+    If !fv_0_2
+      fo_0_2++
+    EndIf
+  Next
+  nDesiguais := fo_0_2
 
-  pt_0_0 := u_xtpl_count(u_xtpl_zip(aLinhasA, aLinhasB, {|b_0_aCamposA, b_0_aCamposB| tudoNumero(b_0_aCamposA) .and. tudoNumero(b_0_aCamposB)}), {|b_0_lLimpa| !b_0_lLimpa})
-  nSujas := pt_0_0
+  fs_0_1 := u_xtpl_zip(aLinhasA, aLinhasB, {|aCamposA, aCamposB| tudoNumero(aCamposA) .and. tudoNumero(aCamposB)})
+  fo_0_3 := 0
+  For fi_0_1 := 1 To Len(fs_0_1)
+    fv_0_3 := fs_0_1[fi_0_1]
+    If !fv_0_3
+      fo_0_3++
+    EndIf
+  Next
+  nSujas := fo_0_3
 
-  conout("A: " + cValToChar(nLinhasA) + " linhas   B: " + cValToChar(nLinhasB) + " linhas")
-  conout("somadas: " + cValToChar(len(aSomas)) + "   linhas perdidas: " + cValToChar(max(nLinhasA, nLinhasB) - len(aSomas)))
-
-  conout("com numero de campos diferente: " + cValToChar(nDesiguais) + "   com campo nao numerico: " + cValToChar(nSujas))
+  xconout("A: ", nLinhasA, " linhas   B: ", nLinhasB, " linhas")
+  xconout("somadas: ", len(aSomas), ;
+          "   linhas perdidas: ", max(nLinhasA, nLinhasB) - len(aSomas))
+  xconout("com numero de campos diferente: ", nDesiguais, ;
+          "   com campo nao numerico: ", nSujas)
 
   for nX := 1 to len(aSomas)
     conout(cValToChar(nX) + ": " + mostrar(aSomas[nX]))
@@ -153,37 +162,23 @@ user function somar(cArqA, cArqB)
 // 'allof' e o mesmo padrao de 'zip': um bloco que diz o que perguntar de
 // cada elemento. Aqui, de cada campo de uma linha.
 static function tudoNumero(aCampos)
-
-  Local b_0_it  // o local de bloco 'it', fixado: tem armazenamento so dele
-
-  return u_xtpl_allof(aCampos, {|b_0_it| ehNumero(b_0_it)})
+  return u_xtpl_allof(aCampos, {|__it| ehNumero(__it)})
 
 static function ehNumero(cTexto)
-
   return Regex():matches("^-?[0-9]+(\.[0-9]+)?$", alltrim(cTexto))
 
 // Uma linha de numeros de volta em texto, para sair legivel.
 static function mostrar(aValores)
-
-  Local ffs_0_0  // o primeiro elemento que passou no teste
-  Local fi_0_0   // o indice do percurso
-  Local fo_0_0   // o resultado da cadeia
-  Local fv_0_0   // o elemento em percurso
-
-  ffs_0_0 := .T.
-  fo_0_0 := ""
-
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := {}
   For fi_0_0 := 1 To Len(aValores)
     fv_0_0 := aValores[fi_0_0]
     fv_0_0 := alltrim(str(fv_0_0))
-    If ffs_0_0
-      ffs_0_0 := .F.
-    Else
-      fo_0_0 := fo_0_0 + ", "
-    EndIf
-    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+    AAdd(fo_0_0, fv_0_0)
   Next
-
+  fo_0_0 := u_xtpl_join(fo_0_0, ", ")
   return fo_0_0
 
 // -----------------------------------------------------------------------------

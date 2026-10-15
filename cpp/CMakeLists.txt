@@ -33,13 +33,22 @@ add_library(xclib STATIC
 )
 
 # xc, the compiler; xc-compare, which compares it with the Raku one
-# (tools/compare-cpp.raku).
+# (tools/compare-cpp.raku); xc-outputs, which holds xc to the TL++ kept
+# beside xtpl's sources.
 add_executable(xc src/xc.cpp)
 add_executable(xc-compare src/compare.cpp)
+add_executable(xc-outputs src/outputs.cpp)
 target_link_libraries(xc PRIVATE xclib)
 target_link_libraries(xc-compare PRIVATE xclib)
+target_link_libraries(xc-outputs PRIVATE xclib)
 
-foreach(t xclib xc xc-compare)
+# ctest --test-dir cpp/build
+enable_testing()
+add_test(NAME outputs
+         COMMAND xc-outputs xtpl/tests xtpl/examples
+         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
+
+foreach(t xclib xc xc-compare xc-outputs)
   if(MSVC)
     target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8)
   else()
