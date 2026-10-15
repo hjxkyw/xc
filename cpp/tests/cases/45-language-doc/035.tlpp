@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 
 User Function Doc()
-  xDoc := u_xtpl_elvis(cName, {|| "anonymous"})
+  xDoc := If(cName != Nil, cName, "anonymous")
 Return nil

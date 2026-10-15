@@ -63,23 +63,26 @@ user function etiqueta(oPedido)
   local cLinha2 := ""
   local cLinha3 := ""
   local cCompl := ""
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  Local et_0_0  // the left side of a '?:', evaluated once
+  Local fbv_0_1  // a value read twice by '?.' or 'in lo..hi', evaluated once
 
   // O nome fantasia e opcional; a razao social nao. Se nao houver fantasia,
   // vale a razao social.
-  cLinha1 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cFantasia, Nil)}, If(oPedido != Nil, oPedido:oCliente, Nil)), {|| u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cRazao, Nil)}, If(oPedido != Nil, oPedido:oCliente, Nil)), {|| "SEM NOME"})})
+  cLinha1 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oCliente) != Nil, fbv_0_0:cFantasia, Nil)) != Nil, et_0_0, If((et_0_0 := If(oPedido != Nil .And. (fbv_0_1 := oPedido:oCliente) != Nil, fbv_0_1:cRazao, Nil)) != Nil, et_0_0, "SEM NOME"))
 
   // Tres niveis, e nenhum deles garantido.
-  cLinha2 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cRua, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| "endereco nao informado"})
+  cLinha2 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cRua, Nil)) != Nil, et_0_0, "endereco nao informado")
 
   // Existir e estar preenchido sao coisas diferentes: o complemento pode vir
   // como "" e '?.' entrega isso sem reclamar, porque "" nao e Nil.
-  cCompl := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cComplemento, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""})
+  cCompl := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cComplemento, Nil)) != Nil, et_0_0, "")
   if !empty(cCompl)
     cLinha2 := cLinha2 + ", " + alltrim(cCompl)
   endif
 
-  cLinha3 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCidade, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""}) 
-  cLinha3 := alltrim(cLinha3) + " " + u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cUf, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""})
+  cLinha3 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cCidade, Nil)) != Nil, et_0_0, "") 
+  cLinha3 := alltrim(cLinha3) + " " + If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cUf, Nil)) != Nil, et_0_0, "")
 
   xconout("etiqueta: ", cLinha1, " / ", cLinha2, " / ", cLinha3)
 

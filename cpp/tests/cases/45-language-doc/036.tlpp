@@ -2,5 +2,6 @@
 #include "tlpp-core.th"
 
 User Function Doc()
-  xDoc := u_xtpl_elvis(cached(), {|| u_xtpl_elvis(computed(), {|| "last"})})
+  Local et_0_0  // the left side of a '?:', evaluated once
+  xDoc := If((et_0_0 := cached()) != Nil, et_0_0, If((et_0_0 := computed()) != Nil, et_0_0, "last"))
 Return nil

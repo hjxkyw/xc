@@ -56,6 +56,7 @@ user function integra(cUrl, cChave)
   local aItens := {}
   local nQuantos := 0
   local cErro := ""
+  Local et_0_0  // the left side of a '?:', evaluated once
 
   // 1. A chamada de rede. Quebra de varios jeitos -- timeout, DNS, servico
   //    fora do ar -- e todos chegam aqui como erro de runtime.
@@ -81,7 +82,7 @@ user function integra(cUrl, cChave)
   // 3. Um campo que pode nao existir. Aqui nao se quer erro nenhum: a
   //    ausencia e uma resposta legitima, e '?:' da o valor de quando vier
   //    vazio.
-  aItens := u_xtpl_elvis(u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil}), {|| {}})
+  aItens := If((et_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})) != Nil, et_0_0, {})
   nQuantos := len(aItens)
 
   xconout("integra: ", nQuantos, " itens de ", cUrl)

@@ -114,10 +114,13 @@ package, or the folder linked into VS Code's extensions.
 
 `cpp/` is xc in C++20 -- no modules, nothing beyond the standard library,
 built with GCC, Clang and MSVC. It is the whole compiler: `cpp/build/xc`
-takes what `bin/xc` takes, and says and writes what it does -- the same
-tree of every source, the same errors and warnings, the same TL++ byte for
-byte -- in a fraction of the time (the 889 sources of the survey, read,
-checked and lowered, in about a third of a second).
+takes what `bin/xc` takes, and says what it does -- the same tree of every
+source, the same errors and warnings -- in a fraction of the time (the 889
+sources of the survey, read, checked and lowered, in about a third of a
+second). It is the one that moves on: the Raku xc is frozen as it was on
+14 October 2026, and the TL++ the C++ xc writes has since improved where
+the Raku xc's stays as it was (`?:`, `?.` and `in lo..hi` hold a value
+read twice in a Local, not in a block).
 
 ```
 cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
@@ -131,11 +134,12 @@ each with the TL++ and the messages xc gives for it; command lines, with what
 they print and write; xtpl's sources, with the `.tlpp` beside each; and the
 language reference, whose examples have to come out as it shows them.
 
-The Raku xc stays the reference. `tools/compare-cpp.raku` compares the
-two, tree for tree, message for message and byte for byte -- with
-`cpp/build/xc-compare`, against what `tools/ast-json.raku` writes of the
-Raku xc's tree, checks and TL++ -- and runs both drivers on the same
-files:
+The Raku xc stays the reference for what a source means.
+`tools/compare-cpp.raku` compares the two, tree for tree, message for
+message and byte for byte -- with `cpp/build/xc-compare`, against what
+`tools/ast-json.raku` writes of the Raku xc's tree, checks and TL++ -- and
+runs both drivers on the same files. The trees, the checks and the drivers
+still agree; the TL++ differs wherever the C++ xc writes it better:
 
 ```
 rakupp tools/compare-cpp.raku xtpl protheus        # files or folders

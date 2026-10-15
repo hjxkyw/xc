@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -137,6 +138,19 @@ namespace xc
     Lines subjects_;
     std::unordered_map<const Stmt*, Renames> renames_;
     bool chains_ = false;
+    // Temps: an expression that reads a value twice holds it in a Local --
+    // not in a snippet, whose Locals would be lost, nor in a 'static', which
+    // runs before any. In a declaration of the prologue the Locals go just
+    // before it (early_at_ where it starts), in the order made. pool_: the
+    // temps of each kind, to be used again; busy_: those the statement holds.
+    bool snippet_ = false;
+    int no_temps_ = 0;
+    int in_block_ = 0;
+    int early_at_ = -1;
+    std::map<int, Lines> early_;
+    std::unordered_set<std::string> early_names_;
+    std::unordered_map<std::string, Lines> pool_;
+    std::unordered_set<std::string> busy_;
 
     // ---- lines --------------------------------------------------------------
     int line_start(int p) const;
@@ -182,6 +196,8 @@ namespace xc
     void collect_bodies(const Stmt* s);
     void hoist(const std::string& name, const std::string& comment, const std::string& value = "");
     std::string gen(const std::string& kind, const std::string& comment, const std::string& value = "");
+    bool temps_ok() const { return !snippet_ && no_temps_ == 0; }
+    std::string temp(const std::string& kind, const std::string& comment);
     void hoist_edit(const Body& body);
 
     // ---- statements ---------------------------------------------------------
@@ -220,6 +236,8 @@ namespace xc
     bool contains_lowering(const Expr* e) const;
     std::string interpolated(const Interp* i);
     std::string safe(const Expr* base, const std::string& tail);
+    std::string safe_chain(const Expr* e);
+    void safe_steps(const Expr* e, Lines& conds, std::string& value);
     Lowered hash_set(const Assignment* a);
     std::string block_arg(const std::string& verb, const Expr* e);
     std::string part(const Expr* e);

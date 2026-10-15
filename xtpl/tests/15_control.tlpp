@@ -16,6 +16,7 @@ user function testControl(oUser, nLimit, aItens)
   Local fi_0_1  // the counter of a 'for ... times'
   Local fi_0_2  // the counter of a 'for ... times'
   Local fn_0_0  // the count of a 'for ... times'
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
 
 
   // conditional binding: the value is bound, then tested
@@ -81,7 +82,7 @@ user function testControl(oUser, nLimit, aItens)
   endcase
 
   // optional chaining: a missing link yields Nil rather than crashing
-  cCity := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCity, Nil)}, If(oUser != Nil, oUser:oAddress, Nil))
+  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
 
   // postfix modifiers
   If nTotal > 5

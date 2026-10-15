@@ -33,6 +33,37 @@ namespace xc
 
     void append(Lines& to, const Lines& more) { to.insert(to.end(), more.begin(), more.end()); }
 
+    // What an 'fbv' temp holds, as its Local's comment says.
+    const char* const HELD = "a value read twice by '?.' or 'in lo..hi', evaluated once";
+
+    // A count raised for a scope.
+    class Scoped
+    {
+    public:
+      Scoped(int& count, int by) : n_(count), by_(by) { n_ += by_; }
+      ~Scoped() { n_ -= by_; }
+      Scoped(const Scoped&) = delete;
+      Scoped& operator=(const Scoped&) = delete;
+
+    private:
+      int& n_;
+      int by_;
+    };
+
+    // A value set for a scope, and put back.
+    class Early
+    {
+    public:
+      Early(int& at, int v) : at_(at), saved_(at) { at_ = v; }
+      ~Early() { at_ = saved_; }
+      Early(const Early&) = delete;
+      Early& operator=(const Early&) = delete;
+
+    private:
+      int& at_;
+      int saved_;
+    };
+
     // The line end of a statement's span: where its code ends.
     template <class N> int code_stop(const N* n, const std::string& src)
     {
@@ -48,14 +79,19 @@ namespace xc
     for (const Stmt* s : body)
     {
       if (done_.count(s)) { continue; }
+      busy_.clear();
       bool walked = false;
       SK k = s->kind;
       auto decl = k == SK::Declaration ? static_cast<const Declaration*>(s) : nullptr;
       Lines exits;
-      if ((k == SK::CallStmt || k == SK::Assignment || (decl && top && decl->scope == "local"))
-          && !fused_value(s) && !needs_lowering(s))
+      // A declaration of the prologue keeps its place: its temps go before
+      // it. A 'static' takes its value before any Local is there.
+      bool prologue = decl && top && decl->scope == "local";
+      Scoped no_temps(no_temps_, decl && decl->scope == "static" ? 1 : 0);
+      if ((k == SK::CallStmt || k == SK::Assignment || prologue) && !fused_value(s) && !needs_lowering(s))
       {
         // The most common statements: their expressions, and nothing else.
+        Early early(early_at_, prologue ? s->from : -1);
         expressions(exprs_of(s));
       }
       else if (decl && !top && decl->scope == "local")
@@ -199,6 +235,7 @@ namespace xc
       }
       else if (needs_lowering(s))
       {
+        Early early(early_at_, prologue ? s->from : -1);
         Lowered l = lower(s);
         Lines notes;
         if (decl)
@@ -1109,6 +1146,7 @@ namespace xc
   std::string Emitter::render_snippet(const Expr* e, const Map& subst)
   {
     subst_ = subst;
+    snippet_ = true;
     return expr(e);
   }
 
@@ -1268,6 +1306,7 @@ namespace xc
     {
       // Its own parameters are not the element of an enclosing stage.
       auto l = static_cast<const Lambda*>(e);
+      Scoped block(in_block_, 1);
       Map s = subst_;
       Map f = field_;
       for (const std::string& p : l->params)
@@ -1346,6 +1385,7 @@ namespace xc
         return interpolated(static_cast<const Interp*>(e));
       case EK::SafeCall:
       {
+        if (temps_ok()) { return safe_chain(e); }
         auto m = static_cast<const MethodCall*>(e);
         Lines args;
         for (const Expr* a : m->args) { args.push_back(part(a)); }
@@ -1353,6 +1393,7 @@ namespace xc
       }
       case EK::SafeMember:
       {
+        if (temps_ok()) { return safe_chain(e); }
         auto m = static_cast<const Member*>(e);
         return safe(m->base, ":" + m->name);
       }
@@ -1371,11 +1412,18 @@ namespace xc
           if (is_expr(b->right, EK::Interval))
           {
             auto r = static_cast<const Interval*>(b->right);
+            if (name_or_literal(b->left))
+            {
+              return "(" + l + " >= " + expr(r->lo) + " .And. " + l + " <= " + expr(r->hi) + ")";
+            }
+            if (temps_ok())
+            {
+              std::string t = temp("fbv", HELD);
+              return "((" + t + " := " + l + ") >= " + expr(r->lo) + " .And. " + t + " <= " + expr(r->hi) + ")";
+            }
             std::string lo = expr(r->lo);
             std::string hi = expr(r->hi);
-            return name_or_literal(b->left)
-              ? "(" + l + " >= " + lo + " .And. " + l + " <= " + hi + ")"
-              : "Eval({|fbv_0_0| fbv_0_0 >= " + lo + " .And. fbv_0_0 <= " + hi + "}, " + l + ")";
+            return "Eval({|fbv_0_0| fbv_0_0 >= " + lo + " .And. fbv_0_0 <= " + hi + "}, " + l + ")";
           }
           return "u_xtpl_in(" + l + ", " + expr(b->right) + ")";
         }
@@ -1386,7 +1434,14 @@ namespace xc
           std::string rr = name_or_literal(b->right) ? expr(b->right) : "(" + expr(b->right) + ")";
           return "((" + ll + " % " + rr + ") == 0)";
         }
-        // The right side only when the left is Nil: a block, run if needed.
+        // The right side only when the left is Nil -- If() evaluates only the
+        // branch it takes -- and the left read once.
+        if (name_or_literal(b->left)) { return "If(" + l + " != Nil, " + l + ", " + expr(b->right) + ")"; }
+        if (temps_ok())
+        {
+          std::string t = temp("et", "the left side of a '?:', evaluated once");
+          return "If((" + t + " := " + l + ") != Nil, " + t + ", " + expr(b->right) + ")";
+        }
         return "u_xtpl_elvis(" + l + ", {|| " + expr(b->right) + "})";
       }
     }
@@ -1422,6 +1477,11 @@ namespace xc
         args.push_back(i == 0 ? part(c->args[i]) : block_arg(c->name, c->args[i]));
       }
       return call_name(c->name) + "(" + join(args, ", ") + ")";
+    }
+    if (k == EK::CodeBlock)
+    {
+      Scoped block(in_block_, 1);
+      return with_edits(e, subexprs(e));
     }
     // '12'345'678': TL++ has no digit separators.
     if (is_numeric_literal(e))
@@ -1501,7 +1561,64 @@ namespace xc
     return parts.size() == 1 ? parts[0] : "(" + join(parts, " + ") + ")";
   }
 
-  // 'o?.x' / 'o?.M(...)': Nil when the base is Nil.
+  // 'o?.x' / 'o?.M(...)': Nil when the base is Nil -- a chain of them one
+  // test, each value it goes on from read once:
+  // 'o?.a?.b' -> 'If(o != Nil .And. (fbv_0_0 := o:a) != Nil, fbv_0_0:b, Nil)'.
+  std::string Emitter::safe_chain(const Expr* e)
+  {
+    Lines conds;
+    std::string value;
+    safe_steps(e, conds, value);
+    return "If(" + join(conds, " .And. ") + ", " + value + ", Nil)";
+  }
+
+  namespace
+  {
+    // A '?.' that is one: on ':x' inside 'with object' it is a plain ':'.
+    bool is_safe_step(const Expr* e)
+    {
+      return (is_expr(e, EK::SafeMember) && !is_expr(static_cast<const Member*>(e)->base, EK::SubjectRef))
+             || (is_expr(e, EK::SafeCall) && !is_expr(static_cast<const MethodCall*>(e)->base, EK::SubjectRef));
+    }
+  }
+
+  void Emitter::safe_steps(const Expr* e, Lines& conds, std::string& value)
+  {
+    const Expr* base = e->kind == EK::SafeCall ? static_cast<const MethodCall*>(e)->base
+                                               : static_cast<const Member*>(e)->base;
+    std::string from;
+    if (is_safe_step(base))
+    {
+      std::string v;
+      safe_steps(base, conds, v);
+      from = temp("fbv", HELD);
+      conds.push_back("(" + from + " := " + v + ") != Nil");
+    }
+    else if (is_expr(base, EK::Name))
+    {
+      from = expr(base);
+      conds.push_back(from + " != Nil");
+    }
+    else
+    {
+      std::string b = expr(base);
+      from = temp("fbv", HELD);
+      conds.push_back("(" + from + " := " + b + ") != Nil");
+    }
+    if (e->kind == EK::SafeCall)
+    {
+      auto m = static_cast<const MethodCall*>(e);
+      Lines args;
+      for (const Expr* a : m->args) { args.push_back(part(a)); }
+      value = from + ":" + m->name + "(" + join(args, ", ") + ")";
+    }
+    else
+    {
+      value = from + ":" + static_cast<const Member*>(e)->name;
+    }
+  }
+
+  // The same where no temp can be: a block binds the base.
   std::string Emitter::safe(const Expr* base, const std::string& tail)
   {
     std::string b = expr(base);

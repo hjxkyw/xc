@@ -2,5 +2,6 @@
 #include "tlpp-core.th"
 user function f(a, n, o)
   local x := 0
-  n := Eval({|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= n}, calc(x))
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  n := ((fbv_0_0 := calc(x)) >= __v .And. fbv_0_0 <= n)
 return n

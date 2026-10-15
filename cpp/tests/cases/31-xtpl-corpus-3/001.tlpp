@@ -8,15 +8,16 @@
 // a loop that starts again after a stage that cannot fuse, aPick, aRoll and
 // setMaxRoll, digit separators, hash writes inside expressions, chains as a
 // private's value and under a postfix modifier, a defer that runs only if it
-// was reached, the code blocks xc writes around the source's own code,
-// Clipper's comments, a name that starts with '__', 'End For' and '%exp:x%'
-// outside BeginSql. Pure computation, as 54 is: no table, no file, no
-// screen, so a right or wrong answer and not an environment.
+// was reached, the temps xc writes around the source's own code, each value
+// of '?:', '?.' and 'in lo..hi' evaluated once, Clipper's comments, a name
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// computation, as 54 is: no table, no file, no screen, so a right or wrong
+// answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 75 ok, 0 failed
+//   xc_selftest: 85 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -45,6 +46,8 @@ user function xc_selftest()
   local lTmp := .F.
   local jKeys := u_xtpl_jnew({{"a", "x"}, {"v5", "cinco"}})
   local __v := 5            && a name that starts with '__', and a Clipper comment
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  local bHi := {|x| iif(((fbv_0_0 := same(x)) >= 1 .And. fbv_0_0 <= 5), 10, 20)}
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
@@ -180,6 +183,7 @@ user function xc_selftest()
   Local fs_0_7  // the array walked
   Local fi_0_34  // the position in the array walked
   Local fv_0_34  // the element walked
+  Local et_0_0  // the left side of a '?:', evaluated once
   Local fi_0_35  // the counter of a range
   Local fv_0_35  // the element walked
   Local fo_0_32  // the result of the chain
@@ -196,6 +200,8 @@ user function xc_selftest()
   Local s_0_0  // a slot: the block locals 'nFill', 'xFresh'
   Local b_1_nKept  // the block local 'nKept'
   Local b_2_nKept  // the block local 'nKept'
+  Local fbv_0_1  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  Local fbv_0_2  // a value read twice by '?.' or 'in lo..hi', evaluated once
   Local fs_0_8  // the array walked
   Local fi_0_40  // the position in the array walked
   Local fv_0_39  // the element walked
@@ -641,7 +647,7 @@ user function xc_selftest()
   check("a range run for its effects, a tap after a stop", nTmp == 321, nTmp, @nOk, @nBad)
 
   // ---- hash writes inside expressions ---------------------------------------
-  aeval(aRep, {|x| u_xtpl_hset(hCount, x, u_xtpl_elvis(u_xtpl_hget(hCount, x), {|| 0}) + 1)})
+  aeval(aRep, {|x| u_xtpl_hset(hCount, x, If((et_0_0 := u_xtpl_hget(hCount, x)) != Nil, et_0_0, 0) + 1)})
   check("counting in a lambda", u_xtpl_hget(hCount, 1) == 3 .and. u_xtpl_hget(hCount, 2) == 3 .and. u_xtpl_hget(hCount, 3) == 1, u_xtpl_hget(hCount, 1), @nOk, @nBad)
   aeval({1, 2, 3}, {|x| u_xtpl_hset(hMap, "a", u_xtpl_hget(hMap, "a") + (x))})
   check("'+=' in a lambda", u_xtpl_hget(hMap, "a") == 7, u_xtpl_hget(hMap, "a"), @nOk, @nBad)
@@ -798,15 +804,42 @@ user function xc_selftest()
   nTmp := deferLoop(0, aTmp)
   check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
 
-  // ---- the code blocks xc writes around the source's own code ---------------
-  // 'f() in lo..hi' and 'o()?.M(x)' become a block that takes the value once;
-  // a '__v' of the source's in the bound or the argument is the source's.
-  lTmp := Eval({|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= 10}, same(7))
+  // ---- the temps xc writes around the source's own code ---------------------
+  // 'f() in lo..hi' and 'o()?.M(x)' hold the value in a Local, read once; a
+  // '__v' of the source's in the bound or the argument is the source's.
+  lTmp := ((fbv_0_1 := same(7)) >= __v .And. fbv_0_1 <= 10)
   check("'f() in lo..hi', a '__v' of the source's in a bound: in", lTmp, lTmp, @nOk, @nBad)
-  lTmp := Eval({|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= 10}, same(3))
+  lTmp := ((fbv_0_1 := same(3)) >= __v .And. fbv_0_1 <= 10)
   check("'f() in lo..hi', a '__v' of the source's in a bound: out", !lTmp, lTmp, @nOk, @nBad)
-  cTmp := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:GetJsonText("v" + cValToChar(__v)), Nil)}, same(jKeys))
+  cTmp := If((fbv_0_1 := same(jKeys)) != Nil, fbv_0_1:GetJsonText("v" + cValToChar(__v)), Nil)
   check("'o()?.M(x)', a '__v' of the source's in the argument", cTmp == "cinco", cTmp, @nOk, @nBad)
+
+  // ---- '?:', '?.', 'in lo..hi': each value evaluated once -------------------
+  aCalls := {0}
+  nTmp := If((et_0_0 := counted(aCalls, Nil)) != Nil, et_0_0, counted(aCalls, 3))
+  check("'?:': the left Nil, then the right", nTmp == 3 .and. aCalls[1] == 2, aCalls[1], @nOk, @nBad)
+  aCalls := {0}
+  nTmp := If((et_0_0 := counted(aCalls, 4)) != Nil, et_0_0, counted(aCalls, 3))
+  check("'?:': the left once, the right not at all", nTmp == 4 .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  nTmp := If((et_0_0 := same(Nil)) != Nil, et_0_0, If((et_0_0 := same(Nil)) != Nil, et_0_0, 9))
+  check("'?:' chained, to the last", nTmp == 9, nTmp, @nOk, @nBad)
+  nTmp := If((et_0_0 := same(Nil)) != Nil, et_0_0, If((et_0_0 := same(8)) != Nil, et_0_0, 9))
+  check("'?:' chained, to the middle", nTmp == 8, nTmp, @nOk, @nBad)
+  nTmp := If((et_0_0 := If((et_0_0 := same(Nil)) != Nil, et_0_0, same(Nil))) != Nil, et_0_0, 5)
+  check("'?:' in the left side of a '?:'", nTmp == 5, nTmp, @nOk, @nBad)
+  aCalls := {0}
+  cTmp := If((fbv_0_1 := counted(aCalls, jTmp)) != Nil .And. (fbv_0_2 := fbv_0_1:GetJsonObject("b")) != Nil, fbv_0_2:GetJsonText("c"), Nil)
+  check("'?.' chained: each step once", cTmp == "x" .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  cTmp := If((fbv_0_1 := same(Nil)) != Nil .And. (fbv_0_2 := fbv_0_1:GetJsonObject("b")) != Nil, fbv_0_2:GetJsonText("c"), Nil)
+  check("'?.' chained: Nil at the first step", cTmp == Nil, cTmp, @nOk, @nBad)
+  aCalls := {0}
+  lTmp := ((fbv_0_1 := counted(aCalls, 7)) >= 5 .And. fbv_0_1 <= 10)
+  check("'f() in lo..hi': f() once", lTmp .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  lTmp := ((fbv_0_1 := same(7)) >= 1 .And. fbv_0_1 <= eval(bHi, 30))
+  check("'in lo..hi', a lambda with an 'in' of its own in a bound", lTmp, lTmp, @nOk, @nBad)
+  aCalls := {0}
+  cTmp := inPrologue(aCalls)
+  check("'?:', '?.', 'in' in the declarations of the prologue", cTmp == "anon x!" .and. aCalls[1] == 3, cTmp, @nOk, @nBad)
 
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
@@ -891,6 +924,16 @@ If fdf_0_0
   aadd(aLog, nI)
 EndIf
 return 0
+
+// '?:', '?.' and 'in lo..hi' in the declarations at a function's top: the
+// Locals that hold their values are declared before them.
+static function inPrologue(aCalls)
+  Local et_0_0  // the left side of a '?:', evaluated once
+  local cName := If((et_0_0 := counted(aCalls, Nil)) != Nil, et_0_0, "anon")
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  local cText := If((fbv_0_0 := counted(aCalls, u_xtpl_jnew({{"c", "x"}}))) != Nil, fbv_0_0:GetJsonText("c"), Nil)
+  local lIn := ((fbv_0_0 := counted(aCalls, 7)) >= 5 .And. fbv_0_0 <= 10)
+return cName + " " + cText + iif(lIn, "!", "?")
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)
