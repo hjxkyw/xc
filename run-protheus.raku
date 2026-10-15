@@ -2,14 +2,19 @@
 #
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
+#                            [--xc=PATH]
 #                            [--compile-only | --run-only | --corpus] [--verbose]
 #
 # The self-tests (the default):
 #
-# 1. bin/xc compiles the two self-tests -- xtpl's xtpl/tests/54_selftest.xtpl
+# 1. xc compiles the two self-tests -- xtpl's xtpl/tests/54_selftest.xtpl
 #    and xc's own protheus/xc_selftest.xtpl -- into build/protheus/: each
-#    only when its .tlpp is missing, or older than its source, bin/xc or
-#    anything in lib/XC/ (a few seconds each); --rebuild compiles both anyway.
+#    only when its .tlpp is missing, or older than its source or than xc
+#    (bin/xc and anything in lib/XC/; a few seconds each); --rebuild
+#    compiles both anyway. xc is bin/xc, run by this Raku; --xc=PATH is
+#    another, run as it is -- the C++ one, cpp/build/xc (on Windows
+#    cpp\build\Release\xc.exe), which writes better TL++ since the Raku
+#    xc was frozen.
 # 2. The AppServer compiles them, with runtime/xtpl_runtime.tlpp -- copied in
 #    beside them, so that build/protheus/ holds exactly the three -- into the
 #    environment's RPO, given the folder:
@@ -24,7 +29,7 @@
 #    Each prints a line per failed check and a total; this shows those and
 #    reads the totals.
 #
-# The corpus (--corpus): bin/xc compiles every program of xtpl's corpus --
+# The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
 # 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
 # the AppServer compiles that folder, with the runtime, in one run too.
@@ -43,7 +48,7 @@
 #
 # Every option can come from the environment instead, so that once set a run
 # is just 'rakupp run-protheus.raku': XC_APPSERVER, XC_ENV, XC_INCLUDES,
-# XC_AUTHORIZATION. --appserver defaults to appserver.exe on Windows and
+# XC_AUTHORIZATION, XC_COMPILER (--xc). --appserver defaults to appserver.exe on Windows and
 # appsrvlinux elsewhere, found on the PATH; given as a path, the AppServer is
 # started from its own folder, where its appserver.ini is.
 
@@ -52,6 +57,7 @@ my %opt =
   env           => %*ENV<XC_ENV>,
   includes      => %*ENV<XC_INCLUDES>,
   authorization => %*ENV<XC_AUTHORIZATION>,
+  xc            => %*ENV<XC_COMPILER>,
   out           => Str;
 my ($compile, $run, $rebuild, $corpus, $verbose) = True, True, False, False, False;
 
@@ -60,6 +66,7 @@ sub usage(Str $why)
   note "$why\n"
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
+     ~ "                                [--xc=PATH]\n"
      ~ "                                [--compile-only | --run-only | --corpus] [--verbose]";
   exit 2;
 }
@@ -71,7 +78,7 @@ for @*ARGS -> $a
   elsif $a eq '--rebuild'    { $rebuild = True }
   elsif $a eq '--corpus'     { $corpus = True }
   elsif $a eq '--verbose'    { $verbose = True }
-  elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out) '=' (.+) $ / { %opt{~$0} = ~$1 }
+  elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
@@ -79,6 +86,7 @@ usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
 $run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
 usage("no include folder: --includes=PATH, or XC_INCLUDES") if $compile && !%opt<includes>;
+usage("no xc at {%opt<xc>}: --xc=PATH names the program") if $compile && %opt<xc> && !%opt<xc>.IO.f;
 
 # Everything from the top of the repository, wherever this is run from.
 my $root = $*PROGRAM.IO.absolute.IO.parent;
@@ -106,7 +114,15 @@ sub shown($p --> Str)
   $*DISTRO.is-win ?? $r.subst('/', '\\', :g) !! $r
 }
 
-# The self-tests: the source, the file bin/xc writes, the function to run.
+# xc run with these arguments: bin/xc under this Raku, or the program --xc
+# names.
+sub xc(*@args)
+{
+  %opt<xc> ?? run(native(%opt<xc>), |@args, :cwd($root.Str), :merge)
+           !! run($*EXECUTABLE, native($root.add('bin/xc')), |@args, :cwd($root.Str), :merge)
+}
+
+# The self-tests: the source, the file xc writes, the function to run.
 my @tests =
   %(source => 'xtpl/tests/54_selftest.xtpl', file => 'selftest.tlpp',    run => 'u_selftest'),
   %(source => 'protheus/xc_selftest.xtpl', file => 'xc_selftest.tlpp', run => 'u_xc_selftest');
@@ -229,8 +245,7 @@ if $corpus
   });
   say "xc: compiling {+@sources} programs of xtpl's corpus into {shown($out)}";
   mkdir $out;
-  my $p = run $*EXECUTABLE, native($root.add('bin/xc')), "--outdir={native($out)}", |@sources.map({ native($_) }),
-              :cwd($root.Str), :merge;
+  my $p = xc("--outdir={native($out)}", |@sources.map({ native($_) }));
   my $text = $p.out.slurp(:close);
   mkdir $logs;
   spurt $logs.add('xc.log'), $text;
@@ -264,8 +279,10 @@ if $compile
 {
   say "xc: compiling the self-tests into {shown($out)}";
   mkdir $out;
-  # The newest of what makes the output: bin/xc and the modules.
-  my $xc-made = ($root.add('bin/xc'), |$root.add('lib/XC').dir).map(*.modified).max;
+  # The newest of what makes the output: bin/xc and the modules, or the
+  # program --xc names.
+  my $xc-made = %opt<xc> ?? %opt<xc>.IO.modified
+                         !! ($root.add('bin/xc'), |$root.add('lib/XC').dir).map(*.modified).max;
   for @tests -> %t
   {
     my $made = $out.add(%t<file>);
@@ -274,9 +291,8 @@ if $compile
       say "  {%t<source>}: up to date";
       next;
     }
-    # Paths as the system writes them: bin/xc says them back, 'x -> y'.
-    my $p = run $*EXECUTABLE, native($root.add('bin/xc')), native($root.add(%t<source>)), native($out.add(%t<file>)),
-                :cwd($root.Str), :merge;
+    # Paths as the system writes them: xc says them back, 'x -> y'.
+    my $p = xc(native($root.add(%t<source>)), native($out.add(%t<file>)));
     my $text = $p.out.slurp(:close);
     print $text.lines.map({ "  $_\n" }).join;
     if $p.exitcode
