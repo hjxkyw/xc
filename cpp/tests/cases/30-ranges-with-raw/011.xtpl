@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  with object o
+    with object :oFilho
+      :Ativa()
+    end with
+    :Grava()
+  end with
+return n

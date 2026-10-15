@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local x := {}
+  x := rows("SC6") |> distinctAdjacent([r] r:C6_NUM) |> map([r] r:C6_NUM)
+return n

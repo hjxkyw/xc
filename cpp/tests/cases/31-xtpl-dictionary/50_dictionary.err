@@ -1,0 +1,3 @@
+50_dictionary.xtpl:24: warning: 'SA1->A1_NMOE' is not a field of SA1. Did you mean A1_NOME?
+50_dictionary.xtpl:25: warning: alias 'SAX' is not in the dictionary. A table that is missing usually means the export is out of date.
+50_dictionary.xtpl:28: warning: 'SA1->A1_NMOE' is not a field of SA1. Did you mean A1_NOME?

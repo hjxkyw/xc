@@ -1,0 +1,4 @@
+user function f(a)
+  a := map(a, [x] x + 1)
+  a := aeval(a, {|y, z| y + z})
+return 1

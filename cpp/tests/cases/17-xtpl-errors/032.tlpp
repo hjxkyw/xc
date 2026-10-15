@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  local __x := 1
+return n

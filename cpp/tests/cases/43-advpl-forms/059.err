@@ -1,0 +1,3 @@
+059.xtpl:6: warning: 'EndFunction' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)
+059.xtpl:10: warning: 'EndFunc' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)
+059.xtpl:14: warning: 'EndMethod' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)

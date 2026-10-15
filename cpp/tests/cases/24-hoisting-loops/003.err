@@ -1,0 +1,2 @@
+003.xtpl:4: warning: 'nT' is assigned but never read
+003.xtpl:6: warning: 'a2' is declared but never used

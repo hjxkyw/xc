@@ -1,0 +1,19 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(nOrd)
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  fol_0_0 := SA1->(IndexOrd())
+  SA1->(DbSetOrder(nOrd))
+    conout(1)
+  SA1->(DbSetOrder(fol_0_0))
+  SA1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+return 1

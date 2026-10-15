@@ -1,0 +1,5 @@
+user function f()
+  do case with
+  case x
+  endcase
+return

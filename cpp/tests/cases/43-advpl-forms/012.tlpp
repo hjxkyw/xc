@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Static aDados__ as array
+Static cToken__ := "" as character // a comment
+Static lInit := .F.
+
+User Function f()
+  aDados__ := {}
+  lInit := .T.
+return cToken__

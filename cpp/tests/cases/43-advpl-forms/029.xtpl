@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cS, cA, cP)
+  Local lOk
+  CONNECT SMTP SERVER cS ACCOUNT cA PASSWORD cP RESULT lOk
+  SEND MAIL FROM cA TO cA SUBJECT "x" BODY "y" RESULT lOk
+  DISCONNECT SMTP SERVER
+return lOk

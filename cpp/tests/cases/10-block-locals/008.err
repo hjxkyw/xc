@@ -1,0 +1,2 @@
+008.xtpl:3: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
+008.xtpl:2: 'f' is a user function (line 1), so it is called as 'u_f' -- the compiler puts the prefix on the declaration.

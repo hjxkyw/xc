@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a, cF)
+  if a > 1
+    Return()
+  endif
+  a := &cF.()
+  &cF.("x")
+return a

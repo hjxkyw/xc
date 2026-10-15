@@ -1,0 +1,2 @@
+002.xtpl:2: warning: 'nTotal' is not declared
+002.xtpl:3: warning: this returns nothing, but the function returns a value on line 2

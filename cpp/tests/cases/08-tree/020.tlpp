@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  // so isto
+
+  n := 1 // no fim
+  /* dois
+  */
+  return n

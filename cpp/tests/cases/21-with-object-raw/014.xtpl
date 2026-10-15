@@ -1,0 +1,3 @@
+user function f(o, p, a, n)
+  raw ANOTE "total ${nTotal} agora"
+return 1

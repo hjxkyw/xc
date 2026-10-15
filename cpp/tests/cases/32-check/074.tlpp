@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := u_xtpl_safe_pipe({|| u_xtpl_sort(a)}, {|| {}})
+return 1

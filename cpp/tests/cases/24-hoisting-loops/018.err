@@ -1,0 +1,1 @@
+018.xtpl:2: 'for ... in' over rows() is not supported: a loop body can move the table's position, and 'loop' would skip the advance. Walk the area with a chain -- rows("SA1") |> tap([r] ...) -- or write the While loop yourself.

@@ -1,0 +1,4 @@
+user function f(a)
+  a := Self
+  a := nil
+return 1

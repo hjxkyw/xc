@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := "total = ${nTotal} items"
+Return nil

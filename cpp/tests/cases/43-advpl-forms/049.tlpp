@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local nR := n ^ 2 + 2 ** n
+  nR += Int((n / (2 ^ (8 * n))) % 256)
+return nR

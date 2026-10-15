@@ -1,0 +1,2 @@
+032.xtpl:2: warning: 'nValue' is not declared
+032.xtpl:2: warning: 'xDoc' is not declared, so this creates a PRIVATE

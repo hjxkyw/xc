@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  if local lR := check(), lR   // bound
+    nT := 1
+  endif
+return n

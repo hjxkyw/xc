@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local fs_0_0  // the array walked
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fs_0_0 := u_xtpl_safe_pipe({|| riskyCall(2)}, {|| {}})
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(fs_0_0)
+    fv_0_0 := fs_0_0[fi_0_0]
+    If fv_0_0 > 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aList := fo_0_0
+return

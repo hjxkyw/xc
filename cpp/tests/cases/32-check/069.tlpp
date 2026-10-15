@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := len(u_xtpl_take(u_xtpl_sort(u_xtpl_filter(a, {|x| x > 1})), 2))
+return 1

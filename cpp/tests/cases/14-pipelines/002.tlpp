@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  nTotal := len(u_xtpl_distinct(aNums))
+return

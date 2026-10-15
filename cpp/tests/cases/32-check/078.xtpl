@@ -1,0 +1,3 @@
+user function f(nX <const>)
+  nX := 2
+return nX

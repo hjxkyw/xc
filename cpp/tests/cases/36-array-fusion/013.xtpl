@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := a |> filter([x] x > 0) |> sortby([x] -x) |> map([x] x * 2) |> take(3)
+return n

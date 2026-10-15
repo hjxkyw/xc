@@ -1,0 +1,3 @@
+user function f(a)
+  a := len(a |> filter([x] x > 1) |> sort |> take(2))
+return 1

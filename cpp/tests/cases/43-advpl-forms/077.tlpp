@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local n := 1
+* comentario na coluna 1
+    * comentario recuado
+  n++
+return n

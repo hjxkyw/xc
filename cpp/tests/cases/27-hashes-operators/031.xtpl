@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+external CRLF      // from totvs.ch
+external alias SA1
+user function f()
+return CRLF

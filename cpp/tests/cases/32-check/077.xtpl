@@ -1,0 +1,5 @@
+user function f(a)
+  DbSelectArea("SA1")
+  a := foo(a > 1) |> alltrim
+  a := SA1->A1_NOME |> alltrim
+return 1

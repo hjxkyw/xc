@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  x := rows("SC6", cK) |> takewhile([r] r:C6_NUM == n) |> map([r] r:C6_PROD)
+return x

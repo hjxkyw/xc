@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  DbSelectArea("SA1")
+  a := alltrim(foo(a > 1))
+  a := alltrim(SA1->A1_NOME)
+return 1

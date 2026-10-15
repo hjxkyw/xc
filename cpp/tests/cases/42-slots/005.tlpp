@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local s_0_0  // a slot: the block locals 'nA', 'nB'
+  if a > 0
+    s_0_0 := 1  // nA
+    conout(s_0_0)
+  endif
+  if a > 1
+    s_0_0 := Nil  // nB
+    conout(s_0_0)
+  endif
+return a

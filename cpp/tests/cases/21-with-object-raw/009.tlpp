@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(o, p, a, n)
+  Local fbs_0_0  // the subject of a 'with object'
+  Local nX  // a block local
+  fbs_0_0 := o
+    nX := fbs_0_0:GetValue("A")
+    conout(nX)
+return 1

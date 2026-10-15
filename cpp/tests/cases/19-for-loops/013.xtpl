@@ -1,0 +1,5 @@
+user function f(a, n)
+  for hCfg{"n"} times
+    conout(1)
+  next
+return 1

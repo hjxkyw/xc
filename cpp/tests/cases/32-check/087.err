@@ -1,0 +1,1 @@
+087.xtpl:4: warning: 'cY' is already a static of this file (line 1): both are one variable, which starts with the last value given in the file

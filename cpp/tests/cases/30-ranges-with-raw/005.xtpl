@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  for i, k in 5..n
+    x := x + i * k
+  next i
+return n

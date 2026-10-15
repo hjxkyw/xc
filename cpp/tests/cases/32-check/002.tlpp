@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cDoc)
+  local cDoc
+return cDoc

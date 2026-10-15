@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(c, n)
+  local nZ := 1 as N
+  If n > 0  // x
+    If c == Nil
+      c := "e"
+    EndIf
+  EndIf
+return c

@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP, h)
+  lines(cP) |> tap([l] h{l} += 1)
+return h

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(aOrders, aNums)
+  local aVals := {}
+  local aBig := {}
+  local nTotal := 0
+  aVals := u_xtpl_map(aOrders, {|o| o:nValue})
+  aBig  := u_xtpl_filter(aOrders, {|o| o:nValue > 1000})
+  nTotal := u_xtpl_reduce(aNums, {|acc, x| acc + x}, 0)
+return nTotal

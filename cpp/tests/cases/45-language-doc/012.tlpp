@@ -1,0 +1,28 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Headers(aItems, cCode)
+  Local nPos := 0
+  Local s_0_0  // a slot: the block locals 'nAt', 'cLine', 'nX', 'cKind'
+  s_0_0 := aScan(aItems, cCode)
+  If s_0_0 > 0
+    nPos := s_0_0
+  EndIf
+  While .T.
+    s_0_0 := NextLine()
+    If !(!Empty(s_0_0))
+      Exit
+    EndIf
+    conout(s_0_0)
+  EndDo
+  For s_0_0 := 1 To Len(aItems)
+    conout(aItems[s_0_0])
+  Next
+  s_0_0 := Upper(cCode)
+  Do Case
+  Case s_0_0 == "A"
+    nPos := 1
+  Otherwise
+    nPos := 2
+  EndCase
+Return nPos

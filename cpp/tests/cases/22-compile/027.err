@@ -1,0 +1,2 @@
+027.xtpl:4: warning: 'nZ' is assigned but never read
+027.xtpl:4: 'as N': TL++ has no type 'N' -- write 'as Numeric'.

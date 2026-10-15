@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local x := 1
+    aeval(aC, [x] conout(x))
+    conout(x)
+  endif
+  if a > 1
+    local y := 2
+    conout(y)
+  endif
+return a

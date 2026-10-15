@@ -1,0 +1,8 @@
+User Function Ação()
+  Local cNação := "São Paulo"
+  conout(cNação)
+Return cNação
+
+User Function Preço()
+  Local nPreço := 1
+Return nPreço

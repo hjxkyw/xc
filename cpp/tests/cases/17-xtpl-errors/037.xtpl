@@ -1,0 +1,3 @@
+user function f(n, a)
+  local fo_0 := 1
+return n

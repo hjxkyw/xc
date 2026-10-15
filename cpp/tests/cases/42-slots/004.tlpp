@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local s_0_0  // a slot: the block locals 'nW', 'i'
+  Local nF  // a block local
+  while a > 0
+    s_0_0 := a  // nW
+    a := a - s_0_0
+  enddo
+  For s_0_0 := 1 To 2
+    nF := s_0_0
+    conout(nF)
+  next
+return a

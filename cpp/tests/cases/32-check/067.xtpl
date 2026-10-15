@@ -1,0 +1,4 @@
+user function f(a)
+  a := a |> filter([x] x > 1) |> sort |> take(3)
+  a := a |> sort |> take(3)
+return 1

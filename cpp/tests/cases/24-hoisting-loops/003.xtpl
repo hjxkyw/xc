@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  while n > 0
+    local a1 := 1, a2   // two
+    n := n - a1
+  enddo
+return n

@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local c  // a block local
+  While .T.
+    c := nx()
+    If !(c != Nil)
+      Exit
+    EndIf
+    conout(c)
+  enddo
+return n

@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  n := u_xtpl_asum(u_xtpl_apick(a, 1000))  // it's many
+return n + u_xtpl_setmaxroll(2000)

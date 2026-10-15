@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  n := (x >= 1 .And. x <= 100)
+return n

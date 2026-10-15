@@ -1,0 +1,1 @@
+001.xtpl:2: warning: 'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")

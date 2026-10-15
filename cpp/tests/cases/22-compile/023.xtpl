@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(nX <const>) //x note
+return nX
+
+static function g(nZ <const>)  && old
+return nZ

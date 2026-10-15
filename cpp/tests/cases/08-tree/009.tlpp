@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  n += 1
+  oObj:nX := 2
+  a[i] := 3

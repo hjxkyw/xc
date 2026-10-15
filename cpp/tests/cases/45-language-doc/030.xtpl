@@ -1,0 +1,3 @@
+User Function Res()
+  Local len := 1
+Return len

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+method f() class C
+  ::aBuf[::nTail] := x
+return

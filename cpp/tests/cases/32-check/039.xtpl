@@ -1,0 +1,7 @@
+static function s(x, y)
+return x
+user function u(x)
+return x
+user function f()
+  local a := u(3)
+return a

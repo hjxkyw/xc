@@ -1,0 +1,7 @@
+user function f(a)
+  static cX := "a"
+return a + cX
+
+user function g()
+  static cX := "b"
+return cX

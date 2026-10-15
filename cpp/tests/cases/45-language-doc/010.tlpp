@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function BlockLoc(aItems)
+  Local nSum := 0
+  Local s_0_0  // a slot: the block locals 'nFirst', 'nStep'
+  If Len(aItems) > 0
+    s_0_0 := aItems[1]  // nFirst
+    nSum += s_0_0
+  EndIf
+  While nSum < 10
+    s_0_0 := 2  // nStep
+    nSum += s_0_0
+  EndDo
+Return nSum

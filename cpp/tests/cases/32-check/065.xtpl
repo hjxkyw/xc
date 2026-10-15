@@ -1,0 +1,7 @@
+user function f(a)
+  local nX := Len(a) as Numeric
+  local nY := a as Numeric
+  local dX := Date() - 1 as Date
+  local oX := Nil as Object
+  a := {nX, nY, dX, oX}
+return 1

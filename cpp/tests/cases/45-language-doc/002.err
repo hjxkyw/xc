@@ -1,0 +1,3 @@
+002.xtpl:2: warning: 'nBig' is assigned but never read
+002.xtpl:3: warning: 'nDec' is assigned but never read
+002.xtpl:4: warning: 'nHalf' is assigned but never read

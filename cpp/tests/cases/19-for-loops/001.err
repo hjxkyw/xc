@@ -1,0 +1,3 @@
+001.xtpl:2: warning: 'aItems' is not declared
+001.xtpl:3: warning: 'nT' is not declared
+001.xtpl:3: warning: 'nT' is not declared, so this creates a PRIVATE

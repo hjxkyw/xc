@@ -1,0 +1,7 @@
+user function f()
+  while a
+    if b
+      exit
+    endif
+    loop
+  enddo

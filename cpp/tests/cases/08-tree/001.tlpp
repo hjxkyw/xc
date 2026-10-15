@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  if a
+    x()
+  elseif b
+    y()
+  elseif c
+    z()
+  else
+    w()
+  endif

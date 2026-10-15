@@ -1,0 +1,2 @@
+024.xtpl:4: warning: 'x' is assigned but never read
+024.xtpl:5: warning: 'aP' is not declared

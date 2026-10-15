@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+#define cConst "x"
+user function f(a)
+  a := CRLF + cConst
+return a

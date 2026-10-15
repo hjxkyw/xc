@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  n := 1..10'000 |> filter([x] x > 5'000) |> take(1'000) |> count
+return n

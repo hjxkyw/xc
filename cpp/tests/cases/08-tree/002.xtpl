@@ -1,0 +1,5 @@
+user function f()
+  if a
+    x()
+  endif
+  y()

@@ -1,0 +1,2 @@
+012.xtpl:2: warning: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.
+012.xtpl:2: warning: 'nT' is not declared, so this creates a PRIVATE

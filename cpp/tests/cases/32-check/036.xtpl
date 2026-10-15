@@ -1,0 +1,4 @@
+user function f(a)
+  local nC <contained> := 1
+  a := nC + len(a)
+return 1

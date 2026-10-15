@@ -1,0 +1,4 @@
+user function f()
+  begin sequence
+    x()
+  end

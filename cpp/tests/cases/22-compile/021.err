@@ -1,0 +1,3 @@
+021.xtpl:4: warning: 'b' is assigned but never read
+021.xtpl:4: warning: 'c' is assigned but never read
+021.xtpl:4: 'as A': TL++ has no type 'A' -- write 'as Array'.

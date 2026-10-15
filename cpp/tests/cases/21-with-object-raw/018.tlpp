@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(o, p, a, n)
+  local raw := 1
+return 1

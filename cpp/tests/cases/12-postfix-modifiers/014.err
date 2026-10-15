@@ -1,0 +1,4 @@
+014.xtpl:2: warning: 'a' is not declared
+014.xtpl:2: warning: 'b' is not declared
+014.xtpl:2: warning: 'c' is not declared
+014.xtpl:2: warning: 'x' is not declared, so this creates a PRIVATE

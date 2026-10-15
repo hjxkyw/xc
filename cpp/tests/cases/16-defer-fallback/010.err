@@ -1,0 +1,2 @@
+010.xtpl:2: warning: 'fallbackX' is not declared
+010.xtpl:2: warning: 'x' is not declared, so this creates a PRIVATE

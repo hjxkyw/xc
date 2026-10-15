@@ -1,0 +1,4 @@
+user function f(h, a)
+  local x
+  x := a[1]{"k"}
+return x

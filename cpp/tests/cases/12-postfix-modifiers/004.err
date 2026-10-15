@@ -1,0 +1,2 @@
+004.xtpl:2: warning: 'lOk' is not declared
+004.xtpl:3: warning: this returns nothing, but the function returns a value on line 2

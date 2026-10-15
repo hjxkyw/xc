@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  aeval(a, [p] h{p[1]} := p[2])
+return x

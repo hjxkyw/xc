@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  Local s_0_x  // the block local 'x'
+  if n > 0
+    s_0_x := 0  // x
+    For s_0_x := 1 To 3
+      n := s_0_x
+    next
+  endif
+return n

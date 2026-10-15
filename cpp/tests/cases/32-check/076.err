@@ -1,0 +1,1 @@
+076.xtpl:2: warning: the whole left side of '|>' is the first argument, so 'a > 1' is what gets fed in. Put brackets around the part you meant to chain.

@@ -1,0 +1,1 @@
+034.xtpl:9: warning: 'cParm' is a parameter: a static takes its value once, at load, when 'cParm' does not exist -- it is Nil there

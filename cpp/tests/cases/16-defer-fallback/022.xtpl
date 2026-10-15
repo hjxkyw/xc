@@ -1,0 +1,3 @@
+user function f()
+  x := map(a, [y] g(y) fallback 0)
+return

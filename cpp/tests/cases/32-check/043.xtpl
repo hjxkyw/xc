@@ -1,0 +1,8 @@
+class Fila
+  method Count()
+endclass
+method Count() class Fila
+return 0
+user function f(oQ)
+  local count := oQ:Count()
+return count

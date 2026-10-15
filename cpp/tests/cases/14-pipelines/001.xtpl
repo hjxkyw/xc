@@ -1,0 +1,3 @@
+user function f()
+  aC := aPedidos |> filter([o] o:nValor > 1000) |> map([o] o:cCodigo)
+return

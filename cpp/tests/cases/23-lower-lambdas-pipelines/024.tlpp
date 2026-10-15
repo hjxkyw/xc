@@ -1,0 +1,22 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x  // n
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If fv_0_0 > 1
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+  x := fo_0_0
+  For fi_0_1 := 1 To Len(aP)
+    fv_0_1 := aP[fi_0_1]
+    conout(fv_0_1)
+  Next
+return u_xtpl_map(a, {|o| o * 2})

@@ -1,0 +1,2 @@
+057.xtpl:5: warning: this string is not closed: TL++ ends it at the end of the line -- "SELECT X
+057.xtpl:6: warning: this string is not closed: TL++ ends it at the end of the line -- "'

@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  Local fs_0_0  // the array walked
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fs_0_0 := u_xtpl_reverse(u_xtpl_sort(a))
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(fs_0_0)
+    fv_0_0 := fs_0_0[fi_0_0]
+    fv_0_0 := fv_0_0 * 2
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  n := fo_0_0
+return n

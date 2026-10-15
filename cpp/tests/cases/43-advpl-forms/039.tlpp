@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  BeginSql alias "QRY"
+    SELECT * FROM %table:SA1% SA1 WHERE %notDel%
+  EndSql
+  BeginContent var cCss as CSS
+    .a { color: red; }
+  EndContent
+return nil

@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, c)
+  n := 12'345'678 + 1'234.567'8
+return n

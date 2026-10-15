@@ -1,0 +1,15 @@
+User Function ForIn(aItems)
+  Local nTotal := 0
+  for oItem in aItems
+    nTotal += oItem:nValue
+  next
+  for oItem, nPos in aItems
+    conout(cValToChar(nPos))
+  next
+  for nI in 1..5
+    nTotal += nI
+  next
+  for 3 times
+    conout("line")
+  next
+Return nTotal

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  SA1->A1_COD := "1234567"
+return 1

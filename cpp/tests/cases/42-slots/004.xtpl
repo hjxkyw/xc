@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  while a > 0
+    local nW := a
+    a := a - nW
+  enddo
+  for local i := 1 to 2
+    local nF := i
+    conout(nF)
+  next
+return a

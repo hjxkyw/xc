@@ -1,0 +1,4 @@
+user function f(a)
+  local nC <contained> := 1
+  a := map(a, [x] x + nC)
+return 1

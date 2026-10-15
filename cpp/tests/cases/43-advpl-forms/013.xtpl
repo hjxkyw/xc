@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class Gw from Base
+  Public Data cId as character default ""
+  Static Method Make()
+  Private Method Wait( nWait as integer )
+  Public Static Method Other()
+  Method New() Constructor
+EndClass
+
+Method New() Class Gw
+  ::Init()
+  ::oLog:Error( "x", { 1 } )
+  ::cId := "a"
+Return Self

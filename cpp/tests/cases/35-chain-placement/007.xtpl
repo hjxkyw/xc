@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP, l, n)
+  n := lines(cP) |> count if l   // maybe
+return n

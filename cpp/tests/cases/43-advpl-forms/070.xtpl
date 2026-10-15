@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local nX := 7
+  n := %exp:nX% % 2
+return n

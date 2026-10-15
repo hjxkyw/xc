@@ -1,0 +1,2 @@
+002.xtpl:6: warning: 'h' is assigned but never read
+002.xtpl:9: warning: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.

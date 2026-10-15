@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := u_xtpl_take(u_xtpl_sort(a), 3)
+return n

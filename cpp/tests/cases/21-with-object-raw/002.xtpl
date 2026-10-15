@@ -1,0 +1,5 @@
+user function f(o, p, a, n)
+  with object o
+    :SetValue("A", 1)
+  end with
+return 1

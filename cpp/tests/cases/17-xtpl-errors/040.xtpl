@@ -1,0 +1,5 @@
+user function f(n, a)
+  conout(1)
+  private nP := 0
+  public nU := 1
+return n

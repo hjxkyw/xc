@@ -1,0 +1,31 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local flm_0_0  // the limit of a take
+  Local fo_0_0  // the result of the chain
+  fok_0_0 := File(cP)
+  If fok_0_0
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  flm_0_0 := n
+  fn_0_0 := 0
+  fo_0_0 := {}
+  While fok_0_0 .And. !FT_FEof()
+    fv_0_0 := FT_FReadLn()
+    If fn_0_0 >= flm_0_0
+      Exit
+    EndIf
+    fn_0_0++
+    AAdd(fo_0_0, fv_0_0)
+    FT_FSkip()
+  EndDo
+  If fok_0_0
+    FT_FUse()
+  EndIf
+  x := fo_0_0
+return x

@@ -1,0 +1,2 @@
+025.xtpl:4: warning: 'aVals' is assigned but never read
+025.xtpl:5: warning: 'aBig' is assigned but never read

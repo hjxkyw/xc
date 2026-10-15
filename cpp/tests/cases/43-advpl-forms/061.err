@@ -1,0 +1,1 @@
+061.xtpl:9: warning: 'Default' is no label of Do Case's -- 'Otherwise' is: the AppServer takes it as a name on its own, the line does nothing (W0001), and the lines after it belong to the case before

@@ -1,0 +1,19 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+// a header comment
+/* a block comment
+   over two lines */
+namespace minha.app
+
+@Get("/x")
+user function f(nX as Numeric)   // a trailing comment
+  local aL := {}, nY := 0       // declarations stay as written
+
+  if nX > 0                     // an ordinary if
+    aadd(aL, nX)
+  endif
+  nY := len(aL) /* inline */ + 1
+return nY
+
+static function g()
+return nil

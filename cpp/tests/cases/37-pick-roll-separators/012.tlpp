@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, c)
+  c := cValToChar(1000) + ' itens'
+return n

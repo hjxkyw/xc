@@ -1,0 +1,5 @@
+#include "cmds.ch"
+
+user function u()
+  LOGIT "hello"
+return nil

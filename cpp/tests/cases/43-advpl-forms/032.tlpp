@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+function u_t1()
+  static cTop := "cTop"
+  return
+
+function u_t2()
+  static cTop := "other cTop"
+  conout(cTop)
+  return

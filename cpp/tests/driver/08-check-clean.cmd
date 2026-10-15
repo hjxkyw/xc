@@ -1,0 +1,2 @@
+--check
+src/a.xtpl

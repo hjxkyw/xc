@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  conout("a", 1)
+  oDlg:Activate()

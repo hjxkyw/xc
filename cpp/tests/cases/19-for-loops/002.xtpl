@@ -1,0 +1,5 @@
+user function f(a, n)
+  for oItem, nPos in aItems
+    conout(nPos)
+  next
+return 1

@@ -1,0 +1,4 @@
+external alias SA1
+user function f()
+  SA1->A1_COD := "1234567"
+return 1

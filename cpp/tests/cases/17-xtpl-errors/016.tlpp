@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  Local i  // a block local
+  Local nY  // a block local
+  For i := 1 To 3
+    nY := i
+    conout(nY)
+  next
+return n

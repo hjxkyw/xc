@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  DEFINEX MSDIALOG oDlg TITLE "x"
+return nil

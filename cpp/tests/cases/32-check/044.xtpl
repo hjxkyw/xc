@@ -1,0 +1,4 @@
+user function f(a)
+  local nN as numeric := 0
+  a := nN |> asum
+return 1

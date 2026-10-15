@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+extra/none: no .xtpl files in it
+--- written
+

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP, l, n)
+  private pT := lines(cP) |> count   // how many
+  n := pT
+return n

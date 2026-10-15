@@ -1,0 +1,5 @@
+user function f(a, n)
+  for local x in a
+    conout(x)
+  next
+return 1

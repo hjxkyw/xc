@@ -1,0 +1,27 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  far_0_0 := Alias()
+  DbSelectArea("SC6")
+  frc_0_0 := SC6->(RecNo())
+  SC6->(DbSeek(cK))
+  fo_0_0 := {}
+  While !SC6->(Eof())
+    If !(SC6->C6_NUM == n)
+      Exit
+    EndIf
+    fv_0_0 := SC6->C6_PROD
+    AAdd(fo_0_0, fv_0_0)
+    SC6->(DbSkip())
+  EndDo
+  SC6->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+  x := fo_0_0
+return x

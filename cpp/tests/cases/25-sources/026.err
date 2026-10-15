@@ -1,0 +1,1 @@
+026.xtpl:3: 'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '|>'.

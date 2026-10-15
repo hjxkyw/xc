@@ -1,0 +1,3 @@
+056.xtpl:5: warning: this string is not closed: TL++ ends it at the end of the line -- "SELECT X FROM SZ1010
+056.xtpl:6: warning: this string is not closed: TL++ ends it at the end of the line -- "'
+056.xtpl:7: warning: this string is not closed: TL++ ends it at the end of the line -- ' AND D_E_L_E_T_ = " "

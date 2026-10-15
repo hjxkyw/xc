@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+function u_FuncRunAdvpl(parm As Variadic)
+  Local i
+  Conout(parm:vCount)
+  For i := 1 To parm:vCount
+    Conout(parm:vArgs[i])
+  Next
+
+Return 1

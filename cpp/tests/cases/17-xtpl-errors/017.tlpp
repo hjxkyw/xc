@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  private nP := 0
+  conout(nP)
+return n

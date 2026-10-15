@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nX := 0
+  nX := a
+return 1

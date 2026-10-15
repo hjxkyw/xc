@@ -1,0 +1,6 @@
+user function f(a)
+  local n := 0
+  while (lines("y.txt") |> count) > n
+    n := n + 1
+  enddo
+return n

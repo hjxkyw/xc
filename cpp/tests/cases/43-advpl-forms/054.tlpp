@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local nMeio := n * .5
+return nMeio + .25

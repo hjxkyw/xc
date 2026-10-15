@@ -1,0 +1,22 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+#xtranslate @Not_Eof => ( Self:nPosition <= Self:nSourceSize )
+#xtranslate @Current => Self:aChars\[ Self:nPosition \]
+#xtranslate @Error Line <line> Column <column> => Return JSONError():New( Self:cError, <line>, <column> )
+#xtranslate @Next => Self:nPosition++; Self:nColumn++
+#xtranslate \[ \# <cKey> \] => :Get( <cKey> )
+#xtranslate \[ \# <cKey> \] := <xValue> => :Set( <cKey>, <xValue> )
+
+Method Lex() Class JSONLexer
+    Local cChar := ''
+    Local oOut := JsonObject():New()
+    While @Not_Eof .And. ( IsAlpha( @Current ) .Or. IsDigit( @Current ) )
+        cChar += @Current
+        @Next
+    EndDo
+    If Empty( cChar )
+        @Error Line ::nLine Column ::nColumn
+    EndIf
+    oOut[#'chars'] := cChar
+Return oOut[#'chars']

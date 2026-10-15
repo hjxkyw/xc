@@ -1,0 +1,6 @@
+static function Count(a)
+return len(a)
+user function first()
+return 1
+function join()
+return 2

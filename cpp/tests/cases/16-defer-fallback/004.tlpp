@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  aItens := u_xtpl_elvis(u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil}), {|| {}})
+return

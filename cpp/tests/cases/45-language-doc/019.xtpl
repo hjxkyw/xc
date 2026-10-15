@@ -1,0 +1,7 @@
+User Function WithObj(oModel, cCod)
+  Local cName := ""
+  with object oModel:GetModel("SA1DETAIL")
+    :SetValue("A1_COD", cCod)
+    cName := :GetValue("A1_NOME")
+  end with
+Return cName

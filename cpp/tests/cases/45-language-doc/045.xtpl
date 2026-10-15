@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := callService(cUrl) fallback ""
+Return nil

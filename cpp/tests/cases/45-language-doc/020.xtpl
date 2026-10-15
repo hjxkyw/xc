@@ -1,0 +1,6 @@
+User Function Raw(nTotal, cName)
+  raw @ 10, 5 SAY "Total ${nTotal}" GET nTotal PICTURE "@E 999,999.99"
+  raw
+    @ 12, 5 SAY "Name" GET cName PICTURE "@!"
+  end raw
+Return nil

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Pinned(aItems)
+  Local aBlocks := {}
+  Local nFirst  // a block local
+  If Len(aItems) > 0
+    nFirst := aItems[1]
+    aAdd(aBlocks, {|| nFirst})
+  EndIf
+Return aBlocks

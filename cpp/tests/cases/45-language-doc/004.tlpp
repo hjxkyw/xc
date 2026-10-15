@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Saldo(cCod as Character, nQtd)
+Static Function Calcula(nBase) as Numeric
+Main Function Principal()
+Function u_Bare(nX)

@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+WSSTRUCT Item
+  WSDATA cCod AS STRING
+ENDWSSTRUCT
+
+WSSERVICE Pedidos DESCRIPTION "Pedidos"
+  WSDATA aItens AS ARRAY OF Item
+  WSMETHOD Incluir
+ENDWSSERVICE
+
+WSMETHOD Incluir WSRECEIVE aItens WSSEND lOk WSSERVICE Pedidos
+  ::lOk := Len(::aItens) > 0
+Return .T.

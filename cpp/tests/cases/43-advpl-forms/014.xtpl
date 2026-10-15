@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cAlias, cField)
+  Local aF := {}
+  aAdd(aF, allTrim(SX3->&("X3_CAMPO")))
+  (cAlias)->&(cField) := 1
+  if( allTrim((cAlias)->&(cField)) $ "ab" )
+    aF := {}
+  endif
+return aF

@@ -1,0 +1,7 @@
+user function f(nOrd)
+  using alias SA1 do
+    using alias SB1 order 1 do
+      conout(1)
+    end using
+  end using
+return 1

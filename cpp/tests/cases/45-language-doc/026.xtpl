@@ -1,0 +1,3 @@
+User Function Parts(cLine)
+  Local aParts := cLine |> split(";") |> map([p] alltrim(p)) |> filter([p] !Empty(p))
+Return aParts

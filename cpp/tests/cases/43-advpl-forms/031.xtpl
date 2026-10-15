@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+function u_t1(cParm)
+  static cTopInside := "cTopInside"
+  default cParm := "a"
+  conout(cParm)
+  return
+
+function u_t2()
+  conout(cTopInside)
+  u_t1()
+  static cAnother := "cAnother"
+  conout(cAnother)
+  return

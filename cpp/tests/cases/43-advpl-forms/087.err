@@ -1,0 +1,1 @@
+087.xtpl:6: 'local' cannot be declared here: every local comes before the first statement of its function or its block -- 'Local x := 1'

@@ -1,0 +1,4 @@
+user function f(n, a)
+  for local fo_0_0 := 1 to 2
+  next
+return n

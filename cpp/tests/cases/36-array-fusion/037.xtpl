@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  n := a |> filter([x] x > 0) |> scan([s, x] s + x, 0) |> amax
+  a |> pairwise |> tap([p] conout(p[1]))
+return n

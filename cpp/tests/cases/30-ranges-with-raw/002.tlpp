@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  Local fi_0_0  // the counter of a range
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := 0
+  For fi_0_0 := 1 To 10
+    fv_0_0 := fi_0_0
+    fv_0_0 := fv_0_0 * 2
+    fo_0_0 := fo_0_0 + fv_0_0
+  Next
+  n := fo_0_0
+return n

@@ -1,0 +1,2 @@
+006.xtpl:3: warning: this returns nothing, but the function returns a value on line 2
+006.xtpl:2: 'f' is a user function (line 1), so it is called as 'u_f' -- the compiler puts the prefix on the declaration.

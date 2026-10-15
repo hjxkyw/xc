@@ -1,0 +1,5 @@
+user function f(a)
+  local nX as Numeric := 1
+  local aY := {} as Array
+  a := nX + len(aY)
+return 1

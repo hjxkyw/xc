@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local x  // a block local
+  While .T.
+    x := prox()
+    If !(x != Nil)
+      Exit
+    EndIf
+    usa(x)
+  enddo

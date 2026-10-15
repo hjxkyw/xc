@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nI := 1 as Integer
+  local nD := 2.5 as Double
+  local lIn := u_xtpl_in(a, {1, 2}) as Logical
+  local lDiv := ((9 % 3) == 0) as Logical
+  a := {nI, nD, lIn, lDiv}
+return 1

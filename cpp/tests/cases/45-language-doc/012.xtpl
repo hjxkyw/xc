@@ -1,0 +1,18 @@
+User Function Headers(aItems, cCode)
+  Local nPos := 0
+  If local nAt := aScan(aItems, cCode), nAt > 0
+    nPos := nAt
+  EndIf
+  While local cLine := NextLine(), !Empty(cLine)
+    conout(cLine)
+  EndDo
+  For local nX := 1 To Len(aItems)
+    conout(aItems[nX])
+  Next
+  Do Case With local cKind := Upper(cCode)
+  Case cKind == "A"
+    nPos := 1
+  Otherwise
+    nPos := 2
+  EndCase
+Return nPos

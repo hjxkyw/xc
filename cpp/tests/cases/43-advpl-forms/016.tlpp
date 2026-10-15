@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local oE
+  try
+    a := 1
+  catch oE
+    a := 2
+  finally
+    a := 3
+  endtry
+return a

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "mine.ch"
+
+User Function f()
+  SAUDA "oi"
+Return nil

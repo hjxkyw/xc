@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+class MinhaTool
+  public method process(jPayLoad as json) as json
+endclass
+
+method process(jPayLoad as json) as json class MinhaTool
+  local jResp as json
+  jResp := JsonObject():New()
+  if SC9->(MsSeek(xFilial("SC9") + jPayLoad["numero"]))
+    jResp["cliente"] := alltrim(SA1->A1_NOME)
+  endif
+return jResp

@@ -1,0 +1,8 @@
+User Function Hashes(cKey)
+  Local hCfg := {"rate" => 1.5, "name" => "x"}
+  Local hNone := { => }
+  Local nRate := hCfg{"rate"}
+  hCfg{"rate"} := 2
+  hCfg{cKey} += 1
+  conout(hCfg{"name"})
+Return {nRate, hNone}

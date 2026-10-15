@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local aR := {}
+    processRows(aR)
+  endif
+  if a > 1
+    local aI := {}
+    aadd(aC, aI)
+  endif
+return a

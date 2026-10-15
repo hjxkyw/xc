@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  Local s_0_0  // a slot: the block locals 'eX', 'cX'
+  Local iX  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  private pX := 1
+  public uX := 1
+  fs_0_0 := a
+  For iX := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[iX]
+  next
+  For s_0_0 := 1 To 2
+  next
+return 1

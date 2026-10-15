@@ -1,0 +1,11 @@
+User Function BlockLoc(aItems)
+  Local nSum := 0
+  If Len(aItems) > 0
+    Local nFirst := aItems[1]
+    nSum += nFirst
+  EndIf
+  While nSum < 10
+    Local nStep := 2
+    nSum += nStep
+  EndDo
+Return nSum

@@ -1,0 +1,5 @@
+static cY := 1
+
+user function f(a)
+  static cY := 2
+return a + cY

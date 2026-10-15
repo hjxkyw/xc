@@ -1,0 +1,4 @@
+user function f(a)
+  if a
+    n := 1
+return n

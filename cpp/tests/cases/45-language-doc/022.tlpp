@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  cUp := upper(alltrim(cName))
+  nN := len(u_xtpl_distinct(aNums))
+  aCodes := sortedCodes(u_xtpl_sortby(aOrders, {|o| o:cCode}), 10)
+  save(validate(aOrders))
+Return nil

@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  local nC := 0
+  defer closeIt()          // first
+  defer logIt(nC)          // second
+  nC := 99
+  return nC if n > 100
+  return 0

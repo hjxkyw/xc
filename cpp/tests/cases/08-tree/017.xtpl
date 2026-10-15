@@ -1,0 +1,4 @@
+user function f()
+  n := soma(1, ;
+           2)
+  return n

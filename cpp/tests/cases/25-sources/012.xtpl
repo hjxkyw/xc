@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  lines(cP) |> map([l] upper(l)) |> sort |> tap([l] conout(l))
+return x

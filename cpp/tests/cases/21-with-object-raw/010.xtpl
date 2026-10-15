@@ -1,0 +1,5 @@
+user function f(o, p, a, n)
+  with object oM
+    :Ativa()
+  end with
+return 1

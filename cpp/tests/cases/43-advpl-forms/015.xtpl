@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  do case
+  case a > 1
+    a := 1
+  end case
+  if a > 2
+    a := 2
+  End
+return a

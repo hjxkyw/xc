@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, o, aP)
+  local x := 0
+  x := queue(256)
+return x

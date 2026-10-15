@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  aTail(a) := { 1, 2 }
+return a

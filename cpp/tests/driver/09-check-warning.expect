@@ -1,0 +1,7 @@
+exit 0
+--- output
+src/sub/b.xtpl: ok
+--- errors
+src/sub/b.xtpl:3: warning: 'cFilAnt' is not declared
+--- written
+

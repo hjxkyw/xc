@@ -1,0 +1,6 @@
+user function f()
+  private nP := 1
+  g()
+return 1
+static function g()
+return nP

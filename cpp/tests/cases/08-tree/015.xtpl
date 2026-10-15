@@ -1,0 +1,4 @@
+static function f()
+  return 1
+static function g()
+  return 2

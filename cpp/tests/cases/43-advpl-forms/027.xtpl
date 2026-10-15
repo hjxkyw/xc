@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  SA2->( dbSelectArea("SA2"), dbSetOrder(3), dbGoTop() )
+return nil

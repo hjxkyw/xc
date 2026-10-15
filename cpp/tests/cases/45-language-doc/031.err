@@ -1,0 +1,3 @@
+031.xtpl:2: warning: 'cCode' is not declared
+031.xtpl:2: warning: 'aCodes' is not declared
+031.xtpl:2: warning: 'xDoc' is not declared, so this creates a PRIVATE

@@ -1,0 +1,5 @@
+user function f(cP, l, n)
+  while (lines(cP) |> count) > n
+    n := n + 1
+  enddo
+return n

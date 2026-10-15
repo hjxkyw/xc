@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  for cL in lines(cP)
+    exit if empty(cL)
+  next
+  return 0

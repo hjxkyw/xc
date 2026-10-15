@@ -1,0 +1,2 @@
+001.xtpl:2: warning: 'aPedidos' is not declared
+001.xtpl:2: warning: 'aC' is not declared, so this creates a PRIVATE

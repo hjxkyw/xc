@@ -1,0 +1,5 @@
+user function f(a)
+  if local nAt := "x" as Numeric, nAt > 0
+    a := nAt
+  endif
+return 1

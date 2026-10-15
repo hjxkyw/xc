@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local x  // a block local
+  x := leExpr(nA)
+  If x > nB
+  endif

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := SA1->A1_COD + SA1->A1_NOME
+return 1

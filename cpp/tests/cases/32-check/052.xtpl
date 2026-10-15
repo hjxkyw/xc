@@ -1,0 +1,6 @@
+user function f(a)
+  return 1 if a > 0
+  a := 2
+
+user function g()
+return 1

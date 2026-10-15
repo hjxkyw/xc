@@ -1,0 +1,24 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, o)
+  local n := 0
+  local x := 0
+  local h := THashMap():New()
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local fo_0_0  // the result of the chain
+  fn_0_0 := 0
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If fv_0_0 > 1
+      If fn_0_0 >= 2
+        Exit
+      EndIf
+      fn_0_0++
+      fo_0_0++
+    EndIf
+  Next
+  n := fo_0_0
+return n + x

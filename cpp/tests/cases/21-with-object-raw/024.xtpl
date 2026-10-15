@@ -1,0 +1,3 @@
+user function f(o, p, a, n)
+  :Ativa()
+return 1

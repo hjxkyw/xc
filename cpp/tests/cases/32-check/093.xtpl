@@ -1,0 +1,8 @@
+user function f(cParm)
+  local cL := "l"
+  static cA := cParm + cParm
+  static cB := cL
+  for local i := 1 to 2
+    static nC := i
+  next
+return cA + cB + nC

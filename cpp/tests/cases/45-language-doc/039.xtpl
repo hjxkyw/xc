@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := {"name": cName, "qty": 3}
+Return nil

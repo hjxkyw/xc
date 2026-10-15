@@ -1,0 +1,17 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aP)
+    fv_0_0 := aP[fi_0_0]
+    If fv_0_0:lOk
+      fv_0_0 := fv_0_0:cCod
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aX := fo_0_0
+return

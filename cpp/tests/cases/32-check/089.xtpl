@@ -1,0 +1,6 @@
+Class C
+  Method M(n as N)
+EndClass
+
+Method M(n as N) Class C
+Return n

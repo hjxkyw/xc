@@ -1,0 +1,5 @@
+user function f(a, n, c)
+  a := aPick(a, 2)
+  a := aRoll(a)
+  n := setMaxRoll(10)
+return n

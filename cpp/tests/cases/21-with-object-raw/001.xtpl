@@ -1,0 +1,6 @@
+user function f(o, p, a, n)
+  with object oModel:GetModel("SA1DETAIL")
+    :SetValue("A1_COD", cCod)
+    :SetValue("A1_NOME", cNome)
+  end with
+return 1

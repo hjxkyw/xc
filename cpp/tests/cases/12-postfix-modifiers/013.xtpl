@@ -1,0 +1,3 @@
+user function f()
+  exit if nX == 0   // not a block word
+return

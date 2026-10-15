@@ -1,0 +1,6 @@
+user function f(a, n, cP)
+  local x := 0
+  while (lines(cP) |> count) > x
+    x := x + 1
+  enddo
+return x

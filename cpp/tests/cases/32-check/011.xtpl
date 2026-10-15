@@ -1,0 +1,11 @@
+user function f(a)
+  if local nH := a * 2, nH > 1
+    a := nH
+  endif
+  for nE, nI in {1}
+    a := nE + nI
+  next
+  for local nC := 1 to 3
+    a := nC
+  next
+return 1

@@ -1,0 +1,5 @@
+user function f(a, n)
+  for x, len in a
+    conout(x)
+  next
+return 1

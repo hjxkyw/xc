@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  a := g() ; If( Empty(a), a := "x", Nil )
+  if( a > 1 )
+    a := 0
+  endif
+return a

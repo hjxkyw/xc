@@ -1,0 +1,4 @@
+user function f(h, a)
+  local x
+  x := getHash(){"k"}
+return x

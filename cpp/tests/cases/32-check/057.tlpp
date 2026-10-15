@@ -1,0 +1,38 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local far_0_1  // the area selected before a 'using alias'
+  Local frc_0_1  // the record the area was on before a 'using alias'
+  DbSelectArea("SA1")
+  ChkFile("SB1")
+  a := SA1->A1_COD + SB1->B1_COD
+  far_0_0 := Alias()
+  DbSelectArea("SC5")
+  frc_0_0 := SC5->(RecNo())
+  SC5->(DbGoTop())
+  fo_0_0 := {}
+  While !SC5->(Eof())
+    fv_0_0 := SC5->C5_NUM
+    AAdd(fo_0_0, fv_0_0)
+    SC5->(DbSkip())
+  EndDo
+  SC5->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+  a := fo_0_0
+  a := SC5->C5_NUM
+  far_0_1 := Alias()
+  DbSelectArea("SD1")
+  frc_0_1 := SD1->(RecNo())
+    a := SD1->D1_COD
+  SD1->(DbGoto(frc_0_1))
+  If !Empty(far_0_1)
+    DbSelectArea(far_0_1)
+  EndIf
+return 1

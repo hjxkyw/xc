@@ -1,0 +1,4 @@
+user function f()
+  local n := 0
+  n := cFilAnt
+return n

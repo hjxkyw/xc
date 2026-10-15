@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  for i := 10 to 1 step -1
+    x()
+  next i

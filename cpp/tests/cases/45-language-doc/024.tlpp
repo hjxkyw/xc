@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Fused(aOrders)
+  Local aCodes
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aOrders)
+    fv_0_0 := aOrders[fi_0_0]
+    If fv_0_0:nValue > 1000
+      fv_0_0 := fv_0_0:cCode
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aCodes := fo_0_0
+Return aCodes

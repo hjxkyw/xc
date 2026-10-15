@@ -1,0 +1,5 @@
+user function f(a, b, c)
+  local x := 0
+  x := a + ; // one
+       b if c
+return x

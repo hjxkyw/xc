@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  if local x := x + 1, x > 5
+    n := x
+  endif
+  n := x
+return n

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+static function s(x, y)
+return x
+user function u(x)
+return x
+user function f()
+  local a := u_u(1, 2)
+return a

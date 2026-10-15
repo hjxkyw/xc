@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function TLeroy
+return 1

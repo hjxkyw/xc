@@ -1,0 +1,1 @@
+005.xtpl:2: warning: 'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places

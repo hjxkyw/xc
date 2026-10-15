@@ -1,0 +1,5 @@
+user function f(a)
+  local nC <const> := 1
+  nC++
+  a := nC
+return a

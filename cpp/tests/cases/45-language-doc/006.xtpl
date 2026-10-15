@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "restful.ch"
+
+WSRESTFUL Clientes DESCRIPTION "Clientes"
+  WSDATA cCod AS STRING
+  WSMETHOD GET DESCRIPTION "Lista" WSSYNTAX "/clientes"
+END WSRESTFUL
+
+WSMETHOD GET WSRECEIVE cCod WSSERVICE Clientes
+  Local lRet := .T.
+  ::SetContentType("application/json")
+  ::SetResponse('[]')
+Return lRet

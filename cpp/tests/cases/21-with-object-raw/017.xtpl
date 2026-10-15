@@ -1,0 +1,4 @@
+user function f(o, p, a, n)
+  raw(1)
+  raw := 2
+return 1

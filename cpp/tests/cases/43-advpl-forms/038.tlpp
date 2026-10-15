@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+@Get("/hello")
+User Function f()
+  Local oDlg
+  @ 1, 0 VTSAY "x"
+  @ 10, 20 SAY "y" OF oDlg PIXEL
+return nil

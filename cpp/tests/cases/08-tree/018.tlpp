@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  aBig := u_xtpl_distinct(aNums)  // a comment on a continued line
+  return aBig

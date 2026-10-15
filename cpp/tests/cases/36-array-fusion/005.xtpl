@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := a |> count([x] x > 1)
+  m := a |> filter(empty)
+return n

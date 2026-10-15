@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o)
+  local x := u_xtpl_hnew({{"a", 1}})
+  h:Set("n", u_xtpl_hget(h, "n") + (2))
+  x := u_xtpl_safe_pipe({|| u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cNome, Nil)}, If(o != Nil, o:oA, Nil)), {|| calc(a)})}, {|| 0})
+return ("v=" + cValToChar(x))

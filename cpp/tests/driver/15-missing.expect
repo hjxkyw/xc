@@ -1,0 +1,8 @@
+exit 1
+--- output
+src/a.xtpl -> src/a.tlpp
+xc: 2 files, 1 compiled, 1 failed
+--- errors
+nowhere.xtpl: no such file
+--- written
+src/a.tlpp

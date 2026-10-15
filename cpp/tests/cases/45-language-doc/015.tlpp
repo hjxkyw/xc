@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Mods(nTotal)
+  Local lDone := .F.
+  If nTotal > 5
+    lDone := .T.
+  EndIf
+  While nTotal-- > 0
+    conout("x")
+  EndDo
+  If nTotal == 0
+    Reset()
+  EndIf
+  If nTotal > 100
+    return(nTotal)
+  EndIf
+Return iif(lDone, 1, 0)

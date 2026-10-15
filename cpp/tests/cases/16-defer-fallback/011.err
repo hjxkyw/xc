@@ -1,0 +1,5 @@
+011.xtpl:2: warning: f() takes 0 parameters (line 1), but is given 1 -- the rest are dropped.
+011.xtpl:2: warning: 'nA' is not declared
+011.xtpl:2: warning: 'nB' is not declared
+011.xtpl:2: warning: 'x' is not declared, so this creates a PRIVATE
+011.xtpl:2: 'f' is a user function (line 1), so it is called as 'u_f' -- the compiler puts the prefix on the declaration.

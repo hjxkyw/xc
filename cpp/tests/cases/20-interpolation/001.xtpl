@@ -1,0 +1,3 @@
+user function f(n)
+  local c := "total ${n}"
+return c

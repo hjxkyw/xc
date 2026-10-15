@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local nA := 1
+    if a > 1
+      local nB := 2
+      conout(nA + nB)
+    endif
+  endif
+  if a > 2
+    local nC := 3
+    conout(nC)
+  endif
+return a

@@ -1,0 +1,7 @@
+user function f(a)
+return a
+
+static nS := 0
+
+user function g()
+return nS

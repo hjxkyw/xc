@@ -1,0 +1,7 @@
+user function f(a)
+  default a := 1
+  static cIn := "x"
+return a
+
+user function g()
+return cIn

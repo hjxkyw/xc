@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+extra/usecmd.xtpl:4: cannot parse this line: LOGIT "hello"
+--- written
+

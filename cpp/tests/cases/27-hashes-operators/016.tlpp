@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  while u_xtpl_hget(h, "k") > x
+    x := x + 1
+  enddo
+return x

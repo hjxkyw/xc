@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := ('rate ' + cValToChar(u_xtpl_hget(hCfg, "t")) + ' end')
+Return nil

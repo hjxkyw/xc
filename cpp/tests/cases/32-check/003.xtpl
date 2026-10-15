@@ -1,0 +1,5 @@
+user function f()
+  local aD := {}
+  local nY := 0
+  local aD := {1}
+return nY

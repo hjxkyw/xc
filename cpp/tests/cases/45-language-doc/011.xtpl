@@ -1,0 +1,7 @@
+User Function Pinned(aItems)
+  Local aBlocks := {}
+  If Len(aItems) > 0
+    Local nFirst := aItems[1]
+    aAdd(aBlocks, {|| nFirst})
+  EndIf
+Return aBlocks

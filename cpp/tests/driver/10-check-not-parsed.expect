@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+src/sub/c.xtpl:2: cannot parse this line: local n := := 1
+--- written
+

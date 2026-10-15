@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := a |> split(";") |> map([x] alltrim(x)) |> filter([x] !Empty(x))
+return n

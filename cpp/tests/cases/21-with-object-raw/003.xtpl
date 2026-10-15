@@ -1,0 +1,5 @@
+user function f(o, p, a, n)
+  with object o
+    cN := :GetValue("B") + :cRazao
+  end with
+return 1

@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, c)
+  n := iif(c == '1', 1000, a[10])
+return n

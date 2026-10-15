@@ -1,0 +1,5 @@
+user function f(n, a)
+  begin sequence
+    local nY := 1
+  end sequence
+return n

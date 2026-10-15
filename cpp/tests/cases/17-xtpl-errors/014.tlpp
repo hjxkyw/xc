@@ -1,0 +1,27 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// using_unclosed.xtpl -- a 'using' that never closes.
+//
+// Left alone it swallows the rest of the function and the area is never put
+// back, which is the bug the construct exists to prevent.
+// -----------------------------------------------------------------------------
+
+user function usingUnclosed()
+  local nT := 0
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+    nT := 1
+  SA1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+
+  return nT
+
+// -----------------------------------------------------------------------------
+// the end

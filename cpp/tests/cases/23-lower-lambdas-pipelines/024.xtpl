@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x := a |> filter([o] o > 1) |> asum  // n
+  aP |> tap([p] conout(p))
+return map(a, [o] o * 2)

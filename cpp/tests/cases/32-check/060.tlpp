@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local cAl := "SA1"
+  a := (cAl)->A1_COD
+return 1

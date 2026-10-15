@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local c := "x" + %exp:("n=" + cValToChar(n))% + "y"
+return c

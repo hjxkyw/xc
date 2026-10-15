@@ -1,0 +1,1 @@
+032.xtpl:9: warning: 'cTop' is already a static of this file (line 5): both are one variable, which starts with the last value given in the file

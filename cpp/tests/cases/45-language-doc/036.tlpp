@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := u_xtpl_elvis(cached(), {|| u_xtpl_elvis(computed(), {|| "last"})})
+Return nil

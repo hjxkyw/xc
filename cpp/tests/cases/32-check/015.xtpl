@@ -1,0 +1,5 @@
+user function f(a)
+  DbSelectArea("SA1")
+  a := SA1->A1_COD
+  a := SA1->(A1_SALDO + A1_JUROS)
+return 1

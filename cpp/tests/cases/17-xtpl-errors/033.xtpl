@@ -1,0 +1,5 @@
+user function f(n, a)
+  if n > 0
+    local fo_0_0 := 1
+  endif
+return n

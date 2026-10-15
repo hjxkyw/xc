@@ -1,0 +1,4 @@
+088.xtpl:1: 'as N': TL++ has no type 'N' -- write 'as Numeric'.
+088.xtpl:1: 'as A': TL++ has no type 'A' -- write 'as Array'.
+088.xtpl:2: 'as A': TL++ has no type 'A' -- write 'as Array'.
+088.xtpl:3: 'as C': TL++ has no type 'C' -- write 'as Character'.

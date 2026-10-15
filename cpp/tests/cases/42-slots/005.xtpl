@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local nA := 1
+    conout(nA)
+  endif
+  if a > 1
+    local nB
+    conout(nB)
+  endif
+return a

@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Default a := 1
+  Local x := 1
+return x

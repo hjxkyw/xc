@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  aZ := u_xtpl_zip(aA, aB, {|cA, cB| cA + cB})
+return

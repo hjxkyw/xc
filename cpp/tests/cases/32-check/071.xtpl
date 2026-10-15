@@ -1,0 +1,4 @@
+user function f(a)
+  local bOk := {|x| x > 1}
+  a := a |> sort |> filter(bOk)
+return 1

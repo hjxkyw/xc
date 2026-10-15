@@ -1,0 +1,3 @@
+user function f(cX as Char)
+  local cY As char := ""
+return cX + cY

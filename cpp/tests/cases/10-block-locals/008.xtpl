@@ -1,0 +1,3 @@
+user function f()
+  if local nX := f() as Numeric, nX > 0
+  endif

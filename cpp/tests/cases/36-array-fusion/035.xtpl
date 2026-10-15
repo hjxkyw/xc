@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := rows("SA1") |> map([r] r:A1_SALDO) |> amax
+return n

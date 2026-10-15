@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  do case
+  case x == 1
+  otherwise
+    y()
+  endcase

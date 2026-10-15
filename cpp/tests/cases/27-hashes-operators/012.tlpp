@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  Local fky_0_0  // a key that is read and written back
+  fky_0_0 := a + 1
+  h:Set(fky_0_0, u_xtpl_hget(h, fky_0_0) - (1))
+return x

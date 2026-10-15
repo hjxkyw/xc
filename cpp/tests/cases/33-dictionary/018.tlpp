@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cAl)
+  local x := 0
+  x := SA1->A1_NMOE
+  SA1->A1_COD := 5
+return x

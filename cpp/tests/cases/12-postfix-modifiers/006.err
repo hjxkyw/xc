@@ -1,0 +1,2 @@
+006.xtpl:2: warning: 'nTotal' is not declared
+006.xtpl:2: warning: 'lDone' is not declared, so this creates a PRIVATE

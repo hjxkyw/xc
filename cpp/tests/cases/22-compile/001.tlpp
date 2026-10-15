@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// cabeçalho com acentuação
+user function f(n)
+  // ção
+  n := 1
+  n := n + 1
+return n

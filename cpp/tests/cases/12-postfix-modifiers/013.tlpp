@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  If nX == 0  // not a block word
+    exit
+  EndIf
+return

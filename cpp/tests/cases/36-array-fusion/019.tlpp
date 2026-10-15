@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  u_xtpl_count(u_xtpl_filter(u_xtpl_sort(a), {|x| x > 0}))
+return n

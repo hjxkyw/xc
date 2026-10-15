@@ -1,0 +1,7 @@
+user function f(a, h)
+  static p := lines("x.txt") |> count
+  for r in rows("SA1")
+  next
+  while (lines("y.txt") |> count) > a
+  enddo
+return a

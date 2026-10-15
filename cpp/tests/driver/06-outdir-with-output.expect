@@ -1,0 +1,6 @@
+exit 2
+--- output
+--- errors
+--outdir with an output named: one or the other
+--- written
+

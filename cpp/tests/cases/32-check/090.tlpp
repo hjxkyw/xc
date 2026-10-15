@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nX := 1 as Numeric
+  local aY := {} as Array
+  a := nX + len(aY)
+return 1

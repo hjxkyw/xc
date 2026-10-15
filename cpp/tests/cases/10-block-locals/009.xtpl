@@ -1,0 +1,4 @@
+user function f()
+  while local x := prox(), x != Nil
+    usa(x)
+  enddo

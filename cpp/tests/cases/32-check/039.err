@@ -1,0 +1,1 @@
+039.xtpl:6: 'u' is a user function (line 3), so it is called as 'u_u' -- the compiler puts the prefix on the declaration.

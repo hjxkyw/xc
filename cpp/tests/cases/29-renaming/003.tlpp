@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  Local s_0_x  // the block local 'x'
+  Local s_1_x  // the block local 'x'
+  if n > 0
+    s_0_x := 1  // x
+    if n > 1
+      s_1_x := 2  // x
+      n := s_1_x
+    endif
+    n := s_0_x
+  endif
+return n

@@ -1,0 +1,22 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH)
+  Local nA  // a block local
+  Local s_0_0  // a slot: the block locals 'nB', 'nD'
+  Local nC  // a block local
+  if a > 0
+    nA := 1
+    aadd(aH, {|| nA})
+  endif
+  if a > 1
+    s_0_0 := 2  // nB
+    if a > 2
+      nC := 3
+      conout(s_0_0 + nC)
+    endif
+  endif
+  if a > 3
+    s_0_0 := Nil  // nD
+    conout(s_0_0)
+  endif
+return a

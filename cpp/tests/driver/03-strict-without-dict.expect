@@ -1,0 +1,6 @@
+exit 2
+--- output
+--- errors
+--dict-strict needs --dict
+--- written
+

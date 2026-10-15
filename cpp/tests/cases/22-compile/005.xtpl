@@ -1,0 +1,7 @@
+// cabeçalho, ação
+
+#include "rwmake.ch"
+#include "tlpp-rest.th"
+
+user function f()
+return 1

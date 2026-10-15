@@ -1,0 +1,43 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // what a loop collected, for the stages after it
+  Local fch_0_0  // the chunk chunkby is filling
+  Local fky_0_0  // the key of the chunk chunkby is filling
+  Local fop_0_0  // whether chunkby has seen an element
+  Local fsn_0_0  // the key of the element chunkby looks at
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  fch_0_0 := {}
+  fky_0_0 := Nil
+  fop_0_0 := .F.
+  fsn_0_0 := Nil
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    fv_0_0 := fv_0_0
+    fsn_0_0 := fv_0_0
+    If !fop_0_0
+      fop_0_0 := .T.
+      fky_0_0 := fsn_0_0
+    ElseIf !(fsn_0_0 == fky_0_0)
+      AAdd(fo_0_0, fch_0_0)
+      fch_0_0 := {}
+      fky_0_0 := fsn_0_0
+    EndIf
+    AAdd(fch_0_0, fv_0_0)
+  Next
+  If fop_0_0
+    AAdd(fo_0_0, fch_0_0)
+  EndIf
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(fo_0_0)
+    fv_0_1 := fo_0_0[fi_0_1]
+    fv_0_1 := len(fv_0_1)
+    AAdd(fo_0_1, fv_0_1)
+  Next
+  n := fo_0_1
+return n

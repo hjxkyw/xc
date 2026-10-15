@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  if n > 0
+    local x := {=>}
+    conout("v=${x}")
+    n := x{"k"}
+    aadd(@x, 1)
+  endif
+return n

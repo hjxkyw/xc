@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a, b, c)
+  local x := 0
+  If c  // one
+    x := a + ; 
+           b
+  EndIf
+return x

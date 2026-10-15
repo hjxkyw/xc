@@ -1,0 +1,20 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class DateTime
+  Data nDias
+  Public Method New() Constructor
+  Public Operator Add()
+  Public Operator ToString()
+EndClass
+
+Method New() Class DateTime
+  ::nDias := 0
+Return Self
+
+Operator Add(xParam1) Class DateTime
+  ::nDias += xParam1
+Return Self
+
+Operator ToString() Class DateTime
+Return cValToChar(::nDias)

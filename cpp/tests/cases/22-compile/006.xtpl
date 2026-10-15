@@ -1,0 +1,4 @@
+#include "totvs.ch"
+#include "rwmake.ch"
+user function f()
+return 1

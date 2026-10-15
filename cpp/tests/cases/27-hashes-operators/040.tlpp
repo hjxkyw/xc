@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  aeval(a, {|x| Eval({|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) + __v)}, h, x:cCod, x:nQtd)})
+return x

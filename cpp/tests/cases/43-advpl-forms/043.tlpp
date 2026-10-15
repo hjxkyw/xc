@@ -1,0 +1,20 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+WSRESTFUL Clientes DESCRIPTION "Clientes" FORMAT "application/json"
+  WSDATA Page AS INTEGER OPTIONAL
+  WSMETHOD GET Lista;
+    DESCRIPTION "Lista" ;
+    WSSYNTAX "/api/v1/clientes"
+END WSRESTFUL
+
+WSMETHOD GET Lista WSRECEIVE QUERYPARAM, Page WSSERVICE Clientes
+  Local lRet := .T.
+  ::SetContentType("application/json")
+  ::SetResponse(Self:Page)
+Return lRet
+
+WSMETHOD POST Grava WSRECEIVE cId ;
+  WSREST Clientes
+  Local cBody := ::GetContent()
+Return !Empty(cBody)

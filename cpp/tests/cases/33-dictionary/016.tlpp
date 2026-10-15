@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cAl)
+  local x := 0
+  If SA1->A1_COD == "1234567"
+    x := 1
+  EndIf
+return x

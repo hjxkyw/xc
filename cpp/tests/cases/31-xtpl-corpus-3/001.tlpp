@@ -1,0 +1,898 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// xc_selftest.xtpl -- runs, in Protheus, what xc added to xtpl.
+//
+// xtpl's 54_selftest.xtpl runs what xtpl's fixtures only compile; this is its
+// companion for what xc brought: fusion over arrays and the stages it fuses,
+// a loop that starts again after a stage that cannot fuse, aPick, aRoll and
+// setMaxRoll, digit separators, hash writes inside expressions, chains as a
+// private's value and under a postfix modifier, a defer that runs only if it
+// was reached, the code blocks xc writes around the source's own code,
+// Clipper's comments, a name that starts with '__', 'End For' and '%exp:x%'
+// outside BeginSql. Pure computation, as 54 is: no table, no file, no
+// screen, so a right or wrong answer and not an environment.
+//
+// Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
+// prints a line per failure and a total, and returns how many failed.
+//
+//   xc_selftest: 75 ok, 0 failed
+//
+// 'rakupp run-protheus.raku' does all of that, for this and for 54.
+// -----------------------------------------------------------------------------
+
+user function xc_selftest()
+  local nOk := 0
+  local nBad := 0
+  local aNums := {3, 1, 4, 1, 5, 9, 2, 6}
+  local aRep := {1, 1, 2, 2, 2, 3, 1}
+  local aPal := {"beta", "alfa", "gama"}
+  local aDist := {10, 20, 30, 40, 50, 60, 70, 80}
+  local aPeople := {{"ana", 30}, {"bia", 25}, {"caio", 30}}
+  local aPairs := {{"x", 10}, {"y", 20}}
+  local hCount := THashMap():New()
+  local hMap := u_xtpl_hnew({{"a", 1}})
+  local hKeep := THashMap():New()
+  local jTmp := JsonObject():New()
+  local aTmp := {}
+  local aBig := {}
+  local aSeen := {}
+  local aCalls := {}
+  local nTmp := 0
+  local nSeen := 0
+  local nOld := 0
+  local cTmp := ""
+  local lTmp := .F.
+  local jKeys := u_xtpl_jnew({{"a", "x"}, {"v5", "cinco"}})
+  local __v := 5            && a name that starts with '__', and a Clipper comment
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local fo_0_2  // the result of the chain
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
+  Local fi_0_4  // the position in the array walked
+  Local fv_0_4  // the element walked
+  Local fo_0_4  // the result of the chain
+  Local fi_0_5  // the position in the array walked
+  Local fv_0_5  // the element walked
+  Local fo_0_5  // the result of the chain
+  Local fi_0_6  // the position in the array walked
+  Local fv_0_6  // the element walked
+  Local fo_0_6  // the result of the chain
+  Local fi_0_7  // the position in the array walked
+  Local fv_0_7  // the element walked
+  Local fo_0_7  // the result of the chain
+  Local fi_0_8  // the position in the array walked
+  Local fv_0_8  // the element walked
+  Local fo_0_8  // the result of the chain
+  Local fi_0_9  // the position in the array walked
+  Local fv_0_9  // the element walked
+  Local fo_0_9  // the result of the chain
+  Local fbs_0_0  // the best key maxby/minby has seen
+  Local fop_0_0  // whether maxby/minby has seen an element
+  Local fpb_0_0  // the key of the element maxby/minby looks at
+  Local fi_0_10  // the position in the array walked
+  Local fv_0_10  // the element walked
+  Local fo_0_10  // the result of the chain
+  Local fbs_0_1  // the best key maxby/minby has seen
+  Local fop_0_1  // whether maxby/minby has seen an element
+  Local fpb_0_1  // the key of the element maxby/minby looks at
+  Local fi_0_11  // the position in the array walked
+  Local fv_0_11  // the element walked
+  Local fo_0_11  // the result of the chain
+  Local fch_0_0  // the chunk chunkby is filling
+  Local fky_0_0  // the key of the chunk chunkby is filling
+  Local fop_0_2  // whether chunkby has seen an element
+  Local fsn_0_0  // the key of the element chunkby looks at
+  Local fs_0_0  // the array walked
+  Local fi_0_12  // the position in the array walked
+  Local fv_0_12  // the element walked
+  Local fa_0_0  // the running value of a scan
+  Local fn_0_1  // how many elements have passed
+  Local fo_0_12  // the result of the chain
+  Local fs_0_1  // the array walked
+  Local fi_0_13  // the position in the array walked
+  Local fv_0_13  // the element walked
+  Local fpv_0_0  // the element pairwise saw last
+  Local fhd_0_0  // whether pairwise has seen an element
+  Local fol_0_0  // the element before, for pairwise
+  Local frd_0_0  // whether pairwise has a pair
+  Local fo_0_13  // the result of the chain
+  Local fi_0_14  // the position in the array walked
+  Local fv_0_14  // the element walked
+  Local fop_0_3  // whether distinctAdjacent has seen an element
+  Local fls_0_0  // the key distinctAdjacent saw last
+  Local fpb_0_2  // the key of the element distinctAdjacent looks at
+  Local fo_0_14  // the result of the chain
+  Local fi_0_15  // the position in the array walked
+  Local fv_0_15  // the element walked
+  Local fo_0_15  // the result of the chain
+  Local fi_0_16  // the position in the array walked
+  Local fv_0_16  // the element walked
+  Local fo_0_16  // the result of the chain
+  Local fi_0_17  // the position in the array walked
+  Local fv_0_17  // the element walked
+  Local fo_0_17  // the result of the chain
+  Local fi_0_18  // the position in the array walked
+  Local fv_0_18  // the element walked
+  Local fo_0_18  // the result of the chain
+  Local fi_0_19  // the position in the array walked
+  Local fv_0_19  // the element walked
+  Local fo_0_19  // the result of the chain
+  Local fs_0_2  // the array walked
+  Local fi_0_20  // the position in the array walked
+  Local fv_0_20  // the element walked
+  Local fbg_0_0  // the inner array of an expand
+  Local fj_0_0  // the position in the inner array of an expand
+  Local fo_0_20  // the result of the chain
+  Local fi_0_21  // the position in the array walked
+  Local fv_0_21  // the element walked
+  Local fdr_0_0  // whether the leading run of a dropwhile is still on
+  Local fo_0_21  // the result of the chain
+  Local fi_0_22  // the position in the array walked
+  Local fv_0_22  // the element walked
+  Local fn_0_2  // how many elements have passed
+  Local fo_0_22  // the result of the chain
+  Local fi_0_23  // the position in the array walked
+  Local fv_0_23  // the element walked
+  Local fi_0_24  // the position in the array walked
+  Local fv_0_24  // the element walked
+  Local fo_0_23  // the result of the chain
+  Local fi_0_25  // the position in the array walked
+  Local fv_0_25  // the element walked
+  Local fo_0_24  // the result of the chain
+  Local fs_0_3  // the array walked
+  Local fi_0_26  // the position in the array walked
+  Local fv_0_26  // the element walked
+  Local fo_0_25  // the result of the chain
+  Local fi_0_27  // the position in the array walked
+  Local fv_0_27  // the element walked
+  Local fo_0_26  // what a loop collected, for the stages after it
+  Local fs_0_4  // the array walked
+  Local fi_0_28  // the position in the array walked
+  Local fv_0_28  // the element walked
+  Local fn_0_3  // how many elements have passed
+  Local fo_0_27  // the result of the chain
+  Local fi_0_29  // the counter of a range
+  Local fv_0_29  // the element walked
+  Local fo_0_28  // what a loop collected, for the stages after it
+  Local fs_0_5  // the array walked
+  Local fi_0_30  // the position in the array walked
+  Local fv_0_30  // the element walked
+  Local fo_0_29  // the result of the chain
+  Local fi_0_31  // the position in the array walked
+  Local fv_0_31  // the element walked
+  Local fo_0_30  // what a loop collected, for the stages after it
+  Local fs_0_6  // the array walked
+  Local fi_0_32  // the position in the array walked
+  Local fv_0_32  // the element walked
+  Local fi_0_33  // the counter of a range
+  Local fv_0_33  // the element walked
+  Local fo_0_31  // what a loop collected, for the stages after it
+  Local fs_0_7  // the array walked
+  Local fi_0_34  // the position in the array walked
+  Local fv_0_34  // the element walked
+  Local fi_0_35  // the counter of a range
+  Local fv_0_35  // the element walked
+  Local fo_0_32  // the result of the chain
+  Local fi_0_36  // the position in the array walked
+  Local fv_0_36  // the element walked
+  Local fo_0_33  // the result of the chain
+  Local fi_0_37  // the counter of a 'for ... times'
+  Local fi_0_38  // the position in the array walked
+  Local fv_0_37  // the element walked
+  Local fo_0_34  // the result of the chain
+  Local fi_0_39  // the position in the array walked
+  Local fv_0_38  // the element walked
+  Local fo_0_35  // the result of the chain
+  Local s_0_0  // a slot: the block locals 'nFill', 'xFresh'
+  Local b_1_nKept  // the block local 'nKept'
+  Local b_2_nKept  // the block local 'nKept'
+  Local fs_0_8  // the array walked
+  Local fi_0_40  // the position in the array walked
+  Local fv_0_39  // the element walked
+  Local fo_0_36  // the result of the chain
+  private pTotal
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(aNums)
+    fv_0_0 := aNums[fi_0_0]
+    If fv_0_0 > 0
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+  pTotal := fo_0_0
+
+  // ---- fusion over arrays: one loop, the stages inside it -------------------
+  fo_0_1 := 0
+  For fi_0_1 := 1 To Len(aNums)
+    fv_0_1 := aNums[fi_0_1]
+    If fv_0_1 > 2
+      fv_0_1 := fv_0_1 * 10
+      fo_0_1 := fo_0_1 + fv_0_1
+    EndIf
+  Next
+  nTmp := fo_0_1
+  check("filter, map, asum", nTmp == 270, nTmp, @nOk, @nBad)
+
+  // A take stops the loop: the tap sees five elements, not all eight.
+  fn_0_0 := 0
+  fo_0_2 := {}
+  For fi_0_2 := 1 To Len(aNums)
+    fv_0_2 := aNums[fi_0_2]
+    nSeen++
+    If fv_0_2 > 2
+      If fn_0_0 >= 2
+        Exit
+      EndIf
+      fn_0_0++
+      AAdd(fo_0_2, fv_0_2)
+    EndIf
+  Next
+  aTmp := fo_0_2
+  check("take stops the loop", nSeen == 5 .and. len(aTmp) == 2 .and. aTmp[2] == 4, nSeen, @nOk, @nBad)
+
+  fo_0_3 := 1
+  For fi_0_3 := 1 To Len(aNums)
+    fv_0_3 := aNums[fi_0_3]
+    If fv_0_3 < 4
+      fo_0_3 := fo_0_3 * fv_0_3
+    EndIf
+  Next
+  nTmp := fo_0_3
+  check("aprod", nTmp == 6, nTmp, @nOk, @nBad)
+  fo_0_4 := Nil
+  For fi_0_4 := 1 To Len(aNums)
+    fv_0_4 := aNums[fi_0_4]
+    fv_0_4 := fv_0_4 * 2
+    If fo_0_4 == Nil
+      fo_0_4 := fv_0_4
+    Else
+      fo_0_4 := Max(fo_0_4, fv_0_4)
+    EndIf
+  Next
+  nTmp := fo_0_4
+  check("amax", nTmp == 18, nTmp, @nOk, @nBad)
+  fo_0_5 := Nil
+  For fi_0_5 := 1 To Len(aNums)
+    fv_0_5 := aNums[fi_0_5]
+    fv_0_5 := fv_0_5 * 2
+    If fo_0_5 == Nil
+      fo_0_5 := fv_0_5
+    Else
+      fo_0_5 := Min(fo_0_5, fv_0_5)
+    EndIf
+  Next
+  nTmp := fo_0_5
+  check("amin", nTmp == 2, nTmp, @nOk, @nBad)
+
+  fo_0_6 := {}
+  For fi_0_6 := 1 To Len(aPal)
+    fv_0_6 := aPal[fi_0_6]
+    fv_0_6 := upper(fv_0_6)
+    AAdd(fo_0_6, fv_0_6)
+  Next
+  fo_0_6 := u_xtpl_join(fo_0_6, ", ")
+  cTmp := fo_0_6
+  check("join", cTmp == "BETA, ALFA, GAMA", cTmp, @nOk, @nBad)
+
+  fo_0_7 := 100
+  For fi_0_7 := 1 To Len(aNums)
+    fv_0_7 := aNums[fi_0_7]
+    If fv_0_7 > 4
+      fo_0_7 := fo_0_7 + fv_0_7
+    EndIf
+  Next
+  nTmp := fo_0_7
+  check("reduce", nTmp == 120, nTmp, @nOk, @nBad)
+  fo_0_8 := Nil
+  For fi_0_8 := 1 To Len(aNums)
+    fv_0_8 := aNums[fi_0_8]
+    If fv_0_8 > 4
+      If fo_0_8 == Nil
+        fo_0_8 := fv_0_8
+      Else
+        fo_0_8 := fo_0_8 * fv_0_8
+      EndIf
+    EndIf
+  Next
+  nTmp := fo_0_8
+  check("fold", nTmp == 270, nTmp, @nOk, @nBad)
+
+  fbs_0_0 := Nil
+  fop_0_0 := .F.
+  fpb_0_0 := Nil
+  fo_0_9 := Nil
+  For fi_0_9 := 1 To Len(aPeople)
+    fv_0_9 := aPeople[fi_0_9]
+    If fv_0_9[2] > 0
+      fpb_0_0 := fv_0_9[2]
+      If !fop_0_0 .Or. fpb_0_0 > fbs_0_0
+        fop_0_0 := .T.
+        fbs_0_0 := fpb_0_0
+        fo_0_9 := fv_0_9
+      EndIf
+    EndIf
+  Next
+  aTmp := fo_0_9
+  check("maxby: the first of the greatest", aTmp[1] == "ana", aTmp[1], @nOk, @nBad)
+  fbs_0_1 := Nil
+  fop_0_1 := .F.
+  fpb_0_1 := Nil
+  fo_0_10 := Nil
+  For fi_0_10 := 1 To Len(aPeople)
+    fv_0_10 := aPeople[fi_0_10]
+    If fv_0_10[2] > 0
+      fpb_0_1 := fv_0_10[2]
+      If !fop_0_1 .Or. fpb_0_1 < fbs_0_1
+        fop_0_1 := .T.
+        fbs_0_1 := fpb_0_1
+        fo_0_10 := fv_0_10
+      EndIf
+    EndIf
+  Next
+  aTmp := fo_0_10
+  check("minby", aTmp[1] == "bia", aTmp[1], @nOk, @nBad)
+
+  fch_0_0 := {}
+  fky_0_0 := Nil
+  fop_0_2 := .F.
+  fsn_0_0 := Nil
+  fo_0_11 := {}
+  For fi_0_11 := 1 To Len(aRep)
+    fv_0_11 := aRep[fi_0_11]
+    fv_0_11 := fv_0_11 * 1
+    fsn_0_0 := fv_0_11
+    If !fop_0_2
+      fop_0_2 := .T.
+      fky_0_0 := fsn_0_0
+    ElseIf !(fsn_0_0 == fky_0_0)
+      AAdd(fo_0_11, fch_0_0)
+      fch_0_0 := {}
+      fky_0_0 := fsn_0_0
+    EndIf
+    AAdd(fch_0_0, fv_0_11)
+  Next
+  If fop_0_2
+    AAdd(fo_0_11, fch_0_0)
+  EndIf
+  aTmp := fo_0_11
+  check("chunkby", len(aTmp) == 4 .and. len(aTmp[2]) == 3, len(aTmp), @nOk, @nBad)
+
+  fs_0_0 := {1, 2, 3, 4}
+  fa_0_0 := 0
+  fn_0_1 := 0
+  fo_0_12 := {}
+  For fi_0_12 := 1 To Len(fs_0_0)
+    fv_0_12 := fs_0_0[fi_0_12]
+    fa_0_0 := fa_0_0 + fv_0_12
+    fv_0_12 := fa_0_0
+    If fn_0_1 >= 3
+      Exit
+    EndIf
+    fn_0_1++
+    AAdd(fo_0_12, fv_0_12)
+  Next
+  aTmp := fo_0_12
+  check("scan", len(aTmp) == 3 .and. aTmp[3] == 6, len(aTmp), @nOk, @nBad)
+  fs_0_1 := {1, 4, 9, 16}
+  fpv_0_0 := Nil
+  fhd_0_0 := .F.
+  fo_0_13 := {}
+  For fi_0_13 := 1 To Len(fs_0_1)
+    fv_0_13 := fs_0_1[fi_0_13]
+    fol_0_0 := fpv_0_0
+    frd_0_0 := fhd_0_0
+    fpv_0_0 := fv_0_13
+    fhd_0_0 := .T.
+    If frd_0_0
+      fv_0_13 := {fol_0_0, fv_0_13}
+      fv_0_13 := fv_0_13[2] - fv_0_13[1]
+      AAdd(fo_0_13, fv_0_13)
+    EndIf
+  Next
+  aTmp := fo_0_13
+  check("pairwise", len(aTmp) == 3 .and. aTmp[1] == 3 .and. aTmp[3] == 7, len(aTmp), @nOk, @nBad)
+  fop_0_3 := .F.
+  fls_0_0 := Nil
+  fpb_0_2 := Nil
+  fo_0_14 := 0
+  For fi_0_14 := 1 To Len(aRep)
+    fv_0_14 := aRep[fi_0_14]
+    fpb_0_2 := fv_0_14
+    If !(fop_0_3 .And. (fpb_0_2 == fls_0_0))
+      fop_0_3 := .T.
+      fls_0_0 := fpb_0_2
+      fo_0_14++
+    EndIf
+  Next
+  nTmp := fo_0_14
+  check("distinctAdjacent", nTmp == 4, nTmp, @nOk, @nBad)
+
+  fo_0_15 := Nil
+  For fi_0_15 := 1 To Len(aNums)
+    fv_0_15 := aNums[fi_0_15]
+    fv_0_15 := fv_0_15 * 3
+    If fv_0_15 > 10
+      fo_0_15 := fv_0_15
+      Exit
+    EndIf
+  Next
+  nTmp := fo_0_15
+  check("first", nTmp == 12, nTmp, @nOk, @nBad)
+  fo_0_16 := .F.
+  For fi_0_16 := 1 To Len(aNums)
+    fv_0_16 := aNums[fi_0_16]
+    If fv_0_16 > 0
+      If fv_0_16 > 8
+        fo_0_16 := .T.
+        Exit
+      EndIf
+    EndIf
+  Next
+  lTmp := fo_0_16
+  check("anyof", lTmp, lTmp, @nOk, @nBad)
+  fo_0_17 := .T.
+  For fi_0_17 := 1 To Len(aNums)
+    fv_0_17 := aNums[fi_0_17]
+    If fv_0_17 > 0
+      If !(fv_0_17 < 10)
+        fo_0_17 := .F.
+        Exit
+      EndIf
+    EndIf
+  Next
+  lTmp := fo_0_17
+  check("allof", lTmp, lTmp, @nOk, @nBad)
+  fo_0_18 := .T.
+  For fi_0_18 := 1 To Len(aNums)
+    fv_0_18 := aNums[fi_0_18]
+    If fv_0_18 > 0
+      If fv_0_18 > 100
+        fo_0_18 := .F.
+        Exit
+      EndIf
+    EndIf
+  Next
+  lTmp := fo_0_18
+  check("noneof", lTmp, lTmp, @nOk, @nBad)
+  fo_0_19 := 0
+  For fi_0_19 := 1 To Len(aNums)
+    fv_0_19 := aNums[fi_0_19]
+    If fv_0_19 > 0
+      If fv_0_19 % 2 == 0
+        fo_0_19++
+      EndIf
+    EndIf
+  Next
+  nTmp := fo_0_19
+  check("count with a condition", nTmp == 3, nTmp, @nOk, @nBad)
+
+  fs_0_2 := {{1, 2}, {3}}
+  fo_0_20 := 0
+  For fi_0_20 := 1 To Len(fs_0_2)
+    fv_0_20 := fs_0_2[fi_0_20]
+    fbg_0_0 := fv_0_20
+    For fj_0_0 := 1 To Len(fbg_0_0)
+      fv_0_20 := fbg_0_0[fj_0_0]
+      fo_0_20 := fo_0_20 + fv_0_20
+    Next
+  Next
+  nTmp := fo_0_20
+  check("expand", nTmp == 6, nTmp, @nOk, @nBad)
+  fdr_0_0 := .T.
+  fo_0_21 := 0
+  For fi_0_21 := 1 To Len(aNums)
+    fv_0_21 := aNums[fi_0_21]
+    If !(fdr_0_0 .And. (fv_0_21 != 5))
+      fdr_0_0 := .F.
+      If !(fv_0_21 != 2)
+        Exit
+      EndIf
+      fo_0_21 := fo_0_21 + fv_0_21
+    EndIf
+  Next
+  nTmp := fo_0_21
+  check("dropwhile, takewhile", nTmp == 14, nTmp, @nOk, @nBad)
+  fn_0_2 := 0
+  fo_0_22 := 0
+  For fi_0_22 := 1 To Len(aNums)
+    fv_0_22 := aNums[fi_0_22]
+    If fn_0_2 < 6
+      fn_0_2++
+    Else
+      fo_0_22 := fo_0_22 + fv_0_22
+    EndIf
+  Next
+  nTmp := fo_0_22
+  check("drop", nTmp == 8, nTmp, @nOk, @nBad)
+
+  // Run for its effects: the loop alone.
+  nTmp := 0
+  For fi_0_23 := 1 To Len(aNums)
+    fv_0_23 := aNums[fi_0_23]
+    nTmp := nTmp + fv_0_23
+  Next
+  check("a chain run for its effects", nTmp == 31, nTmp, @nOk, @nBad)
+
+  // Inside an expression a chain is calls, one per stage.
+  nTmp := len(u_xtpl_map(u_xtpl_filter(aNums, {|x| x > 2}), {|x| x}))
+  check("a chain inside an expression", nTmp == 5, nTmp, @nOk, @nBad)
+
+  check("a chain as a private's value", pTotal == 31, pTotal, @nOk, @nBad)
+
+  nTmp := 0
+  If len(aNums) > 0
+    fo_0_23 := 0
+    For fi_0_24 := 1 To Len(aNums)
+      fv_0_24 := aNums[fi_0_24]
+      If fv_0_24 > 0
+        fo_0_23 := fo_0_23 + fv_0_24
+      EndIf
+    Next
+    nTmp := fo_0_23
+  EndIf
+  check("under a postfix if, taken", nTmp == 31, nTmp, @nOk, @nBad)
+  nTmp := 0
+  If len(aNums) > 100
+    fo_0_24 := 0
+    For fi_0_25 := 1 To Len(aNums)
+      fv_0_25 := aNums[fi_0_25]
+      If fv_0_25 > 0
+        fo_0_24 := fo_0_24 + fv_0_25
+      EndIf
+    Next
+    nTmp := fo_0_24
+  EndIf
+  check("under a postfix if, not taken", nTmp == 0, nTmp, @nOk, @nBad)
+
+  // ---- a loop again, after a stage that cannot fuse -------------------------
+  // A call first, bound once: the loop walks what it returned.
+  fs_0_3 := u_xtpl_split(same("b; a ;; c"), ";")
+  fo_0_25 := {}
+  For fi_0_26 := 1 To Len(fs_0_3)
+    fv_0_26 := fs_0_3[fi_0_26]
+    fv_0_26 := alltrim(fv_0_26)
+    If !empty(fv_0_26)
+      AAdd(fo_0_25, fv_0_26)
+    EndIf
+  Next
+  aTmp := fo_0_25
+  check("a call first, then the loop", len(aTmp) == 3 .and. aTmp[1] == "b" .and. aTmp[3] == "c", len(aTmp), @nOk, @nBad)
+
+  // A loop, a call over what it collected, a loop again -- which the take
+  // stops: the tap sees four of the six, as calls it would see all six.
+  nSeen := 0
+  fo_0_26 := {}
+  For fi_0_27 := 1 To Len(aNums)
+    fv_0_27 := aNums[fi_0_27]
+    If fv_0_27 > 1
+      AAdd(fo_0_26, fv_0_27)
+    EndIf
+  Next
+  fs_0_4 := u_xtpl_sortby(fo_0_26, {|x| -x})
+  fn_0_3 := 0
+  fo_0_27 := {}
+  For fi_0_28 := 1 To Len(fs_0_4)
+    fv_0_28 := fs_0_4[fi_0_28]
+    nSeen++
+    If fn_0_3 >= 3
+      Exit
+    EndIf
+    fn_0_3++
+    AAdd(fo_0_27, fv_0_28)
+  Next
+  aTmp := fo_0_27
+  check("a loop, a call, a loop again that a take stops", nSeen == 4 .and. len(aTmp) == 3 .and. aTmp[1] == 9 .and. aTmp[3] == 5, nSeen, @nOk, @nBad)
+
+  // Over a range, the same, the result of the first loop sorted.
+  fo_0_28 := {}
+  For fi_0_29 := 1 To 6
+    fv_0_29 := fi_0_29
+    If fv_0_29 % 2 == 0
+      AAdd(fo_0_28, fv_0_29)
+    EndIf
+  Next
+  fs_0_5 := u_xtpl_sortby(fo_0_28, {|x| -x})
+  fo_0_29 := {}
+  For fi_0_30 := 1 To Len(fs_0_5)
+    fv_0_30 := fs_0_5[fi_0_30]
+    fv_0_30 := fv_0_30 * 10
+    AAdd(fo_0_29, fv_0_30)
+  Next
+  aTmp := fo_0_29
+  check("a range: a loop, a call, a loop again", len(aTmp) == 3 .and. aTmp[1] == 60 .and. aTmp[3] == 20, len(aTmp), @nOk, @nBad)
+
+  // Run for its effects, the stages after a stop run: in a loop of their own,
+  // or as calls -- and xc once dropped them, after a range.
+  nTmp := 0
+  fo_0_30 := {}
+  For fi_0_31 := 1 To Len(aNums)
+    fv_0_31 := aNums[fi_0_31]
+    If fv_0_31 > 4
+      AAdd(fo_0_30, fv_0_31)
+    EndIf
+  Next
+  fs_0_6 := u_xtpl_sortby(fo_0_30, {|x| x})
+  For fi_0_32 := 1 To Len(fs_0_6)
+    fv_0_32 := fs_0_6[fi_0_32]
+    nTmp := nTmp * 10 + fv_0_32
+  Next
+  check("run for its effects, a tap after a stop", nTmp == 569, nTmp, @nOk, @nBad)
+  nTmp := 0
+  fo_0_31 := {}
+  For fi_0_33 := 1 To 3
+    fv_0_33 := fi_0_33
+    fv_0_33 := fv_0_33
+    AAdd(fo_0_31, fv_0_33)
+  Next
+  fs_0_7 := u_xtpl_sortby(fo_0_31, {|x| -x})
+  For fi_0_34 := 1 To Len(fs_0_7)
+    fv_0_34 := fs_0_7[fi_0_34]
+    nTmp := nTmp * 10 + fv_0_34
+  Next
+  check("a range run for its effects, a tap after a stop", nTmp == 321, nTmp, @nOk, @nBad)
+
+  // ---- hash writes inside expressions ---------------------------------------
+  aeval(aRep, {|x| u_xtpl_hset(hCount, x, u_xtpl_elvis(u_xtpl_hget(hCount, x), {|| 0}) + 1)})
+  check("counting in a lambda", u_xtpl_hget(hCount, 1) == 3 .and. u_xtpl_hget(hCount, 2) == 3 .and. u_xtpl_hget(hCount, 3) == 1, u_xtpl_hget(hCount, 1), @nOk, @nBad)
+  aeval({1, 2, 3}, {|x| u_xtpl_hset(hMap, "a", u_xtpl_hget(hMap, "a") + (x))})
+  check("'+=' in a lambda", u_xtpl_hget(hMap, "a") == 7, u_xtpl_hget(hMap, "a"), @nOk, @nBad)
+  aeval(aPairs, {|p| u_xtpl_hset(hKeep, p[1], p[2])})
+  check("a hash from pairs", u_xtpl_hget(hKeep, "y") == 20, u_xtpl_hget(hKeep, "y"), @nOk, @nBad)
+  nTmp := same(u_xtpl_hset(hKeep, "z", 42))
+  check("a hash write gives the value written", nTmp == 42 .and. u_xtpl_hget(hKeep, "z") == 42, nTmp, @nOk, @nBad)
+
+  // ---- JSON: TL++ has no literal, so xc builds a JsonObject -----------------
+  check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
+  jTmp := u_xtpl_jnew({{"a", 1}, {"b", u_xtpl_jnew({{"c", "x"}})}, {"d", {1, 2}}})
+  check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
+
+  // ---- digit separators, and a range beside another test --------------------
+  nTmp := 12345 + 1000.5
+  check("digit separators", nTmp == 13345.5, nTmp, @nOk, @nBad)
+  lTmp := .F.
+  if u_xtpl_in("alfa", aPal) .and. (nTmp >= 13000 .And. nTmp <= 14000)
+    lTmp := .T.
+  endif
+  check("a range test beside another test", lTmp, lTmp, @nOk, @nBad)
+
+  // ---- aPick, aRoll, setMaxRoll ---------------------------------------------
+  aTmp := u_xtpl_apick(aDist)
+  check("aPick: one element", len(aTmp) == 1 .and. u_xtpl_in(aTmp[1], aDist), len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_apick(aDist, 5)
+  check("aPick: five, all different", len(aTmp) == 5 .and. len(u_xtpl_distinct(aTmp)) == 5, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_apick(aDist, 20)
+  check("aPick: more than there is gives all", len(aTmp) == 8 .and. u_xtpl_asum(aTmp) == 360, len(aTmp), @nOk, @nBad)
+  check("aPick: none", len(u_xtpl_apick(aDist, 0)) == 0 .and. len(u_xtpl_apick({}, 3)) == 0 .and. len(u_xtpl_apick(aDist, -1)) == 0, 0, @nOk, @nBad)
+
+  // Every value exactly once -- a true permutation -- and positions past
+  // 32,767, which Randomize() never reaches, included.
+  fo_0_32 := {}
+  For fi_0_35 := 1 To 40000
+    fv_0_35 := fi_0_35
+    fv_0_35 := fv_0_35
+    AAdd(fo_0_32, fv_0_35)
+  Next
+  aBig := fo_0_32
+  aTmp := u_xtpl_apick(aBig, 40000)
+  aSeen := Array(40000)
+  aeval(aTmp, {|x| aSeen[x] := .T.})
+  fo_0_33 := 0
+  For fi_0_36 := 1 To Len(aSeen)
+    fv_0_36 := aSeen[fi_0_36]
+    If ValType(fv_0_36) == "L"
+      fo_0_33++
+    EndIf
+  Next
+  nTmp := fo_0_33
+  check("aPick: a permutation of 40,000", len(aTmp) == 40000 .and. nTmp == 40000, nTmp, @nOk, @nBad)
+
+  aTmp := u_xtpl_aroll(aDist, 50)
+  check("aRoll: fifty, each one of a's", len(aTmp) == 50 .and. u_xtpl_allof(aTmp, {|x| u_xtpl_in(x, aDist)}), len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_aroll({7}, 5)
+  check("aRoll: the same element again", len(aTmp) == 5 .and. u_xtpl_asum(aTmp) == 35, len(aTmp), @nOk, @nBad)
+  check("aRoll: one by default, none from nothing", len(u_xtpl_aroll(aDist)) == 1 .and. len(u_xtpl_aroll({}, 5)) == 0, 0, @nOk, @nBad)
+  nOld := u_xtpl_setmaxroll(10)
+  aTmp := u_xtpl_aroll(aDist, 50)
+  check("setMaxRoll: the maximum, and the one it replaced", len(aTmp) == 10 .and. nOld == 1000, len(aTmp), @nOk, @nBad)
+  nTmp := u_xtpl_setmaxroll(nOld)
+  check("setMaxRoll: put back", nTmp == 10 .and. len(u_xtpl_aroll(aDist, 50)) == 50, nTmp, @nOk, @nBad)
+
+  // The draws are random: 200 single picks from 8 do not all land on one.
+  aTmp := {}
+  For fi_0_37 := 1 To 200
+    aadd(aTmp, u_xtpl_apick(aDist)[1])
+  next
+  check("aPick draws at random", len(u_xtpl_distinct(aTmp)) > 1, len(u_xtpl_distinct(aTmp)), @nOk, @nBad)
+
+  // ---- the runtime: distinct, split, sortBy ---------------------------------
+  // One pass, one search from where it stopped, one key per element -- and the
+  // same answers as before.
+  fo_0_34 := {}
+  For fi_0_38 := 1 To Len(aBig)
+    fv_0_37 := aBig[fi_0_38]
+    fv_0_37 := fv_0_37 % 1000
+    AAdd(fo_0_34, fv_0_37)
+  Next
+  aTmp := fo_0_34
+  aTmp := u_xtpl_distinct(aTmp)
+  check("distinct: 1000 from 40,000, first seen first", len(aTmp) == 1000 .and. aTmp[1] == 1 .and. aTmp[1000] == 0, len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_distinct({3, "3", 3, "a", "a ", "a", .T., .T., Nil, Nil})
+  check("distinct: types kept apart, a trailing space kept", len(aTmp) == 6 .and. aTmp[2] == "3" .and. aTmp[4] == "a ", len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_split("one two  three", " ")
+  check("split on a space", len(aTmp) == 4 .and. aTmp[3] == "" .and. aTmp[4] == "three", len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_split("a::b::::c::", "::")
+  check("split on two characters, empty parts kept", len(aTmp) == 5 .and. aTmp[3] == "" .and. aTmp[4] == "c" .and. aTmp[5] == "", len(aTmp), @nOk, @nBad)
+  aTmp := u_xtpl_split("aaa", "aa")
+  check("split: overlapping separators", len(aTmp) == 2 .and. aTmp[2] == "a", len(aTmp), @nOk, @nBad)
+  check("split: no separator, the whole text", len(u_xtpl_split("abc", "")) == 1, 0, @nOk, @nBad)
+  aTmp := u_xtpl_split(replicate("x;", 20000), ";")
+  check("split: 20,000 parts", len(aTmp) == 20001 .and. aTmp[20000] == "x" .and. aTmp[20001] == "", len(aTmp), @nOk, @nBad)
+  aCalls := {0}
+  aTmp := u_xtpl_take(aBig, 1000)
+  aTmp := u_xtpl_sortby(aTmp, {|x| counted(aCalls, x)}, .T.)
+  check("sortBy: each key evaluated once", aCalls[1] == 1000 .and. aTmp[1] == 1000 .and. aTmp[1000] == 1, aCalls[1], @nOk, @nBad)
+
+  // join: the parts joined pairwise, whatever '+=' costs.
+  cTmp := u_xtpl_join(u_xtpl_split(replicate("x;", 20000), ";"), ";")
+  check("join: 20,000 parts put back as they were", cTmp == replicate("x;", 20000), len(cTmp), @nOk, @nBad)
+  fo_0_35 := {}
+  For fi_0_39 := 1 To Len(aBig)
+    fv_0_38 := aBig[fi_0_39]
+    fv_0_38 := "y"
+    AAdd(fo_0_35, fv_0_38)
+  Next
+  fo_0_35 := u_xtpl_join(fo_0_35)
+  cTmp := fo_0_35
+  check("join fused: 40,000 elements, one text", len(cTmp) == 40000 .and. right(cTmp, 1) == "y", len(cTmp), @nOk, @nBad)
+  check("join: none, one, numbers, no separator", u_xtpl_join({}, ",") == "" .and. u_xtpl_join({"a"}, ",") == "a" .and. u_xtpl_join({1, 2.5, 3}, "-") == "1-2.5-3" .and. u_xtpl_join({"a", "b"}) == "ab", 0, @nOk, @nBad)
+
+  // Block locals share slots. A slot taken again starts fresh; one a code
+  // block captured keeps a Local of its own, its value with the block.
+  if nOk >= 0
+    s_0_0 := 5  // nFill
+    nTmp := s_0_0
+  endif
+  if nOk >= 0
+    s_0_0 := Nil  // xFresh
+    check("slots: a slot taken again starts at Nil", s_0_0 == Nil, s_0_0, @nOk, @nBad)
+  endif
+  aTmp := {}
+  if nOk >= 0
+    b_1_nKept := 1  // nKept
+    aadd(aTmp, {|| b_1_nKept})
+  endif
+  if nOk >= 0
+    b_2_nKept := 2  // nKept
+    aadd(aTmp, {|| b_2_nKept})
+  endif
+  check("slots: a captured block local keeps its own value", eval(aTmp[1]) == 1 .and. eval(aTmp[2]) == 2, eval(aTmp[1]), @nOk, @nBad)
+
+  // ---- defer: only if it was reached ----------------------------------------
+* A defer in a block runs at the exits only when its line ran -- and in a
+* loop, once, with the values its variables have at the exit.
+  aTmp := {}
+  deferIn(.F., aTmp)
+  check("defer in an If not taken: does not run", len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  deferIn(.T., aTmp)
+  check("defer in an If taken: runs at the end", len(aTmp) == 1, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferEarly(.T., aTmp)
+  check("defer in an If taken: runs at a return after the If", nTmp == 2 .and. len(aTmp) == 1, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferEarly(.F., aTmp)
+  check("defer in an If not taken: not at a return after it either", nTmp == 2 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferLoop(5, aTmp)
+  check("defer in a loop: once, at a return in a later round, with the value then", nTmp == -1 .and. len(aTmp) == 1 .and. aTmp[1] == 3, len(aTmp), @nOk, @nBad)
+  aTmp := {}
+  nTmp := deferLoop(0, aTmp)
+  check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+
+  // ---- the code blocks xc writes around the source's own code ---------------
+  // 'f() in lo..hi' and 'o()?.M(x)' become a block that takes the value once;
+  // a '__v' of the source's in the bound or the argument is the source's.
+  lTmp := Eval({|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= 10}, same(7))
+  check("'f() in lo..hi', a '__v' of the source's in a bound: in", lTmp, lTmp, @nOk, @nBad)
+  lTmp := Eval({|fbv_0_0| fbv_0_0 >= __v .And. fbv_0_0 <= 10}, same(3))
+  check("'f() in lo..hi', a '__v' of the source's in a bound: out", !lTmp, lTmp, @nOk, @nBad)
+  cTmp := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:GetJsonText("v" + cValToChar(__v)), Nil)}, same(jKeys))
+  check("'o()?.M(x)', a '__v' of the source's in the argument", cTmp == "cinco", cTmp, @nOk, @nBad)
+
+  // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
+  nTmp := 0
+  for nSeen := 1 to 3
+    nTmp += nSeen
+  end for
+  check("'End For' closes a For", nTmp == 6, nTmp, @nOk, @nBad)
+  fs_0_8 := %exp:aNums%
+  fo_0_36 := 0
+  For fi_0_40 := 1 To Len(fs_0_8)
+    fv_0_39 := fs_0_8[fi_0_40]
+    If fv_0_39 > %exp:__v%
+      fo_0_36 := fo_0_36 + fv_0_39
+    EndIf
+  Next
+  nTmp := fo_0_36
+  check("'%exp:x%' outside BeginSql: a chain's head, and in a stage", nTmp == 15, nTmp, @nOk, @nBad)
+
+  conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
+
+return nBad
+
+// -----------------------------------------------------------------------------
+
+static function check(cName, lOk, xSeen, nOk, nBad)
+  if lOk
+    nOk++
+  else
+    nBad++
+    conout("FAILED  " + cName + "  (seen: " + cValToChar(xSeen) + ")")
+  endif
+return nil
+
+static function same(xValue)
+return xValue
+
+// A defer in an If: at the function's end, only if the If was taken.
+static function deferIn(lTake, aLog)
+  Local fdf_0_0 := .F.  // whether 'defer aadd(aLog, "ran")' was reached
+  if lTake
+    fdf_0_0 := .T.
+  endif
+If fdf_0_0
+  aadd(aLog, "ran")
+EndIf
+return nil
+
+// The same, at a return after the If: its condition is read first, then the
+// defer runs, then the return.
+static function deferEarly(lTake, aLog)
+  local nRet := 2
+  Local fdf_0_0 := .F.  // whether 'defer aadd(aLog, "ran")' was reached
+  if lTake
+    fdf_0_0 := .T.
+  endif
+  If len(aLog) == 0
+    If fdf_0_0
+      aadd(aLog, "ran")
+    EndIf
+    return nRet
+  EndIf
+If fdf_0_0
+  aadd(aLog, "ran")
+EndIf
+return 0
+
+// A defer in a loop, and a return above it in the loop: from the second round
+// on, the defer has run before the return.
+static function deferLoop(nRounds, aLog)
+  local nI := 0
+  Local fdf_0_0 := .F.  // whether 'defer aadd(aLog, nI)' was reached
+  for nI := 1 to nRounds
+    If nI == 3
+      If fdf_0_0
+        aadd(aLog, nI)
+      EndIf
+      return -1
+    EndIf
+    fdf_0_0 := .T.
+  next
+If fdf_0_0
+  aadd(aLog, nI)
+EndIf
+return 0
+
+// A key that counts how often it is asked for.
+static function counted(aCalls, xValue)
+  aCalls[1]++
+return xValue

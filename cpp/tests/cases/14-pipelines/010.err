@@ -1,0 +1,1 @@
+010.xtpl:2: cannot parse this line: aOut := map(aNums, [x] f(x |> g))

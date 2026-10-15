@@ -1,0 +1,8 @@
+user function f(a)
+  local nT := 0
+  if a > 0
+    local nT := 5
+    a := nT
+  endif
+  a := nT
+return 1

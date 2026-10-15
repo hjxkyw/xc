@@ -1,0 +1,23 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Interface IConta
+  Public Method Saldo() as Numeric
+EndInterface
+
+Class Conta From LongNameClass Implements IConta
+  Public Data nSaldo as Numeric default 0
+  Public Method New() Constructor
+  Public Method Saldo() as Numeric
+  Public Operator Add(oOutra)
+EndClass
+
+Method New() Class Conta
+Return Self
+
+Method Saldo() Class Conta as Numeric
+Return ::nSaldo
+
+Operator Add(oOutra) Class Conta
+  ::nSaldo += oOutra:nSaldo
+Return Self

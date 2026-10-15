@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := (nValue >= 1 .And. nValue <= 100)
+Return nil

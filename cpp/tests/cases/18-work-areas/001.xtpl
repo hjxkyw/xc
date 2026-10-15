@@ -1,0 +1,6 @@
+user function f(nOrd)
+  using alias SA1 order 1 do
+    nT := SA1->A1_SALDO
+    conout(nT)
+  end using
+return 1

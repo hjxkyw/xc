@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function v(n)
+  local c := 0
+  do case
+  case n == 1
+  endcase
+  return c

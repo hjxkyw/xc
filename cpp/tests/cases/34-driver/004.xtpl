@@ -1,0 +1,4 @@
+user function d()
+  local nL <const> := 1
+  nL := 2
+return nL

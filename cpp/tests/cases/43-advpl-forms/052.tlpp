@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cCampo, aV)
+  Local cVar := "MV_PAR01"
+  &(cCampo) := aV[1]
+  &cVar := aV[2]
+  &("M->" + cCampo) := &("SRA->" + cCampo)
+return nil

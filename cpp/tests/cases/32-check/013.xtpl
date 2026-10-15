@@ -1,0 +1,5 @@
+#define cConst "x"
+external CRLF
+user function f(a)
+  a := CRLF + cConst
+return a

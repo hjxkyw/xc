@@ -1,0 +1,3 @@
+user function f()
+  defer return 1
+return

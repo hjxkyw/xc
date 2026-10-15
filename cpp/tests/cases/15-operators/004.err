@@ -1,0 +1,2 @@
+004.xtpl:2: warning: 'v1' is assigned but never read
+004.xtpl:2: warning: 'v2' is assigned but never read

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local aX  // a block local
+  if n > 0
+    aX := Array(n, 2)
+    aX[1][1] := n
+  endif
+return n

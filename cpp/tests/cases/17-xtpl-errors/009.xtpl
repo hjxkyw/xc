@@ -1,0 +1,3 @@
+user function v()
+  local nIf := 1
+  return nIf

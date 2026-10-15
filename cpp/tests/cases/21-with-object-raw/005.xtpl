@@ -1,0 +1,5 @@
+user function f(o, p, a, n)
+  with object o
+    nT := len(:GetValue("A1_COD"))
+  end with
+return 1

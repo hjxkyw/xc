@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  If lX
+    nS := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
+  EndIf
+return

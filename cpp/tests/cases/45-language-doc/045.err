@@ -1,0 +1,2 @@
+045.xtpl:2: warning: 'cUrl' is not declared
+045.xtpl:2: warning: 'xDoc' is not declared, so this creates a PRIVATE

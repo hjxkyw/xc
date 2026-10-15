@@ -1,0 +1,3 @@
+user function f()
+  exit if nErros > 3
+return

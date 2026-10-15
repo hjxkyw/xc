@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  if n > 0
+    defer bye()
+  endif
+  return n

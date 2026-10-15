@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := ((nN % 3) == 0)
+Return nil

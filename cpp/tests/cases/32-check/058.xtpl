@@ -1,0 +1,3 @@
+external alias SA1
+user function f()
+return SA1->A1_COD

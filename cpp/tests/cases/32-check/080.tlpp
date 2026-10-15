@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(aR, nX as Numeric)  // aR [contained], nX [const]
+  aadd(aR, nX)
+return len(aR)

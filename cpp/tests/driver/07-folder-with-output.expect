@@ -1,0 +1,6 @@
+exit 2
+--- output
+--- errors
+out.tlpp: a .tlpp is named only for a single source
+--- written
+

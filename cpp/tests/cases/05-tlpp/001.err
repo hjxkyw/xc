@@ -1,0 +1,3 @@
+001.xtpl:8: warning: 'aLinhas' is assigned but never read
+001.xtpl:9: warning: 'jResposta' is declared but never used
+001.xtpl:7: 'as N': TL++ has no type 'N' -- write 'as Numeric'.

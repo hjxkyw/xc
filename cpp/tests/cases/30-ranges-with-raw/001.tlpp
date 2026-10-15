@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n)
+  if u_xtpl_in(a, b) .and. (n >= 1 .And. n <= 100)
+    n := 1
+  endif
+return n

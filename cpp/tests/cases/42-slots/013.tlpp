@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local b_1_aTmp  // the block local 'aTmp'
+  Local s_0_0  // a slot: the block locals 'aTmp', 'aOther'
+  if a > 0
+    b_1_aTmp := {}  // aTmp
+    aadd(aH, {|| b_1_aTmp})
+  endif
+  if a > 1
+    s_0_0 := {}  // aTmp
+    conout(len(s_0_0))
+  endif
+  if a > 2
+    s_0_0 := {}  // aOther
+    conout(len(s_0_0))
+  endif
+return a

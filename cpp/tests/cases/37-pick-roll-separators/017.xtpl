@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, c)
+  a := aRoll(a, 10)
+return n

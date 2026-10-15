@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  Local fhd_0_0  // a hash that is read and written back
+  fhd_0_0 := getHash()
+  If u_xtpl_hget(fhd_0_0, "k") == Nil
+    fhd_0_0:Set("k", "padrao")
+  EndIf
+return x

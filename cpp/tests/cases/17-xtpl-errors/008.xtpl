@@ -1,0 +1,5 @@
+user function v()
+  local n := 1
+  local m := 2
+  conout(n)
+  return n

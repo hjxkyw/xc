@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(c)
+  If c == Nil  // assign if Nil
+    c := "empty"
+  EndIf
+return c

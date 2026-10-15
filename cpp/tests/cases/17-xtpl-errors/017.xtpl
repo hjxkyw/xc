@@ -1,0 +1,4 @@
+user function f(n, a)
+  private nP := 0
+  conout(nP)
+return n

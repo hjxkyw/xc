@@ -1,0 +1,1 @@
+021.xtpl:4: block local 'nA', read by a defer and declared in more than one block, is not lowered yet

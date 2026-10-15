@@ -1,0 +1,7 @@
+user function f(a)
+  local nI := 1 as Integer
+  local nD := 2.5 as Double
+  local lIn := a in {1, 2} as Logical
+  local lDiv := 9 %% 3 as Logical
+  a := {nI, nD, lIn, lDiv}
+return 1

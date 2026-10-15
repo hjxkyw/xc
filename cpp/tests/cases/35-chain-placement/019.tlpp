@@ -1,0 +1,107 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cP, l, n)
+  local a
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fok_0_1  // whether the file opened
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fok_0_2  // whether the file opened
+  Local fv_0_2  // the element walked
+  Local fi_0_0  // the counter of a range
+  Local fv_0_3  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local s_0_0  // a slot: the block locals 'cL', 'i'
+  Local fs_0_0  // the path of the file walked
+  Local fok_0_3  // whether the file opened
+  Local fi_0_1  // the counter of a 'for ... in'
+  Local fok_0_4  // whether the file opened
+  Local fv_0_4  // the element walked
+  Local fo_0_3  // the result of the chain
+  fok_0_0 := File(cP)
+  If fok_0_0
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  fo_0_0 := 0
+  While fok_0_0 .And. !FT_FEof()
+    fv_0_0 := FT_FReadLn()
+    fo_0_0++
+    FT_FSkip()
+  EndDo
+  If fok_0_0
+    FT_FUse()
+  EndIf
+  a := fo_0_0
+  fok_0_1 := File(cP)
+  If fok_0_1
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  fo_0_1 := 0
+  While fok_0_1 .And. !FT_FEof()
+    fv_0_1 := FT_FReadLn()
+    fo_0_1++
+    FT_FSkip()
+  EndDo
+  If fok_0_1
+    FT_FUse()
+  EndIf
+  n := fo_0_1
+  fok_0_2 := File(cP)
+  If fok_0_2
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  While fok_0_2 .And. !FT_FEof()
+    fv_0_2 := FT_FReadLn()
+    conout(fv_0_2)
+    FT_FSkip()
+  EndDo
+  If fok_0_2
+    FT_FUse()
+  EndIf
+  If l
+    fo_0_2 := 0
+    For fi_0_0 := 1 To 5
+      fv_0_3 := fi_0_0
+      fo_0_2 := fo_0_2 + fv_0_3
+    Next
+    n := fo_0_2
+  EndIf
+  fs_0_0 := cP
+  fok_0_3 := File(fs_0_0)
+  If fok_0_3
+    FT_FUse(fs_0_0)
+    FT_FGoTop()
+  EndIf
+  While fok_0_3 .And. !FT_FEof()
+    s_0_0 := FT_FReadLn()
+    FT_FSkip()
+  EndDo
+  If fok_0_3
+    FT_FUse()
+  EndIf
+  For fi_0_1 := 1 To n
+    s_0_0 := fi_0_1
+  next
+  n := a
+  fok_0_4 := File(cP)
+  If fok_0_4
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  fo_0_3 := 0
+  While fok_0_4 .And. !FT_FEof()
+    fv_0_4 := FT_FReadLn()
+    fo_0_3++
+    FT_FSkip()
+  EndDo
+  If fok_0_4
+    FT_FUse()
+  EndIf
+  return fo_0_3
+return n

@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  Local fal_0_0  // the alias of a 'using alias', from a variable
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  fal_0_0 := cA
+  far_0_0 := Alias()
+  DbSelectArea(fal_0_0)
+  frc_0_0 := (fal_0_0)->(RecNo())
+    n := 1
+  (fal_0_0)->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+  return n

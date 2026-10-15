@@ -1,0 +1,3 @@
+user function f(a)
+  a := a |> sort |> filter([x] x > 1) fallback {}
+return 1

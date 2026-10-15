@@ -1,0 +1,4 @@
+user function f(a)
+  a := map(a, alltrim)
+  a := a |> filter(isOk) |> map(upper)
+return 1

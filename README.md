@@ -123,7 +123,12 @@ checked and lowered, in about a third of a second).
 cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
 cmake --build cpp/build --config Release
 cpp/build/xc --check xtpl/tests                  # as rakupp bin/xc
+ctest --test-dir cpp/build                       # its tests
 ```
+
+Its tests are data (`cpp/tests/`, with a README): the Raku xc's test sources,
+each with the TL++ and the messages xc gives for it; command lines, with what
+they print and write; and xtpl's sources, with the `.tlpp` beside each.
 
 The Raku xc stays the reference. `tools/compare-cpp.raku` compares the
 two, tree for tree, message for message and byte for byte -- with

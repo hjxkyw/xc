@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local bOk := {|x| x > 1}
+  a := u_xtpl_filter(u_xtpl_sort(a), bOk)
+return 1

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := u_xtpl_in(cCode, aCodes)
+Return nil

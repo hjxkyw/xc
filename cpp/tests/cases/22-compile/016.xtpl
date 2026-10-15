@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n)
+  if n > 1
+    return n if n > 100
+  endif
+return 0

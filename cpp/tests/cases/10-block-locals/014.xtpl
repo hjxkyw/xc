@@ -1,0 +1,4 @@
+user function f()
+  do case with local nS := soma(nA, nB)
+  case nS == 0
+  endcase

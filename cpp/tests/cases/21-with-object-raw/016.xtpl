@@ -1,0 +1,4 @@
+user function f(o, p, a, n)
+  raw ANOTE "x"
+  local nL := 1
+return 1

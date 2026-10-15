@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a, n)
+  Local oItem  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  fs_0_0 := aItems
+  For fi_0_0 := 1 To Len(fs_0_0)
+    oItem := fs_0_0[fi_0_0]
+    nT := nT + oItem:nValue
+  next
+return 1

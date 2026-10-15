@@ -1,0 +1,5 @@
+user function f()
+  do case with local nS := calc(n)
+  case nS == 1
+    a()
+  endcase

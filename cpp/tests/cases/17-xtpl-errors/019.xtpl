@@ -1,0 +1,7 @@
+user function f(n, a)
+  if n > 0
+    conout(1)
+  else
+    local nY := 1
+  endif
+return n

@@ -1,0 +1,2 @@
+004.xtpl:2: warning: 'i' is not declared, so this creates a PRIVATE
+004.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

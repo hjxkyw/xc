@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a, n, c)
+  n := 1000 * 2
+return n

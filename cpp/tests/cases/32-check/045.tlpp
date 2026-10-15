@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := u_xtpl_asum(a)
+return 1
