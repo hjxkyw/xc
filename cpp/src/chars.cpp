@@ -163,4 +163,37 @@ namespace xc
     }
     return true;
   }
+
+  std::string cp1252_to_utf8(std::string_view in)
+  {
+    static const unsigned high[32] =
+    {
+      0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039,
+      0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+      0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+    };
+    std::string out;
+    out.reserve(in.size());
+    for (char ch : in)
+    {
+      unsigned c = static_cast<unsigned char>(ch);
+      unsigned u = c >= 0x80 && c < 0xA0 ? high[c - 0x80] : c;
+      if (u < 0x80)
+      {
+        out += static_cast<char>(u);
+      }
+      else if (u < 0x800)
+      {
+        out += static_cast<char>(0xC0 | (u >> 6));
+        out += static_cast<char>(0x80 | (u & 0x3F));
+      }
+      else
+      {
+        out += static_cast<char>(0xE0 | (u >> 12));
+        out += static_cast<char>(0x80 | ((u >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (u & 0x3F));
+      }
+    }
+    return out;
+  }
 }

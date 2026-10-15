@@ -50,4 +50,8 @@ namespace xc
   // UTF-8 as windows-1252, when it is UTF-8 at all: false when it is not. A
   // character windows-1252 does not have is '?'.
   bool utf8_to_cp1252(const std::string& in, std::string& out);
+
+  // Windows-1252 as UTF-8, as Raku decodes it: the five bytes it leaves
+  // undefined (81 8D 8F 90 9D) as the characters of the same number.
+  std::string cp1252_to_utf8(std::string_view in);
 }

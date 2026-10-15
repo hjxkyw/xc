@@ -1,16 +1,15 @@
-// xc -- the driver.
+// xc-compare -- what the C++ xc makes of a source against what the Raku xc
+// made of it (tools/ast-json.raku; tools/compare-cpp.raku runs both).
 //
-// For now: comparing what the C++ parser reads with what the Raku xc read
-// (tools/ast-json.raku).
-//
-//   xc --roots FILE.roots...     each expression of the file read again at
-//                                its offset, as its form; the trees compared
-//   xc --tree N.tree...          the whole source -- named by N.roots beside
-//                                it --, its tree compared
-//   xc --check N.check...        what the checks say of it, compared
-//   xc --emit N.out...           the TL++ it becomes, compared
-//   ... --dict sx3.csv [--strict]  with a dictionary
-//   ... --time                   and how long the reading took
+//   xc-compare --roots FILE.roots...   each expression of the file read again
+//                                      at its offset, as its form; the trees
+//                                      compared
+//   xc-compare --tree N.tree...        the whole source -- named by N.roots
+//                                      beside it --, its tree compared
+//   xc-compare --check N.check...      what the checks say of it, compared
+//   xc-compare --emit N.out...         the TL++ it becomes, compared
+//   ... --dict sx3.csv [--strict]      with a dictionary
+//   ... --time                         and how long it took
 
 #include <chrono>
 #include <cstdio>
@@ -498,7 +497,7 @@ int main(int argc, char** argv)
   std::vector<std::string> args(argv + 1, argv + argc);
   if (args.empty() || (args[0] != "--roots" && args[0] != "--tree" && args[0] != "--check" && args[0] != "--emit"))
   {
-    std::cerr << "usage: xc --roots|--tree|--check|--emit [--time] FILE...\n";
+    std::cerr << "usage: xc-compare --roots|--tree|--check|--emit [--time] FILE...\n";
     return 2;
   }
   bool emits = args[0] == "--emit";
