@@ -13,6 +13,7 @@ ctest --test-dir cpp/build
 | `outputs` | each of xtpl's sources compiles to the `.tlpp` beside it | `xtpl/tests/`, `xtpl/examples/` |
 | `cases` | each case: the TL++ xc writes, and what it says | `cases/` |
 | `driver` | each command line: the exit code, what is printed, the files written | `driver/` |
+| `doc` | each example of the language reference comes out as it shows | `docs/language.md` |
 
 ## cases/
 
@@ -47,6 +48,15 @@ git diff cpp/tests/cases
 ```
 cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDATE=1 -P cpp/tests/driver.cmake
 ```
+
+## docs/language.md
+
+`xc-doc` (`src/doc.cpp`) reads the reference as `t/45-language-doc.raku`
+does: each ```` ```xtpl ```` example is compiled, and the ```` ```tlpp ````
+right after it is what has to come out, the ```` ```text ```` after those
+what xc has to say; each row of a `| xtpl | TL++ |` table is assigned in a
+function and has to come out as the TL++ beside it. A change to the output
+that an example shows is a change to the document.
 
 ## Line ends
 

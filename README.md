@@ -128,7 +128,8 @@ ctest --test-dir cpp/build                       # its tests
 
 Its tests are data (`cpp/tests/`, with a README): the Raku xc's test sources,
 each with the TL++ and the messages xc gives for it; command lines, with what
-they print and write; and xtpl's sources, with the `.tlpp` beside each.
+they print and write; xtpl's sources, with the `.tlpp` beside each; and the
+language reference, whose examples have to come out as it shows them.
 
 The Raku xc stays the reference. `tools/compare-cpp.raku` compares the
 two, tree for tree, message for message and byte for byte -- with
@@ -151,7 +152,7 @@ finds.)
 |---|---|
 | `bin/xc` | the compiler |
 | `cpp/` | xc in C++ -- see "The C++ port" |
-| `docs/` | the language reference, `language.md` -- `t/45` compiles its examples |
+| `docs/` | the language reference, `language.md` -- `t/45` and the C++ `xc-doc` compile its examples |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
