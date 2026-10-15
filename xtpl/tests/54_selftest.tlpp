@@ -373,9 +373,9 @@ user function selftest()
     cTmp := "outro"
   EndIf
   check("?= nao atribui depois", cTmp == "padrao", 0, @nOk, @nBad)
-  nTmp := u_xtpl_elvis(Nil, {|| 42})
+  nTmp := If(Nil != Nil, Nil, 42)
   check("?: pega a alternativa", nTmp == 42, nTmp, @nOk, @nBad)
-  nTmp := u_xtpl_elvis(7, {|| 42})
+  nTmp := If(7 != Nil, 7, 42)
   check("?: pega o valor", nTmp == 7, nTmp, @nOk, @nBad)
 
   // ---- fallback ----------------------------------------------------------

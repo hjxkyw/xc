@@ -5,15 +5,16 @@
 // a loop that starts again after a stage that cannot fuse, aPick, aRoll and
 // setMaxRoll, digit separators, hash writes inside expressions, chains as a
 // private's value and under a postfix modifier, a defer that runs only if it
-// was reached, the code blocks xc writes around the source's own code,
-// Clipper's comments, a name that starts with '__', 'End For' and '%exp:x%'
-// outside BeginSql. Pure computation, as 54 is: no table, no file, no
-// screen, so a right or wrong answer and not an environment.
+// was reached, the temps xc writes around the source's own code, each value
+// of '?:', '?.' and 'in lo..hi' evaluated once, Clipper's comments, a name
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// computation, as 54 is: no table, no file, no screen, so a right or wrong
+// answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 75 ok, 0 failed
+//   xc_selftest: 85 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -42,6 +43,7 @@ user function xc_selftest()
   local lTmp := .F.
   local jKeys := {"a": "x", "v5": "cinco"}
   local __v := 5            && a name that starts with '__', and a Clipper comment
+  local bHi := [x] iif(same(x) in 1..5, 10, 20)
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -274,15 +276,42 @@ user function xc_selftest()
   nTmp := deferLoop(0, aTmp)
   check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
 
-  // ---- the code blocks xc writes around the source's own code ---------------
-  // 'f() in lo..hi' and 'o()?.M(x)' become a block that takes the value once;
-  // a '__v' of the source's in the bound or the argument is the source's.
+  // ---- the temps xc writes around the source's own code ---------------------
+  // 'f() in lo..hi' and 'o()?.M(x)' hold the value in a Local, read once; a
+  // '__v' of the source's in the bound or the argument is the source's.
   lTmp := same(7) in __v..10
   check("'f() in lo..hi', a '__v' of the source's in a bound: in", lTmp, lTmp, @nOk, @nBad)
   lTmp := same(3) in __v..10
   check("'f() in lo..hi', a '__v' of the source's in a bound: out", !lTmp, lTmp, @nOk, @nBad)
   cTmp := same(jKeys)?.GetJsonText("v" + cValToChar(__v))
   check("'o()?.M(x)', a '__v' of the source's in the argument", cTmp == "cinco", cTmp, @nOk, @nBad)
+
+  // ---- '?:', '?.', 'in lo..hi': each value evaluated once -------------------
+  aCalls := {0}
+  nTmp := counted(aCalls, Nil) ?: counted(aCalls, 3)
+  check("'?:': the left Nil, then the right", nTmp == 3 .and. aCalls[1] == 2, aCalls[1], @nOk, @nBad)
+  aCalls := {0}
+  nTmp := counted(aCalls, 4) ?: counted(aCalls, 3)
+  check("'?:': the left once, the right not at all", nTmp == 4 .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  nTmp := same(Nil) ?: same(Nil) ?: 9
+  check("'?:' chained, to the last", nTmp == 9, nTmp, @nOk, @nBad)
+  nTmp := same(Nil) ?: same(8) ?: 9
+  check("'?:' chained, to the middle", nTmp == 8, nTmp, @nOk, @nBad)
+  nTmp := (same(Nil) ?: same(Nil)) ?: 5
+  check("'?:' in the left side of a '?:'", nTmp == 5, nTmp, @nOk, @nBad)
+  aCalls := {0}
+  cTmp := counted(aCalls, jTmp)?.GetJsonObject("b")?.GetJsonText("c")
+  check("'?.' chained: each step once", cTmp == "x" .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  cTmp := same(Nil)?.GetJsonObject("b")?.GetJsonText("c")
+  check("'?.' chained: Nil at the first step", cTmp == Nil, cTmp, @nOk, @nBad)
+  aCalls := {0}
+  lTmp := counted(aCalls, 7) in 5..10
+  check("'f() in lo..hi': f() once", lTmp .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  lTmp := same(7) in 1..eval(bHi, 30)
+  check("'in lo..hi', a lambda with an 'in' of its own in a bound", lTmp, lTmp, @nOk, @nBad)
+  aCalls := {0}
+  cTmp := inPrologue(aCalls)
+  check("'?:', '?.', 'in' in the declarations of the prologue", cTmp == "anon x!" .and. aCalls[1] == 3, cTmp, @nOk, @nBad)
 
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
@@ -337,6 +366,14 @@ static function deferLoop(nRounds, aLog)
     defer aadd(aLog, nI)
   next
 return 0
+
+// '?:', '?.' and 'in lo..hi' in the declarations at a function's top: the
+// Locals that hold their values are declared before them.
+static function inPrologue(aCalls)
+  local cName := counted(aCalls, Nil) ?: "anon"
+  local cText := counted(aCalls, {"c": "x"})?.GetJsonText("c")
+  local lIn := counted(aCalls, 7) in 5..10
+return cName + " " + cText + iif(lIn, "!", "?")
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)

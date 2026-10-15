@@ -14,10 +14,12 @@
 user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
   local nA := u_xtpl_hget(hCfg, "id")                  // a hash read lifts a Get above it
   local nB := u_xtpl_asum(u_xtpl_distinct(aNums))   // a chain, one temp per stage
-  local cD := u_xtpl_elvis(lookupName(1), {|| "anon"})     // elvis
+  Local et_0_0  // the left side of a '?:', evaluated once
+  local cD := If((et_0_0 := lookupName(1)) != Nil, et_0_0, "anon")     // elvis
   local lE := ((nX % 3) == 0)                     // divisible-by
   local lF := u_xtpl_in(cC, aC)                    // membership
-  local cG := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cB, Nil)}, If(oUser != Nil, oUser:oA, Nil))               // optional chaining
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  local cG := If(oUser != Nil .And. (fbv_0_0 := oUser:oA) != Nil, fbv_0_0:cB, Nil)               // optional chaining
   local nH := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})     // guarded
   local hM := u_xtpl_hnew({{"a", 1}})                  // a literal, with a comment after it
   local nT := 0

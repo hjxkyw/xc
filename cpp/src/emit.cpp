@@ -796,6 +796,11 @@ namespace xc
     used_.clear();
     hoist_.clear();
     hoisted_.clear();
+    early_.clear();
+    early_at_ = -1;
+    early_names_.clear();
+    pool_.clear();
+    busy_.clear();
     param_attributes(params);
     for (const Param* q : params) { used_.insert(lc(q->name)); }
     walk(body, [&](Stmt* s)
@@ -836,6 +841,7 @@ namespace xc
     walk(body, [&](Stmt* s)
     {
       if (s->kind != SK::Deferred) { return; }
+      busy_.clear();
       Lines lines = stmt_lines(static_cast<Deferred*>(s)->stmt);
       auto [code, comment] = split_comment(slice(s));
       if (!comment.empty() && !lines.empty()) { lines.back() += "  " + comment; }
@@ -891,6 +897,7 @@ namespace xc
         for (const Declarator* v : d->declarators)
         {
           if (!v->init) { continue; }
+          busy_.clear();
           for (std::string& l : init_lines(v->name, v->init)) { inits.push_back(std::move(l)); }
         }
       }
@@ -925,6 +932,15 @@ namespace xc
       edit(at, at, t);
     }
     if (!hoist_.empty()) { hoist_edit(body); }
+    // The temps of a prologue declaration, just before it.
+    for (const auto& [from, lines] : early_)
+    {
+      std::string indent = indent_at(from);
+      std::string t;
+      for (const std::string& l : lines) { t += indent + l + nl_; }
+      int at = line_start(from);
+      edit(at, at, t);
+    }
   }
 
   // The names the function declares, anywhere in it.
@@ -1191,8 +1207,40 @@ namespace xc
     while (used_.count(kind + "_0_" + std::to_string(n))) { n++; }
     std::string name = kind + "_0_" + std::to_string(n);
     used_.insert(name);
-    hoist(name, comment, value);
+    if (early_at_ >= 0)
+    {
+      early_[early_at_].push_back("Local " + name + (value.empty() ? "" : " := " + value) + "  // " + comment);
+    }
+    else
+    {
+      hoist(name, comment, value);
+    }
     return name;
+  }
+
+  // A temp for a value read twice. An 'et' (a '?:') is read right after it
+  // is set, with nothing evaluated between: one serves the whole function,
+  // its blocks too. An 'fbv' (a '?.', an 'in lo..hi') has more evaluated
+  // between: one for each use in a statement, free again at the next; a
+  // block has its own. A declaration of the prologue takes only a temp
+  // declared before it.
+  std::string Emitter::temp(const std::string& kind, const std::string& comment)
+  {
+    bool once = kind == "et";
+    if (!once && in_block_ > 0) { return gen(kind, comment); }
+    for (const std::string& t : pool_[kind])
+    {
+      if ((once || !busy_.count(t)) && (early_at_ < 0 || early_names_.count(t)))
+      {
+        busy_.insert(t);
+        return t;
+      }
+    }
+    std::string t = gen(kind, comment);
+    pool_[kind].push_back(t);
+    busy_.insert(t);
+    if (early_at_ >= 0) { early_names_.insert(t); }
+    return t;
   }
 
   // The hoisted Locals go after the last declaration of the function's

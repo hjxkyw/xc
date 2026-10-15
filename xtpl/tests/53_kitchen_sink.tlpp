@@ -19,6 +19,7 @@ user function testKitchenSink()
   Local s_0_1  // a slot: the block locals 'nInner', 'nSquare', 'aBatch', 'aCarrier'
   Local nFactor  // a block local
   Local cBuffer  // a block local
+  Local et_0_0  // the left side of a '?:', evaluated once
 
   // 2. Traditional for loop (Passes safety check because 'i' is declared above)
   for i := 1 to 3
@@ -202,10 +203,10 @@ user function testKitchenSink()
   conout("Cache: " + cCache)
 
   // 26. Elvis: same idea inline, with the left side evaluated exactly once
-  cName := u_xtpl_elvis(lookupName(nTotal), {|| "anonymous"})
+  cName := If((et_0_0 := lookupName(nTotal)) != Nil, et_0_0, "anonymous")
 
   // 27. Chained elvis: each fallback runs only if the one before came back Nil
-  cPick := u_xtpl_elvis(firstChoice(), {|| u_xtpl_elvis(secondChoice(), {|| "last resort"})})
+  cPick := If((et_0_0 := firstChoice()) != Nil, et_0_0, If((et_0_0 := secondChoice()) != Nil, et_0_0, "last resort"))
 
   return nTotal
 

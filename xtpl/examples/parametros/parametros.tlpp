@@ -65,17 +65,18 @@ user function parametros(cCliente, nPrazoParam, nDescParam)
   local nPrazo := 0
   local nDesconto := 0
   local cObs := ""
+  Local et_0_0  // the left side of a '?:', evaluated once
 
   // Quatro origens, a primeira que existir. Uma linha.
-  nPrazo := u_xtpl_elvis(nPrazoParam, {|| u_xtpl_elvis(u_xtpl_hget(hCfg, "prazo"), {|| u_xtpl_elvis(u_xtpl_hget(hGeral, "prazo"), {|| 30})})})
+  nPrazo := If(nPrazoParam != Nil, nPrazoParam, If((et_0_0 := u_xtpl_hget(hCfg, "prazo")) != Nil, et_0_0, If((et_0_0 := u_xtpl_hget(hGeral, "prazo")) != Nil, et_0_0, 30)))
 
   // Aqui zero e uma resposta legitima: um desconto de 0% foi escolhido.
   // '?:' deixa passar, que e o certo.
-  nDesconto := u_xtpl_elvis(nDescParam, {|| u_xtpl_elvis(u_xtpl_hget(hCfg, "desconto"), {|| 0})})
+  nDesconto := If(nDescParam != Nil, nDescParam, If((et_0_0 := u_xtpl_hget(hCfg, "desconto")) != Nil, et_0_0, 0))
 
   // E aqui NAO: uma observacao em branco nao e uma observacao. Vazio conta
   // como ausente, entao o teste e outro e um 'if' comum resolve.
-  cObs := u_xtpl_elvis(u_xtpl_hget(hCfg, "observacao"), {|| ""})
+  cObs := If((et_0_0 := u_xtpl_hget(hCfg, "observacao")) != Nil, et_0_0, "")
   if empty(cObs)
     cObs := "sem observacoes"
   endif
@@ -86,7 +87,7 @@ user function parametros(cCliente, nPrazoParam, nDescParam)
   xconout("prazo ", nPrazo, " desconto ", nDesconto, " obs: ", cObs)
 
   // E num return.
-  return u_xtpl_elvis(u_xtpl_hget(hCfg, "perfil"), {|| "padrao"})
+  return If((et_0_0 := u_xtpl_hget(hCfg, "perfil")) != Nil, et_0_0, "padrao")
 
 // -----------------------------------------------------------------------------
 // the end

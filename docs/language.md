@@ -45,8 +45,10 @@ code: on the header line when the rewrite opens a block, on the last line
 otherwise.
 
 **Locals xc adds.** Some rewrites need variables of their own -- a loop's
-counter, a hash's subject, the area a `using alias` found. xc declares them
-after the function's prologue, each with a comment saying what it is:
+counter, a hash's subject, the area a `using alias` found, a value read twice
+that is to be evaluated once. xc declares them after the function's prologue
+-- or, for a declaration of the prologue that needs one, just before it --
+each with a comment saying what it is:
 
 ```tlpp
   Local fi_0_0  // the position in the array walked
@@ -924,15 +926,55 @@ only exists in three places: the right of an `in`, the head of a
 
 | xtpl | TL++ |
 |---|---|
-| `cName ?: "anonymous"` | `u_xtpl_elvis(cName, {\|\| "anonymous"})` |
-| `cached() ?: computed() ?: "last"` | `u_xtpl_elvis(cached(), {\|\| u_xtpl_elvis(computed(), {\|\| "last"})})` |
+| `cName ?: "anonymous"` | `If(cName != Nil, cName, "anonymous")` |
 | `oUser?.cName` | `If(oUser != Nil, oUser:cName, Nil)` |
 | `oUser?.Describe(1)` | `If(oUser != Nil, oUser:Describe(1), Nil)` |
 
-`a ?: b` is `a`, unless it is Nil; `b` is only evaluated when it is needed.
-It chains to the right. `o?.m` is Nil when `o` is, instead of an error, for
-a member and for a method call; in a run of them, `oUser?.oAddress?.cCity`,
-each base is evaluated once.
+`a ?: b` is `a`, unless it is Nil; `b` is only evaluated when it is needed
+-- `If()` evaluates only the branch it takes. It chains to the right. `o?.m`
+is Nil when `o` is, instead of an error, for a member and for a method call;
+a run of them, `oUser?.oAddress?.cCity`, is one test, and `.And.` stops at
+the first Nil.
+
+Each value is evaluated once. One read twice -- the left side of a `?:`,
+what a `?.` goes on from, the value an `in lo..hi` tests -- that is more than
+a name or a literal is held in a Local of xc's own, set where it is first
+read:
+
+```xtpl
+User Function Contact(oUser)
+  Local cName := cached() ?: computed() ?: "last"
+  Local cCity := oUser?.oAddress?.cCity
+  Local cText := ""
+  if age(oUser) in 18..120
+    cText := cName + ", " + (cCity ?: "-")
+  endif
+Return cText
+```
+
+```tlpp
+User Function Contact(oUser)
+  Local et_0_0  // the left side of a '?:', evaluated once
+  Local cName := If((et_0_0 := cached()) != Nil, et_0_0, If((et_0_0 := computed()) != Nil, et_0_0, "last"))
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  Local cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
+  Local cText := ""
+  if ((fbv_0_0 := age(oUser)) >= 18 .And. fbv_0_0 <= 120)
+    cText := cName + ", " + If(cCity != Nil, cCity, "-")
+  endif
+Return cText
+```
+
+A declaration of the prologue gets its Local just before it; the rest go
+with xc's other Locals ([The output](#the-output)). One serves every
+statement that needs it in turn: `et_0_0` is read right after it is set, so
+one is enough for a whole function; an `fbv` is a new one where a statement
+needs two at once, and a lambda has its own. The value of a `Static` is
+given before any Local exists, and a string in a `raw` line is the
+preprocessor's: there a block takes the value instead --
+`u_xtpl_elvis(cached(), {|| "last"})`, which runs the block only when it is
+needed, and `Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCity, Nil)},
+oUser:oAddress)`.
 
 ### Hashes
 
@@ -1437,7 +1479,7 @@ They are `User Function`s, so the names the output calls carry the `u_`:
 - the verbs: `u_xtpl_map`, `u_xtpl_filter`, ... -- one for each name in
   [The verbs](#the-verbs), and `u_xtpl_queue` with its class, `XtplQueue`;
 - `u_xtpl_in`, for `in`;
-- `u_xtpl_elvis`, for `?:`;
+- `u_xtpl_elvis`, for a `?:` where no Local can hold its left side;
 - `u_xtpl_hget`, `u_xtpl_hset`, `u_xtpl_hhas`, `u_xtpl_hnew`, for hashes;
 - `u_xtpl_jnew`, for JSON objects;
 - `u_xtpl_safe_pipe`, for `fallback`.

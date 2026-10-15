@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 user function f(h, a, o, l)
   local x := 0
-  x := u_xtpl_elvis(o, {|| slow(a)})
+  x := If(o != Nil, o, slow(a))
 return x

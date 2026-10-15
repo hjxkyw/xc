@@ -13,6 +13,8 @@ user function testOperandSpan(aCodes, cCod, nValor, oUser, aOut)
   local lHit := .F.
   local cCity := ""
   local nR := 0
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  Local fbv_0_1  // a value read twice by '?.' or 'in lo..hi', evaluated once
 
   // a comma at this level ends the collection
   lHit := checkBoth(u_xtpl_in(cCod, aCodes), nValor)
@@ -31,8 +33,8 @@ user function testOperandSpan(aCodes, cCod, nValor, oUser, aOut)
 
   // optional chaining to any depth
   cCity := If(oUser != Nil, oUser:cNome, Nil)
-  cCity := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCity, Nil)}, If(oUser != Nil, oUser:oAddress, Nil))
-  cCity := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCity, Nil)}, Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:oB, Nil)}, If(oUser != Nil, oUser:oA, Nil)))
+  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
+  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oA) != Nil .And. (fbv_0_1 := fbv_0_0:oB) != Nil, fbv_0_1:cCity, Nil)
 
   aadd(aOut, lHit)
 
