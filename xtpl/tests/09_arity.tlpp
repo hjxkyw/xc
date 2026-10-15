@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 09_arity.tlpp -- calls checked against signatures in the same file.
+// 09_arity.xtpl -- calls checked against signatures in the same file.
 //
 // AdvPL checks none of this. Only too MANY arguments is reported: a missing
 // parameter arrives as Nil and plenty of code relies on that, but an extra
@@ -9,20 +9,16 @@
 // -----------------------------------------------------------------------------
 
 static function calcTotal(nBase, nRate)
-
   return nBase * nRate
 
 static function semArgs()
-
   return 1
 
 user function testArity(nX)
+  local nT := 0
 
-  Local nT := 0
-
-
-  nT := calcTotal(nX, 2)  // exactly right
-  nT := nT + calcTotal(nX)  // fewer: ordinary, the second is Nil
+  nT := calcTotal(nX, 2)      // exactly right
+  nT := nT + calcTotal(nX)    // fewer: ordinary, the second is Nil
   nT := nT + semArgs()
 
   return nT

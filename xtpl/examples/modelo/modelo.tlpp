@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// modelo.tlpp -- gravar um cliente e seus contatos por um FWModel.
+// modelo.xtpl -- gravar um cliente e seus contatos por um FWModel.
 //
 // Um caso comum: pegar um modelo, pegar os submodelos dele, e chamar dez
 // metodos no mesmo objeto. Rotinas de MVC sao quase so isso.
@@ -70,48 +70,48 @@
 // ============================================================================
 
 user function modelo(oModel, cCod, cNome, aContatos)
+  local nGravados := 0
+  local cChave := ""
+  Local fbs_0_0  // the subject of a 'with object'
+  Local fbs_0_1  // the subject of a 'with object'
+  Local oContato  // a block local
+  Local nPos  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
 
-  Local nGravados := 0
-  Local cChave := ""
+  fbs_0_0 := oModel:GetModel("SA1MASTER")
 
-  Local s_1_obj       // o local de bloco 'obj'
-  Local s_2_obj       // o local de bloco 'obj'
-  Local s_3_each      // o local de bloco 'each'
-  Local s_3_nPos      // o local de bloco 'nPos'
-  Local s_3_oContato  // o local de bloco 'oContato'
-
-  s_1_obj := oModel:GetModel("SA1MASTER")
-
-    s_1_obj:SetValue("A1_COD", cCod)
-    s_1_obj:SetValue("A1_NOME", cNome)
-    s_1_obj:SetValue("A1_STATUS", "1")
+    fbs_0_0:SetValue("A1_COD", cCod)
+    fbs_0_0:SetValue("A1_NOME", cNome)
+    fbs_0_0:SetValue("A1_STATUS", "1")
 
     // Ler do mesmo sujeito, do outro lado de uma atribuicao.
-    cChave := s_1_obj:GetValue("A1_FILIAL") + s_1_obj:GetValue("A1_COD")
+    cChave := fbs_0_0:GetValue("A1_FILIAL") + fbs_0_0:GetValue("A1_COD")
 
     // O bloco de contatos: outro modelo, por dentro.
-    s_2_obj := oModel:GetModel("SA1CONTATO")
+    fbs_0_1 := oModel:GetModel("SA1CONTATO")
 
-      s_3_each := aContatos
-      For s_3_nPos := 1 To Len(s_3_each)
-        s_3_oContato := s_3_each[s_3_nPos]
+      fs_0_0 := aContatos
+      For nPos := 1 To Len(fs_0_0)
+        oContato := fs_0_0[nPos]
 
-        If empty(s_3_oContato:cEmail)
+        If empty(oContato:cEmail)
           loop
         EndIf
 
-        s_2_obj:GoLine(s_3_nPos)
-        s_2_obj:SetValue("A1C_NOME", s_3_oContato:cNome)
-        s_2_obj:SetValue("A1C_EMAIL", s_3_oContato:cEmail)
+        fbs_0_1:GoLine(nPos)
+        fbs_0_1:SetValue("A1C_NOME", oContato:cNome)
+        fbs_0_1:SetValue("A1C_EMAIL", oContato:cEmail)
 
         nGravados := nGravados + 1
 
       next
 
-    // De volta ao sujeito de fora: o 'end with' acima devolveu.
-    s_1_obj:SetValue("A1_CONTATO", cValToChar(nGravados))
 
-  conout("modelo " + cValToChar(cChave) + ": " + cValToChar(nGravados) + " contatos")
+    // De volta ao sujeito de fora: o 'end with' acima devolveu.
+    fbs_0_0:SetValue("A1_CONTATO", cValToChar(nGravados))
+
+
+  xconout("modelo ", cChave, ": ", nGravados, " contatos")
 
   return nGravados
 

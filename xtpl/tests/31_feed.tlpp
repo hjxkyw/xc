@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 31_feed.tlpp -- '=>' chaining, the fold operators, and 'fallback'
+// 31_feed.xtpl -- '=>' chaining, the fold operators, and 'fallback'
 //
 // '=>' has exactly one rule: the value on the left becomes the first
 // argument of the stage on the right. It knows nothing about the runtime,
@@ -9,24 +9,23 @@
 // -----------------------------------------------------------------------------
 
 user function testFeed(aOrders, aNums)
-
-  Local aCodes := {}
-  Local aTop := {}
-  Local nTotal := 0
-  Local nMax := 0
-  Local nSafe := 0
-
-  Local b_0_o   // o local de bloco 'o', fixado: tem armazenamento so dele
-  Local b_0_x   // o local de bloco 'x', fixado: tem armazenamento so dele
-  Local fi_0_0  // o indice do percurso
-  Local fo_0_0  // o resultado da cadeia
-  Local fv_0_0  // o elemento em percurso
-  Local pt_0_0  // o resultado de uma etapa que nao fundiu
-  Local pt_0_1  // o resultado de uma etapa que nao fundiu
+  local aCodes := {}
+  local aTop := {}
+  local nTotal := 0
+  local nMax := 0
+  local nSafe := 0
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
 
   // chaining runtime functions
   fo_0_0 := {}
-
   For fi_0_0 := 1 To Len(aOrders)
     fv_0_0 := aOrders[fi_0_0]
     If fv_0_0:nValue > 1000
@@ -34,67 +33,54 @@ user function testFeed(aOrders, aNums)
       AAdd(fo_0_0, fv_0_0)
     EndIf
   Next
-
   aCodes := fo_0_0
-
-  pt_0_0 := u_xtpl_sortby(aOrders, {|b_0_o| b_0_o:nValue}, .T.)
-  pt_0_1 := u_xtpl_take(pt_0_0, 10)
-  aTop := pt_0_1
+  aTop := u_xtpl_take(u_xtpl_sortby(aOrders, {|o| o:nValue}, .T.), 10)
 
   // a stage with no arguments needs no parentheses
-  pt_0_0 := u_xtpl_distinct(aNums)
-  pt_0_1 := u_xtpl_reverse(pt_0_0)
-  aCodes := pt_0_1
+  aCodes := u_xtpl_reverse(u_xtpl_distinct(aNums))
 
   // the same rule covers a function of your own
-  pt_0_0 := myOwnHelper(aOrders, 3)
-  pt_0_1 := sortRows(pt_0_0)
-  aCodes := pt_0_1
+  aCodes := sortRows(myOwnHelper(aOrders, 3))
 
   // folding: named functions, not operators. The 'a' prefix keeps amax and
   // amin clear of AdvPL's own two-argument Max and Min.
   nTotal := u_xtpl_asum(aNums)
   nMax := u_xtpl_amax(aNums)
-  nTotal := u_xtpl_asum(u_xtpl_map(aOrders, {|b_0_o| b_0_o:nValue}))
+  nTotal := u_xtpl_asum(u_xtpl_map(aOrders, {|o| o:nValue}))
 
   // and as a chain stage, since they are ordinary calls
-  fo_0_0 := 0
-
-  For fi_0_0 := 1 To Len(aOrders)
-    fv_0_0 := aOrders[fi_0_0]
-    If fv_0_0:lPaid
-      fv_0_0 := fv_0_0:nValue
-      fo_0_0 := fo_0_0 + fv_0_0
+  fo_0_1 := 0
+  For fi_0_1 := 1 To Len(aOrders)
+    fv_0_1 := aOrders[fi_0_1]
+    If fv_0_1:lPaid
+      fv_0_1 := fv_0_1:nValue
+      fo_0_1 := fo_0_1 + fv_0_1
     EndIf
   Next
-
-  nTotal := fo_0_0
+  nTotal := fo_0_1
 
   // a chain inside an expression is lifted into its own statement first
   nTotal := len(u_xtpl_distinct(aNums))
-  nTotal := len(u_xtpl_filter(aNums, {|b_0_x| b_0_x > 100})) + len(aOrders)
+  nTotal := len(u_xtpl_filter(aNums, {|x| x > 100})) + len(aOrders)
 
   // reduce chains like any other call, so no parentheses are needed
-  fo_0_0 := 0
-
-  For fi_0_0 := 1 To Len(aOrders)
-    fv_0_0 := aOrders[fi_0_0]
-    fv_0_0 := fv_0_0:nValue
-    fo_0_0 := fo_0_0 + fv_0_0
+  fo_0_2 := 0
+  For fi_0_2 := 1 To Len(aOrders)
+    fv_0_2 := aOrders[fi_0_2]
+    fv_0_2 := fv_0_2:nValue
+    fo_0_2 := fo_0_2 + fv_0_2
   Next
-
-  nTotal := fo_0_0
+  nTotal := fo_0_2
 
   // the lifted result can be indexed like any other expression
   nTotal := len(aNums) + (u_xtpl_distinct(aNums))[1]
 
   // run for its effects: no assignment, so no result is kept
-  pt_0_0 := myOwnHelper(aOrders, 3)
-  sortRows(pt_0_0)
+  sortRows(myOwnHelper(aOrders, 3))
 
   // fallback guards a bare call, a chain, or a return
   nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
-  nSafe := u_xtpl_safe_pipe({|| pt_0_0 := u_xtpl_filter(aNums, {|b_0_x| b_0_x > 100}), pt_0_1 := u_xtpl_asum(pt_0_0), pt_0_1}, {|| 0})
+  nSafe := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(aNums, {|x| x > 100}))}, {|| 0})
 
   conout(cValToChar(nMax) + cValToChar(nSafe))
 

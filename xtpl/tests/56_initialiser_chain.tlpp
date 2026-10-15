@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 56_initialiser_chain.tlpp -- uma cadeia no inicializador de uma declaracao.
+// 56_initialiser_chain.xtpl -- uma cadeia no inicializador de uma declaracao.
 //
 // Um inicializador nao tem atribuicao na frente, e sem dizer que o valor e
 // desejado a cadeia lia isso como "executada pelos efeitos": largava o
@@ -18,73 +18,69 @@
 // -----------------------------------------------------------------------------
 
 user function testInitialiserChain(cArquivo, aNums, bMeu)
-
-  Local aTudo
-  Local nSoma
-  Local aBloco
-  Local nQuantas := 0
-  Local aFiltrado := {}
-
-  Local b_0_a    // o local de bloco 'a', fixado: tem armazenamento so dele
-  Local b_0_it   // o local de bloco 'it', fixado: tem armazenamento so dele
-  Local fi_0_0   // o indice do percurso
-  Local fo_0_0   // o resultado da cadeia
-  Local fok_0_0  // se o arquivo abriu
-  Local fv_0_0   // o elemento em percurso
-  Local pt_0_0   // o resultado de uma etapa que nao fundiu
-
+  local aTudo
+  local nSoma
+  local aBloco
+  local nQuantas
+  local aFiltrado
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
   fok_0_0 := File(cArquivo)
-
   If fok_0_0
     FT_FUse(cArquivo)
     FT_FGoTop()
   EndIf
-
   fo_0_0 := {}
-
   While fok_0_0 .And. !FT_FEof()
     fv_0_0 := FT_FReadLn()
     fv_0_0 := alltrim(fv_0_0)
     AAdd(fo_0_0, fv_0_0)
     FT_FSkip()
   EndDo
-
   If fok_0_0
     FT_FUse()
   EndIf
-
   aTudo := fo_0_0
-
-  fo_0_0 := 0
-
+  fo_0_1 := 0
   For fi_0_0 := 1 To Len(aNums)
-    fv_0_0 := aNums[fi_0_0]
-    fv_0_0 := dobro(fv_0_0)
-    fo_0_0 := fo_0_0 + fv_0_0
+    fv_0_1 := aNums[fi_0_0]
+    fv_0_1 := dobro(fv_0_1)
+    fo_0_1 := fo_0_1 + fv_0_1
   Next
-
-  nSoma := fo_0_0
-
+  nSoma := fo_0_1
   aBloco := u_xtpl_map(aNums, bMeu)
+  nQuantas := 0
+  aFiltrado := {}
 
   // Uma CADEIA nao pode ficar dentro de um lambda, mas todo verbo de cadeia
   // tambem e uma funcao comum -- e ai o nome solto vale para o ULTIMO
   // argumento, que e onde o bloco fica. 'a' e o parametro do proprio lambda
   // e tem de passar intacto.
-  pt_0_0 := u_xtpl_filter(aNums, {|b_0_a| u_xtpl_allof({b_0_a}, {|b_0_it| dobroEhPar(b_0_it)})})
-  aFiltrado := pt_0_0
+  fo_0_2 := {}
+  For fi_0_1 := 1 To Len(aNums)
+    fv_0_2 := aNums[fi_0_1]
+    If u_xtpl_allof({fv_0_2}, {|__it| dobroEhPar(__it)})
+      AAdd(fo_0_2, fv_0_2)
+    EndIf
+  Next
+  aFiltrado := fo_0_2
 
   nQuantas := len(aTudo) + nSoma + len(aBloco) + len(aFiltrado)
 
   return nQuantas
 
 static function dobro(nX)
-
   return nX * 2
 
 static function dobroEhPar(nX)
-
-  return ((nX * 2) % 2) == 0
+  return ((((nX * 2)) % 2) == 0)
 
 // -----------------------------------------------------------------------------
 // the end

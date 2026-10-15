@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// medias.tlpp -- limpar um arquivo e tirar a media de cada linha, numa passada.
+// medias.xtpl -- limpar um arquivo e tirar a media de cada linha, numa passada.
 //
 // Cada linha deve ter tres campos numericos separados por virgula. As que
 // tem, viram a media dos tres; as que nao tem sao descartadas e contadas.
@@ -35,47 +35,39 @@
 using namespace tlpp.regex
 
 user function medias(cArquivo)
-
-  Local nLidas := 0
-  Local aMedias
-
-  Local b_0_it   // o local de bloco 'it', fixado: tem armazenamento so dele
-  Local fo_0_0   // o resultado da cadeia
-  Local fok_0_0  // se o arquivo abriu
-  Local fv_0_0   // o elemento em percurso
-
+  local nLidas := 0
+  local aMedias
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
   fok_0_0 := File(cArquivo)
-
   If fok_0_0
     FT_FUse(cArquivo)
     FT_FGoTop()
   EndIf
-
   fo_0_0 := {}
-
   While fok_0_0 .And. !FT_FEof()
     fv_0_0 := FT_FReadLn()
     nLidas += 1
-    fv_0_0 := u_xtpl_map(u_xtpl_split(fv_0_0, ","), {|b_0_it| alltrim(b_0_it)})
-    If len(fv_0_0) == 3 .and. u_xtpl_allof(fv_0_0, {|b_0_it| ehNumero(b_0_it)})
-      fv_0_0 := u_xtpl_asum(u_xtpl_map(fv_0_0, {|b_0_it| val(b_0_it)})) / 3
+    fv_0_0 := u_xtpl_map(u_xtpl_split(fv_0_0, ","), {|__it| alltrim(__it)})
+    If len(fv_0_0) == 3 .and.            ;
+                                       u_xtpl_allof(fv_0_0, {|__it| ehNumero(__it)})
+      fv_0_0 := u_xtpl_asum(u_xtpl_map(fv_0_0, {|__it| val(__it)})) / 3
       AAdd(fo_0_0, fv_0_0)
     EndIf
     FT_FSkip()
   EndDo
-
   If fok_0_0
     FT_FUse()
   EndIf
-
   aMedias := fo_0_0
 
-  conout("linhas: " + cValToChar(nLidas) + "  boas: " + cValToChar(len(aMedias)) + "  descartadas: " + cValToChar(nLidas - len(aMedias)))
+  xconout("linhas: ", nLidas, "  boas: ", len(aMedias), ;
+          "  descartadas: ", nLidas - len(aMedias))
 
   return aMedias
 
 static function ehNumero(cTexto)
-
   return Regex():matches("^-?[0-9]+(\.[0-9]+)?$", cTexto)
 
 // -----------------------------------------------------------------------------

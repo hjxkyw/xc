@@ -23,10 +23,11 @@ para ver no que uma coisa vira sem precisar rodar nada.
 | `euler-1/` | o primeiro problema do Project Euler, sobre um intervalo |
 
 Os `.tlpp` são **saída gerada** e estão versionados de propósito, para quem lê
-o repositório. Isso só vale se forem regerados quando o transpilador muda:
+o repositório -- hoje a saída do xc, não mais a do xtpl. Isso só vale se forem
+regerados quando o xc muda, da raiz do repositório:
 
 ```sh
-for f in examples/*/*.xtpl; do python xtpl_transpiler.py "$f" "${f%.xtpl}.tlpp"; done
+cpp/build/xc-outputs --update xtpl/tests xtpl/examples
 ```
 
 `dicionario/` é o único que se pode **executar**: os outros usam SA1, SE1,

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 57_range_source.tlpp -- 'lo..hi' como fonte de uma cadeia.
+// 57_range_source.xtpl -- 'lo..hi' como fonte de uma cadeia.
 //
 // A mesma grafia que 'in 1..100' usa, e a unica fonte que percorre sem uma
 // colecao atras: o laco conta, e nada e alocado.
@@ -18,83 +18,83 @@
 // -----------------------------------------------------------------------------
 
 user function testRangeSource(nLo, nHi)
-
-  Local nEuler := 0
-  Local aDobros := {}
-  Local nQuantos := 0
-  Local nCalculado := 0
-  Local aPrimeiros := {}
-
-  Local fhi_0_0  // a ponta de cima de um intervalo
-  Local fi_0_0   // o indice do percurso
-  Local fn_0_0   // quantos elementos ja passaram
-  Local fo_0_0   // o resultado da cadeia
-  Local fv_0_0   // o elemento em percurso
+  local nEuler := 0
+  local aDobros := {}
+  local nQuantos := 0
+  local nCalculado := 0
+  local aPrimeiros := {}
+  Local fi_0_0  // the counter of a range
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the counter of a range
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the counter of a range
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local fhi_0_0  // the high end of a range
+  Local fi_0_3  // the counter of a range
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
+  Local fi_0_4  // the counter of a range
+  Local fv_0_4  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local fo_0_4  // the result of the chain
 
   // literal dos dois lados: entra direto no cabecalho
   fo_0_0 := 0
-
   For fi_0_0 := 1 To 999
     fv_0_0 := fi_0_0
-    If (fv_0_0 % 3) == 0 .or. (fv_0_0 % 5) == 0
+    If ((fv_0_0 % 3) == 0) .or. ((fv_0_0 % 5) == 0)
       fo_0_0 := fo_0_0 + fv_0_0
     EndIf
   Next
-
   nEuler := fo_0_0
 
   // um map escreve no elemento, entao o contador tem de ser outro
-  fo_0_0 := {}
-
-  For fi_0_0 := 1 To 10
-    fv_0_0 := fi_0_0
-    fv_0_0 := fv_0_0 * 2
-    AAdd(fo_0_0, fv_0_0)
+  fo_0_1 := {}
+  For fi_0_1 := 1 To 10
+    fv_0_1 := fi_0_1
+    fv_0_1 := fv_0_1 * 2
+    AAdd(fo_0_1, fv_0_1)
   Next
-
-  aDobros := fo_0_0
+  aDobros := fo_0_1
 
   // contagem com teste, sem construir nada
-  fo_0_0 := 0
-
-  For fi_0_0 := 1 To 100
-    fv_0_0 := fi_0_0
-    If (fv_0_0 % 7) == 0
-      fo_0_0 := fo_0_0 + 1
+  fo_0_2 := 0
+  For fi_0_2 := 1 To 100
+    fv_0_2 := fi_0_2
+    If ((fv_0_2 % 7) == 0)
+      fo_0_2++
     EndIf
   Next
-
-  nQuantos := fo_0_0
+  nQuantos := fo_0_2
 
   // pontas calculadas: ligadas antes do laco
   fhi_0_0 := calcFim(nHi)
-  fo_0_0 := 0
-
-  For fi_0_0 := nLo To fhi_0_0
-    fv_0_0 := fi_0_0
-    If fv_0_0 > 0
-      fo_0_0 := fo_0_0 + fv_0_0
+  fo_0_3 := 0
+  For fi_0_3 := nLo To fhi_0_0
+    fv_0_3 := fi_0_3
+    If fv_0_3 > 0
+      fo_0_3 := fo_0_3 + fv_0_3
     EndIf
   Next
-
-  nCalculado := fo_0_0
+  nCalculado := fo_0_3
 
   // take corta o percurso, nao o resultado
   fn_0_0 := 0
-  fo_0_0 := {}
-
-  For fi_0_0 := 1 To 1000000
-    fv_0_0 := fi_0_0
-    If (fv_0_0 % 3) == 0
+  fo_0_4 := {}
+  For fi_0_4 := 1 To 1000000
+    fv_0_4 := fi_0_4
+    If ((fv_0_4 % 3) == 0)
       If fn_0_0 >= 4
         Exit
       EndIf
-      fn_0_0 := fn_0_0 + 1
-      AAdd(fo_0_0, fv_0_0)
+      fn_0_0++
+      AAdd(fo_0_4, fv_0_4)
     EndIf
   Next
-
-  aPrimeiros := fo_0_0
+  aPrimeiros := fo_0_4
 
   return nEuler + len(aDobros) + nQuantos + nCalculado + len(aPrimeiros)
 

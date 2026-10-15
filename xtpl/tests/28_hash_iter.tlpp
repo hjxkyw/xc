@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 28_hash_iter.tlpp -- keys, values and pairs.
+// 28_hash_iter.xtpl -- keys, values and pairs.
 //
 // 'for' walks arrays, so a hash could not be iterated at all -- it was
 // invisible to the whole pipeline. These return arrays, so nothing else
@@ -13,49 +13,66 @@
 // -----------------------------------------------------------------------------
 
 user function testHashIter(hCfg, hSaldos)
-
-  Local aMv := {}
-  Local nTotal := 0
-  Local cLista := ""
-  Local lVazio := .F.
-  Local aPares := {}
-
-  Local b_0_k       // o local de bloco 'k', fixado: tem armazenamento so dele
-  Local b_0_p       // o local de bloco 'p', fixado: tem armazenamento so dele
-  Local ht_1_0      // o valor lido de um hash
-  Local pt_0_0      // o resultado de uma etapa que nao fundiu
-  Local pt_0_1      // o resultado de uma etapa que nao fundiu
-  Local s_1_cChave  // o local de bloco 'cChave'
-  Local s_1_each    // o local de bloco 'each'
-  Local s_1_eachi   // o local de bloco 'eachi'
+  local aMv := {}
+  local nTotal := 0
+  local cLista := ""
+  local lVazio := .F.
+  local aPares := {}
+  Local cChave  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fs_0_1  // the array walked
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fs_0_2  // the array walked
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fs_0_3  // the array walked
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
 
   // a hash can be walked now
-  s_1_each := u_xtpl_keys(hCfg)
-
-  For s_1_eachi := 1 To Len(s_1_each)
-    s_1_cChave := s_1_each[s_1_eachi]
-    ht_1_0 := Nil
-    hCfg:Get(s_1_cChave, @ht_1_0)
-    conout((cValToChar(s_1_cChave) + " = " + cValToChar(ht_1_0)))
-
+  fs_0_0 := u_xtpl_keys(hCfg)
+  For fi_0_0 := 1 To Len(fs_0_0)
+    cChave := fs_0_0[fi_0_0]
+    conout((cValToChar(cChave) + " = " + cValToChar(u_xtpl_hget(hCfg, cChave))))
   next
 
-  pt_0_0 := u_xtpl_asum(u_xtpl_values(hSaldos))
-  nTotal := pt_0_0
-
-  pt_0_0 := u_xtpl_filter(u_xtpl_keys(hCfg), {|b_0_k| u_xtpl_starts(b_0_k, "MV_")})
-  aMv := pt_0_0
-
-  pt_0_0 := u_xtpl_sort(u_xtpl_keys(hCfg))
-  pt_0_1 := u_xtpl_join(pt_0_0, ", ")
-  cLista := pt_0_1
-
-  pt_0_0 := u_xtpl_noneof(u_xtpl_keys(hCfg), {|b_0_k| .T.})
-  lVazio := pt_0_0
+  nTotal := u_xtpl_asum(u_xtpl_values(hSaldos))
+  fs_0_1 := u_xtpl_keys(hCfg)
+  fo_0_0 := {}
+  For fi_0_1 := 1 To Len(fs_0_1)
+    fv_0_0 := fs_0_1[fi_0_1]
+    If u_xtpl_starts(fv_0_0, "MV_")
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aMv := fo_0_0
+  cLista := u_xtpl_join(u_xtpl_sort(u_xtpl_keys(hCfg)), ", ")
+  fs_0_2 := u_xtpl_keys(hCfg)
+  fo_0_1 := .T.
+  For fi_0_2 := 1 To Len(fs_0_2)
+    fv_0_1 := fs_0_2[fi_0_2]
+    If .T.
+      fo_0_1 := .F.
+      Exit
+    EndIf
+  Next
+  lVazio := fo_0_1
 
   // pairs keeps them together: {chave, valor} per row
-  pt_0_0 := u_xtpl_reject(u_xtpl_pairs(hCfg), {|b_0_p| b_0_p[2] == Nil})
-  aPares := pt_0_0
+  fs_0_3 := u_xtpl_pairs(hCfg)
+  fo_0_2 := {}
+  For fi_0_3 := 1 To Len(fs_0_3)
+    fv_0_2 := fs_0_3[fi_0_3]
+    If !(fv_0_2[2] == Nil)
+      AAdd(fo_0_2, fv_0_2)
+    EndIf
+  Next
+  aPares := fo_0_2
 
   return nTotal + len(aMv) + len(cLista) + len(aPares) + iif(lVazio, 1, 0)
 

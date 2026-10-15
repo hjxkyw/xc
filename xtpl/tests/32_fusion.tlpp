@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 32_fusion.tlpp -- element-wise chains become one loop.
+// 32_fusion.xtpl -- element-wise chains become one loop.
 //
 // Each stage is otherwise a call that walks its input and builds a new array.
 // Fused, the stages are the body of a single loop: no array between them, and
@@ -10,31 +10,53 @@
 // -----------------------------------------------------------------------------
 
 user function testFusion(aRows, nLimit)
-
-  Local aTop := {}
-  Local aRest := {}
-  Local nSum := 0
-  Local nBest := 0
-  Local aOne := {}
-  Local aSorted := {}
-  Local cJoined := ""
-  Local cBare := ""
-  Local nFold := 0
-  Local cLong := ""
-
-  Local b_0_r    // o local de bloco 'r', fixado: tem armazenamento so dele
-  Local ffs_0_0  // o primeiro elemento que passou no teste
-  Local fi_0_0   // o indice do percurso
-  Local flm_0_0  // o limite de um take
-  Local fn_0_0   // quantos elementos ja passaram
-  Local fo_0_0   // o resultado da cadeia
-  Local fv_0_0   // o elemento em percurso
-  Local pt_0_0   // o resultado de uma etapa que nao fundiu
+  local aTop := {}
+  local aRest := {}
+  local nSum := 0
+  local nBest := 0
+  local aOne := {}
+  local aSorted := {}
+  local cJoined := ""
+  local cBare := ""
+  local nFold := 0
+  local cLong := ""
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fn_0_0  // how many elements have passed
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fn_0_1  // how many elements have passed
+  Local flm_0_0  // the limit of a drop
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
+  Local fi_0_4  // the position in the array walked
+  Local fv_0_4  // the element walked
+  Local fo_0_4  // the result of the chain
+  Local fi_0_5  // the position in the array walked
+  Local fv_0_5  // the element walked
+  Local fo_0_5  // what a loop collected, for the stages after it
+  Local fi_0_6  // the position in the array walked
+  Local fv_0_6  // the element walked
+  Local fo_0_6  // the result of the chain
+  Local fi_0_7  // the position in the array walked
+  Local fv_0_7  // the element walked
+  Local fo_0_7  // the result of the chain
+  Local fi_0_8  // the position in the array walked
+  Local fv_0_8  // the element walked
+  Local fo_0_8  // the result of the chain
+  Local fi_0_9  // the position in the array walked
+  Local fv_0_9  // the element walked
+  Local fo_0_9  // the result of the chain
 
   // filter, map and take: one pass, and it stops at ten
   fn_0_0 := 0
   fo_0_0 := {}
-
   For fi_0_0 := 1 To Len(aRows)
     fv_0_0 := aRows[fi_0_0]
     If fv_0_0:nSaldo > 0
@@ -42,133 +64,116 @@ user function testFusion(aRows, nLimit)
       If fn_0_0 >= 10
         Exit
       EndIf
-      fn_0_0 := fn_0_0 + 1
+      fn_0_0++
       AAdd(fo_0_0, fv_0_0)
     EndIf
   Next
-
   aTop := fo_0_0
 
   // drop with a bound limit, and reject
   flm_0_0 := nLimit
-  fn_0_0 := 0
-  fo_0_0 := {}
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    If fn_0_0 < flm_0_0
-      fn_0_0 := fn_0_0 + 1
+  fn_0_1 := 0
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(aRows)
+    fv_0_1 := aRows[fi_0_1]
+    If fn_0_1 < flm_0_0
+      fn_0_1++
     Else
-      If !(fv_0_0:lCancelled)
-        AAdd(fo_0_0, fv_0_0)
+      If !(fv_0_1:lCancelled)
+        AAdd(fo_0_1, fv_0_1)
       EndIf
     EndIf
   Next
-
-  aRest := fo_0_0
+  aRest := fo_0_1
 
   // a fold as the last stage: no array is built at all
-  fo_0_0 := 0
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    If fv_0_0:lPago
-      fv_0_0 := fv_0_0:nValor
-      fo_0_0 := fo_0_0 + fv_0_0
+  fo_0_2 := 0
+  For fi_0_2 := 1 To Len(aRows)
+    fv_0_2 := aRows[fi_0_2]
+    If fv_0_2:lPago
+      fv_0_2 := fv_0_2:nValor
+      fo_0_2 := fo_0_2 + fv_0_2
     EndIf
   Next
-
-  nSum := fo_0_0
-
-  fo_0_0 := Nil
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    fv_0_0 := fv_0_0:nValor
-    If fo_0_0 == Nil
-      fo_0_0 := fv_0_0
+  nSum := fo_0_2
+  fo_0_3 := Nil
+  For fi_0_3 := 1 To Len(aRows)
+    fv_0_3 := aRows[fi_0_3]
+    fv_0_3 := fv_0_3:nValor
+    If fo_0_3 == Nil
+      fo_0_3 := fv_0_3
     Else
-      fo_0_0 := Max(fo_0_0, fv_0_0)
+      fo_0_3 := Max(fo_0_3, fv_0_3)
     EndIf
   Next
-
-  nBest := fo_0_0
+  nBest := fo_0_3
 
   // one stage on its own stays an ordinary call -- a loop either way
-  pt_0_0 := u_xtpl_filter(aRows, {|b_0_r| b_0_r:nSaldo > 0})
-  aOne := pt_0_0
-
-  // the leading run fuses; sort carries on from the array it built
-  fo_0_0 := {}
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    If fv_0_0:nSaldo > 0
-      fv_0_0 := fv_0_0:cCod
-      AAdd(fo_0_0, fv_0_0)
+  fo_0_4 := {}
+  For fi_0_4 := 1 To Len(aRows)
+    fv_0_4 := aRows[fi_0_4]
+    If fv_0_4:nSaldo > 0
+      AAdd(fo_0_4, fv_0_4)
     EndIf
   Next
+  aOne := fo_0_4
 
-  pt_0_0 := u_xtpl_sort(fo_0_0)
-  aSorted := pt_0_0
+  // the leading run fuses; sort carries on from the array it built
+  fo_0_5 := {}
+  For fi_0_5 := 1 To Len(aRows)
+    fv_0_5 := aRows[fi_0_5]
+    If fv_0_5:nSaldo > 0
+      fv_0_5 := fv_0_5:cCod
+      AAdd(fo_0_5, fv_0_5)
+    EndIf
+  Next
+  aSorted := u_xtpl_sort(fo_0_5)
 
   // join is the one terminal that takes an argument -- the separator. A flag
   // marks the first element, because testing the accumulator for emptiness
   // would lose the separator after a legitimately empty first element.
-  ffs_0_0 := .T.
-  fo_0_0 := ""
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    fv_0_0 := fv_0_0:cCod
-    If ffs_0_0
-      ffs_0_0 := .F.
-    Else
-      fo_0_0 := fo_0_0 + "; "
-    EndIf
-    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  fo_0_6 := {}
+  For fi_0_6 := 1 To Len(aRows)
+    fv_0_6 := aRows[fi_0_6]
+    fv_0_6 := fv_0_6:cCod
+    AAdd(fo_0_6, fv_0_6)
   Next
-
-  cJoined := fo_0_0
-
-  fo_0_0 := ""
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    fv_0_0 := fv_0_0:cCod
-    fo_0_0 := fo_0_0 + cValToChar(fv_0_0)
+  fo_0_6 := u_xtpl_join(fo_0_6, "; ")
+  cJoined := fo_0_6
+  fo_0_7 := {}
+  For fi_0_7 := 1 To Len(aRows)
+    fv_0_7 := aRows[fi_0_7]
+    fv_0_7 := fv_0_7:cCod
+    AAdd(fo_0_7, fv_0_7)
   Next
-
-  cBare := fo_0_0
+  fo_0_7 := u_xtpl_join(fo_0_7)
+  cBare := fo_0_7
 
   // reduce carries its own combining step, so it needs no name known in
   // advance -- which is what stops the fusable terminals being a closed list.
   // fold is the seedless form: the first element is the starting value.
-  fo_0_0 := 0
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    fv_0_0 := fv_0_0:nValor
-    fo_0_0 := fo_0_0 + fv_0_0 * 2
+  fo_0_8 := 0
+  For fi_0_8 := 1 To Len(aRows)
+    fv_0_8 := aRows[fi_0_8]
+    fv_0_8 := fv_0_8:nValor
+    fo_0_8 := fo_0_8 + fv_0_8 * 2
   Next
-
-  nFold := fo_0_0
-
-  fo_0_0 := Nil
-
-  For fi_0_0 := 1 To Len(aRows)
-    fv_0_0 := aRows[fi_0_0]
-    fv_0_0 := fv_0_0:cCod
-    If fo_0_0 == Nil
-      fo_0_0 := fv_0_0
+  nFold := fo_0_8
+  fo_0_9 := Nil
+  For fi_0_9 := 1 To Len(aRows)
+    fv_0_9 := aRows[fi_0_9]
+    fv_0_9 := fv_0_9:cCod
+    If fo_0_9 == Nil
+      fo_0_9 := fv_0_9
     Else
-      fo_0_0 := Iif(len(fv_0_0) > len(fo_0_0), fv_0_0, fo_0_0)
+      fo_0_9 := Iif(len(fv_0_9) > len(fo_0_9), fv_0_9, fo_0_9)
     EndIf
   Next
+  cLong := fo_0_9
 
-  cLong := fo_0_0
-
-  return len(aTop) + len(aRest) + nSum + nBest + len(aOne) + len(aSorted) + nFold + len(cLong) + len(cJoined) + len(cBare)
+  return len(aTop) + len(aRest) + nSum + nBest + len(aOne) + len(aSorted) ;
+         + nFold + len(cLong) ;
+         + len(cJoined) + len(cBare)
 
 // -----------------------------------------------------------------------------
 // the end

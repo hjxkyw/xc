@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// notificacao.tlpp -- montar o texto de um aviso de cobranca.
+// notificacao.xtpl -- montar o texto de um aviso de cobranca.
 //
 // Um caso comum: juntar dados num texto legivel, e separar um texto que veio
 // de fora. Nenhuma novidade conceitual -- so e trabalho que aparece em toda
@@ -87,49 +87,39 @@
 // Compare com notificacao_mao.tlpp.
 // ============================================================================
 
+// vem de totvs.ch
 
 user function notificacao(cCliente, nValor, dVenc, cEmails)
+  local cNome := ""
+  local cTexto := ""
+  local aDestino := {}
+  local cAssunto := ""
+  local nDias := dVenc - date()
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
+  Local fs_0_0  // the array walked
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
 
-  Local cNome := ""
-  Local cTexto := ""
-  Local aDestino := {}
-  Local cAssunto := ""
-  Local nDias
-
-  Local fi_0_0       // o indice do percurso
-  Local fo_0_0       // o resultado da cadeia
-  Local fs_0_0       // a colecao ou o caminho percorrido
-  Local fv_0_0       // o elemento em percurso
-  Local pt_1_0       // o resultado de uma etapa que nao fundiu
-  Local pt_1_1       // o resultado de uma etapa que nao fundiu
-  Local s_1_usearea  // o local de bloco 'usearea'
-  Local s_1_useord   // o local de bloco 'useord'
-  Local s_1_userec   // o local de bloco 'userec'
-
-  nDias := dVenc - date()
-
-  s_1_usearea := Alias()
+  far_0_0 := Alias()
   DbSelectArea("SA1")
-  s_1_userec := SA1->(RecNo())
-  s_1_useord := SA1->(IndexOrd())
+  frc_0_0 := SA1->(RecNo())
+  fol_0_0 := SA1->(IndexOrd())
   SA1->(DbSetOrder(1))
     SA1->(DbSeek(xFilial("SA1") + cCliente))
-    pt_1_0 := alltrim(SA1->A1_NOME)
-    pt_1_1 := upper(pt_1_0)
-    cNome := pt_1_1
-
-  SA1->(DbSetOrder(s_1_useord))
-  SA1->(DbGoto(s_1_userec))
-
-  If !Empty(s_1_usearea)
-    DbSelectArea(s_1_usearea)
+    cNome := upper(alltrim(SA1->A1_NOME))
+  SA1->(DbSetOrder(fol_0_0))
+  SA1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
   EndIf
 
   // A lista de e-mails vem separada por ponto e virgula, com espacos soltos
   // e alguns em branco.
   fs_0_0 := u_xtpl_split(cEmails, ";")
   fo_0_0 := {}
-
   For fi_0_0 := 1 To Len(fs_0_0)
     fv_0_0 := fs_0_0[fi_0_0]
     fv_0_0 := alltrim(fv_0_0)
@@ -137,17 +127,18 @@ user function notificacao(cCliente, nValor, dVenc, cEmails)
       AAdd(fo_0_0, fv_0_0)
     EndIf
   Next
-
   aDestino := fo_0_0
 
   If len(aDestino) == 0
-    Return {}
+    return {}
   EndIf
 
   cAssunto := ("Cobranca " + cValToChar(cCliente) + " - " + cValToChar(nDias) + " dias")
 
   // A frase inteira, escrita como frase.
-  cTexto := ("Prezado " + cValToChar(cNome) + ",") + CRLF + CRLF + ("Consta em aberto o valor de " + cValToChar(nValor) + " com vencimento ") + ("em " + cValToChar(dVenc) + ".") + CRLF
+  cTexto := ("Prezado " + cValToChar(cNome) + ",") + CRLF + CRLF +                        ;
+            ("Consta em aberto o valor de " + cValToChar(nValor) + " com vencimento ") +  ;
+            ("em " + cValToChar(dVenc) + ".") + CRLF
 
   if nDias < 0
     cTexto := cTexto + ("O titulo esta vencido ha " + cValToChar(-nDias) + " dias.") + CRLF
@@ -157,7 +148,7 @@ user function notificacao(cCliente, nValor, dVenc, cEmails)
 
   enviaEmail(aDestino, cAssunto, cTexto)
 
-  conout("notificacao " + cValToChar(cCliente) + ": " + cValToChar(len(aDestino)) + " destinatarios")
+  xconout("notificacao ", cCliente, ": ", len(aDestino), " destinatarios")
 
   return aDestino
 

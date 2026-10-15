@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// etiqueta.tlpp -- montar uma etiqueta de entrega a partir de um pedido.
+// etiqueta.xtpl -- montar uma etiqueta de entrega a partir de um pedido.
 //
 // Um caso comum: os dados vem de um objeto montado em outro lugar -- um JSON
 // de integracao, um retorno de servico, um cache. Nem todo pedido tem
@@ -59,52 +59,29 @@
 // ============================================================================
 
 user function etiqueta(oPedido)
-
-  Local cLinha1 := ""
-  Local cLinha2 := ""
-  Local cLinha3 := ""
-  Local cCompl := ""
-
-  Local et_0_0  // o valor testado por '?:'
+  local cLinha1 := ""
+  local cLinha2 := ""
+  local cLinha3 := ""
+  local cCompl := ""
 
   // O nome fantasia e opcional; a razao social nao. Se nao houver fantasia,
   // vale a razao social.
-  et_0_0 := (If(oPedido != Nil .And. oPedido:oCliente != Nil, oPedido:oCliente:cFantasia, Nil))
-
-  If et_0_0 == Nil
-    et_0_0 := (If(oPedido != Nil .And. oPedido:oCliente != Nil, oPedido:oCliente:cRazao, Nil))
-    If et_0_0 == Nil
-      et_0_0 := "SEM NOME"
-    EndIf
-  EndIf
-
-  cLinha1 := et_0_0
+  cLinha1 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cFantasia, Nil)}, If(oPedido != Nil, oPedido:oCliente, Nil)), {|| u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cRazao, Nil)}, If(oPedido != Nil, oPedido:oCliente, Nil)), {|| "SEM NOME"})})
 
   // Tres niveis, e nenhum deles garantido.
-  et_0_0 := (If(oPedido != Nil .And. oPedido:oEntrega != Nil, oPedido:oEntrega:cRua, Nil))
-  cLinha2 := If(et_0_0 != Nil, et_0_0, "endereco nao informado")
+  cLinha2 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cRua, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| "endereco nao informado"})
 
   // Existir e estar preenchido sao coisas diferentes: o complemento pode vir
   // como "" e '?.' entrega isso sem reclamar, porque "" nao e Nil.
-  et_0_0 := (If(oPedido != Nil .And. oPedido:oEntrega != Nil, oPedido:oEntrega:cComplemento, Nil))
-  cCompl := If(et_0_0 != Nil, et_0_0, "")
-
+  cCompl := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cComplemento, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""})
   if !empty(cCompl)
     cLinha2 := cLinha2 + ", " + alltrim(cCompl)
   endif
 
-  et_0_0 := (If(oPedido != Nil .And. oPedido:oEntrega != Nil, oPedido:oEntrega:cCidade, Nil))
-  cLinha3 := If(et_0_0 != Nil, et_0_0, "")
+  cLinha3 := u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCidade, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""}) 
+  cLinha3 := alltrim(cLinha3) + " " + u_xtpl_elvis(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cUf, Nil)}, If(oPedido != Nil, oPedido:oEntrega, Nil)), {|| ""})
 
-  et_0_0 := (If(oPedido != Nil .And. oPedido:oEntrega != Nil, oPedido:oEntrega:cUf, Nil))
-
-  If et_0_0 == Nil
-    et_0_0 := ""
-  EndIf
-
-  cLinha3 := alltrim(cLinha3) + " " + (et_0_0)
-
-  conout("etiqueta: " + cValToChar(cLinha1) + " / " + cValToChar(cLinha2) + " / " + cValToChar(cLinha3))
+  xconout("etiqueta: ", cLinha1, " / ", cLinha2, " / ", cLinha3)
 
   return {cLinha1, cLinha2, cLinha3}
 

@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// creditos.tlpp -- somar o saldo em aberto de um cliente, com um relatorio.
+// creditos.xtpl -- somar o saldo em aberto de um cliente, com um relatorio.
 //
 // Um caso comum: abrir uma area de trabalho, percorrer os titulos de um
 // cliente, somar o que esta em aberto, e gravar uma linha de log. Cinco
@@ -65,17 +65,13 @@
 // ============================================================================
 
 user function creditos(cCliente, nLimite)
-
-  Local nAberto := 0
-  Local nTitulos := 0
-  Local oLog
-
-  Local s_1_usearea  // o local de bloco 'usearea'
-  Local s_1_useord   // o local de bloco 'useord'
-  Local s_1_userec   // o local de bloco 'userec'
-  Local s_2_lMesmo   // o local de bloco 'lMesmo'
-
-  oLog := abreLog("creditos.log")
+  local nAberto := 0
+  local nTitulos := 0
+  local oLog := abreLog("creditos.log")
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
+  Local lMesmo  // a block local
 
   // O log fecha em toda saida daqui para baixo, inclusive nos dois returns
   // antecipados logo abaixo e no return de dentro do laco.
@@ -84,17 +80,20 @@ user function creditos(cCliente, nLimite)
     oLog:Write("cliente vazio, nada a fazer")
     oLog:Close()
     return 0
-
   endif
 
-  s_1_usearea := Alias()
+  far_0_0 := Alias()
   DbSelectArea("SE1")
-  s_1_userec := SE1->(RecNo())
-  s_1_useord := SE1->(IndexOrd())
+  frc_0_0 := SE1->(RecNo())
+  fol_0_0 := SE1->(IndexOrd())
   SE1->(DbSetOrder(1))
     SE1->(DbSeek(xFilial("SE1") + cCliente))
 
-    While (s_2_lMesmo := SE1->E1_CLIENTE == cCliente) .and. !SE1->(Eof())
+    While .T.
+      lMesmo := SE1->E1_CLIENTE == cCliente
+      If !(lMesmo .and. !SE1->(Eof()))
+        Exit
+      EndIf
 
       if SE1->E1_SALDO > 0
         nAberto := nAberto + SE1->E1_SALDO
@@ -106,25 +105,24 @@ user function creditos(cCliente, nLimite)
       if nAberto > nLimite
         oLog:Write("cliente " + cCliente + " passou do limite")
         oLog:Close()
-        SE1->(DbSetOrder(s_1_useord))
-        SE1->(DbGoto(s_1_userec))
-        If !Empty(s_1_usearea)
-          DbSelectArea(s_1_usearea)
+        SE1->(DbSetOrder(fol_0_0))
+        SE1->(DbGoto(frc_0_0))
+        If !Empty(far_0_0)
+          DbSelectArea(far_0_0)
         EndIf
         return nAberto
-
       endif
 
       SE1->(DbSkip())
     enddo
-  SE1->(DbSetOrder(s_1_useord))
-  SE1->(DbGoto(s_1_userec))
-
-  If !Empty(s_1_usearea)
-    DbSelectArea(s_1_usearea)
+  SE1->(DbSetOrder(fol_0_0))
+  SE1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
   EndIf
 
-  oLog:Write("cliente " + cCliente + ": " + cValToChar(nTitulos) + " titulos, " + cValToChar(nAberto) + " em aberto")
+  oLog:Write("cliente " + cCliente + ": " + cValToChar(nTitulos) + ;
+             " titulos, " + cValToChar(nAberto) + " em aberto")
 
   oLog:Close()
   return nAberto

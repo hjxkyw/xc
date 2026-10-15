@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 45_foreach_lines.tlpp -- 'for' over the lines of a file.
+// 45_foreach_lines.xtpl -- 'for' over the lines of a file.
 //
 // This works where 'for' over rows() would not: the element here IS a
 // value -- the line -- so it binds to a name in the ordinary way and the body
@@ -17,44 +17,37 @@
 // -----------------------------------------------------------------------------
 
 user function testForeachLines(cPath)
+  local nTotal := 0
+  Local cLinha  // a block local
+  Local nNumero  // a block local
+  Local fs_0_0  // the path of the file walked
+  Local fok_0_0  // whether the file opened
 
-  Local nTotal := 0
-
-  Local s_1_cLinha   // o local de bloco 'cLinha'
-  Local s_1_each     // o local de bloco 'each'
-  Local s_1_nNumero  // o local de bloco 'nNumero'
-  Local s_1_opened   // o local de bloco 'opened'
-
-  s_1_each := cPath
-  s_1_opened := File(s_1_each)
-
-  If s_1_opened
-    FT_FUse(s_1_each)
+  fs_0_0 := cPath
+  fok_0_0 := File(fs_0_0)
+  If fok_0_0
+    FT_FUse(fs_0_0)
     FT_FGoTop()
   EndIf
-
-  s_1_nNumero := 0
-
-  While s_1_opened .And. !FT_FEof()
-    s_1_nNumero := s_1_nNumero + 1
-    s_1_cLinha := FT_FReadLn()
+  nNumero := 0
+  While fok_0_0 .And. !FT_FEof()
+    nNumero++
+    cLinha := FT_FReadLn()
     FT_FSkip()
-    if empty(s_1_cLinha)
-      loop  // safe: the file has already advanced
+    if empty(cLinha)
+      loop                            // safe: the file has already advanced
     endif
 
-    nTotal := nTotal + len(s_1_cLinha)
+    nTotal := nTotal + len(cLinha)
 
     If nTotal > 1000  // closes the file on the way out
-      If s_1_opened
+      If fok_0_0
         FT_FUse()
       EndIf
-      Return s_1_nNumero
+      return nNumero
     EndIf
-
   EndDo
-
-  If s_1_opened
+  If fok_0_0
     FT_FUse()
   EndIf
 

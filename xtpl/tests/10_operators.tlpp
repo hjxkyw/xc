@@ -1,22 +1,18 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 10_operators.tlpp -- in, %%, the folds, and external
+// 10_operators.xtpl -- in, %%, the folds, and external
 // -----------------------------------------------------------------------------
 
 // CRLF and the STR constants come from headers this transpiler cannot read
 
 user function testOperators(nValor, cCodigo, aCodigos, aNums)
-
-  Local nTotal := 0
-  Local lAchou := .F.
-  Local cMsg := ""
-
-  Local b_0_acc  // o local de bloco 'acc', fixado: tem armazenamento so dele
-  Local b_0_n    // o local de bloco 'n', fixado: tem armazenamento so dele
-  Local fi_0_0   // o indice do percurso
-  Local fo_0_0   // o resultado da cadeia
-  Local fv_0_0   // o elemento em percurso
+  local nTotal := 0
+  local lAchou := .F.
+  local cMsg := ""
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
 
   // folds: named functions, not operators, so they chain too
   nTotal := u_xtpl_asum(aNums)
@@ -24,18 +20,16 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
   nTotal := u_xtpl_amax(aNums)
   nTotal := u_xtpl_amin(aNums)
   fo_0_0 := 0
-
   For fi_0_0 := 1 To Len(aNums)
     fv_0_0 := aNums[fi_0_0]
     If fv_0_0 > 10
       fo_0_0 := fo_0_0 + fv_0_0
     EndIf
   Next
-
   nTotal := fo_0_0
 
   // fold() for anything the four do not cover
-  nTotal := u_xtpl_fold(aNums, {|b_0_acc, b_0_n| Max(b_0_acc, b_0_n * 2)})
+  nTotal := u_xtpl_fold(aNums, {|acc, n| Max(acc, n * 2)})
 
   // membership: '$' searches a string only, so an array needs aScan
   lAchou := u_xtpl_in(cCodigo, aCodigos)
@@ -44,7 +38,7 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
   lAchou := (nValor >= 1 .And. nValor <= 100)
 
   // o lado esquerdo pode ser um literal, nao so um nome -- vale para os dois
-  lAchou := (9 % 3) == 0
+  lAchou := ((9 % 3) == 0)
   lAchou := u_xtpl_in(5, aNums)
   lAchou := u_xtpl_in("ABC", aCodigos)
   lAchou := (7 >= 1 .And. 7 <= 100)
@@ -54,11 +48,11 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
   endif
 
   // divisible by
-  if (nValor % 3) == 0
+  if ((nValor % 3) == 0)
     nTotal := nTotal + 1
   endif
 
-  if (nTotal % 2) == 0 .and. u_xtpl_in(nValor, aNums)
+  if ((nTotal % 2) == 0) .and. u_xtpl_in(nValor, aNums)
     nTotal := nTotal + 2
   endif
 

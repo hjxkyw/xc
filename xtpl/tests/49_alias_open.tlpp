@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 49_alias_open.tlpp -- is this alias even open?
+// 49_alias_open.xtpl -- is this alias even open?
 //
 // A field reference against an alias nothing in the function opened. It only
 // became checkable once 'using alias' and 'rows()' existed, because those are
@@ -12,23 +12,21 @@
 // the caller is the norm rather than the exception.
 // -----------------------------------------------------------------------------
 
+// the caller opens this one
 
 user function testAliasOpen(nX)
-
-  Local nT := 0
-
-  Local s_1_usearea  // o local de bloco 'usearea'
-  Local s_1_userec   // o local de bloco 'userec'
+  local nT := 0
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
 
   // opened here, so both uses are fine
-  s_1_usearea := Alias()
+  far_0_0 := Alias()
   DbSelectArea("SA1")
-  s_1_userec := SA1->(RecNo())
+  frc_0_0 := SA1->(RecNo())
     nT := SA1->A1_SALDO + SA1->A1_VALOR
-  SA1->(DbGoto(s_1_userec))
-
-  If !Empty(s_1_usearea)
-    DbSelectArea(s_1_usearea)
+  SA1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
   EndIf
 
   // opened by DbSelectArea, which counts too

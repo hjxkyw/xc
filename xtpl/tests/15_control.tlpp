@@ -1,71 +1,74 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 15_control.tlpp -- constructs that lower to plain AdvPL, no runtime needed
+// 15_control.xtpl -- constructs that lower to plain AdvPL, no runtime needed
 // -----------------------------------------------------------------------------
 
 user function testControl(oUser, nLimit, aItens)
+  local nTotal := 0
+  local cCity
+  local lDone
+  Local s_0_0  // a slot: the block locals 'lReady', 'cNode', 'i', 'oItem', 'nSubject'
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local nIndice  // a block local
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... times'
+  Local fi_0_2  // the counter of a 'for ... times'
+  Local fn_0_0  // the count of a 'for ... times'
 
-  Local nTotal := 0
-  Local cCity
-  Local lDone
-
-  Local s_1_0  // um slot, dividido por cNode, each, i, lReady, nSubject, times
-  Local s_1_1  // um slot, dividido por ntimes, oItem
-  Local s_1_2  // um slot, dividido por eachi, nIndice
 
   // conditional binding: the value is bound, then tested
-  s_1_0 := checkReady()
-
-  If s_1_0
+  s_0_0 := checkReady()
+  If s_0_0
     conout("ready")
   endif
 
-  While (s_1_0 := nextNode()) != Nil
-    conout("node: " + s_1_0)
+  While .T.
+    s_0_0 := nextNode()
+    If !(s_0_0 != Nil)
+      Exit
+    EndIf
+    conout("node: " + s_0_0)
   enddo
 
-  for s_1_0 := 1 to 3
-    nTotal := nTotal + s_1_0
+  For s_0_0 := 1 To 3
+    nTotal := nTotal + s_0_0
   next
 
   // 'for' binds the element; the index is optional and only generated
   // when you name it. Both are ordinary block locals of the loop.
-  s_1_0 := aItens
-
-  For s_1_2 := 1 To Len(s_1_0)
-    s_1_1 := s_1_0[s_1_2]
-    nTotal := nTotal + s_1_1:nValor
+  fs_0_0 := aItens
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[fi_0_0]
+    nTotal := nTotal + s_0_0:nValor
   next
 
-  s_1_0 := aItens
-
-  For s_1_2 := 1 To Len(s_1_0)
-    s_1_1 := s_1_0[s_1_2]
-    conout(cValToChar(s_1_2) + ": " + s_1_1:cCodigo)
+  fs_0_1 := aItens
+  For nIndice := 1 To Len(fs_0_1)
+    s_0_0 := fs_0_1[nIndice]
+    conout(cValToChar(nIndice) + ": " + s_0_0:cCodigo)
   next
 
   // 'for <n> times' repeats without inventing a counter you never read
-  For s_1_0 := 1 To 3
+  For fi_0_1 := 1 To 3
     conout("linha")
   next
 
-  s_1_1 := len(aItens)
-
-  For s_1_0 := 1 To s_1_1
+  fn_0_0 := len(aItens)
+  For fi_0_2 := 1 To fn_0_0
     nTotal := nTotal + 1
   next
 
   // 'do case with' names the subject and evaluates it once. The conditions
   // are ordinary AdvPL, and the variable is an ordinary block local.
-  s_1_0 := calcTotal(nTotal)
-
+  s_0_0 := calcTotal(nTotal)
   Do Case
-    case s_1_0 == 6
+    case s_0_0 == 6
       conout("exactly six")
-    case s_1_0 > 3
-      conout("more than three: " + cValToChar(s_1_0))
-    case isReady(s_1_0)
+    case s_0_0 > 3
+      conout("more than three: " + cValToChar(s_0_0))
+    case isReady(s_0_0)
       conout("ready")
     otherwise
       conout("small")
@@ -78,17 +81,15 @@ user function testControl(oUser, nLimit, aItens)
   endcase
 
   // optional chaining: a missing link yields Nil rather than crashing
-  cCity := If(oUser != Nil .And. oUser:oAddress != Nil, oUser:oAddress:cCity, Nil)
+  cCity := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cCity, Nil)}, If(oUser != Nil, oUser:oAddress, Nil))
 
   // postfix modifiers
   If nTotal > 5
     lDone := .T.
   EndIf
-
   If nTotal == 0
     resetAll()
   EndIf
-
   While nTotal < 0
     conout("counting")
   EndDo
@@ -96,7 +97,7 @@ user function testControl(oUser, nLimit, aItens)
   If nTotal > 100
     logExit("finished")
     closeCursor()
-    Return nTotal
+    return nTotal
   EndIf
 
   logExit("finished")

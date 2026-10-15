@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 20_object.tlpp -- 'with object', for code that repeats the same subject
+// 20_object.xtpl -- 'with object', for code that repeats the same subject
 //
 // The subject is evaluated once and bound to a hidden block local. Inside the
 // block, a ':' in a position where AdvPL could not have put one means "the
@@ -10,18 +10,16 @@
 // -----------------------------------------------------------------------------
 
 user function testObject(oModel, oOutro, aRows)
+  local cNome := ""
+  local nTam := 0
+  Local fbs_0_0  // the subject of a 'with object'
+  Local fbs_0_1  // the subject of a 'with object'
 
-  Local cNome := ""
-  Local nTam := 0
-
-  Local s_1_obj  // o local de bloco 'obj'
-  Local s_2_obj  // o local de bloco 'obj'
-
-  s_1_obj := oModel:GetModel("SA1DETAIL")
-    s_1_obj:SetValue("A1_COD", "000001")
-    s_1_obj:SetValue("A1_NOME", "ACME")
-    cNome := s_1_obj:GetValue("A1_NOME")
-    nTam := len(s_1_obj:GetValue("A1_COD"))
+  fbs_0_0 := oModel:GetModel("SA1DETAIL")
+    fbs_0_0:SetValue("A1_COD", "000001")
+    fbs_0_0:SetValue("A1_NOME", "ACME")
+    cNome := fbs_0_0:GetValue("A1_NOME")
+    nTam := len(fbs_0_0:GetValue("A1_COD"))
 
     // untouched: another object, an index, an assignment, self
     cNome := oOutro:cRazao
@@ -30,11 +28,11 @@ user function testObject(oModel, oOutro, aRows)
     cNome := ::cUltimo
 
     // nesting: the innermost subject wins, then the outer resumes
-    s_2_obj := oOutro
-      s_2_obj:Ativa()
-      cNome := s_2_obj:cRazao
+    fbs_0_1 := oOutro
+      fbs_0_1:Ativa()
+      cNome := fbs_0_1:cRazao
 
-    s_1_obj:Grava()
+    fbs_0_0:Grava()
 
   conout(cValToChar(nTam))
 

@@ -1,25 +1,23 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 33_effect_chains.tlpp -- uma cadeia executada sÃ³ pelos efeitos.
+// 33_effect_chains.xtpl -- uma cadeia executada só pelos efeitos.
 //
-// Sem atribuiÃ§Ã£o, uma cadeia nÃ£o tem resultado a construir -- e por isso se
-// funde SEM acumulador. Antes ela nÃ£o se fundia de forma alguma, e uma
-// cadeia com 'tap' virava dois laÃ§os e um array intermediÃ¡rio, pior do que o
-// 'for' que ela substituÃ­a.
+// Sem atribuição, uma cadeia não tem resultado a construir -- e por isso se
+// funde SEM acumulador. Antes ela não se fundia de forma alguma, e uma
+// cadeia com 'tap' virava dois laços e um array intermediário, pior do que o
+// 'for' que ela substituía.
 //
-// Uma cadeia de funÃ§Ãµes comuns continua sem se fundir: nunca foi candidata.
+// Uma cadeia de funções comuns continua sem se fundir: nunca foi candidata.
 // -----------------------------------------------------------------------------
 
 user function testEffectChains(aCobertura, cAlvo, aPedidos)
 
-  // exatamente o laÃ§o que alguÃ©m escreveria Ã  mÃ£o
-  Local far_0_0  // a area que estava selecionada antes do percurso
-  Local fi_0_0   // o indice do percurso
-  Local frc_0_0  // o registro em que a area estava antes do percurso
-  Local fv_0_0   // o elemento em percurso
-  Local pt_0_0   // o resultado de uma etapa que nao fundiu
-
+  // exatamente o laço que alguém escreveria à mão
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
   For fi_0_0 := 1 To Len(aCobertura)
     fv_0_0 := aCobertura[fi_0_0]
     If upper(fv_0_0[1]) == cAlvo
@@ -27,26 +25,22 @@ user function testEffectChains(aCobertura, cAlvo, aPedidos)
     EndIf
   Next
 
-  // sobre uma Ã¡rea de trabalho, tambÃ©m sem acumulador
+  // sobre uma área de trabalho, também sem acumulador
   far_0_0 := Alias()
   DbSelectArea("SA1")
   frc_0_0 := SA1->(RecNo())
   SA1->(DbGoTop())
-
   While !SA1->(Eof())
     conout(SA1->A1_COD)
     SA1->(DbSkip())
   EndDo
-
   SA1->(DbGoto(frc_0_0))
-
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
   EndIf
 
-  // funÃ§Ãµes comuns: continua uma chamada por etapa
-  pt_0_0 := valida(aPedidos)
-  grava(pt_0_0)
+  // funções comuns: continua uma chamada por etapa
+  grava(valida(aPedidos))
 
   return
 

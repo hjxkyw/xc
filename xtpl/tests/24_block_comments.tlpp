@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
-// 24_block_comments.tlpp -- what /* */ does, and what it does not touch.
+// 24_block_comments.xtpl -- what /* */ does, and what it does not touch.
 //
 // A block comment taking up whole lines is kept EXACTLY as written: a
 // Protheus.doc block is read by other tools, and rewriting '/*/' into '//'
@@ -19,18 +19,16 @@
 // -----------------------------------------------------------------------------
 
 user function testBlockComments(nX)
-
-  Local nA := 0
-  Local cS := ""
-
+  local nA := 0
+  local cS := ""
 
   /* a block comment spanning lines,
      with local nGhost := 1 inside it, which is
      text and not a declaration */
 
-  nA :=  nX + 1  // ending part-way through: the text moves to the end
+  nA := /* ending part-way through: the text moves to the end */ nX + 1
   cS := "a /* not a comment */ b"
-  nA := nA + 1  // and a trailing one
+  nA := nA + 1  /* and a trailing one */
   nA := nA + 1  // a // b
 
   return nA + len(cS)
