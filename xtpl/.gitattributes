@@ -1,2 +1,3 @@
-# xtpl's material, byte for byte: no conversion of line ends, on any system.
-* -text
+# xtpl's material, byte for byte: no conversion of line ends, on any system, and
+# no complaint about blanks at the ends of lines.
+* -text -whitespace

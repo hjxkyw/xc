@@ -1,2 +1,8 @@
-# Test data, byte for byte: no conversion of line ends, on any system.
-* -text
+# Test data, byte for byte: no conversion of line ends, on any system, and no
+# complaint about blanks at the ends of lines -- a case holds them as its source
+# has them.
+* -text -whitespace
+
+# The cases whose sources end their lines with CRLF travel as binary in a
+# patch: 'git am' strips a CR from a patch's text unless given --keep-cr.
+cases/crlf/** binary

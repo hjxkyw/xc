@@ -51,4 +51,7 @@ cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDAT
 ## Line ends
 
 The files are kept byte for byte (`.gitattributes`: no conversion of line
-ends): a source with CRLF is a case of its own.
+ends, no complaint about blanks at the end of a line). The cases whose
+sources end their lines with CRLF are in `cases/crlf/`, one folder for each
+test file, and travel as binary in a patch: `git am` would strip their CRs
+from a patch's text. A new case with CRLF goes there too.
