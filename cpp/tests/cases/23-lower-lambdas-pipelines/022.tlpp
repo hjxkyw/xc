@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x
+  If x == Nil
+    x := u_xtpl_map(a, {|o| o})
+  EndIf
+return x

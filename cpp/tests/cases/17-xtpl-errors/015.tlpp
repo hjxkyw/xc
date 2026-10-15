@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  Local nY  // a block local
+  while n > 0
+    nY := 1
+    n := n - nY
+  enddo
+return n

@@ -1,0 +1,3 @@
+user function f(o, p, a, n)
+  local raw := 1
+return 1

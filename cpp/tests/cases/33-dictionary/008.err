@@ -1,0 +1,1 @@
+008.xtpl:4: warning: 'SA1->A1_SALDOX' is not a field of SA1. Did you mean A1_SALDO?

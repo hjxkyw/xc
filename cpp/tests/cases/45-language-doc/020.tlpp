@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Raw(nTotal, cName)
+  @ 10, 5 SAY ("Total " + cValToChar(nTotal)) GET nTotal PICTURE "@E 999,999.99"
+    @ 12, 5 SAY "Name" GET cName PICTURE "@!"
+Return nil

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class C From A, B
+  Data x
+EndClass

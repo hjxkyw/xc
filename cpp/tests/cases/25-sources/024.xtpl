@@ -1,0 +1,4 @@
+user function f(a, n, cP)
+  local x := 0
+  x := rows("SA1")
+return x

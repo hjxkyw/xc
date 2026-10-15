@@ -1,0 +1,3 @@
+user function f()
+  nX ?= 3 if lReset
+return

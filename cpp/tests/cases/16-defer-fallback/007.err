@@ -1,0 +1,2 @@
+007.xtpl:2: warning: 'aNums' is not declared
+007.xtpl:2: warning: 'nTmp' is not declared, so this creates a PRIVATE

@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cAl)
+  local x := 0
+  If SA1->A1_NOME == -5
+    x := 1
+  EndIf
+  If .T. == SA1->A1_SALDO
+    x := 2
+  EndIf
+return x

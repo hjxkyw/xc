@@ -1,0 +1,5 @@
+User Function Prol()
+  Local nA := 1
+  conout(nA)
+  Local nB := 2
+Return nB

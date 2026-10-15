@@ -1,0 +1,4 @@
+user function f(n, a)
+  conout(1)
+  local nL := 0
+return n

@@ -1,0 +1,8 @@
+user function f(a)
+  local oErr
+  begin sequence
+    a := 1
+  recover using oErr
+    a := oErr
+  end sequence
+return 1

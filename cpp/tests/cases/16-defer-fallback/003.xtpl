@@ -1,0 +1,3 @@
+user function f()
+  aList := (riskyCall(2) fallback {}) |> filter([x] x > 1)
+return

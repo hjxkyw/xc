@@ -1,0 +1,17 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// interp_unclosed.xtpl -- an interpolation using the string's own quote.
+//
+// The literal ends at the inner quote, so the '${' is left open.
+// -----------------------------------------------------------------------------
+
+user function interpUnclosed(hCfg)
+  local cMsg := ""
+
+  cMsg := ("taxa " + cValToChar(u_xtpl_hget(hCfg, 't')) + " fim")
+
+  return cMsg
+
+// -----------------------------------------------------------------------------
+// the end

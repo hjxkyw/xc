@@ -1,0 +1,4 @@
+external dDataBase
+user function f()
+  dDataBase := Date()
+return 1

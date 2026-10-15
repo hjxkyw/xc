@@ -1,0 +1,6 @@
+user function f(n, a)
+  do case
+  case n > 0
+    local nY := 1
+  endcase
+return n

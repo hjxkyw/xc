@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := u_xtpl_map(a, {|x| x + 1})
+  a := aeval(a, {|y, z| y + z})
+return 1

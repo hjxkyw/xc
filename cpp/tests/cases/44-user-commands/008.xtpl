@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#xcommand REPORTE <x> TITULO <t> => u_Rep(<x>, <t>)
+
+User Function f(a)
+  REPORTE a
+Return nil

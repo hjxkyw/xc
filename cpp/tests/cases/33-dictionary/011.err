@@ -1,0 +1,2 @@
+011.xtpl:4: warning: SA1->A1_NOME is character, compared with a numeric value.
+011.xtpl:5: warning: SA1->A1_SALDO is numeric, compared with a logical value.

@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  conout("a && b")
+  conout("* c")
+return nil

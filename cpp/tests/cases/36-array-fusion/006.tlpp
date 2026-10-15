@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := u_xtpl_asum(a)
+  m := u_xtpl_take(a, 3)
+return n

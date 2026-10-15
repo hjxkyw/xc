@@ -1,0 +1,8 @@
+Class Fila From Base
+  Public Data aBuf as array
+  Public Data nHead, nTail
+  Data nUsed
+  Public Method New(nSize) Constructor
+  Public Method Push(xItem)
+  Method Grow()
+EndClass

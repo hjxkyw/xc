@@ -1,0 +1,25 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+static cFirst := "cFirst"
+
+function u_stat_test_1(cParm)
+  default cParm := "a"
+  static cInside := "cInside"
+  default cParm := "b"
+  conout("u_stat_test_1 " + cFirst + " " + cInside + " " + cParm)
+  return
+
+static cSecond := "cSecond"
+
+function u_stat_test_2()
+  conout("u_stat_test_2 " + cSecond + " " + cInside)
+  return
+
+static cThird := "cThird"
+
+function u_stat_test_3()
+  u_stat_test_1()
+  u_stat_test_2()
+  conout("u_stat_test_3 " + cThird)
+  return

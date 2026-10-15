@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+#xcommand TestSuite <cName> => _ObjNewClass( TestSuite_<cName>, LongNameClass )
+#xcommand Enable Environment <cCompany> <cBranch> => _ObjClassData( cCompany, String, , <cCompany> )
+#xcommand EndTestSuite => _ObjEndClass()
+
+TestSuite Custo
+    Enable Environment 'T3' 'S SC 01'
+    Data nRegistros As Numeric
+EndTestSuite

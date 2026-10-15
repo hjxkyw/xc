@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a, n)
+  Local fi_0_0  // the counter of a 'for ... times'
+  For fi_0_0 := 1 To 3  // a loop header
+    conout(1)
+  next
+return 1

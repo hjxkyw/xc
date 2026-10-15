@@ -1,0 +1,6 @@
+user function f(n, a)
+  while n > 0
+    local nY := 1
+    n := n - nY
+  enddo
+return n

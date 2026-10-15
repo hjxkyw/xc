@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  x := u_xtpl_hnew({{"taxa", 0.05}, {"limite", 1000}})
+return x

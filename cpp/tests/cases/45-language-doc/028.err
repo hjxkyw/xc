@@ -1,0 +1,2 @@
+028.xtpl:3: warning: 'cNum' is not declared
+028.xtpl:3: warning: 'aSeek' is not declared, so this creates a PRIVATE

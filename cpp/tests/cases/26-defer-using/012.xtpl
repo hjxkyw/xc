@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  using alias SA1 order 1 do
+    n := SA1->A1_SALDO
+  end using   // done
+  return n

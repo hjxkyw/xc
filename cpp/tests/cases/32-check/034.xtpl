@@ -1,0 +1,4 @@
+user function f(a)
+  local nC <contained> := 1
+  raw @ 1, 1 GET nC
+return 1

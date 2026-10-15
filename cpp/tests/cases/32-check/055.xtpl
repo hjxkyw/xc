@@ -1,0 +1,5 @@
+user function f(a)
+  if a > 0
+    return 1
+  endif
+return 2

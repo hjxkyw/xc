@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  if local nV := calc(), nV > 1
+    nT := 1
+  elseif nV > 0
+    nT := 2
+  else
+    nT := 3
+  endif
+return n

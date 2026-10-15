@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nK := 0
+  nK++
+return a

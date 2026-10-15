@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  Local b_1_x  // the block local 'x'
+  if n > 0
+    b_1_x := 1  // x
+    ANOTE b_1_x + o:x + x(1) + A->x
+  endif
+return n

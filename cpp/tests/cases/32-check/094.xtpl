@@ -1,0 +1,11 @@
+static nBase := 1
+
+user function f(cParm)
+  static nA := 2
+  static nB := g()
+  static nC := nBase + nA
+  static bD := {|| cParm }
+return nA + nB + nC + eval(bD)
+
+static function g()
+return 3

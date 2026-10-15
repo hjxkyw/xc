@@ -1,0 +1,7 @@
+user function f(a)
+  local x := lines("a.txt")
+  a := lines("b.txt")
+  a := x
+  for cL in lines("c.txt")
+  next
+return 1

@@ -1,0 +1,40 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  Local fol_0_0  // the index order before a 'using alias'
+  Local far_0_1  // the area selected before the walk
+  Local frc_0_1  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  far_0_0 := Alias()
+  DbSelectArea("SC6")
+  frc_0_0 := SC6->(RecNo())
+  fol_0_0 := SC6->(IndexOrd())
+  SC6->(DbSetOrder(1))
+    far_0_1 := Alias()
+    DbSelectArea("SC6")
+    frc_0_1 := SC6->(RecNo())
+    SC6->(DbSeek(xFilial("SC6") + cNum))
+    fo_0_0 := {}
+    While !SC6->(Eof())
+      If !(SC6->C6_NUM == cNum)
+        Exit
+      EndIf
+      fv_0_0 := SC6->C6_PRODUTO
+      AAdd(fo_0_0, fv_0_0)
+      SC6->(DbSkip())
+    EndDo
+    SC6->(DbGoto(frc_0_1))
+    If !Empty(far_0_1)
+      DbSelectArea(far_0_1)
+    EndIf
+    aSeek := fo_0_0
+  SC6->(DbSetOrder(fol_0_0))
+  SC6->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+Return nil

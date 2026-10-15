@@ -1,0 +1,3 @@
+method f() class C
+  ::nHead := 1
+return

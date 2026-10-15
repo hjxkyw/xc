@@ -1,0 +1,4 @@
+user function f(a)
+  local len := 1
+  x := := 2
+return a

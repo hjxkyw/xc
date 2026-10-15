@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function v(a)
+  local n := 0
+  n := u_xtpl_asum(a)
+  return n

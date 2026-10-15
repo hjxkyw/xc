@@ -1,0 +1,6 @@
+07_types.xtpl:14: warning: SA1->A1_NOME is character, assigned a numeric value.
+07_types.xtpl:15: warning: SA1->A1_SALDO is numeric, assigned a character value.
+07_types.xtpl:16: warning: SA1->A1_DTCAD is date, assigned a numeric value.
+07_types.xtpl:19: warning: SA1->A1_SALDO is numeric, compared with a character value.
+07_types.xtpl:20: warning: SA1->A1_SALDO is numeric, compared with a character value.
+07_types.xtpl:33: warning: SA1->A1_COD holds 6 characters, but is assigned 7.

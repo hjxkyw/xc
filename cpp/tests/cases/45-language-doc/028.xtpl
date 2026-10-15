@@ -1,0 +1,7 @@
+User Function Doc()
+  using alias SC6 order 1 do
+    aSeek := rows("SC6", xFilial("SC6") + cNum) ;
+             |> takewhile([r] r:C6_NUM == cNum) ;
+             |> map([r] r:C6_PRODUTO)
+  end using
+Return nil

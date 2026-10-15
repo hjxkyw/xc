@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nC := 1  // [contained]
+  a := nC + len(a)
+return 1

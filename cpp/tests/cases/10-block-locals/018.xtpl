@@ -1,0 +1,4 @@
+user function f()
+  for local := 1 to 3
+  next
+return

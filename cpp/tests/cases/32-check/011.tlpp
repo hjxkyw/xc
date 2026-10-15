@@ -1,0 +1,20 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  Local s_0_0  // a slot: the block locals 'nH', 'nE', 'nC'
+  Local nI  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  s_0_0 := a * 2
+  If s_0_0 > 1
+    a := s_0_0
+  endif
+  fs_0_0 := {1}
+  For nI := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[nI]
+    a := s_0_0 + nI
+  next
+  For s_0_0 := 1 To 3
+    a := s_0_0
+  next
+return 1

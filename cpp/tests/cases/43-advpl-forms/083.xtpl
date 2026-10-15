@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local __APPUSER := 1
+  __APPUSER++
+return __APPUSER

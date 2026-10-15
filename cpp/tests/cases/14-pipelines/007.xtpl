@@ -1,0 +1,5 @@
+user function f()
+  aX := aP ;
+    |> filter([o] o:lOk) ;
+    |> map([o] o:cCod)
+return

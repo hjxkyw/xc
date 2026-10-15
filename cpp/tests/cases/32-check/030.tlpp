@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := u_xtpl_map(a, {|x| x})
+  a := x
+return 1

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  h:Set("n", u_xtpl_hget(h, "n") + (2))
+return x

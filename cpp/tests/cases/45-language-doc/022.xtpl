@@ -1,0 +1,6 @@
+User Function Doc()
+  cUp := cName |> alltrim |> upper
+  nN := len(aNums |> distinct)
+  aCodes := sortedCodes(aOrders |> sortby([o] o:cCode), 10)
+  aOrders |> validate() |> save()
+Return nil

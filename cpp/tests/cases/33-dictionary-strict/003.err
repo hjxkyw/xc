@@ -1,0 +1,2 @@
+003.xtpl:4: warning: nothing in this function opened SZZ. Wrap the use in 'using alias SZZ do', or declare 'external alias SZZ' if the caller opens it.
+003.xtpl:4: alias 'SZZ' is not in the dictionary. A table that is missing usually means the export is out of date.

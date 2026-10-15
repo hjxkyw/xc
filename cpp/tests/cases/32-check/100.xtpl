@@ -1,0 +1,5 @@
+user function f(a)
+  for r in rows("SA1")
+    a := r:A1_COD
+  next
+return 1

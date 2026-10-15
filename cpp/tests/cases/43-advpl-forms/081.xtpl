@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  a := 1 if a == Nil  && sem valor
+return a

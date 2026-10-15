@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Method Cria() Class TDb
+  ::cAlias := ::CriaDB({}, "COL", @::cTab)
+Return ::cAlias

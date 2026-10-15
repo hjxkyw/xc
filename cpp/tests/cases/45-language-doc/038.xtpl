@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := oUser?.Describe(1)
+Return nil

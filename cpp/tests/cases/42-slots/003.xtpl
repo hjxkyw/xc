@@ -1,0 +1,19 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local n1 := 1
+    conout(n1)
+  endif
+  if a > 1
+    local c2 := "x"
+    if a > 2
+      local n3 := 2
+      conout(c2 + str(n3))
+    endif
+  endif
+  for local i := 1 to 3
+    local nSq := i * i
+    conout(nSq)
+  next
+return a

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(aCampos, nX)
+  Eval(aCampos[nX][6], @aCampos[nX][8], nX)
+return aCampos

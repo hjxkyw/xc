@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  with object o
+    x := :GetModel("M"):GetValue(1)
+    n := 1 if :lOk
+  end with
+return n

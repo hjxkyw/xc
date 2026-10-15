@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function v()
+  local nL := 1  // [const]
+  return nL

@@ -1,0 +1,7 @@
+user function f(a)
+  local nL := 1
+  static nS := 2
+  private nP := 3
+  public nU := 4
+  a := nL + nS + nP + nU
+return 1

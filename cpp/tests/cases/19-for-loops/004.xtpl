@@ -1,0 +1,5 @@
+user function f(a, n)
+  for oIt in aRows |> distinct
+    conout(oIt)
+  next
+return 1

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  for oI in a        // each
+    nT := nT + oI:nV
+  next oI
+return n

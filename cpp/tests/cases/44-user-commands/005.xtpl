@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+#xtranslate If <expr> ? <true> : <false> => If(<expr>, <true>, <false>)
+#xtranslate Eval <blockName>([<prm,...>]) => Eval(<blockName> [, <prm>])
+
+User Function f(bIt, xV)
+  Local xC := If bIt == Nil ? xV : Eval bIt( xV )
+  Return If xC == Nil ;
+    ? 0 ;
+    : xC

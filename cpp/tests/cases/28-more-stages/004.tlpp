@@ -1,0 +1,35 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local x := {}
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
+  Local fop_0_0  // whether distinctAdjacent has seen an element
+  Local fls_0_0  // the key distinctAdjacent saw last
+  Local fpb_0_0  // the key of the element distinctAdjacent looks at
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  far_0_0 := Alias()
+  DbSelectArea("SC6")
+  frc_0_0 := SC6->(RecNo())
+  SC6->(DbGoTop())
+  fop_0_0 := .F.
+  fls_0_0 := Nil
+  fpb_0_0 := Nil
+  fo_0_0 := {}
+  While !SC6->(Eof())
+    fpb_0_0 := SC6->C6_NUM
+    If !(fop_0_0 .And. (fpb_0_0 == fls_0_0))
+      fop_0_0 := .T.
+      fls_0_0 := fpb_0_0
+      fv_0_0 := SC6->C6_NUM
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+    SC6->(DbSkip())
+  EndDo
+  SC6->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+  x := fo_0_0
+return n

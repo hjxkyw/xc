@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+#command REPORTE <x> [TITULO <t>] [LARGURA <n>] => u_Rep(<x>, <t>, <n>)
+
+User Function f(a)
+  REPORTE a LARGURA 80 TITULO "x"
+  REPO a TITU "y"
+Return nil

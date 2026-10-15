@@ -1,0 +1,5 @@
+user function f(a)
+  private nP := 1
+  local nL := 2
+  a := nP + nL
+return 1

@@ -1,0 +1,1 @@
+052.xtpl:4: warning: the function can reach its end without a return, but returns a value on line 2

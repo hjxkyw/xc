@@ -1,0 +1,6 @@
+exit 0
+--- output
+extra/usecmd.xtpl: ok
+--- errors
+--- written
+

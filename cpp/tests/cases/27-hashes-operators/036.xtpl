@@ -1,0 +1,4 @@
+user function f(h, a)
+  local x
+  f() := 1
+return x

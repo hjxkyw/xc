@@ -1,0 +1,5 @@
+user function f(a)
+  local nL <const> := 1
+  for nL := 1 to 3
+  next
+return 1

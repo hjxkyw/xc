@@ -1,0 +1,3 @@
+user function f()
+  aOut := map(aNums, [x] f(x |> g))
+return

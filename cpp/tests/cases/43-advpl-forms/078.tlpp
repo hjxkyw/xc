@@ -1,0 +1,8 @@
+*****
+* banner
+*****
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+return 1

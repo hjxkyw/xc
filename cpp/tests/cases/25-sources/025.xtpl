@@ -1,0 +1,5 @@
+user function f(a, n, cP)
+  local x := 0
+  local bOk := {|l| .T.}
+  x := lines(cP) |> filter(bOk)
+return x

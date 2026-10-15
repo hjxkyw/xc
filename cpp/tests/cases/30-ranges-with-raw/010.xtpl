@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  with object o:GetModel("M")   // the model
+    :SetValue("A", 1)
+    x := :GetValue("B") + :nTam
+    :cNome := "z"
+  end with
+return n

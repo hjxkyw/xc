@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(aR <contained>, nX <const> as Numeric)   // the rows
+return nX
+
+static function g(nZ <const>)
+return nZ

@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+#xcommand REPORTE <x> => conout(<x>)
+#xtranslate @Agora => Time()
+
+User Function A()
+  REPORTE "a"
+Return @Agora
+
+User Function B()
+  REPORTE "b"
+Return nil

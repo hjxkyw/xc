@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  defer bye()
+  for cL in lines(cP)
+    return 1
+  next
+  return 0

@@ -1,0 +1,5 @@
+external alias SA1
+user function f(cAl)
+  local x := 0
+  SA1->A1_NOME := 5
+return x

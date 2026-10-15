@@ -1,0 +1,10 @@
+user function f(a)
+  DbSelectArea("SA1")
+  ChkFile("SB1")
+  a := SA1->A1_COD + SB1->B1_COD
+  a := rows("SC5") |> map([r] r:C5_NUM)
+  a := SC5->C5_NUM
+  using alias SD1 do
+    a := SD1->D1_COD
+  end using
+return 1

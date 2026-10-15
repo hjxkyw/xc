@@ -1,0 +1,4 @@
+user function f(a)
+  a := a |> reduce([s, s] s * 2, 0)
+  a := eval({|x, y, x| x + y}, 1, 2, 3)
+return 1

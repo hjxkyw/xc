@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o, l)
+  local x := 0
+  x := Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:Metodo(__v), Nil)}, getObj())
+return x

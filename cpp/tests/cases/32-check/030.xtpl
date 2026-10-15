@@ -1,0 +1,4 @@
+user function f(a)
+  a := map(a, [x] x)
+  a := x
+return 1

@@ -1,0 +1,3 @@
+user function f()
+  cResposta := chamaServico(cUrl, cChave) fallback ""
+return

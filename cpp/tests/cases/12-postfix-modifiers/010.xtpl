@@ -1,0 +1,3 @@
+user function f()
+  loop if empty(oItem:cCodigo)
+return

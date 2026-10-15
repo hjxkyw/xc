@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  If !lOk
+    return {}
+  EndIf
+return

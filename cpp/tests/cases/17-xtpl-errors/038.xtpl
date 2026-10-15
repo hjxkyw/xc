@@ -1,0 +1,3 @@
+user function f(n, a)
+  local s_x_1 := 1
+return n

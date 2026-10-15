@@ -1,0 +1,3 @@
+method f() class C
+  ::aBuf[::nTail] := x
+return

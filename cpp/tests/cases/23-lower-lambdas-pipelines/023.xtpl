@@ -1,0 +1,3 @@
+user function f()
+  static n := rows("SA1") |> count
+return n

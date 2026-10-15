@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local h := THashMap():New()
+  a := ("v=" + cValToChar(a)) + u_xtpl_hget(h, "k")
+return 1

@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  static cTop := "x"
+return a
+
+user function g()
+return cTop

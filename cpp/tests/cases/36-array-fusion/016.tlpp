@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // what a loop collected, for the stages after it
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If fv_0_0 > 0
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  n := u_xtpl_take(u_xtpl_sortby(fo_0_0, {|__it| upper(__it)}), 3)
+return n

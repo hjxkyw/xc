@@ -1,0 +1,3 @@
+user function f(a)
+  a := a |> alltrim |> upper
+return 1

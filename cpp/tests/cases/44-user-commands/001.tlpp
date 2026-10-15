@@ -1,0 +1,24 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+#xcommand TestSuite <cName> ;
+    [ <description: Description> <cDesc> ] ;
+    [ <verbose: Verbose> ] ;
+    => ;
+    Static __NAME__ := <(cName)> ;;
+    _ObjNewClass( TestSuite_<cName>, LongNameClass )
+#xcommand EndTestSuite => _ObjEndClass()
+#xcommand Feature <cFeat> [ <description: Description> <cDesc> ] => _ObjClassMethod( Feat_<cFeat>, , )
+#xcommand Feature <cFeat> TestSuite <cSuite> => Function ___TestSuite_<cSuite>____Feat_<cFeat>()
+#xcommand CompileTestSuite <cSuite> => Function U_<cSuite> ;; Return 0
+
+TestSuite Calc Verbose Description 'Contas'
+    Feature Soma Description 'soma dois numeros'
+EndTestSuite
+
+Feature Soma TestSuite Calc
+    Local nA := 1
+    ::Expect( nA + 1 ):ToBe( 2 )
+    Return
+
+CompileTestSuite Calc

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(c)
+  Do Case
+    Case c == 1
+      c := 2
+    Default
+      c := 3
+  EndCase
+Return c

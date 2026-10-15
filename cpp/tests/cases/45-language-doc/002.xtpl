@@ -1,0 +1,5 @@
+User Function Doc()
+  Local nBig := 12'345'678
+  Local nDec := 1'234.567'8
+  Local nHalf := .5
+Return nil

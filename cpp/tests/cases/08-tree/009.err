@@ -1,0 +1,5 @@
+009.xtpl:2: warning: 'n' is not declared, so this creates a PRIVATE
+009.xtpl:3: warning: 'oObj' is not declared
+009.xtpl:4: warning: 'a' is not declared
+009.xtpl:4: warning: 'i' is not declared
+009.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

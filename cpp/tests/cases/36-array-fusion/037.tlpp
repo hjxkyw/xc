@@ -1,0 +1,42 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fa_0_0  // the running value of a scan
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fpv_0_0  // the element pairwise saw last
+  Local fhd_0_0  // whether pairwise has seen an element
+  Local fol_0_0  // the element before, for pairwise
+  Local frd_0_0  // whether pairwise has a pair
+  fa_0_0 := 0
+  fo_0_0 := Nil
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If fv_0_0 > 0
+      fa_0_0 := fa_0_0 + fv_0_0
+      fv_0_0 := fa_0_0
+      If fo_0_0 == Nil
+        fo_0_0 := fv_0_0
+      Else
+        fo_0_0 := Max(fo_0_0, fv_0_0)
+      EndIf
+    EndIf
+  Next
+  n := fo_0_0
+  fpv_0_0 := Nil
+  fhd_0_0 := .F.
+  For fi_0_1 := 1 To Len(a)
+    fv_0_1 := a[fi_0_1]
+    fol_0_0 := fpv_0_0
+    frd_0_0 := fhd_0_0
+    fpv_0_0 := fv_0_1
+    fhd_0_0 := .T.
+    If frd_0_0
+      fv_0_1 := {fol_0_0, fv_0_1}
+      conout(fv_0_1[1])
+    EndIf
+  Next
+return n

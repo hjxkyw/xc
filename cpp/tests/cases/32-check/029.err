@@ -1,0 +1,2 @@
+029.xtpl:3: warning: 'nT' is assigned but never read
+029.xtpl:5: 'nT' is out of scope here (block local declared on line 3).

@@ -1,0 +1,4 @@
+#include "TOTVS.CH"
+#include "tlpp-core.th"
+user function f()
+return 1

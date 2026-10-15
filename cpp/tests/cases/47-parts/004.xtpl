@@ -1,0 +1,6 @@
+User Function A()
+Return 1
+
+User Function B()
+  x := (1 +
+Return 2

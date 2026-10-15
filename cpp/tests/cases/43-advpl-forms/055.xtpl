@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  if n > 0
+    local aX[n][2]
+    aX[1][1] := n
+  endif
+return n

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local nA := 1, aL := { 1 }
+  conout( ( nA, 2 ) )
+  aTail(aL) := 3
+return nil

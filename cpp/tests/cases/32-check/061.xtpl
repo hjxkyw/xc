@@ -1,0 +1,4 @@
+user function f(a)
+  local nX := "a" as Numeric
+  a := nX
+return 1

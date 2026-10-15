@@ -1,0 +1,6 @@
+exit 0
+--- output
+src/a.xtpl -> src/a.tlpp
+--- errors
+--- written
+src/a.tlpp

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  xDoc := If(oUser != Nil, oUser:Describe(1), Nil)
+Return nil

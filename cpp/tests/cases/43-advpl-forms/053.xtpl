@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+  Local aDados[10], aGrade[n][2]
+  Private aTela[0][0], aGets[0]
+  aDados[1] := aGrade
+return aDados

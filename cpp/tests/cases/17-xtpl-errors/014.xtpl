@@ -1,0 +1,17 @@
+// using_unclosed.xtpl -- a 'using' that never closes.
+//
+// Left alone it swallows the rest of the function and the area is never put
+// back, which is the bug the construct exists to prevent.
+// -----------------------------------------------------------------------------
+
+user function usingUnclosed()
+  local nT := 0
+
+  using alias SA1 do
+    nT := 1
+  end using
+
+  return nT
+
+// -----------------------------------------------------------------------------
+// the end

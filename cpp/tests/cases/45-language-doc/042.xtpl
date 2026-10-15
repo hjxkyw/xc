@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := 'rate ${hCfg{"t"}} end'
+Return nil

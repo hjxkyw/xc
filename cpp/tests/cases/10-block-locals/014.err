@@ -1,0 +1,3 @@
+014.xtpl:2: warning: 'nA' is not declared
+014.xtpl:2: warning: 'nB' is not declared
+014.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local i  // a block local
+  For i := 1 To n Step 2
+    nT := nT + i
+  next
+return n

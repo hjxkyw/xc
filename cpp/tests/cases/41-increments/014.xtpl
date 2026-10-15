@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local n := 0
+  n++
+  n := a |> filter([e] e > n++) |> count
+return --n

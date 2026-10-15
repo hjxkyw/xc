@@ -1,0 +1,4 @@
+user function f(n, a)
+  for local len := 1 to 2
+  next
+return n

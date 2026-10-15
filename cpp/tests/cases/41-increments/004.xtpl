@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, o)
+  local n := 0
+  local x := 0
+  local h := {=>}
+  aeval(a, [e] n++)
+return n + x

@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  do case with local x := n * 2
+    case x > 5
+      n := x
+  endcase
+return n

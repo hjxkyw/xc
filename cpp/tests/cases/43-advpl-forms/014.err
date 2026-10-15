@@ -1,0 +1,1 @@
+014.xtpl:6: warning: nothing in this function opened SX3. Wrap the use in 'using alias SX3 do', or declare 'external alias SX3' if the caller opens it.

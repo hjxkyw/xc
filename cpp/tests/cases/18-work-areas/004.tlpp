@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(nOrd)
+  Local far_0_0  // the area selected before a 'using alias'
+  Local frc_0_0  // the record the area was on before a 'using alias'
+  far_0_0 := Alias()
+  DbSelectArea("cAlias")
+  frc_0_0 := cAlias->(RecNo())
+    conout(1)
+  cAlias->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+return 1

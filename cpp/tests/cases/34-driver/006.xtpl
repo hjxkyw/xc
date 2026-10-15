@@ -1,0 +1,7 @@
+#include "totvs.ch"
+
+// a comment
+NotAThing x y z
+
+user function f()
+return 1

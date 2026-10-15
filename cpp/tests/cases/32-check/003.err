@@ -1,0 +1,2 @@
+003.xtpl:2: warning: 'aD' is assigned but never read
+003.xtpl:4: warning: 'aD' is declared again (first on line 2): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable AD redefined")

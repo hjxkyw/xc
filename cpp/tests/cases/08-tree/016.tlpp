@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  for i := 1 to 3
+  next
+  do case
+  case a
+  endcase

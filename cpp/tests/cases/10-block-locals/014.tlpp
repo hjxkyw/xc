@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local nS  // a block local
+  nS := soma(nA, nB)
+  Do Case
+  case nS == 0
+  endcase

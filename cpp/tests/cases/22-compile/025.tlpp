@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+method go(n) class C
+  If n > 0
+    ::n := n
+  EndIf
+return Self

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local conout := 1, eval := 2, aadd := 3, substr := 4, userexception := 5
+Return conout + eval + aadd + substr + userexception

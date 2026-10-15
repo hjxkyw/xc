@@ -1,0 +1,7 @@
+user function f(a)
+  // ção
+  local n := 0
+  for o in a
+    n := n + 1
+  next
+return n

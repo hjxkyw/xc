@@ -1,0 +1,2 @@
+007.xtpl:3: warning: 'oErr' is not declared, so this creates a PRIVATE
+007.xtpl:6: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

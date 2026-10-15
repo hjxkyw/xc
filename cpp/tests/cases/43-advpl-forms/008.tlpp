@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  conout(1); a++; a += 2
+  a := 1 + ;
+    2
+return a

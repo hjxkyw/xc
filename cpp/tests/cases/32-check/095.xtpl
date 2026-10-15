@@ -1,0 +1,7 @@
+user function f(a)
+  static nC <const> := 1
+return a + nC
+
+user function g()
+  nC := 2
+return nil

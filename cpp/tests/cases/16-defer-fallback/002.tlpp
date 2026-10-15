@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  nSafe := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(aNums, {|x| x > 100}))}, {|| 0})
+return

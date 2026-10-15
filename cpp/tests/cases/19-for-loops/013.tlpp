@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a, n)
+  Local fi_0_0  // the counter of a 'for ... times'
+  Local fn_0_0  // the count of a 'for ... times'
+  fn_0_0 := u_xtpl_hget(hCfg, "n")
+  For fi_0_0 := 1 To fn_0_0
+    conout(1)
+  next
+return 1

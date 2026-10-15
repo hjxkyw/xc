@@ -1,0 +1,4 @@
+user function f(a)
+  Default a := 1
+  Local x := 1   // a comment
+return x

@@ -1,0 +1,2 @@
+008.xtpl:2: warning: 'lX' is not declared
+008.xtpl:2: warning: 'nS' is not declared, so this creates a PRIVATE

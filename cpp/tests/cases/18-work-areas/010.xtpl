@@ -1,0 +1,3 @@
+external aliasX
+user function f()
+return 1

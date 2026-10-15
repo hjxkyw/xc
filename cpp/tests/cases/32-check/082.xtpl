@@ -1,0 +1,8 @@
+user function f(a)
+  local nL := 1
+  public nU := 2
+  static nS := 3
+  conout(nS)
+  static nT := 4
+  a := nL + nU + nS + nT
+return 1

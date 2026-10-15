@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local nB := 0, nC := 0
+  Private nA := nB := nC := 0
+return nA + nB + nC

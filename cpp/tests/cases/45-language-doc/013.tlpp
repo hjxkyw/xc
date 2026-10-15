@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  If cCache == Nil
+    cCache := "empty"
+  EndIf
+Return nil

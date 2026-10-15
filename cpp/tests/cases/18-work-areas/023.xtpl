@@ -1,0 +1,3 @@
+external CRLF,
+user function f()
+return 1

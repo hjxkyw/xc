@@ -1,0 +1,7 @@
+user function f(n)
+  if n > 0
+    local nT := 5
+    local nT := 6
+    conout(nT)
+  endif
+return n

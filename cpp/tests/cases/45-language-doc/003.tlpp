@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Ext()
+  conout(DToC(dDataBase) + CRLF + SB1->B1_DESC)
+Return nil

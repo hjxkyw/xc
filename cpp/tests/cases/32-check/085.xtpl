@@ -1,0 +1,12 @@
+static nTop := 0
+
+user function f(a)
+  static nS := 0
+  static nU
+  static nR := 1
+  nS++
+return a
+
+user function g()
+  @ 1, 1 SAY nTop
+return nR

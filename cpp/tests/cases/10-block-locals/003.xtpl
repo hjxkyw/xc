@@ -1,0 +1,4 @@
+user function f()
+  for local i := 1 to 10 step 2
+    x()
+  next i

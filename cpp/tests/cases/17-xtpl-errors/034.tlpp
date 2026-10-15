@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  Local fo_0_0  // a block local
+  fo_0_0 := 1
+  If fo_0_0 > 0
+  endif
+return n

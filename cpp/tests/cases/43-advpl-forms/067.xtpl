@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local nI := 0, nSoma := 0
+  For nI := 1 To 3
+    nSoma += nI
+  End For
+return nSoma

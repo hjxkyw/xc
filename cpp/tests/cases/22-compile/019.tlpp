@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(c, n)
+  If n > 0
+    If c == Nil
+      c := "e"
+    EndIf
+  EndIf
+return c

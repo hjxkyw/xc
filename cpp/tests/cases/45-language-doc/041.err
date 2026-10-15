@@ -1,0 +1,2 @@
+041.xtpl:2: warning: 'nTotal' is not declared
+041.xtpl:2: warning: 'xDoc' is not declared, so this creates a PRIVATE

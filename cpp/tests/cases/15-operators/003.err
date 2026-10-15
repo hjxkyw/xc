@@ -1,0 +1,2 @@
+003.xtpl:2: warning: 'lReset' is not declared
+003.xtpl:2: warning: 'nX' is not declared, so this creates a PRIVATE

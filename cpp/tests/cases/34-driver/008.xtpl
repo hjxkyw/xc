@@ -1,0 +1,4 @@
+user function f(a)
+  conout(a)
+  local x := := 1
+return a

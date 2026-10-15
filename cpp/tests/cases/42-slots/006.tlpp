@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local nF  // a block local
+  Local nG  // a block local
+  if a > 0
+    nF := 10
+    aadd(aH, {|| nF * 2})
+  endif
+  if a > 1
+    nG := 1
+    conout(nG)
+  endif
+return a

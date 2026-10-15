@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  While nTotal < 0
+    conout("x")
+  EndDo
+return

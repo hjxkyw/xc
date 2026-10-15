@@ -1,0 +1,6 @@
+user function f(a, n)
+  for x in a
+    local nY := x
+    conout(nY)
+  next
+return 1

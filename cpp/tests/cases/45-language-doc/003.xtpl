@@ -1,0 +1,7 @@
+#include "totvs.ch"
+external CRLF, dDataBase
+external alias SB1
+
+User Function Ext()
+  conout(DToC(dDataBase) + CRLF + SB1->B1_DESC)
+Return nil

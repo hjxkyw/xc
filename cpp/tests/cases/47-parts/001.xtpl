@@ -1,0 +1,35 @@
+#include "totvs.ch"
+
+/* User Function Commented()
+   Return nil */
+User Function Primeira()
+  Local cQ := ""
+  BeginSql Alias "T"
+    SELECT 1
+    Function inside SQL
+  EndSql
+  cQ := "x" + ;
+        "y"
+Return cQ
+
+Static Function Segunda()
+Return nil
+
+// annotations after a function are statements of its body: no part here
+@Get("/a")
+@Version(1)
+Static Function Terceira()
+Return nil
+
+Class Pessoa From Base
+  Data cNome
+  Method New() Constructor
+  Method Nome()
+EndClass
+
+Method New() Class Pessoa
+  ::cNome := ""
+Return self
+
+Method Nome() Class Pessoa
+Return ::cNome

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+// the caller opens these
+user function f()
+  conout(CRLF)
+return 1

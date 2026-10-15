@@ -1,0 +1,5 @@
+user function f(a, n)
+  for oItem in aItems
+    nT := nT + oItem:nValue
+  next
+return 1

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nL := 1
+  a := nL
+  private nP := 2
+  public nU := 3
+  a := nP + nU
+return 1

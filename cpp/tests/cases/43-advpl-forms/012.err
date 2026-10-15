@@ -1,0 +1,2 @@
+012.xtpl:4: warning: 'aDados__' is assigned but never read
+012.xtpl:6: warning: 'lInit' is assigned but never read

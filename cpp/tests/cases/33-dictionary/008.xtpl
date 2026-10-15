@@ -1,0 +1,5 @@
+external alias SA1
+user function f(cAl)
+  local x := 0
+  x := rows("SA1") |> filter([r] r:A1_SALDOX > 0) |> map([r] r:A1_COD) |> map([c] c:Len)
+return x

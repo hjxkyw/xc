@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  raw        // the dialog
+    @ 1, 1 SAY "a"
+    ACTIVATE DIALOG o
+  end raw
+return n

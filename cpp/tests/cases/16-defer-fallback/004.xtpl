@@ -1,0 +1,3 @@
+user function f()
+  aItens := (jDados["itens"] fallback nil) ?: {}
+return

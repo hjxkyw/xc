@@ -1,0 +1,2 @@
+013.xtpl:2: warning: 'x' is not declared
+013.xtpl:6: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

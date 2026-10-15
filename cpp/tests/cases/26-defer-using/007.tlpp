@@ -1,0 +1,17 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  Local fdf_0_0 := .F.  // whether 'defer bye()' was reached
+  for nI := 1 to n
+    If nI > 5
+      If fdf_0_0
+        bye()
+      EndIf
+      return -1
+    EndIf
+    fdf_0_0 := .T.
+  next
+  If fdf_0_0
+    bye()
+  EndIf
+  return 0

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Static nCount := 0
+
+User Function f()
+  nCount++
+return nCount

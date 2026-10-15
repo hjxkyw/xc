@@ -1,0 +1,3 @@
+013.xtpl:2: warning: 'cP' is a parameter: a static takes its value once, at load, when 'cP' does not exist -- it is Nil there
+013.xtpl:2: warning: 'x' is assigned but never read
+013.xtpl:2: a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. Assign it to a variable first, where it should run.

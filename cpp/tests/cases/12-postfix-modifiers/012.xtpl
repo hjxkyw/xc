@@ -1,0 +1,3 @@
+user function f()
+  nT := 1 if SA1->A1_SALDO == "abc"
+return

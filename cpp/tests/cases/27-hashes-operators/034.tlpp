@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(h, a)
+  local x
+  getHash():Set("k", 1)
+return x

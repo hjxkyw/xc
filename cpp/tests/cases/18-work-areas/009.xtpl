@@ -1,0 +1,6 @@
+#include "totvs.ch"
+external CRLF, dDataBase
+external alias SA1, SB1              // the caller opens these
+user function f()
+  conout(CRLF)
+return 1

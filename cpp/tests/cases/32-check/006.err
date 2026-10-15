@@ -1,0 +1,2 @@
+006.xtpl:2: warning: 's' is a parameter of this block twice: the AppServer takes it, and 's' is the argument in the last of its places
+006.xtpl:3: warning: 'x' is a parameter of this block twice: the AppServer takes it, and 'x' is the argument in the last of its places

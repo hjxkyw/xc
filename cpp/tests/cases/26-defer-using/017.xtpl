@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  while n > 0
+    using alias SA1 do
+      n := n - 1
+      loop
+    end using
+  enddo
+  return n

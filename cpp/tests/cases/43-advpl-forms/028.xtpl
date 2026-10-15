@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class C
+  Public Method GetEnum as variant
+End Class

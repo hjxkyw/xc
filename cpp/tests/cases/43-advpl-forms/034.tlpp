@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+function u_stinit_b()
+  stinit_b2("given")
+  return
+
+static function stinit_b2(cParm)
+  static cFromParm := cParm
+  conout(cValToChar(cFromParm))
+  return

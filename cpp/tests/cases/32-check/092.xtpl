@@ -1,0 +1,4 @@
+user function f(a)
+  local vDou := 0 as double
+  a := vDou
+return 1

@@ -1,0 +1,4 @@
+user function f(n, a)
+  if local len := 1, len > 0
+  endif
+return n

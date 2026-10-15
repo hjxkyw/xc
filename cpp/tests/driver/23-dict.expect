@@ -1,0 +1,7 @@
+exit 0
+--- output
+extra/dict.xtpl: ok
+--- errors
+extra/dict.xtpl:5: warning: 'SA1->A1_NMOE' is not a field of SA1. Did you mean A1_NOME?
+--- written
+

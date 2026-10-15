@@ -1,0 +1,5 @@
+external alias SA1
+user function f(cAl)
+  local x := 0
+  x := (cAl)->A1_NMOE
+return x

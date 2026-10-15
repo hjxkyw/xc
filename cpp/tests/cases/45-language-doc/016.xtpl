@@ -1,0 +1,8 @@
+User Function Defers(cFile)
+  Local nH := FOpen(cFile)
+  defer FClose(nH)
+  defer conout("saindo")
+  using alias SA1 do
+    return -1 if SA1->(Eof())
+  end using
+Return 1

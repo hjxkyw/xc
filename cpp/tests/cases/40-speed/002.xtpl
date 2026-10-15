@@ -1,0 +1,6 @@
+user function f(a)
+  conout(a, f(a), a[1])
+  a := f(a)
+  a += 1
+  a |> tap({|x| x})
+return a

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Hashes(cKey)
+  Local hCfg := u_xtpl_hnew({{"rate", 1.5}, {"name", "x"}})
+  Local hNone := THashMap():New()
+  Local nRate := u_xtpl_hget(hCfg, "rate")
+  hCfg:Set("rate", 2)
+  hCfg:Set(cKey, u_xtpl_hget(hCfg, cKey) + (1))
+  conout(u_xtpl_hget(hCfg, "name"))
+Return {nRate, hNone}

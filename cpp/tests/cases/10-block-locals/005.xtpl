@@ -1,0 +1,4 @@
+user function f()
+  if local x := f(), x > 0
+    y()
+  endif

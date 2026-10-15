@@ -1,0 +1,3 @@
+user function f(cP, l, n)
+  conout(lines(cP) |> count)
+return n

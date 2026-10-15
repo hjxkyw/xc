@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  begin sequence
+    x()
+  recover using oErr
+    y()
+  end sequence

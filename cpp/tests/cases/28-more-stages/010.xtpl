@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local aT := lines(cP) as A
+  n := len(aT)
+return n

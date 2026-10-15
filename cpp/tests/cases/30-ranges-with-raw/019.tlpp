@@ -1,0 +1,53 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 20_object.xtpl -- 'with object', for code that repeats the same subject
+//
+// The subject is evaluated once and bound to a hidden block local. Inside the
+// block, a ':' in a position where AdvPL could not have put one means "the
+// subject". Member access on anything else, '::' for self and ':=' for
+// assignment are all left alone.
+// -----------------------------------------------------------------------------
+
+user function testObject(oModel, oOutro, aRows)
+  local cNome := ""
+  local nTam := 0
+  Local fbs_0_0  // the subject of a 'with object'
+  Local fbs_0_1  // the subject of a 'with object'
+
+  fbs_0_0 := oModel:GetModel("SA1DETAIL")
+    fbs_0_0:SetValue("A1_COD", "000001")
+    fbs_0_0:SetValue("A1_NOME", "ACME")
+    cNome := fbs_0_0:GetValue("A1_NOME")
+    nTam := len(fbs_0_0:GetValue("A1_COD"))
+
+    // untouched: another object, an index, an assignment, self
+    cNome := oOutro:cRazao
+    nTam := aRows[1]
+    nTam := 5
+    cNome := ::cUltimo
+
+    // nesting: the innermost subject wins, then the outer resumes
+    fbs_0_1 := oOutro
+      fbs_0_1:Ativa()
+      cNome := fbs_0_1:cRazao
+
+    fbs_0_0:Grava()
+
+  conout(cValToChar(nTam))
+
+  return cNome
+
+// -----------------------------------------------------------------------------
+// the end
+
+user function g()
+  Local fi_0_0  // the counter of a range
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := 0
+  For fi_0_0 := 1 To 5
+    fv_0_0 := fi_0_0
+    fo_0_0 := fo_0_0 + fv_0_0
+  Next
+  return fo_0_0

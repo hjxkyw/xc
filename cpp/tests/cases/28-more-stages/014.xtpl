@@ -1,0 +1,4 @@
+user function f(a, n, cP)
+  local x := {}
+  x := rows("SC6") |> distinctAdjacent |> map([r] r:C6_NUM)
+return n

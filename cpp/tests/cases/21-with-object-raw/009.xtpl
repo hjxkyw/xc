@@ -1,0 +1,6 @@
+user function f(o, p, a, n)
+  with object o
+    local nX := :GetValue("A")
+    conout(nX)
+  end with
+return 1

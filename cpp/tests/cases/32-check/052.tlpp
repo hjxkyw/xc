@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  If a > 0
+    return 1
+  EndIf
+  a := 2
+
+user function g()
+return 1

@@ -1,0 +1,4 @@
+user function f()
+  if local x, y > 0
+  endif
+return

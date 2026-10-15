@@ -1,0 +1,3 @@
+User Function TopThree(aOrders)
+  Local aTop := aOrders |> filter([o] o:nValue > 0) |> sortby([o] -o:nValue) |> take(3) |> map([o] o:cCode)
+Return aTop

@@ -1,0 +1,11 @@
+exit 1
+--- output
+src/a.xtpl -> src/a.tlpp
+src/sub/b.xtpl -> src/sub/b.tlpp
+xc: 3 files, 2 compiled, 1 failed
+--- errors
+src/sub/b.xtpl:3: warning: 'cFilAnt' is not declared
+src/sub/c.xtpl:2: cannot parse this line: local n := := 1
+--- written
+src/a.tlpp
+src/sub/b.tlpp

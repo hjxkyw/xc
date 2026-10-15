@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a, b)
+  Local aB := {}
+  aAdd( aB, { 1, .T., { || Iif( b ,( g( a ) , h() ),) } } )
+  a := ( g(), h(), 3 )
+return aB

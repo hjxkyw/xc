@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  @ 10, 5 SAY "Total" GET x PICTURE "@E 999"
+return n

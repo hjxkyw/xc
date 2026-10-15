@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cAl)
+  local x := 0
+  SA1->A1_OBS := "texto"
+return x

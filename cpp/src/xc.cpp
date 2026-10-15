@@ -33,9 +33,7 @@
 
 #include "chars.h"
 #include "check.h"
-#include "commands.h"
-#include "emit.h"
-#include "parser.h"
+#include "driver.h"
 #include "text.h"
 
 namespace fs = std::filesystem;
@@ -52,24 +50,10 @@ namespace
     "usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
     "       xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
 
-  // What is said of a source quotes it: windows-1252, said in UTF-8, as
-  // bin/xc says it.
-  std::string said(std::string_view t) { return xc::cp1252_to_utf8(t); }
-
   [[noreturn]] void usage_error(const std::string& message)
   {
     std::cerr << message << "\n";
     std::exit(2);
-  }
-
-  bool slurp(const std::string& path, std::string& out)
-  {
-    std::ifstream in(fs::path(path), std::ios::binary);
-    if (!in) { return false; }
-    std::ostringstream s;
-    s << in.rdbuf();
-    out = s.str();
-    return true;
   }
 
   bool is_dir(const std::string& p)
@@ -113,209 +97,32 @@ namespace
     }
   }
 
-  // The folder a path is in -- at '\' too on Windows.
-  std::string folder_of(const std::string& p)
-  {
-    std::size_t cut = p.rfind('/');
-    if (WINDOWS)
-    {
-      std::size_t b = p.rfind('\\');
-      if (b != std::string::npos && (cut == std::string::npos || b > cut)) { cut = b; }
-    }
-    return cut != std::string::npos ? p.substr(0, cut) : ".";
-  }
-
-  // Why a source's bytes are UTF-8, not windows-1252 -- or nothing when they
-  // are windows-1252: they start with UTF-8's byte-order mark, or what is
-  // beyond ASCII in them is valid UTF-8.
-  std::optional<std::string> utf8_reason(const std::string& b)
-  {
-    std::string fix = "Protheus' sources are windows-1252 (cp1252): save it so";
-    if (b.size() >= 3 && static_cast<unsigned char>(b[0]) == 0xEF && static_cast<unsigned char>(b[1]) == 0xBB
-        && static_cast<unsigned char>(b[2]) == 0xBF)
-    {
-      return "it starts with UTF-8's byte-order mark. " + fix;
-    }
-    std::size_t first = 0;
-    while (first < b.size() && static_cast<unsigned char>(b[first]) < 0x80) { first++; }
-    if (first == b.size()) { return std::nullopt; }
-    std::string ignored;
-    if (!xc::utf8_to_cp1252(b, ignored)) { return std::nullopt; }
-    long line = 1 + std::count(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(first), '\n');
-    return "it is UTF-8 -- the first character beyond ASCII is on line " + std::to_string(line) + ". " + fix;
-  }
-
-  // The line (from 1) an offset is on, as XC::Source counts them.
-  int line_at(const std::string& src, int o)
-  {
-    std::vector<std::size_t> starts;
-    std::size_t b = 0;
-    std::size_t i = 0;
-    while (i < src.size())
-    {
-      if (src[i] == '\n' || src[i] == '\r')
-      {
-        starts.push_back(b);
-        i += xc::char_len(src, i);
-        b = i;
-      }
-      else
-      {
-        i++;
-      }
-    }
-    if (b < src.size()) { starts.push_back(b); }
-    int lines = static_cast<int>(starts.size());
-    starts.push_back(src.size());
-    int row = 0;
-    for (std::size_t r = 0; r < starts.size(); r++)
-    {
-      if (starts[r] <= static_cast<std::size_t>(o)) { row = static_cast<int>(r); }
-    }
-    return std::min(row + 1, std::max(1, lines));
-  }
-
-  // Whether a line is a 'local' declaration whole, its comment aside.
-  bool late_declaration(const std::string& t)
-  {
-    if (!(t.size() >= 5 && xc::lc(t.substr(0, 5)) == "local"
-          && !(t.size() > 5 && xc::is_w(static_cast<unsigned char>(t[5])))))
-    {
-      return false;
-    }
-    std::string code = xc::trim(xc::split_comment(t).first);
-    xc::Tree tree;
-    xc::Parser parser(code, {}, tree);
-    return parser.read_declaration() != nullptr;
-  }
-
   struct Options
   {
     bool check = false;
-    bool strict = false;
-    std::vector<std::string> includes;
-    xc::Dictionary dictionary;
+    xc::CompileOptions c;
   };
 
-  // One source: read, parsed, checked, lowered, and -- but with --check --
-  // written. What stops it is reported, and it returns false.
-  bool compile(const std::string& in, const std::string& out, const Options& o)
+  // One source compiled, and -- but with --check -- written. What stops it is
+  // said, and it returns false.
+  bool run(const std::string& in, const std::string& out, const Options& o)
   {
-    std::string src;
-    if (!slurp(in, src))
-    {
-      std::cerr << in << ": cannot be read\n";
-      return false;
-    }
-    if (auto why = utf8_reason(src))
-    {
-      std::cerr << in << ": " << *why << "\n";
-      return false;
-    }
-    std::string dir = folder_of(in);
-    xc::UserSpans spans = xc::user_spans(src, dir, o.includes);
-    xc::Tree tree;
-    xc::Parser parser(src, spans.trans, tree, spans.cmd);
-    xc::Program* prog = parser.parse();
-    if (!prog)
-    {
-      int furthest = parser.furthest();
-      // Everything up to the end parsed, and the file still did not match: a
-      // block was left open.
-      if (xc::trim(std::string_view(src).substr(std::min(static_cast<std::size_t>(furthest), src.size()))).empty())
-      {
-        std::cerr << in << ": the file ends inside a block that was never closed\n";
-        return false;
-      }
-      int line = line_at(src, furthest);
-      std::vector<std::string> lines = xc::lines_of(src);
-      std::string text = line - 1 < static_cast<int>(lines.size()) ? xc::trim(lines[static_cast<std::size_t>(line - 1)]) : "";
-      // A name xc keeps for itself is refused by the grammar, which can only
-      // say the line does not parse. Read again with any name allowed, the
-      // checks say which name and why.
-      std::vector<xc::Finding> names;
-      {
-        xc::Tree again_tree;
-        xc::Parser again(src, spans.trans, again_tree, spans.cmd);
-        again.any_name = true;
-        if (xc::Program* p = again.parse())
-        {
-          names = xc::check_names(p);
-        }
-        else
-        {
-          xc::Tree dt;
-          xc::Parser dp(text, {}, dt);
-          dp.any_name = true;
-          if (xc::Declaration* d = dp.read_declaration())
-          {
-            for (xc::Finding& f : xc::check_declared_names(d)) { names.push_back({ line, f.message }); }
-          }
-        }
-      }
-      if (!names.empty())
-      {
-        for (const xc::Finding& f : names) { std::cerr << in << ":" << f.line << ": " << said(f.message) << "\n"; }
-        return false;
-      }
-      if (late_declaration(text))
-      {
-        std::cerr << in << ":" << line << ": 'local' cannot be declared here: every local comes before the first "
-                  << "statement of its function or its block -- '" << said(text) << "'\n";
-        return false;
-      }
-      std::cerr << in << ":" << line << ": cannot parse this line: " << said(text) << "\n";
-      return false;
-    }
-
-    // What xtpl refuses although it parses, and what it warns about.
-    int nlines = static_cast<int>(xc::lines_of(src).size());
-    xc::Checked checked = xc::check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src));
-    for (const xc::Finding& f : checked.warnings)
-    {
-      std::cerr << in << ":" << f.line << ": warning: " << said(f.message) << "\n";
-    }
-    if (!checked.errors.empty())
-    {
-      for (const xc::Finding& f : checked.errors) { std::cerr << in << ":" << f.line << ": " << said(f.message) << "\n"; }
-      return false;
-    }
-
-    // Lowered with --check too: what xc cannot lower yet would stop the compile.
-    std::string tlpp;
-    try
-    {
-      tlpp = xc::emit(prog, src);
-    }
-    catch (const xc::NotLowered& e)
-    {
-      for (const xc::Finding& f : e.problems)
-      {
-        std::cerr << in << ":" << f.line << ": " << said(f.message) << " is not lowered yet\n";
-      }
-      return false;
-    }
-    catch (const std::exception& e)
-    {
-      std::cerr << in << ": " << said(e.what()) << "\n";
-      return false;
-    }
-
+    xc::Compiled c = xc::compile(in, in, o.c);
+    std::cerr << c.said;
+    if (!c.tlpp) { return false; }
     if (o.check)
     {
       std::cout << in << ": ok\n";
+      return true;
     }
-    else
+    std::ofstream f(fs::path(out), std::ios::binary);
+    f << *c.tlpp;
+    if (!f)
     {
-      std::ofstream f(fs::path(out), std::ios::binary);
-      f << tlpp;
-      if (!f)
-      {
-        std::cerr << in << ": " << out << " cannot be written\n";
-        return false;
-      }
-      std::cout << in << " -> " << out << "\n";
+      std::cerr << in << ": " << out << " cannot be written\n";
+      return false;
     }
+    std::cout << in << " -> " << out << "\n";
     return true;
   }
 
@@ -387,7 +194,7 @@ int main(int argc, char** argv)
       if (i + 1 >= args.size()) { usage_error(USAGE); }
       dict_path = args[++i];
     }
-    else if (a == "--dict-strict") { o.strict = true; }
+    else if (a == "--dict-strict") { o.c.strict = true; }
     else if (a == "--check") { o.check = true; }
     else if (a.rfind("--outdir=", 0) == 0 && a.size() > 9) { outdir = a.substr(9); }
     else if (a.rfind("--includes=", 0) == 0 && a.size() > 11)
@@ -398,7 +205,7 @@ int main(int argc, char** argv)
       {
         std::size_t e = list.find_first_of(";,", b);
         if (e == std::string::npos) { e = list.size(); }
-        if (e > b) { o.includes.push_back(list.substr(b, e - b)); }
+        if (e > b) { o.c.includes.push_back(list.substr(b, e - b)); }
         b = e + 1;
       }
     }
@@ -406,7 +213,7 @@ int main(int argc, char** argv)
     else { given.push_back(a); }
   }
   if (given.empty()) { usage_error(USAGE); }
-  if (o.strict && !dict_path) { usage_error("--dict-strict needs --dict"); }
+  if (o.c.strict && !dict_path) { usage_error("--dict-strict needs --dict"); }
   if (dict_path && !is_file(*dict_path)) { usage_error(*dict_path + ": no such file"); }
 
   // 'file.xtpl out.tlpp': the one form with an output named.
@@ -424,7 +231,7 @@ int main(int argc, char** argv)
   {
     try
     {
-      o.dictionary = xc::load_dictionary(*dict_path);
+      o.c.dictionary = xc::load_dictionary(*dict_path);
     }
     catch (const std::exception& e)
     {
@@ -509,7 +316,7 @@ int main(int argc, char** argv)
       bool ext = dot != std::string::npos && in.find_first_of("/\\", dot) == std::string::npos;
       out = (ext ? in.substr(0, dot) : in) + ".tlpp";
     }
-    if (!compile(in, out, o)) { failed++; }
+    if (!run(in, out, o)) { failed++; }
   }
 
   // A word at the end when there was more than one.

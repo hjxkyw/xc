@@ -1,0 +1,3 @@
+User Function Doc()
+  xDoc := oUser?.cName
+Return nil

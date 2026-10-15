@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(dDe)
+  Local cWhere := "%F2_EMISSAO >= '" + %exp:DtoS(dDe)% + "'%"
+return cWhere

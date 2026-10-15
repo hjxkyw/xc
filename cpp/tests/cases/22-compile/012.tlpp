@@ -1,0 +1,6 @@
+#include "totvs.ch"
+
+user function f()
+return 1
+#include "rwmake.ch"
+#include "tlpp-core.th"

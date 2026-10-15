@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP)
+  local aT := lines(cP) |> dropwhile([l] empty(l)) |> map(alltrim)
+  local n := len(aT)
+return n

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  for cA in lines(cP)
+    for cB in lines(cA)
+      return 1
+    next
+  next
+return x

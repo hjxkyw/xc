@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  local nL := a
+  static nS := 0
+  public nP := 1
+  nL := nS + nP
+  a := nL
+return 1

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x
+  x ?= map(a, [o] o)
+return x

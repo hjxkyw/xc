@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local i, n := 0
+  For i = 1 To 3
+    n++
+  Next (i)
+return n

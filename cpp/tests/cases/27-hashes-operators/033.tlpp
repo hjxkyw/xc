@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(h, a)
+  local x
+  x := u_xtpl_hget(a[1], "k")
+return x

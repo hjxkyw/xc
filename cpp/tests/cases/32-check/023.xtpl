@@ -1,0 +1,3 @@
+user function f(a)
+  a := nX + 1
+return 1

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local i  // a block local
+  For i := 1 To 10 Step 2
+    x()
+  next i

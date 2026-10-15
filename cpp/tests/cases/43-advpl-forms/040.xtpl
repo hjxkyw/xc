@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+PUBLISH USER MODEL REST NAME Cad SOURCE "Mvc.Cad"
+
+User Function f()
+#IFDEF TOP
+  conout("top")
+#ENDIF
+return nil

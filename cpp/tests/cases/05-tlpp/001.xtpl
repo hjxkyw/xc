@@ -1,0 +1,16 @@
+namespace minha.app
+
+using namespace tlpp.regex
+
+@Get("/saldo/:id")
+@Deprecated
+user function saldo(cId as Character, nLimite as N)
+  local aLinhas := {} as Array
+  local jResposta as JSON
+  local nTotal := 0
+
+  if !empty(cId)
+    nTotal := calcula(cId)
+  endif
+
+  return nTotal

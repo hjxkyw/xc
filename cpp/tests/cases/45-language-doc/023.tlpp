@@ -1,0 +1,25 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aNames)
+    fv_0_0 := aNames[fi_0_0]
+    fv_0_0 := upper(fv_0_0)
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  aUp := fo_0_0
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(aNames)
+    fv_0_1 := aNames[fi_0_1]
+    fv_0_1 := bUp(fv_0_1)
+    AAdd(fo_0_1, fv_0_1)
+  Next
+  aUp2 := fo_0_1
+Return nil

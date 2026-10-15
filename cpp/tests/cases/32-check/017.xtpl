@@ -1,0 +1,3 @@
+user function f(a)
+  a := o():x + a:Soma(1) + len(a)
+return 1

@@ -1,0 +1,9 @@
+User Function DefBlk(lOpen)
+  Local nH := 0
+  If lOpen
+    nH := FOpen("dados.txt")
+    defer FClose(nH)
+    return -1 if nH < 0
+  EndIf
+  conout("meio")
+Return nH

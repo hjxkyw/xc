@@ -1,0 +1,6 @@
+user function f()
+  if nX > 0
+    local nA := 5
+    defer logIt(nA)
+  endif
+return

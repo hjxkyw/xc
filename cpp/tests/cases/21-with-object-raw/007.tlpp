@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(o, p, a, n)
+  Local fbs_0_0  // the subject of a 'with object'
+  fbs_0_0 := o
+    if n > 0
+      fbs_0_0:Ativa()
+    endif
+    a := u_xtpl_map(a, {|x| fbs_0_0:GetValue(x)})
+return 1

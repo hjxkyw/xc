@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Doc()
+  Local nBig := 12345678
+  Local nDec := 1234.5678
+  Local nHalf := .5
+Return nil

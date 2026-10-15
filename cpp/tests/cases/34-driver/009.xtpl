@@ -1,0 +1,12 @@
+user function f(a, given)
+  local n := 0
+  for when in a
+    if .t.
+      local otherwise := 1
+      local fo_0_1 := 2
+      n += otherwise + fo_0_1 + when
+    endif
+  next
+  for local with := 1 to 3
+  next
+return n

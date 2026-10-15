@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cParm)
+  local cL := "l"
+  static cA := cParm + cParm
+  static cB := cL
+  Local i  // a block local
+  For i := 1 To 2
+    static nC := i
+  next
+return cA + cB + nC

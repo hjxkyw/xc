@@ -1,0 +1,6 @@
+exit 2
+--- output
+--- errors
+extra/sub/a.xtpl and src/a.xtpl: both would be a.tlpp in od
+--- written
+

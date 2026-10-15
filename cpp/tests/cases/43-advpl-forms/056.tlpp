@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cId)
+  Local cQ := "SELECT X FROM SZ1010
+  cQ += " WHERE ID = '" + cId + "'
+  cQ += ' AND D_E_L_E_T_ = " "
+return cQ

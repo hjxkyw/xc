@@ -1,0 +1,4 @@
+user function f(cA as Character, nL as N) as A
+  local aX := {} as A
+  local cY as C := ""
+return {nL, aX, cY, cA}

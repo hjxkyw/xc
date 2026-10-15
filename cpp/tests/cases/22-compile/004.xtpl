@@ -1,0 +1,3 @@
+#include "TOTVS.CH"
+user function f()
+return 1

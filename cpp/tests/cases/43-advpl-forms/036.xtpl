@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local oDlg, cQry := "select 1"
+  DEFINE MSDIALOG oDlg TITLE "x" ;
+    FROM 0,0 TO 10,10 PIXEL
+  ACTIVATE MSDIALOG oDlg CENTERED
+  TCQUERY cQry NEW ALIAS "QRY"
+  ADD OPTION aRotina TITLE 'Ver' ACTION 'VIEWDEF.X' OPERATION 1 ACCESS 0
+  PREPARE ENVIRONMENT EMPRESA "T1" FILIAL "01"
+  Set Filter To
+return nil

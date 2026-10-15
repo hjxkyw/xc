@@ -1,0 +1,2 @@
+091.xtpl:1: 'as Char': TL++ has no type 'Char' -- write 'as Character'.
+091.xtpl:2: 'as char': TL++ has no type 'char' -- write 'as Character'.

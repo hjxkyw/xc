@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class C
+  @Post("/c/x")
+  Public Method PostX() as logical
+EndClass
+
+Method PostX() Class C
+Return .T.

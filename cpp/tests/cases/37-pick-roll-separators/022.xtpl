@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  n := a |> aPick(1'000) |> asum  // it's many
+return n + setMaxRoll(2'000)

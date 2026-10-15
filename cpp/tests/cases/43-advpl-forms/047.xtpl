@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class TJogo
+  DATA lPronto INIT .F.
+  DATA aTrack AS ARRAY INIT {} // posicoes
+  METHOD New() CONSTRUCTOR
+EndClass
+
+Method New() Class TJogo
+Return Self

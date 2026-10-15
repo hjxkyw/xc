@@ -1,0 +1,17 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Interface iConta
+  public method saldo() as numeric
+EndInterface
+
+class cConta from totvs.framework.base.Objeto Implements iConta
+  public method new() as object
+  public method saldo() as numeric
+endclass
+
+method new() as object class cConta
+return self
+
+method saldo() class cConta as numeric
+return 0

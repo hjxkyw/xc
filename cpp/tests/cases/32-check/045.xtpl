@@ -1,0 +1,3 @@
+user function f(a)
+  a := a |> asum
+return 1

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x := 0
+  x := a ;     // continued
+    |> distinct ;
+    |> asum
+return x

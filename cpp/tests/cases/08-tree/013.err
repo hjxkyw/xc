@@ -1,0 +1,2 @@
+013.xtpl:2: warning: 'x' is not declared
+013.xtpl:3: warning: this returns nothing, but the function returns a value on line 5

@@ -1,0 +1,3 @@
+user function f()
+  local v5<const>:=3
+return

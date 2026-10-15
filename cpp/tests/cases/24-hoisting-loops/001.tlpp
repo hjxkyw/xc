@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local nX  // a block local
+  Local cY  // a block local
+  if n > 0
+    nX := 1
+    cY := Nil
+    nT := nX
+  endif
+return n

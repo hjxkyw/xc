@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  Local nCount := 0
+  Count to nCount For SA1->A1_EST == "SP"
+  VTClear Screen
+  VTRead
+  VTPause
+return nCount

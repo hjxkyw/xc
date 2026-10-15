@@ -1,0 +1,3 @@
+user function f(cDoc)
+  local cDoc
+return cDoc

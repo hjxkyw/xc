@@ -1,0 +1,3 @@
+user function f()
+  conout("ola", 1)
+  return

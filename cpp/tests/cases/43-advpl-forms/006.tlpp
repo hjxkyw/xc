@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Do While a > 0
+    a--
+  EndDo
+return a

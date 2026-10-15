@@ -1,0 +1,4 @@
+user function f(a, n, cP)
+  local x := {}
+  x := rows("SA1") |> filter(isOk) |> map([r] r:A1_COD)
+return n

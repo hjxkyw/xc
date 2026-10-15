@@ -1,0 +1,5 @@
+user function f(a, n)
+  for nCada in {1, 2, 3}
+    conout(nCada)
+  next
+return 1

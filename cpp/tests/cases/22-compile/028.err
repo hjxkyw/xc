@@ -1,0 +1,4 @@
+028.xtpl:2: warning: 'p' is assigned but never read
+028.xtpl:2: a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. Assign it to a variable first, where it should run.
+028.xtpl:3: 'for ... in' over rows() is not supported: a loop body can move the table's position, and 'loop' would skip the advance. Walk the area with a chain -- rows("SA1") |> tap([r] ...) -- or write the While loop yourself.
+028.xtpl:5: a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. Assign it to a variable first, where it should run.

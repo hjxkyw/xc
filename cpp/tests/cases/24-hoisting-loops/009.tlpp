@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local oI  // a block local
+  Local nP  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  fs_0_0 := u_xtpl_distinct(a)
+  For nP := 1 To Len(fs_0_0)
+    oI := fs_0_0[nP]
+    nT := nT + nP
+  next
+return n

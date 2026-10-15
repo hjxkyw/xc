@@ -1,0 +1,5 @@
+user function f(nOrd)
+  using alias SA1 do
+    return nT if nT > 100
+  end using
+return 1

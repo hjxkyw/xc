@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(h, a, o)
+  local x := {"a" => 1}
+  h{"n"} += 2
+  x := o?.oA?.cNome ?: calc(a) fallback 0
+return "v=${x}"

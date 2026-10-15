@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(n)
+Return n
+EndFunction
+
+Static Function g()
+Return 1
+EndFunc
+
+Method New() Class C
+Return Self
+EndMethod

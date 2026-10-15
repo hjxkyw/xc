@@ -1,0 +1,5 @@
+user function f(o, p, a, n)
+  raw
+    @ 1, 1 SAY "x"
+  endraw
+return 1

@@ -1,0 +1,7 @@
+external alias SA1
+user function f(cAl)
+  local x := 0
+  SA1->A1_NOME := Nil
+  SA1->A1_NOME := x
+  SA1->A1_NOME := str(x)
+return x

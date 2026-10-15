@@ -1,0 +1,6 @@
+user function f(nOrd)
+  using alias SA1 do
+    local nX := SA1->A1_SALDO
+    conout(nX)
+  end using
+return 1

@@ -1,0 +1,4 @@
+User Function Doc()
+  aUp := aNames |> map(upper)
+  aUp2 := aNames |> map(bUp)
+Return nil

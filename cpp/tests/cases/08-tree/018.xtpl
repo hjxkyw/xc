@@ -1,0 +1,4 @@
+user function f()
+  aBig := aNums ;   // a comment on a continued line
+    |> distinct
+  return aBig

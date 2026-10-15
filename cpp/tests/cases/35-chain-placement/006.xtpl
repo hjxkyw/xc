@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP, n)
+  local a := 1
+  n := a
+  private pT := lines(cP) |> count
+  n := pT
+return n

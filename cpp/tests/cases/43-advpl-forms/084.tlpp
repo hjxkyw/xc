@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local n
+  Default n := 1
+return a

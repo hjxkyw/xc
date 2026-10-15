@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local lErr := .F.
+  if !( lErr := g(@a) )
+    a := 1
+  endif
+return lErr

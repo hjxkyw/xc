@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  do case with nT := calc(n)
+    case nT == 6
+      conout(1)
+  endcase
+return n

@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  if a > 0
+    local aTmp := {}
+    aadd(aH, {|| aTmp})
+  endif
+  if a > 1
+    local aTmp := {}
+    conout(len(aTmp))
+  endif
+  if a > 2
+    local aOther := {}
+    conout(len(aOther))
+  endif
+return a

@@ -1,0 +1,2 @@
+006.xtpl:3: warning: 'oOther' is not declared
+006.xtpl:3: warning: 'cN' is not declared, so this creates a PRIVATE

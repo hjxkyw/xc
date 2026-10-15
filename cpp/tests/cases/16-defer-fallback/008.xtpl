@@ -1,0 +1,3 @@
+user function f()
+  nS := riskyCall(1) fallback 0 if lX
+return

@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local b_1_x  // the block local 'x'
+  Local b_2_x  // the block local 'x'
+  if a > 0
+    b_1_x := 1  // x
+    aadd(aH, {|| b_1_x})
+  endif
+  if a > 1
+    b_2_x := 2  // x
+    aadd(aH, {|| b_2_x})
+  endif
+return a

@@ -1,0 +1,1 @@
+012.xtpl:2: a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. Assign it to a variable first, where it should run.

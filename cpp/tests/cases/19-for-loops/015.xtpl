@@ -1,0 +1,8 @@
+user function f(a, n)
+  for x in aSrc
+    conout(x)
+  next
+  for nCnt times
+    conout(2)
+  next
+return 1

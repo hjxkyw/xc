@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  while a
+    if b
+      exit
+    endif
+    loop
+  enddo

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  begin sequence
+    Break(a)
+  recover
+    a := 0
+  end sequence
+return a

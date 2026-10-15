@@ -1,0 +1,3 @@
+093.xtpl:3: warning: 'cParm' is a parameter: a static takes its value once, at load, when 'cParm' does not exist -- it is Nil there
+093.xtpl:4: warning: 'cL' is a local: a static takes its value once, at load, when 'cL' does not exist -- it is Nil there
+093.xtpl:6: warning: 'i' is a local: a static takes its value once, at load, when 'i' does not exist -- it is Nil there

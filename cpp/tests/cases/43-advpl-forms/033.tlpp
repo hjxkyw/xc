@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+function u_stinit_d()
+  conout(cValToChar(nInit))
+  return
+
+function u_stinit_d2()
+  static nInit := stinit_d_init()
+  return
+
+static function stinit_d_init()
+  conout("the initializer runs")
+  return 42

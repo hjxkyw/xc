@@ -1,0 +1,6 @@
+022.xtpl:2: warning: 'cName' is not declared
+022.xtpl:2: warning: 'cUp' is not declared, so this creates a PRIVATE
+022.xtpl:3: warning: 'aNums' is not declared
+022.xtpl:3: warning: 'nN' is not declared, so this creates a PRIVATE
+022.xtpl:4: warning: 'aOrders' is not declared
+022.xtpl:4: warning: 'aCodes' is not declared, so this creates a PRIVATE

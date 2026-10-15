@@ -1,0 +1,7 @@
+user function f()
+  local c := "Åù"
+  local n := 0
+  for o in c
+    n++
+  next
+return n

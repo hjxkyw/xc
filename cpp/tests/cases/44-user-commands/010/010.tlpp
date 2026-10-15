@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "mine.ch"
+#include "tlpp-core.th"
+
+User Function f()
+  SAUDA "oi"
+Return nil

@@ -1,0 +1,19 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function DefBlk(lOpen)
+  Local nH := 0
+  Local fdf_0_0 := .F.  // whether 'defer FClose(nH)' was reached
+  If lOpen
+    nH := FOpen("dados.txt")
+    fdf_0_0 := .T.
+    If nH < 0
+      FClose(nH)
+      return -1
+    EndIf
+  EndIf
+  conout("meio")
+If fdf_0_0
+  FClose(nH)
+EndIf
+Return nH

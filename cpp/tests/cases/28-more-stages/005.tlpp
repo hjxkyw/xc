@@ -1,0 +1,34 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local x := {}
+  Local fok_0_0  // whether the file opened
+  Local fv_0_0  // the element walked
+  Local fop_0_0  // whether distinctAdjacent has seen an element
+  Local fls_0_0  // the key distinctAdjacent saw last
+  Local fpb_0_0  // the key of the element distinctAdjacent looks at
+  Local fo_0_0  // the result of the chain
+  fok_0_0 := File(cP)
+  If fok_0_0
+    FT_FUse(cP)
+    FT_FGoTop()
+  EndIf
+  fop_0_0 := .F.
+  fls_0_0 := Nil
+  fpb_0_0 := Nil
+  fo_0_0 := {}
+  While fok_0_0 .And. !FT_FEof()
+    fv_0_0 := FT_FReadLn()
+    fpb_0_0 := fv_0_0
+    If !(fop_0_0 .And. (fpb_0_0 == fls_0_0))
+      fop_0_0 := .T.
+      fls_0_0 := fpb_0_0
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+    FT_FSkip()
+  EndDo
+  If fok_0_0
+    FT_FUse()
+  EndIf
+  x := fo_0_0
+return n

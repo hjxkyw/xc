@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cTipo)
+  Local cRet := ""
+  Do Case
+    Case cTipo == "C"
+      cRet := "texto"
+    Default
+      cRet := "outro"
+  EndCase
+Return cRet

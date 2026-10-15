@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+static function f()
+  return 1
+static function g()
+  return 2

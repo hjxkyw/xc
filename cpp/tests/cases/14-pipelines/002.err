@@ -1,0 +1,2 @@
+002.xtpl:2: warning: 'aNums' is not declared
+002.xtpl:2: warning: 'nTotal' is not declared, so this creates a PRIVATE

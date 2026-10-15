@@ -1,0 +1,1 @@
+028.xtpl:4: warning: 's' is a parameter of this block twice: the AppServer takes it, and 's' is the argument in the last of its places

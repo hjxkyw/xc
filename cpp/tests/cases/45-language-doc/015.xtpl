@@ -1,0 +1,7 @@
+User Function Mods(nTotal)
+  Local lDone := .F.
+  lDone := .T. if nTotal > 5
+  conout("x") while nTotal-- > 0
+  exec Reset() if nTotal == 0
+  return(nTotal) if nTotal > 100
+Return iif(lDone, 1, 0)

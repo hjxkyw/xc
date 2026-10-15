@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  for cL, nN in lines(cP)
+    loop if empty(cL)
+    x := x + nN
+  next cL
+return x

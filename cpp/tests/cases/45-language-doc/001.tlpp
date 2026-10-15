@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Soma(nA, nB)
+  Local nTotal := nA + ;   // the first
+                  nB
+* a comment line, Clipper's
+  conout(1); conout(2)    && two statements
+Return nTotal

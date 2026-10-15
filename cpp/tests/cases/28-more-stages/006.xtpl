@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local x := {}
+  x := rows("SC5") |> expand([r] itens(r:C5_NUM)) |> take(3)
+return n

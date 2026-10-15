@@ -1,0 +1,5 @@
+user function f(a)
+  a := 1
+
+user function g()
+return 1

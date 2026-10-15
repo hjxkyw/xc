@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+#command REPORTE <x> => u_Rep(<x>)
+
+User Function f(a)
+* REPORTE a
+  REPORTE a  && REPORTE b
+Return nil

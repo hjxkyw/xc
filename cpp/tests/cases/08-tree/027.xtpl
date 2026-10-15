@@ -1,0 +1,2 @@
+user function f()
+  local nX as Numeric := 1 as N

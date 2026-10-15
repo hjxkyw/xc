@@ -1,0 +1,12 @@
+user function f(o)
+  local n := 0
+  using alias SA1 order 1 do
+    n := SA1->A1_SALDO
+  end using   // done
+  with object o
+    :SetValue("A", n)
+  end with   // set
+  raw
+    ANOTE "x"
+  end raw   // noted
+return n

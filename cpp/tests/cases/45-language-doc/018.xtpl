@@ -1,0 +1,8 @@
+User Function Using(cCod)
+  Local nTotal := 0
+  using alias SA1 order 1 do
+    SA1->(DbSeek(xFilial("SA1") + cCod))
+    nTotal := SA1->A1_SALDO
+    return nTotal if nTotal > 100
+  end using
+Return nTotal

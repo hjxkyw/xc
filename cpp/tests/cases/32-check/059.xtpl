@@ -1,0 +1,4 @@
+user function f(a)
+  a := SA1->A1_COD
+  DbSelectArea("SA1")
+return 1

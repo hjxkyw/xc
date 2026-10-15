@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function b()
+  local n := 0
+  n := cFilAnt
+return n

@@ -1,0 +1,4 @@
+user function f(a)
+  local cX as Character := 1 + 2
+  a := cX
+return 1

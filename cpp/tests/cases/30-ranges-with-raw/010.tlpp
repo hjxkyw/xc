@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, o)
+  local x := 0
+  Local fbs_0_0  // the subject of a 'with object'
+  fbs_0_0 := o:GetModel("M")  // the model
+    fbs_0_0:SetValue("A", 1)
+    x := fbs_0_0:GetValue("B") + fbs_0_0:nTam
+    fbs_0_0:cNome := "z"
+return n

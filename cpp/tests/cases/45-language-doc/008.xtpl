@@ -1,0 +1,4 @@
+User Function Ty(nY)
+  Local nX := "a" as Numeric
+  Local nOk := nY + 1 as Numeric
+Return nX + nOk

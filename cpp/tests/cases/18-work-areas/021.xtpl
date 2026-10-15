@@ -1,0 +1,3 @@
+external alias, CRLF
+user function f()
+return 1

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  for cL in lines(cP)
+    if empty(cL)
+      return 0
+    endif
+    return 1 if cL = "x"
+  next
+return x

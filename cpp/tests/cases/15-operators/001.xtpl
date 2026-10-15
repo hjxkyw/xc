@@ -1,0 +1,3 @@
+user function f()
+  hCfg{"limite"} := 2000
+return

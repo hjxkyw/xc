@@ -1,0 +1,5 @@
+user function f(a, n)
+  for 3 times
+    conout(1)
+  enddo
+return 1

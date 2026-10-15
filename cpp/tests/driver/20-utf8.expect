@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+extra/u8.xtpl: it is UTF-8 -- the first character beyond ASCII is on line 1. Protheus' sources are windows-1252 (cp1252): save it so
+--- written
+

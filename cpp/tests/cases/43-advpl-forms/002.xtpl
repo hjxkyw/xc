@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Static Function Scheddef() as array
+return {}
+
+User Function f(n as integer, x as decimal, b as codeblock) as logical
+return .T.

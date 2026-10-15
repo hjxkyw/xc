@@ -1,0 +1,4 @@
+user function f(a)
+  local nL <const> := 1
+  a := map(a, [x] nL := x)
+return 1

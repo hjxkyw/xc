@@ -1,0 +1,4 @@
+user function f(a)
+  local nK := 0
+  nK++
+return a

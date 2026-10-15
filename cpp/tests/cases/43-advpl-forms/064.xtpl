@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(user)
+  Local array := {1, 2}
+Return user + Len(array)

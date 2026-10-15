@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local fi_0_0  // the counter of a 'for ... times'
+  Local fn_0_0  // the count of a 'for ... times'
+  fn_0_0 := len(a)
+  For fi_0_0 := 1 To fn_0_0
+    nT := nT + 1
+  next
+return n

@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  a := o():x + a:Soma(1) + len(a)
+return 1

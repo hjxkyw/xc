@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  defer bye()
+  using alias SA1 do
+    return 1 if n > 0
+  end using
+  return 0

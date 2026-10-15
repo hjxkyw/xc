@@ -1,0 +1,6 @@
+user function f(o, p, a, n)
+  raw
+    ANOTE "primeira"
+    ANOTE "segunda"
+  end raw
+return 1

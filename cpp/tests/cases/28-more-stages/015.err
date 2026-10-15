@@ -1,0 +1,2 @@
+015.xtpl:2: warning: 'x' is assigned but never read
+015.xtpl:3: over rows() the element is the current record, so it can only name a field is not lowered yet

@@ -1,0 +1,5 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  n := len(u_xtpl_map(u_xtpl_filter(a, {|x| x > 0}), {|x| x * 2}))
+return n

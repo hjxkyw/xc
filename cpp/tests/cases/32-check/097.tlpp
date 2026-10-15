@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  conout(a)
+
+static nS := 0
+
+user function g()
+return nS

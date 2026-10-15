@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(cP)
+  Local cL  // a block local
+  Local fs_0_0  // the path of the file walked
+  Local fok_0_0  // whether the file opened
+  fs_0_0 := cP
+  fok_0_0 := File(fs_0_0)
+  If fok_0_0
+    FT_FUse(fs_0_0)
+    FT_FGoTop()
+  EndIf
+  While fok_0_0 .And. !FT_FEof()
+    cL := FT_FReadLn()
+    FT_FSkip()
+    conout(cL)
+  EndDo
+  If fok_0_0
+    FT_FUse()
+  EndIf
+  return 1

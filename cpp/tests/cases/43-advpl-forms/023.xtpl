@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(b)
+  Local aP := { "P",;		//the kind
+    b,;		//the question
+    ,;		//no alias
+    1 }
+return aP

@@ -1,0 +1,1 @@
+009.xtpl:2: cannot parse this line: aOut := map(aNums, {|x| x |> triplica})

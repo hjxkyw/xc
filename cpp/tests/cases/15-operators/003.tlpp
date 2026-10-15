@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  If lReset
+    If nX == Nil
+      nX := 3
+    EndIf
+  EndIf
+return

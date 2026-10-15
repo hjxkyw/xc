@@ -1,0 +1,3 @@
+012.xtpl:2: warning: 'n' is not declared
+012.xtpl:2: warning: 'nOutro' is not declared, so this creates a PRIVATE
+012.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

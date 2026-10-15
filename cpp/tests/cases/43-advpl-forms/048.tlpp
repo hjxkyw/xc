@@ -1,0 +1,17 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local lOk := .F., b := 1
+  If lOk := a[1]
+    b := 2
+  ElseIf lOk := (a[2] == 1)
+    b := 3
+  EndIf
+  If b = 2
+    b := 4
+  EndIf
+  While lOk := b > 9
+    b--
+  EndDo
+return b

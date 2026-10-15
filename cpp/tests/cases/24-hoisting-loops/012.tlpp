@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local nT := 0
+  Local nS  // a block local
+  nS := calc(nT)
+  Do Case
+    case nS == 6
+      nT := 1
+    otherwise
+      nT := 2
+  endcase
+return n

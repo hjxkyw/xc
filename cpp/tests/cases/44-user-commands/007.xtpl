@@ -1,0 +1,5 @@
+#include "totvs.ch"
+
+User Function f(a)
+  REPORTE a
+Return nil

@@ -1,0 +1,30 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function ForIn(aItems)
+  Local nTotal := 0
+  Local s_0_0  // a slot: the block locals 'oItem', 'nI'
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local nPos  // a block local
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... in'
+  Local fi_0_2  // the counter of a 'for ... times'
+  fs_0_0 := aItems
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[fi_0_0]
+    nTotal += s_0_0:nValue
+  next
+  fs_0_1 := aItems
+  For nPos := 1 To Len(fs_0_1)
+    s_0_0 := fs_0_1[nPos]
+    conout(cValToChar(nPos))
+  next
+  For fi_0_1 := 1 To 5
+    s_0_0 := fi_0_1
+    nTotal += s_0_0
+  next
+  For fi_0_2 := 1 To 3
+    conout("line")
+  next
+Return nTotal

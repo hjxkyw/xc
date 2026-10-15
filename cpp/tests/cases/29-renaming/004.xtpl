@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a)
+  local x := 0
+  if a > 0
+    local x <const> := 1   // the one
+    local aW <contained> := {}
+    aadd(aW, x)
+  endif
+return x

@@ -1,0 +1,10 @@
+user function f(n)
+  if n > 0
+    local nA := 5
+    defer logIt(nA)
+  endif
+  if n > 1
+    local nA := 6
+    conout(nA)
+  endif
+  return n

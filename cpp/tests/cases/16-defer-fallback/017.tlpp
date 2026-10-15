@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local fdf_0_0 := .F.  // whether 'defer logIt(nA)' was reached
+  Local nA  // a block local
+  if nX > 0
+    nA := 5
+    fdf_0_0 := .T.
+  endif
+If fdf_0_0
+  logIt(nA)
+EndIf
+return

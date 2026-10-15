@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(a)
+  Local n := 0
+  for x in a
+    n += x
+  end for
+return n

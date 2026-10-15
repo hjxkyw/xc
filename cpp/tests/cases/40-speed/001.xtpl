@@ -1,0 +1,7 @@
+user function f(a, b, c)
+  if a > 0
+    while b
+      a := b + c * 2
+    enddo
+  endif
+return a

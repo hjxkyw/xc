@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(c, n)
+  local nZ as N := 1
+  c ?= "e" if n > 0   // x
+return c

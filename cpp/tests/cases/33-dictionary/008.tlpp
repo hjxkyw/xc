@@ -1,0 +1,28 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cAl)
+  local x := 0
+  Local far_0_0  // the area selected before the walk
+  Local frc_0_0  // the record the area was on before the walk
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  far_0_0 := Alias()
+  DbSelectArea("SA1")
+  frc_0_0 := SA1->(RecNo())
+  SA1->(DbGoTop())
+  fo_0_0 := {}
+  While !SA1->(Eof())
+    If SA1->A1_SALDOX > 0
+      fv_0_0 := SA1->A1_COD
+      fv_0_0 := fv_0_0:Len
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+    SA1->(DbSkip())
+  EndDo
+  SA1->(DbGoto(frc_0_0))
+  If !Empty(far_0_0)
+    DbSelectArea(far_0_0)
+  EndIf
+  x := fo_0_0
+return x

@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, aH, aC)
+  Local s_0_0  // a slot: the block locals 'n1', 'c2', 'i'
+  Local s_0_1  // a slot: the block locals 'n3', 'nSq'
+  if a > 0
+    s_0_0 := 1  // n1
+    conout(s_0_0)
+  endif
+  if a > 1
+    s_0_0 := "x"  // c2
+    if a > 2
+      s_0_1 := 2  // n3
+      conout(s_0_0 + str(s_0_1))
+    endif
+  endif
+  For s_0_0 := 1 To 3
+    s_0_1 := s_0_0 * s_0_0  // nSq
+    conout(s_0_1)
+  next
+return a

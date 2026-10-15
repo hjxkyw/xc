@@ -1,0 +1,8 @@
+user function f(a)
+  private pX := 1
+  public uX := 1
+  for eX, iX in a
+  next
+  for local cX := 1 to 2
+  next
+return 1

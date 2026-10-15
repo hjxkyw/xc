@@ -1,0 +1,3 @@
+static nS := .t. as Numeric
+user function f()
+return nS

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  Local s_0_x  // the block local 'x'
+  if x > 0
+    s_0_x := 999  // x
+    conout(s_0_x)
+  endif
+  conout(x)
+return n

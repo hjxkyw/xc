@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local nA := 1
+  local aT := lines(cP) |> count   // lines
+  local nB := aT + nA
+  static nS := 0
+  n := nB
+return n

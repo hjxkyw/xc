@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(o, p, a, n)
+  MOSTRE cValToChar(nTotal) QUANDO nTotal > 0
+return 1

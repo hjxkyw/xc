@@ -1,0 +1,3 @@
+User Function Fused(aOrders)
+  Local aCodes := aOrders |> filter([o] o:nValue > 1000) |> map([o] o:cCode)
+Return aCodes

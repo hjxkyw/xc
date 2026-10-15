@@ -1,0 +1,19 @@
+// generated_name.xtpl -- declarar um nome com a forma dos nomes gerados.
+//
+// Os temporarios do transpilador se chamam nFo, fv_1_2, s_1_0, b_0_x --
+// '<tipo>_<profundidade>_<indice>'. Antes eles comecavam com '__', que
+// ninguem digita por acidente; agora sao curtos, entao as formas que eles
+// tomam sao reservadas explicitamente.
+//
+// Uma colisao seria silenciosa: duas variaveis diferentes, um slot so.
+// -----------------------------------------------------------------------------
+
+user function generatedName(nX)
+  local nFo := 0
+
+  nFo := nX * 2
+
+  return nFo
+
+// -----------------------------------------------------------------------------
+// the end

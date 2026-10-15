@@ -1,0 +1,4 @@
+004.xtpl:1: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
+004.xtpl:2: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
+004.xtpl:3: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
+004.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

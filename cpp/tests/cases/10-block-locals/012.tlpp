@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  nOutro := calc(n)
+  Do Case
+  case nOutro > 3
+  endcase

@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(cAlias)
+  Local cF := "A1_COD"
+  conout((cAlias)->&(cF))
+return nil

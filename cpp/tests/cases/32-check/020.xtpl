@@ -1,0 +1,4 @@
+user function f(a)
+  local h := {=>}
+  a := "v=${a}" + h{"k"}
+return 1

@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n, cA, cP)
+  for nI := 1 to n
+    return -1 if nI > 5
+    defer bye()
+  next
+  return 0

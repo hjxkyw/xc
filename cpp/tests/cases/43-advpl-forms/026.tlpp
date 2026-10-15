@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function f(o, b)
+  Local n
+  MvcLogin.Cad():Make()
+  n := o::connect()
+  &( 'o:F' + b + '()' )
+  ( if( !Empty(b), n := b, Nil ) ) // a comment
+return n

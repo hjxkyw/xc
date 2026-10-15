@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(n, a)
+  local b := u_xtpl_map(a, {|len| len + 1})
+return n

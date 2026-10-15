@@ -1,0 +1,1 @@
+#xtranslate @Agora => Time()

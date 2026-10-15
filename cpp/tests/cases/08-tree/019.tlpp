@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  n := soma(1, ; /* note */
+           2)
+  return n

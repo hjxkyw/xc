@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, o, aP)
+  local x := 0
+  x := len(u_xtpl_map(u_xtpl_filter(aP, {|p| p:nV > 1000}), {|p| p:cC}))
+return x

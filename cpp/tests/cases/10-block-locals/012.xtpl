@@ -1,0 +1,4 @@
+user function f()
+  do case with nOutro := calc(n)
+  case nOutro > 3
+  endcase

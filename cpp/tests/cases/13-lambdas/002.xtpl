@@ -1,0 +1,4 @@
+user function f()
+  aZ := zip(aA, aB, [cA, cB] ;
+       cA + cB)
+return

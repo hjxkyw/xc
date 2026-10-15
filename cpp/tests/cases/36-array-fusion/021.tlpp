@@ -1,0 +1,19 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, b, n, l, cS, bOk)
+  local x
+  local y
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If fv_0_0 > 1
+      fo_0_0++
+    EndIf
+  Next
+  x := fo_0_0
+  y := 5
+  n := x + y
+return n

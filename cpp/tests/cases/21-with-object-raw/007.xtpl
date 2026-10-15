@@ -1,0 +1,8 @@
+user function f(o, p, a, n)
+  with object o
+    if n > 0
+      :Ativa()
+    endif
+    a := map(a, [x] :GetValue(x))
+  end with
+return 1

@@ -1,0 +1,3 @@
+user function f()
+  nSafe := aNums |> filter([x] x > 100) |> asum fallback 0
+return

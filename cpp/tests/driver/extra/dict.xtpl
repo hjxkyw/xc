@@ -1,0 +1,6 @@
+external alias SA1
+
+user function d()
+  local c := ""
+  c := SA1->A1_NMOE
+return c

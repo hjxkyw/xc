@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  local x := 0
+  Local b_1_x  // the block local 'x'
+  if n > 0
+    b_1_x := THashMap():New()  // x
+    conout(("v=" + cValToChar(b_1_x)))
+    n := u_xtpl_hget(b_1_x, "k")
+    aadd(@b_1_x, 1)
+  endif
+return n

@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(n)
+  While n > 10
+    conout("x")
+  EndDo
+return n

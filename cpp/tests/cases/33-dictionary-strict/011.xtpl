@@ -1,0 +1,6 @@
+external alias SA1
+user function f(cAl)
+  local x := 0
+  x := 1 if SA1->A1_NOME == -5
+  x := 2 if .T. == SA1->A1_SALDO
+return x

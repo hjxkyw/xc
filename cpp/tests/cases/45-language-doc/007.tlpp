@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+User Function Decl(cName as Character, nQty)
+  Local nTotal := 0 as Numeric
+  Local aBuf := {}  // [contained, const]
+  Local aDados[10], aTela[2][3]
+  Local cX := "a", cY as Character
+  Private lOk := .T.
+  nTotal := nQty * 2 + Len(aBuf) + Len(aDados) + Len(aTela) + Len(cX + cY)
+Return nTotal

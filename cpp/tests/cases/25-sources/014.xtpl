@@ -1,0 +1,6 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP, cK)
+  local x := 0
+  x := lines(cP) |> reject([l] empty(l)) |> allof([l] len(l) > 3)
+return x

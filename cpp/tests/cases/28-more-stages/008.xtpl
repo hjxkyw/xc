@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n, cP)
+  local x := {}
+  local bOk := {|v| .T.}
+  x := a |> map(alltrim) |> filter(bOk)
+  x := map(a, upper)
+return n

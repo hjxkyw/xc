@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+user function f(a, n)
+  if n > 0
+    local nX := 1
+    conout(nX)
+  endif
+return n

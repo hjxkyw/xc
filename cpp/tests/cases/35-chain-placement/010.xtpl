@@ -1,0 +1,4 @@
+user function f(cP, l, n)
+  if (lines(cP) |> count) > 10
+  endif
+return n

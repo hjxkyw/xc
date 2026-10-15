@@ -1,0 +1,4 @@
+static function PosValida(oModel)
+  local oModel := FWModelActive()
+  local nOp := oModel:GetOperation()
+return nOp
