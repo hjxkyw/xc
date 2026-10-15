@@ -188,7 +188,18 @@ sub compile-folder(IO::Path $dir, Int $count --> Str)
   }
   # Every problem, not just the first: an error must not hide a count that is
   # off, nor the other way round.
-  return "no 'Compilation Results' line from the AppServer: its compile did not finish" unless $results;
+  unless $results
+  {
+    # Nothing to go by but how it ended: what it said last, shown -- unless
+    # --verbose showed all of it already.
+    unless $verbose
+    {
+      my @last = $text.lines.map(*.trim).grep(*.chars).tail(15);
+      say @last ?? "    what it said last:" !! "    it said nothing";
+      say "      $_" for @last;
+    }
+    return "no 'Compilation Results' line from the AppServer (exit code $code): its compile did not finish";
+  }
   my @why;
   @why.push("the AppServer compiled with {+$results[2]} error(s)") if +$results[2];
   @why.push("$count sources in the folder, the AppServer counted {+$results[0]}") if +$results[0] != $count;
