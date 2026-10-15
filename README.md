@@ -1,32 +1,44 @@
 # xc
 
-A compiler from xtpl to TL++, written in Raku. The language -- what xc
-takes, what it makes of it, what it refuses -- is described in
+A compiler from xtpl to TL++, in C++20. The language -- what xc takes,
+what it makes of it, what it refuses -- is described in
 [docs/language.md](docs/language.md).
 
-## Installing rakupp
+xc was written in Raku first. That xc, `bin/xc` with `lib/XC/`, is frozen as
+it was on 14 October 2026; the C++ xc is the one that moves on (see
+[The Raku xc](#the-raku-xc)). Raku still runs the scripts around it:
+`run-protheus.raku` and `tools/`.
+
+## Building
+
+C++20, nothing beyond the standard library; GCC, Clang and MSVC.
 
 ```sh
-curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz
-curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz.sha256
-sha256sum -c rakupp-linux-x86_64.tar.gz.sha256
-tar xzf rakupp-linux-x86_64.tar.gz
-export PATH=$PWD/rakupp/bin:$PATH
+cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+cmake --build cpp/build -j$(nproc)
 ```
 
-xc runs under rakupp 5.3.0; the tests pass under Rakudo as well
-(`raku run-tests.raku`).
+On Windows, from `cmd.exe`, with Visual Studio 2026 (CMake 4.2 or later on
+the PATH):
+
+```bat
+cmake -S cpp -B cpp\build -G "Visual Studio 18 2026"
+cmake --build cpp\build --config Release --parallel
+```
+
+The programs are then in `cpp\build\Release\`: `xc.exe` where this README
+says `cpp/build/xc`.
 
 ## Compiling
 
 ```sh
-rakupp bin/xc file.xtpl              # writes file.tlpp
-rakupp bin/xc file.xtpl out.tlpp
-rakupp bin/xc a.xtpl b.xtpl src/     # each next to itself; a folder is every .xtpl under it
-rakupp bin/xc --check src/           # checks, and writes nothing
-rakupp bin/xc --includes="lib/include;../shared" file.xtpl   # where its include files are
-rakupp bin/xc --dict sx3.csv file.xtpl                  # checks the fields against an exported SX3
-rakupp bin/xc --dict sx3.csv --dict-strict file.xtpl    # and what it finds stops the compile
+cpp/build/xc file.xtpl               # writes file.tlpp
+cpp/build/xc file.xtpl out.tlpp
+cpp/build/xc a.xtpl b.xtpl src/      # each next to itself; a folder is every .xtpl under it
+cpp/build/xc --check src/            # checks, and writes nothing
+cpp/build/xc --includes="lib/include;../shared" file.xtpl    # where its include files are
+cpp/build/xc --dict sx3.csv file.xtpl                   # checks the fields against an exported SX3
+cpp/build/xc --dict sx3.csv --dict-strict file.xtpl     # and what it finds stops the compile
 ```
 
 The exit code is 0 when every file went through, 1 when one did not, and 2
@@ -46,25 +58,26 @@ has to be compiled into the RPO alongside it.
 
 ## Running the tests
 
-From the top of the repository:
-
 ```sh
-rakupp run-tests.raku          # every test, xtpl's whole corpus too
-rakupp run-tests.raku --jobs=1 # one file at a time -- by default, as many at once as there are cores
-rakupp run-tests.raku --all    # and any marked slow ('# slow:' near its top) -- none are now
-raku run-tests.raku            # the same under Rakudo, which must pass too
+ctest --test-dir cpp/build
 ```
 
-Each test file says `ok` or `FAIL` with its count and the time it took, and
-the run ends with the total, its time, and the three slowest files. The exit
-code is 0 only when everything passed, and 2 for an option it does not know
--- `-all` with one dash, say -- before any test runs. xtpl's corpus is checked
-in three parts, `t/31-xtpl-corpus-1` to `-3`, so that they run at once; what
-they check is in `t/lib/XtplCorpus.rakumod`. A single test runs on its own
-too:
+On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
+`cpp/tests/` (its README says how each is kept):
+
+| test | what |
+|---|---|
+| `outputs` | each of xtpl's sources compiles to the `.tlpp` beside it |
+| `cases` | the Raku xc's test sources, each with the TL++ and the messages xc gives for it |
+| `driver` | command lines: the exit code, what is printed, the files written |
+| `doc` | the examples of `docs/language.md` come out as it shows them |
+
+After a change to the output that is meant, the expected files are written
+again, and the diff is the review:
 
 ```sh
-rakupp t/08-tree.raku
+cpp/build/xc-cases --update cpp/tests/cases
+cpp/build/xc-outputs --update xtpl/tests xtpl/examples
 ```
 
 ## Running in Protheus
@@ -72,14 +85,16 @@ rakupp t/08-tree.raku
 `run-protheus.raku` compiles two self-tests with xc -- xtpl's
 `xtpl/tests/54_selftest.xtpl` and xc's own `protheus/xc_selftest.xtpl` --
 has an AppServer compile them with the runtime, runs each, and reads their
-totals:
+totals. xc is the C++ xc where CMake built it (`cpp/build/xc`, or
+`cpp\build\Release\xc.exe`); `--xc=PATH` names another -- `--xc=bin/xc`
+the Raku xc:
 
 ```sh
 rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--authorization=FILE]
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
-rakupp run-protheus.raku ... --xc=cpp/build/xc  # compiled by the C++ xc, not bin/xc
+rakupp run-protheus.raku ... --xc=bin/xc        # compiled by the Raku xc
 ```
 
 Only what matters is shown -- a source that did not compile and why, the
@@ -97,9 +112,10 @@ settings can come from `XC_APPSERVER`, `XC_ENV`, `XC_INCLUDES`,
 run is just `rakupp run-protheus.raku`. The AppServer defaults to
 `appserver.exe` on Windows and `appsrvlinux` elsewhere, found on the PATH;
 given as a path, it is started from its own folder, where its
-`appserver.ini` is. xc's output goes to `build/protheus/`; on Windows the
-C++ xc is `--xc=cpp\build\Release\xc.exe`. The exit code is 0 only when both self-tests ran and
-every check passed.
+`appserver.ini` is. xc's output goes to `build/protheus/`. A compile that
+prints no results line shows the last lines the AppServer said, and its
+exit code. The exit code is 0 only when both self-tests ran and every check
+passed.
 
 The self-tests are pure computation -- no table, no file, no screen -- so
 they run on any environment. They need AppServer 19.3.1 or later: aPick
@@ -109,60 +125,55 @@ and aRoll draw with `Random()`.
 
 `editors/vscode/` is an extension for `.xtpl` files: highlighting, xc's
 checks as diagnostics on open and on save, and a command that compiles the
-file. See [its README](editors/vscode/README.md) for installing it -- a
-package, or the folder linked into VS Code's extensions.
+file -- with the C++ xc. See [its README](editors/vscode/README.md) for
+installing it -- a package, or the folder linked into VS Code's extensions.
 
-## The C++ port
+## The Raku xc
 
-`cpp/` is xc in C++20 -- no modules, nothing beyond the standard library,
-built with GCC, Clang and MSVC. It is the whole compiler: `cpp/build/xc`
-takes what `bin/xc` takes, and says what it does -- the same tree of every
-source, the same errors and warnings -- in a fraction of the time (the 889
-sources of the survey, read, checked and lowered, in about a third of a
-second). It is the one that moves on: the Raku xc is frozen as it was on
-14 October 2026, and the TL++ the C++ xc writes has since improved where
-the Raku xc's stays as it was (`?:`, `?.` and `in lo..hi` hold a value
-read twice in a Local, not in a block).
+`bin/xc`, with `lib/XC/` -- the grammar, the tree, the checks, the emitter
+-- and its tests in `t/`, frozen as they were on 14 October 2026. It stays
+the reference for what a source means: `tools/compare-cpp.raku` compares
+the two xc's, tree for tree, message for message and byte for byte -- with
+`cpp/build/xc-compare`, against what `tools/ast-json.raku` writes of the
+Raku xc's tree, checks and TL++ -- and runs both drivers on the same files.
+The trees, the checks and the drivers agree; the TL++ differs wherever the
+C++ xc has written it better since (`?:`, `?.` and `in lo..hi` hold a value
+read twice in a Local, not in a block), and so does `t/45`, which holds
+`docs/language.md` to the Raku xc's TL++.
 
-```
-cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
-cmake --build cpp/build --config Release
-cpp/build/xc --check xtpl/tests                  # as rakupp bin/xc
-ctest --test-dir cpp/build                       # its tests
-```
-
-Its tests are data (`cpp/tests/`, with a README): the Raku xc's test sources,
-each with the TL++ and the messages xc gives for it; command lines, with what
-they print and write; xtpl's sources, with the `.tlpp` beside each; and the
-language reference, whose examples have to come out as it shows them.
-
-The Raku xc stays the reference for what a source means.
-`tools/compare-cpp.raku` compares the two, tree for tree, message for
-message and byte for byte -- with `cpp/build/xc-compare`, against what
-`tools/ast-json.raku` writes of the Raku xc's tree, checks and TL++ -- and
-runs both drivers on the same files. The trees, the checks and the drivers
-still agree; the TL++ differs wherever the C++ xc writes it better:
-
-```
+```sh
 rakupp tools/compare-cpp.raku xtpl protheus        # files or folders
 rakupp tools/compare-cpp.raku --dict=sx3.csv xtpl  # the checks with a dictionary
+rakupp bin/xc file.xtpl                            # the Raku xc itself
+rakupp run-tests.raku                              # its tests
 ```
 
-(On Windows, from a Visual Studio developer prompt; the programs are then
-`cpp\build\Release\xc.exe` and `xc-compare.exe`, which `compare-cpp.raku`
-finds.)
+(`compare-cpp.raku` finds the C++ programs where CMake built them, in
+`cpp/build` or `cpp\build\Release`.)
+
+### Installing rakupp
+
+For the scripts, and the Raku xc:
+
+```sh
+curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz
+curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz.sha256
+sha256sum -c rakupp-linux-x86_64.tar.gz.sha256
+tar xzf rakupp-linux-x86_64.tar.gz
+export PATH=$PWD/rakupp/bin:$PATH
+```
+
+They run under rakupp 5.3.0, and under Rakudo as well.
 
 ## What is where
 
 | | |
 |---|---|
-| `bin/xc` | the compiler |
-| `cpp/` | xc in C++ -- see "The C++ port" |
-| `docs/` | the language reference, `language.md` -- `t/45` and the C++ `xc-doc` compile its examples |
+| `cpp/` | xc: `src/` the compiler and the programs that test it, `tests/` the tests, as data |
+| `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
-| `lib/XC/` | the grammar, the tree, the checks, the emitter |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
-| `t/` | xc's tests, in Raku; `t/lib/` what several of them share |
-| `tools/` | `ast-json.raku`, a source's tree, checks and TL++, and `compare-cpp.raku`, the C++ xc against it |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
-| `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, and xc's example `saldo` -- see `xtpl/README.md` |
+| `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, each with the `.tlpp` xc makes of it, and xc's example `saldo` -- see `xtpl/README.md` |
+| `tools/` | `compare-cpp.raku`, the C++ xc against the Raku one, and `ast-json.raku`, what it reads of the Raku xc |
+| `bin/xc`, `lib/XC/`, `t/` | the Raku xc and its tests, frozen |

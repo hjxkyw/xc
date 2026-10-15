@@ -21,34 +21,36 @@ xtpl -- TL++ with xtpl's extensions, the language
 From a package, which `npx @vscode/vsce package` makes here:
 
 ```sh
-code --install-extension xtpl-0.1.0.vsix
+code --install-extension xtpl-0.2.0.vsix
 ```
 
 Or from this folder as it is, with no packaging -- a copy, or a link, in
 VS Code's extensions folder:
 
 ```sh
-ln -s "$PWD" ~/.vscode/extensions/hjxkyw.xtpl-0.1.0     # Linux
+ln -s "$PWD" ~/.vscode/extensions/hjxkyw.xtpl-0.2.0     # Linux
 ```
 
 ```bat
-mklink /D "%USERPROFILE%\.vscode\extensions\hjxkyw.xtpl-0.1.0" "%CD%"   & rem Windows
+mklink /D "%USERPROFILE%\.vscode\extensions\hjxkyw.xtpl-0.2.0" "%CD%"   & rem Windows
 ```
 
-and restart VS Code.
+and restart VS Code. The checks need xc itself, the C++ program: built
+in a clone of xc (`cpp/build`; see xc's README), or named in `xtpl.xc.path`.
 
 ## Settings
 
 | Setting | |
 |---|---|
-| `xtpl.xc.path` | where xc's `bin/xc` is; empty: `bin/xc` in a folder of the workspace |
-| `xtpl.xc.raku` | the Raku that runs xc: `rakupp` (on the PATH), or a path to it |
+| `xtpl.xc.path` | where xc is, the program; empty: xc as CMake built it in a folder of the workspace (`cpp/build/xc`, `cpp\build\Release\xc.exe`), else `xc` on the PATH |
 | `xtpl.xc.includes` | where the include files are, `a;b`, as xc's `--includes` |
 | `xtpl.xc.dictionary` | an exported SX3, for xc's `--dict` |
 | `xtpl.xc.checkOnSave` | check on open and on save (on by default) |
 
-The checks run `rakupp bin/xc --check file.xtpl`; what it printed is in the
-**xc** output panel.
+The checks run `xc --check file.xtpl` in the file's workspace folder, so a
+relative path in the settings is from there; what xc printed is in the
+**xc** output panel. 0.1.0 ran the Raku xc, `rakupp bin/xc`; its
+`xtpl.xc.raku` setting is gone.
 
 ## Testing
 

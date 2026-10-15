@@ -2,7 +2,7 @@
 // its line and whether it is a warning. Kept apart from extension.js, which
 // needs VS Code, so that a plain 'node' can test it.
 //
-// bin/xc names the file as it was given, then the line, then the message:
+// xc names the file as it was given, then the line, then the message:
 //
 //   /path/a.xtpl:12: warning: 'cX' is assigned but never read
 //   /path/a.xtpl:7: 'nIn' is out of scope here (block local declared on line 3).

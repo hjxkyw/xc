@@ -2,7 +2,7 @@
   "name": "xtpl",
   "displayName": "xtpl",
   "description": "xtpl -- TL++ with xtpl's extensions -- for Visual Studio Code: highlighting, and xc's checks as you save.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "hjxkyw",
   "license": "MIT",
   "repository": {
@@ -52,17 +52,12 @@
         "xtpl.xc.path": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Where xc's `bin/xc` is. Empty: `bin/xc` in a folder of the workspace, when there is one."
-        },
-        "xtpl.xc.raku": {
-          "type": "string",
-          "default": "rakupp",
-          "markdownDescription": "The Raku that runs xc: `rakupp`, or a path to it."
+          "markdownDescription": "Where xc is: the program, `xc` or `xc.exe`. Empty: xc as CMake built it in a folder of the workspace (`cpp/build`, or `cpp/build/Release`), else `xc` on the PATH."
         },
         "xtpl.xc.includes": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Where the include files are, after the source's own folder: `a;b`, as xc's and the AppServer's `-includes`."
+          "markdownDescription": "Where the include files are, after the source's own folder: `a;b`, as xc's and the AppServer's `-includes`. A relative path is from the workspace folder."
         },
         "xtpl.xc.dictionary": {
           "type": "string",
