@@ -79,6 +79,7 @@ rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--author
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
+rakupp run-protheus.raku ... --xc=cpp/build/xc  # compiled by the C++ xc, not bin/xc
 ```
 
 Only what matters is shown -- a source that did not compile and why, the
@@ -91,12 +92,13 @@ point is that Protheus takes all of xc's output.
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`
 line, then `appserver -run=u_selftest -env=...` and `-run=u_xc_selftest`. The
-settings can come from `XC_APPSERVER`, `XC_ENV`, `XC_INCLUDES` and
-`XC_AUTHORIZATION` instead, so that once set a run is just
-`rakupp run-protheus.raku`. The AppServer defaults to `appserver.exe` on
-Windows and `appsrvlinux` elsewhere, found on the PATH; given as a path, it is
-started from its own folder, where its `appserver.ini` is. xc's output goes
-to `build/protheus/`. The exit code is 0 only when both self-tests ran and
+settings can come from `XC_APPSERVER`, `XC_ENV`, `XC_INCLUDES`,
+`XC_AUTHORIZATION` and `XC_COMPILER` (`--xc`) instead, so that once set a
+run is just `rakupp run-protheus.raku`. The AppServer defaults to
+`appserver.exe` on Windows and `appsrvlinux` elsewhere, found on the PATH;
+given as a path, it is started from its own folder, where its
+`appserver.ini` is. xc's output goes to `build/protheus/`; on Windows the
+C++ xc is `--xc=cpp\build\Release\xc.exe`. The exit code is 0 only when both self-tests ran and
 every check passed.
 
 The self-tests are pure computation -- no table, no file, no screen -- so
