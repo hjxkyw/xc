@@ -103,7 +103,12 @@ namespace xc
 
   bool utf8_to_cp1252(const std::string& in, std::string& out)
   {
-    static const std::pair<unsigned, unsigned char> high[] =
+    struct High
+    {
+      unsigned code;
+      unsigned char byte;
+    };
+    static const High high[] =
     {
       { 0x20AC, 0x80 }, { 0x201A, 0x82 }, { 0x0192, 0x83 }, { 0x201E, 0x84 }, { 0x2026, 0x85 },
       { 0x2020, 0x86 }, { 0x2021, 0x87 }, { 0x02C6, 0x88 }, { 0x2030, 0x89 }, { 0x0160, 0x8A },
@@ -149,11 +154,11 @@ namespace xc
       else
       {
         char c = '?';
-        for (auto [u, w] : high)
+        for (const High& h : high)
         {
-          if (u == cp)
+          if (h.code == cp)
           {
-            c = static_cast<char>(w);
+            c = static_cast<char>(h.byte);
             break;
           }
         }

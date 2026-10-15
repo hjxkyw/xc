@@ -65,7 +65,7 @@ add_test(NAME doc
 
 foreach(t xclib xc xc-compare xc-outputs xc-cases xc-doc)
   if(MSVC)
-    target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8 /MP)
   else()
     target_compile_options(${t} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
   endif()
