@@ -3,5 +3,5 @@
 
 User Function Doc()
   Local et_0_0  // the left side of a '?:', evaluated once
-  xDoc := If((et_0_0 := cached()) != Nil, et_0_0, If((et_0_0 := computed()) != Nil, et_0_0, "last"))
+  xDoc := If(ValType(et_0_0 := cached()) != "U", et_0_0, If(ValType(et_0_0 := computed()) != "U", et_0_0, "last"))
 Return nil

@@ -203,10 +203,10 @@ user function testKitchenSink()
   conout("Cache: " + cCache)
 
   // 26. Elvis: same idea inline, with the left side evaluated exactly once
-  cName := If((et_0_0 := lookupName(nTotal)) != Nil, et_0_0, "anonymous")
+  cName := If(ValType(et_0_0 := lookupName(nTotal)) != "U", et_0_0, "anonymous")
 
   // 27. Chained elvis: each fallback runs only if the one before came back Nil
-  cPick := If((et_0_0 := firstChoice()) != Nil, et_0_0, If((et_0_0 := secondChoice()) != Nil, et_0_0, "last resort"))
+  cPick := If(ValType(et_0_0 := firstChoice()) != "U", et_0_0, If(ValType(et_0_0 := secondChoice()) != "U", et_0_0, "last resort"))
 
   return nTotal
 

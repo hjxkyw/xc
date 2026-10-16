@@ -17,24 +17,24 @@ user function testElvis(oUser)
   Local et_0_0  // the left side of a '?:', evaluated once
 
   // Two operands: compact form.
-  cName := If((et_0_0 := lookupName(1)) != Nil, et_0_0, "anonymous")
+  cName := If(ValType(et_0_0 := lookupName(1)) != "U", et_0_0, "anonymous")
   conout("name: " + cName)
 
   // Chained: each fallback runs only if the one before came back Nil.
-  cPick := If((et_0_0 := firstChoice()) != Nil, et_0_0, If((et_0_0 := secondChoice()) != Nil, et_0_0, If((et_0_0 := thirdChoice()) != Nil, et_0_0, "last resort")))
+  cPick := If(ValType(et_0_0 := firstChoice()) != "U", et_0_0, If(ValType(et_0_0 := secondChoice()) != "U", et_0_0, If(ValType(et_0_0 := thirdChoice()) != "U", et_0_0, "last resort")))
   conout("pick: " + cPick)
 
   // The fallback can be any expression, including a call with arguments.
-  nPort := If((et_0_0 := readPort()) != Nil, et_0_0, defaultPort(8080))
+  nPort := If(ValType(et_0_0 := readPort()) != "U", et_0_0, defaultPort(8080))
   conout("port: " + cValToChar(nPort))
 
   // Combines with optional chaining: a missing object yields the fallback.
-  cCity := If((et_0_0 := If(oUser != Nil, oUser:cCity, Nil)) != Nil, et_0_0, "unknown")
+  cCity := If(ValType(et_0_0 := If(oUser != Nil, oUser:cCity, Nil)) != "U", et_0_0, "unknown")
   conout("city: " + cCity)
 
   // Works as a plain expression too, not only on the right of ':='.
   aItems := {}
-  aadd(aItems, If((et_0_0 := loadItem(1)) != Nil, et_0_0, "placeholder"))
+  aadd(aItems, If(ValType(et_0_0 := loadItem(1)) != "U", et_0_0, "placeholder"))
   conout("items: " + cValToChar(len(aItems)))
 
   return cName

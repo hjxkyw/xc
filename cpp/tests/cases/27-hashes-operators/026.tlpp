@@ -3,5 +3,5 @@
 user function f(h, a, o, l)
   local x := 0
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  x := If(o != Nil .And. (fbv_0_0 := o:oA) != Nil, fbv_0_0:cNome, Nil)
+  x := If(o != Nil .And. ValType(fbv_0_0 := o:oA) != "U", fbv_0_0:cNome, Nil)
 return x

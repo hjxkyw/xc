@@ -3,5 +3,5 @@
 
 user function f()
   Local et_0_0  // the left side of a '?:', evaluated once
-  aItens := If((et_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})) != Nil, et_0_0, {})
+  aItens := If(ValType(et_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})) != "U", et_0_0, {})
 return

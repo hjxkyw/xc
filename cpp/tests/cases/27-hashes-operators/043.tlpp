@@ -5,5 +5,5 @@ user function f(h, a, o)
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
   Local et_0_0  // the left side of a '?:', evaluated once
   h:Set("n", u_xtpl_hget(h, "n") + (2))
-  x := u_xtpl_safe_pipe({|| If((et_0_0 := If(o != Nil .And. (fbv_0_0 := o:oA) != Nil, fbv_0_0:cNome, Nil)) != Nil, et_0_0, calc(a))}, {|| 0})
+  x := u_xtpl_safe_pipe({|| If(ValType(et_0_0 := If(o != Nil .And. ValType(fbv_0_0 := o:oA) != "U", fbv_0_0:cNome, Nil)) != "U", et_0_0, calc(a))}, {|| 0})
 return ("v=" + cValToChar(x))

@@ -1,5 +1,5 @@
-// A name declared with a type: TL++ will not compare it with Nil, so '?:'
-// and '?.' hold it in a temp, and '?=' asks ValType().
+// A name declared with a type: TL++ will not compare it with Nil, so '?:',
+// '?.' and '?=' ask ValType().
 user function typed(nIn as numeric, oIn)
   local nX as numeric
   local oJ as object

@@ -33,8 +33,8 @@ user function testOperandSpan(aCodes, cCod, nValor, oUser, aOut)
 
   // optional chaining to any depth
   cCity := If(oUser != Nil, oUser:cNome, Nil)
-  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
-  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oA) != Nil .And. (fbv_0_1 := fbv_0_0:oB) != Nil, fbv_0_1:cCity, Nil)
+  cCity := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddress) != "U", fbv_0_0:cCity, Nil)
+  cCity := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oA) != "U" .And. ValType(fbv_0_1 := fbv_0_0:oB) != "U", fbv_0_1:cCity, Nil)
 
   aadd(aOut, lHit)
 
