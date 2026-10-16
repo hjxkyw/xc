@@ -1,0 +1,10 @@
+// A guard that stays an expression: in parentheses, a hash's value, a
+// declaration of the prologue, a static's -- and the warning when a chain
+// under it would have fused.
+user function expressions(a, h)
+  local x := f(1) fallback 0
+  static s := f(2) fallback 1
+  h{"k"} := f(3) fallback 7
+  x := (f(4) fallback 8) + 1
+  x := (a |> filter([v] v > 1) |> asum fallback 0) + s
+return x

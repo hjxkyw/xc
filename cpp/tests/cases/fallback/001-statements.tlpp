@@ -1,0 +1,82 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'fallback' as a statement's whole value: a Begin Sequence in place -- an
+// assignment to a name, to an element, a block local, a private, a return,
+// a defer's, under a postfix modifier, and one inside another.
+user function shapes(a, n)
+  local x := 0
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local ht_0_0  // the value of a 'fallback', before it is assigned
+  Local w  // a block local
+  Local gt_0_1  // the error block a 'fallback' sets aside
+  private p
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    p := f(2)
+  Recover
+    p := 3
+  End Sequence
+  ErrorBlock(gt_0_0)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    x := f(1)
+  Recover
+    x := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    ht_0_0 := f(5)
+  Recover
+    ht_0_0 := 6
+  End Sequence
+  ErrorBlock(gt_0_0)
+  a[1] := ht_0_0
+  if n > 0
+    gt_0_0 := ErrorBlock({|e| Break(e)})
+    Begin Sequence
+      w := f(4)
+    Recover
+      w := 5
+    End Sequence
+    ErrorBlock(gt_0_0)
+    conout(w)
+  endif
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    gt_0_1 := ErrorBlock({|e| Break(e)})
+    Begin Sequence
+      x := f(8)
+    Recover
+      x := 9
+    End Sequence
+    ErrorBlock(gt_0_1)
+  Recover
+    x := 10
+  End Sequence
+  ErrorBlock(gt_0_0)
+  If n > 1
+    gt_0_0 := ErrorBlock({|e| Break(e)})
+    Begin Sequence
+      x := f(9)
+    Recover
+      x := 11
+    End Sequence
+    ErrorBlock(gt_0_0)
+  EndIf
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    cD := f(3)
+  Recover
+    cD := "d"
+  End Sequence
+  ErrorBlock(gt_0_0)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    ht_0_0 := f(10)
+  Recover
+    ht_0_0 := x
+  End Sequence
+  ErrorBlock(gt_0_0)
+  return ht_0_0

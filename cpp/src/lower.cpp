@@ -99,11 +99,18 @@ namespace xc
       // it. A 'static' takes its value before any Local is there.
       bool prologue = decl && top && decl->scope == "local";
       Scoped no_temps(no_temps_, decl && decl->scope == "static" ? 1 : 0);
-      if ((k == SK::CallStmt || k == SK::Assignment || prologue) && !fused_value(s) && !needs_lowering(s))
+      if ((k == SK::CallStmt || k == SK::Assignment || prologue) && !fused_value(s) && !needs_lowering(s)
+          && !guard_value(s))
       {
         // The most common statements: their expressions, and nothing else.
         Early early(early_at_, prologue ? s->from : -1);
         expressions(exprs_of(s));
+      }
+      else if (const Guard* g = guard_value(s))
+      {
+        // A guard that is the statement's whole value: the statement inside a
+        // Begin Sequence, the alternative in Recover.
+        replace(s, false, guard_stmt(s, g));
       }
       else if (decl && !top && decl->scope == "local")
       {
@@ -582,6 +589,7 @@ namespace xc
   // A statement as the lines it becomes where it is spliced (a defer's body).
   Lines Emitter::stmt_lines(const Stmt* s)
   {
+    if (const Guard* g = guard_value(s)) { return guard_stmt(s, g); }
     if (const Expr* chain = fused_value(s))
     {
       bool statement = s->kind == SK::CallStmt;
@@ -1067,13 +1075,74 @@ namespace xc
     return t;
   }
 
-  // 'name := value' as lines: the loop first when the value is a chain.
+  // 'name := value' as lines: the loop first when the value is a chain, a
+  // Begin Sequence when it is a guard.
   Lines Emitter::init_lines(const std::string& name, const Expr* value)
   {
     if (!loop_value(value)) { return { name + " := " + expr(value) }; }
+    if (is_expr(value, EK::Guard)) { return sequence_lines(name, static_cast<const Guard*>(value)); }
     Stream st = stream(value, true);
     st.lines.push_back(name + " := " + st.result);
     return st.lines;
+  }
+
+  // A guard that is a statement's whole value -- 'x := ...', 'return ...';
+  // a declaration's goes by init_lines() -- runs as statements. One inside an
+  // expression stays an expression, a call to u_xtpl_safe_pipe().
+  const Guard* Emitter::guard_value(const Stmt* s) const
+  {
+    const Expr* v = nullptr;
+    if (s->kind == SK::Assignment && static_cast<const Assignment*>(s)->op == ":=" && !needs_lowering(s))
+    {
+      v = static_cast<const Assignment*>(s)->value;
+    }
+    else if (s->kind == SK::ReturnStmt)
+    {
+      v = static_cast<const ReturnStmt*>(s)->value;
+    }
+    return is_expr(v, EK::Guard) ? static_cast<const Guard*>(v) : nullptr;
+  }
+
+  // The statement a guard is the whole value of, as lines: assigned in the
+  // Begin Sequence -- a name itself, anything else from a temp after it -- or
+  // returned from a temp, after what a 'return' runs first.
+  Lines Emitter::guard_stmt(const Stmt* s, const Guard* g)
+  {
+    if (s->kind == SK::ReturnStmt)
+    {
+      Lines lines = return_exits(s);
+      std::string h = temp("ht", "the value a 'return ... fallback' returns");
+      append(lines, sequence_lines(h, g));
+      lines.push_back("return " + h);
+      return lines;
+    }
+    auto a = static_cast<const Assignment*>(s);
+    if (is_expr(a->target, EK::Name)) { return sequence_lines(expr(a->target), g); }
+    std::string h = temp("ht", "the value of a 'fallback', before it is assigned");
+    Lines lines = sequence_lines(h, g);
+    lines.push_back(expr(a->target) + " := " + h);
+    return lines;
+  }
+
+  // 'x := E fallback F' as statements -- what u_xtpl_safe_pipe() does, in
+  // place, with no block and no call, and a chain in E a loop:
+  //
+  //   gt_0_0 := ErrorBlock({|e| Break(e)})
+  //   Begin Sequence
+  //     x := E
+  //   Recover
+  //     x := F
+  //   End Sequence
+  //   ErrorBlock(gt_0_0)
+  Lines Emitter::sequence_lines(const std::string& target, const Guard* g)
+  {
+    std::string eb = temp("gt", "the error block a 'fallback' sets aside");
+    Lines out{ eb + " := ErrorBlock({|e| Break(e)})", "Begin Sequence" };
+    for (const std::string& l : init_lines(target, g->expr)) { out.push_back("  " + l); }
+    out.push_back("Recover");
+    for (const std::string& l : init_lines(target, g->fallback)) { out.push_back("  " + l); }
+    append(out, { "End Sequence", "ErrorBlock(" + eb + ")" });
+    return out;
   }
 
   // A block's closing line ('end with') dropped: the whole line, unless a
@@ -1286,6 +1355,7 @@ namespace xc
   Lines Emitter::lower_inner(const Stmt* s)
   {
     if (needs_lowering(s)) { return lower(s).lines; }
+    if (const Guard* g = guard_value(s)) { return guard_stmt(s, g); }
     if (const Expr* chain = fused_value(s))
     {
       Stream st = stream(chain, s->kind != SK::CallStmt);

@@ -1,0 +1,16 @@
+// 'fallback' as a statement's whole value: a Begin Sequence in place -- an
+// assignment to a name, to an element, a block local, a private, a return,
+// a defer's, under a postfix modifier, and one inside another.
+user function shapes(a, n)
+  local x := 0
+  private p := f(2) fallback 3
+  defer cD := f(3) fallback "d"
+  x := f(1) fallback 0
+  a[1] := f(5) fallback 6
+  if n > 0
+    local w := f(4) fallback 5
+    conout(w)
+  endif
+  x := (f(8) fallback 9) fallback 10
+  x := f(9) fallback 11 if n > 1
+  return f(10) fallback x

@@ -1,0 +1,7 @@
+// A chain under a statement's guard is a loop inside the Begin Sequence; in
+// the prologue, a guard around a chain that fuses moves the values after it.
+user function chains(a)
+  local y := a |> filter([v] v > 1) |> asum fallback -1
+  local z := 2
+  y := a |> map([v] v * 2) |> filter([v] v > 3) fallback {}
+return y + z

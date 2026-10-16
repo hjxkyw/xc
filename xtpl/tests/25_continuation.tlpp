@@ -15,12 +15,19 @@ user function testContinuation(cUrl, cBody, aNums, hCfg)
   local nT := 0
   local nA := 1, ;
         nB := 2
+  Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // what a loop collected, for the stages after it
 
-  cReply := u_xtpl_safe_pipe({|| HttpPost(cUrl, "", cBody, nTimeout, ;
-                     {"Content-Type: application/json"})}, {|| ""})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    cReply := HttpPost(cUrl, "", cBody, nTimeout, ;
+                     {"Content-Type: application/json"})
+  Recover
+    cReply := ""
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   fo_0_0 := {}
   For fi_0_0 := 1 To Len(aNums)

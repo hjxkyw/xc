@@ -2,5 +2,12 @@
 #include "tlpp-core.th"
 
 User Function Doc()
-  xDoc := u_xtpl_safe_pipe({|| callService(cUrl)}, {|| ""})
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    xDoc := callService(cUrl)
+  Recover
+    xDoc := ""
+  End Sequence
+  ErrorBlock(gt_0_0)
 Return nil

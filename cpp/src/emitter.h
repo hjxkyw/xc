@@ -233,6 +233,9 @@ namespace xc
     std::string bound(const Lambda* l, const std::optional<std::string>& elem, const std::optional<std::string>& prefix);
     std::string bound2(const Lambda* l, const std::string& carried, const std::string& element);
     Lines init_lines(const std::string& name, const Expr* value);
+    const Guard* guard_value(const Stmt* s) const;
+    Lines guard_stmt(const Stmt* s, const Guard* g);
+    Lines sequence_lines(const std::string& target, const Guard* g);
 
     // ---- expressions --------------------------------------------------------
     std::string expr(const Expr* e);

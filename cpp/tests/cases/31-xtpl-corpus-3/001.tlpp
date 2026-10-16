@@ -9,15 +9,15 @@
 // setMaxRoll, digit separators, hash writes inside expressions, chains as a
 // private's value and under a postfix modifier, a defer that runs only if it
 // was reached, the temps xc writes around the source's own code, each value
-// of '?:', '?.' and 'in lo..hi' evaluated once, Clipper's comments, a name
-// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
-// computation, as 54 is: no table, no file, no screen, so a right or wrong
-// answer and not an environment.
+// of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
+// whole value, Clipper's comments, a name that starts with '__', 'End For'
+// and '%exp:x%' outside BeginSql. Pure computation, as 54 is: no table, no
+// file, no screen, so a right or wrong answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 86 ok, 0 failed
+//   xc_selftest: 92 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -48,6 +48,7 @@ user function xc_selftest()
   local __v := 5            && a name that starts with '__', and a Clipper comment
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
   local bHi := {|x| iif(((fbv_0_0 := same(x)) >= 1 .And. fbv_0_0 <= 5), 10, 20)}
+  local bOld
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
@@ -202,10 +203,18 @@ user function xc_selftest()
   Local b_2_nKept  // the block local 'nKept'
   Local fbv_0_1  // a value read twice by '?.' or 'in lo..hi', evaluated once
   Local fbv_0_2  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  Local fs_0_8  // the array walked
+  Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_40  // the position in the array walked
   Local fv_0_39  // the element walked
   Local fo_0_36  // the result of the chain
+  Local fi_0_41  // the position in the array walked
+  Local fv_0_40  // the element walked
+  Local fo_0_37  // the result of the chain
+  Local ht_0_0  // the value of a 'fallback', before it is assigned
+  Local fs_0_8  // the array walked
+  Local fi_0_42  // the position in the array walked
+  Local fv_0_41  // the element walked
+  Local fo_0_38  // the result of the chain
   private pTotal
   fo_0_0 := 0
   For fi_0_0 := 1 To Len(aNums)
@@ -844,6 +853,77 @@ user function xc_selftest()
   check("'?:', '?.', '?=' on names declared with a type", aTmp[1] == 0 .and. aTmp[2] == "x" .and. aTmp[3] == 0, ;
         cValToChar(aTmp[1]) + " " + cValToChar(aTmp[2]) + " " + cValToChar(aTmp[3]), @nOk, @nBad)
 
+  // ---- fallback as a statement's whole value: a Begin Sequence --------------
+  // The error caught, and the error block put back as it was: one that
+  // gives "mine", where a Break() would land in the Recover below.
+  bOld := ErrorBlock({|e| "mine"})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nTmp := aNums[99]
+  Recover
+    nTmp := -1
+  End Sequence
+  ErrorBlock(gt_0_0)
+  cTmp := ""
+  begin sequence
+    cTmp := eval(ErrorBlock(), nil)
+  recover
+    cTmp := "not put back"
+  end sequence
+  ErrorBlock(bOld)
+  check("fallback: the error caught, the error block put back", nTmp == -1 .and. cTmp == "mine", cTmp, @nOk, @nBad)
+  aCalls := {0}
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nTmp := counted(aCalls, 5)
+  Recover
+    nTmp := counted(aCalls, 7)
+  End Sequence
+  ErrorBlock(gt_0_0)
+  check("fallback: the alternative only on an error", nTmp == 5 .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_36 := 0
+    For fi_0_40 := 1 To Len(aNums)
+      fv_0_39 := aNums[fi_0_40]
+      If fv_0_39 > 2
+        fv_0_39 := fv_0_39 * 10
+        fo_0_36 := fo_0_36 + fv_0_39
+      EndIf
+    Next
+    nTmp := fo_0_36
+  Recover
+    nTmp := -1
+  End Sequence
+  ErrorBlock(gt_0_0)
+  check("fallback: a chain under it, a loop", nTmp == 270, nTmp, @nOk, @nBad)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_37 := 0
+    For fi_0_41 := 1 To Len(aNums)
+      fv_0_40 := aNums[fi_0_41]
+      fv_0_40 := aNums[fv_0_40 * 10]
+      fo_0_37 := fo_0_37 + fv_0_40
+    Next
+    nTmp := fo_0_37
+  Recover
+    nTmp := -2
+  End Sequence
+  ErrorBlock(gt_0_0)
+  check("fallback: an error in the loop", nTmp == -2, nTmp, @nOk, @nBad)
+  aTmp := {0, 0}
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    ht_0_0 := aNums[99]
+  Recover
+    ht_0_0 := 4
+  End Sequence
+  ErrorBlock(gt_0_0)
+  aTmp[2] := ht_0_0
+  check("fallback: assigned to an element", aTmp[2] == 4, aTmp[2], @nOk, @nBad)
+  check("fallback: a return's whole value", guardedReturn(aNums, 3) == 4 .and. guardedReturn(aNums, 99) == -3, ;
+        guardedReturn(aNums, 99), @nOk, @nBad)
+
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
   for nSeen := 1 to 3
@@ -851,14 +931,14 @@ user function xc_selftest()
   end for
   check("'End For' closes a For", nTmp == 6, nTmp, @nOk, @nBad)
   fs_0_8 := %exp:aNums%
-  fo_0_36 := 0
-  For fi_0_40 := 1 To Len(fs_0_8)
-    fv_0_39 := fs_0_8[fi_0_40]
-    If fv_0_39 > %exp:__v%
-      fo_0_36 := fo_0_36 + fv_0_39
+  fo_0_38 := 0
+  For fi_0_42 := 1 To Len(fs_0_8)
+    fv_0_41 := fs_0_8[fi_0_42]
+    If fv_0_41 > %exp:__v%
+      fo_0_38 := fo_0_38 + fv_0_41
     EndIf
   Next
-  nTmp := fo_0_36
+  nTmp := fo_0_38
   check("'%exp:x%' outside BeginSql: a chain's head, and in a stage", nTmp == 15, nTmp, @nOk, @nBad)
 
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
@@ -953,6 +1033,20 @@ static function typedNil()
     nX := 3
   EndIf
 return {nA, cB, nX}
+
+// 'return x fallback y': the value held in a temp, returned after the
+// Begin Sequence.
+static function guardedReturn(aData, nAt)
+Local ht_0_0  // the value a 'return ... fallback' returns
+Local gt_0_0  // the error block a 'fallback' sets aside
+gt_0_0 := ErrorBlock({|e| Break(e)})
+Begin Sequence
+  ht_0_0 := aData[nAt]
+Recover
+  ht_0_0 := -3
+End Sequence
+ErrorBlock(gt_0_0)
+return ht_0_0
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)

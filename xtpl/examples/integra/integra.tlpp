@@ -56,11 +56,18 @@ user function integra(cUrl, cChave)
   local aItens := {}
   local nQuantos := 0
   local cErro := ""
+  Local gt_0_0  // the error block a 'fallback' sets aside
   Local et_0_0  // the left side of a '?:', evaluated once
 
   // 1. A chamada de rede. Quebra de varios jeitos -- timeout, DNS, servico
   //    fora do ar -- e todos chegam aqui como erro de runtime.
-  cResposta := u_xtpl_safe_pipe({|| chamaServico(cUrl, cChave)}, {|| ""})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    cResposta := chamaServico(cUrl, cChave)
+  Recover
+    cResposta := ""
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   if empty(cResposta)
     cErro := "servico nao respondeu"
@@ -71,7 +78,13 @@ user function integra(cUrl, cChave)
   // 2. O parse. Uma resposta que nao e JSON quebra aqui, e uma que e JSON
   //    valido mas vazio nao quebra -- volta Nil. Os dois casos precisam de
   //    tratamento, e sao tratamentos diferentes.
-  jDados := u_xtpl_safe_pipe({|| parseJson(cResposta)}, {|| nil})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    jDados := parseJson(cResposta)
+  Recover
+    jDados := nil
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   if jDados == nil
     cErro := "resposta nao e json: " + left(cResposta, 60)

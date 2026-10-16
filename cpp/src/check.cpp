@@ -409,6 +409,7 @@ namespace xc
       Set dict_seen_;
       std::unordered_map<const Expr*, std::string> chain_at_;
       std::unordered_set<const Expr*> guarded_;
+      std::unordered_set<const Expr*> stmt_guards_;
       std::vector<int> ends_;
 
       std::deque<Scope> scopes_;
@@ -983,6 +984,20 @@ namespace xc
         if (is(w, EK::Call)) { sources_ok_.insert(w); }
         if (is(w, EK::Pipeline)) { chains_ok_.insert(w); }
       }
+      // A guard that is the whole value of 'x := ...', of a declaration (but a
+      // static's) or of 'return' runs as statements, a Begin Sequence: a chain
+      // under it is a statement's, and fuses.
+      bool hash_target = s->kind == SK::Assignment && is(static_cast<Assignment*>(s)->target, EK::HashIndex);
+      if ((s->kind == SK::Assignment || s->kind == SK::ReturnStmt || s->kind == SK::Declaration) && !hash_target)
+      {
+        for (Expr* w : whole)
+        {
+          if (!is(w, EK::Guard)) { continue; }
+          stmt_guards_.insert(w);
+          Expr* g = static_cast<Guard*>(w)->expr;
+          if (is(g, EK::Pipeline)) { chain_at_[g] = "statement"; }
+        }
+      }
       switch (s->kind)
       {
         case SK::CallStmt:
@@ -1366,7 +1381,7 @@ namespace xc
                     + "and a walk is a loop. Assign the chain first, then guard what uses it.");
           }
           if (is(g->expr, EK::Pipeline) && source_of(g->expr)) { chains_ok_.insert(g->expr); }
-          if (is(g->expr, EK::Pipeline)) { guarded_.insert(g->expr); }
+          if (is(g->expr, EK::Pipeline) && !stmt_guards_.count(g)) { guarded_.insert(g->expr); }
           expr(g->expr);
           expr(g->fallback);
           break;
@@ -1531,9 +1546,9 @@ namespace xc
       if (guarded_.count(p) && !is_source(p->source)
           && fuse_from(p->stages, [&](const std::string& n) { return static_cast<bool>(find(n)); }, where == "effect") >= 0)
       {
-        warning("'fallback' turns off fusion for this chain -- a guard needs an expression and a fused "
-                "loop is not one, so each stage builds an array again. Guard the part that can fail "
-                "instead, and leave the chain outside it.");
+        warning("'fallback' inside an expression turns off fusion for this chain -- a guard there needs an "
+                "expression and a fused loop is not one, so each stage builds an array again. Make the guard "
+                "the whole value of the statement, or guard the part that can fail and leave the chain outside it.");
       }
     }
 
