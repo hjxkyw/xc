@@ -880,9 +880,8 @@ user function xc_selftest()
   check("'?:', '?.', '?=' on names declared with a type", aTmp[1] == 0 .and. aTmp[2] == "x" .and. aTmp[3] == 0, ;
         cValToChar(aTmp[1]) + " " + cValToChar(aTmp[2]) + " " + cValToChar(aTmp[3]), @nOk, @nBad)
   aTmp := typedStart()
-  check('typed with no value: "", .F., 1899-12-31; Nil as Array, Decimal', ;
-        aTmp[1] == "" .and. !aTmp[2] .and. aTmp[3] == "18991231" .and. len(aTmp[4]) == 1 .and. aTmp[5] == 5, ;
-        aTmp[3], @nOk, @nBad)
+  check('typed with no value: "", .F., 1899-12-31; Nil as Array', ;
+        aTmp[1] == "" .and. !aTmp[2] .and. aTmp[3] == "18991231" .and. len(aTmp[4]) == 1, aTmp[3], @nOk, @nBad)
 
   // ---- fallback as a statement's whole value: a Begin Sequence --------------
   // The error caught, and the error block put back as it was: one that
@@ -1154,15 +1153,15 @@ return {nA, cB, nX}
 
 // What TL++ starts a Local declared with a type, and no value, at (tried on
 // 24.3.1.9): Character "", Logical .F., Date 1899-12-31 -- not Nil, so '?:'
-// keeps them, and xc warns -- and Nil for Array and Decimal: '?:' takes its
-// alternative.
+// keeps them, and xc warns -- and Nil for Array: '?:' takes its
+// alternative. (Decimal starts at Nil too, but is a type of its own, 'F':
+// 'nD ?: 5' is refused, "Incompatible types between F and N".)
 static function typedStart()
   local cX as character
   local lX as logical
   local dX as date
   local aX as array
-  local nD as decimal
-return {If(ValType(cX) != "U", cX, "y"), If(ValType(lX) != "U", lX, .T.), DtoS(dX), If(ValType(aX) != "U", aX, {7}), If(ValType(nD) != "U", nD, 5)}
+return {If(ValType(cX) != "U", cX, "y"), If(ValType(lX) != "U", lX, .T.), DtoS(dX), If(ValType(aX) != "U", aX, {7})}
 
 // 'return x fallback y': the value held in a temp, returned after the
 // Begin Sequence.
