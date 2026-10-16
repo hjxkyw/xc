@@ -1,0 +1,1 @@
+002-class-and-function.xtpl:20: 'helper' is a user function (line 23), so it is called as 'u_helper' -- the compiler puts the prefix on the declaration.

@@ -39,7 +39,8 @@ guard as a statement's whole value, and one that stays an expression;
 `typed-start/`, the warning for a `?:` or a `?=` on a `Local` declared
 with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
-variable named `as`, a number as a `Decimal`'s value).
+variable named `as`, a number as a `Decimal`'s value); `survey/`, forms
+of the survey of AdvPL and TL++ on GitHub that xc refused wrongly.
 
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change

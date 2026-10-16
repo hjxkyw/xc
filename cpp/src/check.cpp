@@ -337,7 +337,7 @@ namespace xc
     {
       std::string name;
       int line = 0;
-      std::string kind;              // local, param, loop, public, block-param
+      std::string kind;              // local, param, loop, block-param
       int reads = 0;
       int writes = 0;
       bool is_const = false;
@@ -423,6 +423,7 @@ namespace xc
       std::vector<std::string> static_order_;      // static_uses_' keys, as they came
       Set defines_;
       Set privates_;
+      Set classes_;
       std::unordered_map<std::string, int> retired_;
       std::unordered_map<std::string, std::string> scalar_;
       std::unordered_set<const Expr*> sources_ok_;
@@ -533,7 +534,11 @@ namespace xc
       for (const Declarator* d : statics) { file_static(d); }
       for (const FunctionDef* f : p->functions) { ends_.push_back(f->line); }
       for (const MethodImpl* m : p->methods) { ends_.push_back(m->line); }
-      for (const ClassDef* c : p->classes) { ends_.push_back(c->line); }
+      for (const ClassDef* c : p->classes)
+      {
+        ends_.push_back(c->line);
+        classes_.insert(lc(c->name));
+      }
       std::sort(ends_.begin(), ends_.end());
       // '#define NAME': m:i/ ^ '#' \h* 'define' \h+ (\w+) /
       for (const std::string& d : p->directives)
@@ -557,7 +562,7 @@ namespace xc
         {
           if (s->kind != SK::Declaration) { return; }
           auto d = static_cast<const Declaration*>(s);
-          if (d->scope != "private") { return; }
+          if (d->scope != "private" && d->scope != "public") { return; }
           for (const Declarator* v : d->declarators) { privates_.insert(lc(v->name)); }
         });
       };
@@ -1069,8 +1074,10 @@ namespace xc
             if (d->init) { expr(d->init); }
             in_static_ = false;
             for (Expr* x : d->dims) { expr(x); }
-            if (decl->scope == "private" || static_decls_.count(s)) { continue; }
-            declare(d->name, d->line, d->attributes, decl->scope == "public" ? "public" : "local", d->init != nullptr);
+            // A Private or a Public is the program's while it runs, not its
+            // block's: one declared in an If is there after the EndIf.
+            if (decl->scope == "private" || decl->scope == "public" || static_decls_.count(s)) { continue; }
+            declare(d->name, d->line, d->attributes, "local", d->init != nullptr);
             note_scalar(d);
             auto t = w.size() > 1 ? TYPED_START.find(lc(w[1])) : TYPED_START.end();
             if (t != TYPED_START.end() && !d->init && d->dims.empty() && decl->scope == "local")
@@ -1475,6 +1482,10 @@ namespace xc
       }
       bool u = starts_with(n, "u_");
       std::string plain = u ? n.substr(2) : n;
+      // A class of the file, called for its instance -- 'TransfArm():New()' --
+      // though a User Function has its name: an idiom of Protheus', which a
+      // file of a class compiles with a function of the same name.
+      if (!u && classes_.count(n)) { return; }
       if (auto f = funcs_.find(plain); f != funcs_.end())
       {
         if (u && f->second.kind == "static")

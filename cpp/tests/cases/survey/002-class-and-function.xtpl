@@ -1,0 +1,24 @@
+// A User Function with the name of a class of the file -- Protheus' way to
+// have the file of a class compiled -- does not make 'TransfArm()' a call
+// to it: that is the class (wrne/MeusComponentes, uTransfArm.prw). A user
+// function with no class of its name is still called with its 'u_'.
+user function transfArm()
+return nil
+
+class TransfArm
+  data cProduto
+  method New(cProduto) constructor
+endclass
+
+method New(cProduto) class TransfArm
+  ::cProduto := cProduto
+return self
+
+user function uTst001()
+  local oTransf := TransfArm():New("I212")
+  conout(oTransf:cProduto)
+  helper()
+return nil
+
+user function helper()
+return nil

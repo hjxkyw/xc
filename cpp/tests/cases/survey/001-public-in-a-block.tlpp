@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A Public declared in an If is the program's from then on, not the If's:
+// read after the EndIf, it is not out of scope (jalberto2004/ADVPL,
+// Autenticacao.prw). The same for a Private.
+user function token()
+  local cDifTime := ""
+  if Type("cAPIToken") == "U"
+    public cAPIToken := ""
+    public cAPIVld := Time()
+    private cSeen := "x"
+  endif
+  cDifTime := ElapTime(cAPIVld, Time())
+  conout(cAPIToken + cDifTime + cSeen)
+return cDifTime

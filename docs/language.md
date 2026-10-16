@@ -1556,14 +1556,18 @@ with any name allowed, to say which name it was and why.
 A User Function of the file called without its `u_` is refused even when
 the call means a function of the framework by the same name -- `TCBrowse()`
 in a file that declares `User Function TCBrowse`: xc does not know the
-framework's names. Give the user function another name.
+framework's names. Give the user function another name. A class of the
+file is the exception: in a file with `Class TransfArm` and a
+`User Function TransfArm` -- Protheus' way to have the file of a class
+compiled -- `TransfArm():New()` is the class.
 
 A name nothing declares is a warning, not an error: plain TL++ uses the
 system's variables -- `cFilAnt`, `dDataBase`, `CRLF` -- without declaring
 them. A name counts as declared when it is a parameter, a `Local`, a
 `Static` of the function or of the file, a `Private` or `Public` anywhere in
-the function, a block local in its block, a parameter of a lambda or a code
-block, an `external`, or a `#define` of the file.
+the function (one declared in a block is there after it too), a block local
+in its block, a parameter of a lambda or a code block, an `external`, or a
+`#define` of the file.
 
 **The dictionary.** With `--dict sx3.csv`, an exported SX3, a literal
 `ALIAS->FIELD` -- and `r:FIELD` in a chain over `rows("ALIAS")` -- is
