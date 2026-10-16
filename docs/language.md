@@ -1125,11 +1125,8 @@ Return cReply + cValToChar(nBig)
 
 Inside an expression -- in parentheses -- a guard is a call to
 `u_xtpl_safe_pipe()` with two blocks, and a chain under it does not fuse:
-xc warns. So does a guard that is the value of a declaration of the
-prologue, where no statement may be yet, unless it is around a chain that
-fuses: then, as for a chain, the prologue's values from that declaration on
-are given after it ([The prologue](#the-prologue)). A `Static`'s guard is an
-expression.
+xc warns. So is a guard that is the value of a declaration of the prologue,
+which keeps its values where they are written, and a `Static`'s.
 
 ### TL++'s own
 
@@ -1233,24 +1230,26 @@ The verbs that take a block: `map`, `filter`, `reject`, `tap`, `takewhile`,
 
 ### When a chain is a loop
 
-A chain that is the whole value of a statement -- `x := chain`, a `Local`'s
-value, `Return chain`, or a statement of its own -- becomes a loop, with no
-array built between its stages, where at least two stages in a row fuse, or
-one that carries a block (a lambda written in the stage, or a function's
-name). Verbs written as calls are the chain they stand for:
-`filter(map(a, f), g)` is `a |> map(f) |> filter(g)`, and as a statement's
-whole value it is a loop the same way -- but in a declaration of the
-prologue, which keeps its values where they are written.
+A chain that is the whole value of a statement -- `x := chain`, the value
+of a block's `Local`, of a `Private` or a `Public`, `Return chain`, or a
+statement of its own -- becomes a loop, with no array built between its
+stages, where at least two stages in a row fuse, or one that carries a
+block (a lambda written in the stage, or a function's name). Verbs written
+as calls are the chain they stand for: `filter(map(a, f), g)` is
+`a |> map(f) |> filter(g)`, and as a statement's whole value it is a loop
+the same way. A declaration of the prologue keeps its value where it is
+written, and a chain there stays the calls it stands for.
 
 ```xtpl
 User Function Fused(aOrders)
-  Local aCodes := aOrders |> filter([o] o:nValue > 1000) |> map([o] o:cCode)
+  Local aCodes := {}
+  aCodes := aOrders |> filter([o] o:nValue > 1000) |> map([o] o:cCode)
 Return aCodes
 ```
 
 ```tlpp
 User Function Fused(aOrders)
-  Local aCodes
+  Local aCodes := {}
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
@@ -1267,8 +1266,9 @@ Return aCodes
 ```
 
 - The stages that fuse: `filter`, `reject`, `map`, `tap`, `take`,
-  `takewhile`, `drop`, `dropwhile`, `expand`, `distinctadjacent`, `scan`,
-  `pairwise`.
+  `takewhile`, `drop`, `dropwhile`, `expand`, `distinct`,
+  `distinctadjacent`, `scan`, `pairwise`. `distinct` asks the runtime's
+  `u_xtpl_seen()` of each element whether it was seen before.
 - The terminals that end a fused run: `asum`, `count`, `anyof`, `allof`,
   `noneof`, `first`, `aprod`, `amax`, `amin`, `join`, `reduce`, `fold`,
   `maxby`, `minby`, `chunkby`.
@@ -1291,13 +1291,14 @@ Return aCodes
 
 ```xtpl
 User Function TopThree(aOrders)
-  Local aTop := aOrders |> filter([o] o:nValue > 0) |> sortby([o] -o:nValue) |> take(3) |> map([o] o:cCode)
+  Local aTop := {}
+  aTop := aOrders |> filter([o] o:nValue > 0) |> sortby([o] -o:nValue) |> take(3) |> map([o] o:cCode)
 Return aTop
 ```
 
 ```tlpp
 User Function TopThree(aOrders)
-  Local aTop
+  Local aTop := {}
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // what a loop collected, for the stages after it
@@ -1333,13 +1334,14 @@ A call first is bound once, and the loop walks what it returned:
 
 ```xtpl
 User Function Parts(cLine)
-  Local aParts := cLine |> split(";") |> map([p] alltrim(p)) |> filter([p] !Empty(p))
+  Local aParts := {}
+  aParts := cLine |> split(";") |> map([p] alltrim(p)) |> filter([p] !Empty(p))
 Return aParts
 ```
 
 ```tlpp
 User Function Parts(cLine)
-  Local aParts
+  Local aParts := {}
   Local fs_0_0  // the array walked
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
@@ -1360,10 +1362,13 @@ Return aParts
 xtpl stops fusing at the first stage that cannot fuse, and warns: "this
 chain does not fuse -- 'sortby' stops it". xc does neither.
 
-Anywhere else -- inside an expression, an argument, a condition -- a chain
-is one call per stage, which is what it means; fusing only saves the work.
-A `Local` whose value is a chain becomes a declaration without a value, and
-the assignment moves after the prologue, in order with the others.
+Anywhere else -- inside an expression, an argument, a condition, the value
+of a declaration of the prologue -- a chain is one call per stage, which is
+what it means; fusing only saves the work. A chain from a source has no
+calls to be ([Sources](#sources)): as the value of a declaration of the
+prologue it makes that declaration one without a value, and its assignment
+-- with those of the prologue's declarations after it, in order -- moves
+after the prologue.
 
 ### Sources
 
@@ -1555,6 +1560,7 @@ They are `User Function`s, so the names the output calls carry the `u_`:
 - `u_xtpl_hget`, `u_xtpl_hset`, `u_xtpl_hhas`, `u_xtpl_hnew`, for hashes;
 - `u_xtpl_jnew`, for JSON objects;
 - `u_xtpl_safe_pipe`, for a `fallback` inside an expression.
+- `u_xtpl_seen`, for a `distinct` in a loop.
 
 The verbs leave their arguments alone: `sort` and `sortby` sort a copy.
 `apick` and `aroll` draw with `Random()`, which needs AppServer 19.3.1 or

@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// The prologue keeps its values where they are written: a chain over an
+// array, a verb written as a call, a guard -- each the expression it is.
+user function kept(a)
+  local nSum := u_xtpl_asum(u_xtpl_map(u_xtpl_filter(a, {|v| v > 1}), {|v| v * 2}))
+  local nCount := u_xtpl_count(a, {|v| v > 3})
+  local aSafe := u_xtpl_safe_pipe({|| u_xtpl_map(a, {|v| 10 / v})}, {|| {}})
+  local nOne := 1
+return nSum + nCount + len(aSafe) + nOne

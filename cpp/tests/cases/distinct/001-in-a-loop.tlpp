@@ -1,0 +1,39 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'distinct' fuses: each element asked of the runtime's u_xtpl_seen(), and
+// a THashMap of what was seen, made before the loop.
+user function inLoop(a)
+  local n := 0
+  local aOut := {}
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local ffs_0_0  // the values distinct has seen
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local ffs_0_1  // the values distinct has seen
+  Local fo_0_1  // the result of the chain
+  ffs_0_0 := THashMap():New()
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    If !u_xtpl_seen(ffs_0_0, fv_0_0)
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+  n := fo_0_0
+  ffs_0_1 := THashMap():New()
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(a)
+    fv_0_1 := a[fi_0_1]
+    If fv_0_1 > 1
+      If !u_xtpl_seen(ffs_0_1, fv_0_1)
+        fv_0_1 := fv_0_1 * 2
+        AAdd(fo_0_1, fv_0_1)
+      EndIf
+    EndIf
+  Next
+  aOut := fo_0_1
+  aOut := u_xtpl_distinct(a)
+return n + len(aOut)

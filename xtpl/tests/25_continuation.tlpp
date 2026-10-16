@@ -18,7 +18,8 @@ user function testContinuation(cUrl, cBody, aNums, hCfg)
   Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
-  Local fo_0_0  // what a loop collected, for the stages after it
+  Local ffs_0_0  // the values distinct has seen
+  Local fo_0_0  // the result of the chain
 
   gt_0_0 := ErrorBlock({|e| Break(e)})
   Begin Sequence
@@ -29,14 +30,17 @@ user function testContinuation(cUrl, cBody, aNums, hCfg)
   End Sequence
   ErrorBlock(gt_0_0)
 
+  ffs_0_0 := THashMap():New()
   fo_0_0 := {}
   For fi_0_0 := 1 To Len(aNums)
     fv_0_0 := aNums[fi_0_0]
     If fv_0_0 > 10
-      AAdd(fo_0_0, fv_0_0)
+      If !u_xtpl_seen(ffs_0_0, fv_0_0)
+        AAdd(fo_0_0, fv_0_0)
+      EndIf
     EndIf
   Next
-  aBig := u_xtpl_distinct(fo_0_0)     // a comment on a continued line
+  aBig := fo_0_0                      // a comment on a continued line
 
   nT := u_xtpl_hget(hCfg, "a") + ;
         u_xtpl_hget(hCfg, "b")

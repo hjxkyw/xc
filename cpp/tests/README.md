@@ -32,7 +32,9 @@ same as the Raku xc, checked then.
 
 Cases added since the Raku xc was frozen have folders named for what they
 test: `temps/`, the Locals that hold a value read twice; `fallback/`, a
-guard as a statement's whole value, and one that stays an expression.
+guard as a statement's whole value, and one that stays an expression;
+`calls/`, verbs written as calls; `distinct/`, a `distinct` in a loop;
+`prologue/`, the values a prologue keeps, and the one it cannot.
 
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change

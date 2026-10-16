@@ -1,0 +1,7 @@
+// A chain from a source has no calls to be: its declaration, and those after
+// it, give their values after the prologue, in order.
+user function moves(nTop)
+  local nOne := 1
+  local nSum := 1..nTop |> map([i] i * i) |> asum
+  local nTwo := 2
+return nOne + nSum + nTwo

@@ -207,15 +207,16 @@ User Function xtpl_distinct(aData)
   Local oSeen := THashMap():New()
   Local nX
   For nX := 1 To Len(aData)
-    If !xtpl_seen(oSeen, aData[nX])
+    If !u_xtpl_seen(oSeen, aData[nX])
       AAdd(aRes, aData[nX])
     EndIf
   Next
 Return aRes
 
 // xc: whether a value was seen before -- == to one filed under its key -- and
-// if not, filed from now on.
-Static Function xtpl_seen(oSeen, xValue)
+// if not, filed from now on. A User Function: a 'distinct' that xc writes
+// into a loop asks it of each element.
+User Function xtpl_seen(oSeen, xValue)
   Local cType := ValType(xValue)
   Local cKey := cType + Iif(cType $ "CNDLM", cValToChar(xValue), "")
   Local aSame := Nil
