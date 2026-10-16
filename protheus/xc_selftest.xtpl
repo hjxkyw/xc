@@ -277,6 +277,9 @@ user function xc_selftest()
   aTmp := {}
   nTmp := deferLoop(0, aTmp)
   check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {1, 2}
+  nTmp := deferChain(aTmp)
+  check("defer, then a return whose value is a chain: the defer first", nTmp == 26 .and. len(aTmp) == 3, nTmp, @nOk, @nBad)
 
   // ---- the temps xc writes around the source's own code ---------------------
   // 'f() in lo..hi' and 'o()?.M(x)' hold the value in a Local, read once; a
@@ -415,6 +418,12 @@ static function deferLoop(nRounds, aLog)
     defer aadd(aLog, nI)
   next
 return 0
+
+// A defer, and a 'return' whose value is a chain: the defer runs first, as
+// at any 'return', then the loop for the value.
+static function deferChain(aLog)
+  defer aadd(aLog, 10)
+return aLog |> map([x] x * 2) |> asum
 
 // '?:', '?.' and 'in lo..hi' in the declarations at a function's top: the
 // Locals that hold their values are declared before them.

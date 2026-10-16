@@ -497,8 +497,8 @@ static function defers()
 
   nTotal := 10
 
-nTotal := nTotal + 2
-nTotal := nTotal + 1
+  nTotal := nTotal + 2
+  nTotal := nTotal + 1
 return nTotal
 
 // -----------------------------------------------------------------------------

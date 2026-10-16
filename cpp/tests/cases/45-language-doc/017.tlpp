@@ -13,7 +13,7 @@ User Function DefBlk(lOpen)
     EndIf
   EndIf
   conout("meio")
-If fdf_0_0
-  FClose(nH)
-EndIf
+  If fdf_0_0
+    FClose(nH)
+  EndIf
 Return nH

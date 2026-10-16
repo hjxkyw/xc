@@ -164,6 +164,9 @@ namespace xc
       int by;
     };
     std::vector<Dedent> dedents_;
+    // The indentation of the function's body: its first statement's, or two
+    // blanks when that is the 'return' that ends it.
+    std::string body_indent_;
     // Verbs written as calls, as the chains they are (as_chain): xc's own
     // Pipelines, made once each.
     mutable Tree made_;

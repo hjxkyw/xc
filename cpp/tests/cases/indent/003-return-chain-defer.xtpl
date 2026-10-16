@@ -1,0 +1,15 @@
+// A 'return' whose value is a chain, after a defer: the defer runs first, as
+// at any 'return', then the loop for the value.
+user function total(aItens)
+  local nSoma := 0
+  defer conout("fim")
+  nSoma := aItens |> filter([x] x > 0) |> asum
+  conout(nSoma)
+return aItens |> map([x] x * 2) |> asum
+
+user function nested(aItens, lTwo)
+  defer conout("fim")
+  if lTwo
+    return aItens |> map([x] x * 2) |> asum
+  endif
+return 0

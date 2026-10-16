@@ -12,7 +12,7 @@ user function f(a, aH, aC)
     nS := 1
     conout(nS)
   endif
-If fdf_0_0
-  conout(nD)
-EndIf
+  If fdf_0_0
+    conout(nD)
+  EndIf
 return a

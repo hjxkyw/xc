@@ -167,7 +167,7 @@ namespace xc
         }
         walked = true;
       }
-      else if (k == SK::ReturnStmt && !(exits = return_exits(s)).empty())
+      else if (k == SK::ReturnStmt && !fused_value(s) && !(exits = return_exits(s)).empty())
       {
         // A 'return' runs the pending defers and closes what is open.
         exits.push_back(with_edits(s, exprs_of(s)));
@@ -229,8 +229,11 @@ namespace xc
         Stream st = stream(chain, !statement);
         if (k == SK::ReturnStmt)
         {
-          append(st.lines, return_exits(s));
-          st.lines.push_back("return " + st.result);
+          // What a 'return' runs first, then its value, as for any other.
+          Lines lines = return_exits(s);
+          append(lines, st.lines);
+          lines.push_back("return " + st.result);
+          st.lines = lines;
         }
         else if (!statement)
         {
@@ -1275,6 +1278,23 @@ namespace xc
                    : comment.compare(0, 2, "//") == 0 ? sp + "// " + n + " -- " + trim(comment.substr(2))
                                                        : sp + "// " + n + "  " + comment;
     }
+    // The lines before a 'return' at the function's own level -- what it runs
+    // first, a loop for its value -- go with the body's lines when the
+    // 'return' is less deep than they are, as xtpl writes the last one.
+    std::string ind = indent_at(s->from);
+    auto p = paths_.find(s);
+    if (s->kind == SK::ReturnStmt && lines.size() > 1 && p != paths_.end() && p->second.path.size() == 1
+        && body_indent_.size() > ind.size())
+    {
+      std::string t = std::string(body_indent_.size() - ind.size(), ' ');
+      for (std::size_t i = 0; i < lines.size(); i++)
+      {
+        if (i) { t += nl_ + (i + 1 < lines.size() ? body_indent_ : ind); }
+        t += lines[i];
+      }
+      edit(s->from, s->to, t);
+      return;
+    }
     edit(s->from, s->to, join_at(s->from, lines));
   }
 
@@ -1387,9 +1407,10 @@ namespace xc
       Stream st = stream(chain, s->kind != SK::CallStmt);
       if (s->kind == SK::ReturnStmt)
       {
-        append(st.lines, return_exits(s));
-        st.lines.push_back("return " + st.result);
-        return st.lines;
+        Lines lines = return_exits(s);
+        append(lines, st.lines);
+        lines.push_back("return " + st.result);
+        return lines;
       }
       if (s->kind == SK::Assignment)
       {

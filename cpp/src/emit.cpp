@@ -940,6 +940,8 @@ namespace xc
     busy_.clear();
     typed_.clear();
     dedents_.clear();
+    body_indent_ = !body.empty() && !(body.size() == 1 && body[0]->kind == SK::ReturnStmt) ? indent_at(body[0]->from)
+                                                                                         : "  ";
     for (const Param* q : params)
     {
       if (q && q->type_word) { typed_.insert(lc(q->name)); }
@@ -1065,7 +1067,7 @@ namespace xc
     if (!defers_.empty() && last && last->kind != SK::ReturnStmt)
     {
       int at = line_end(last->from + static_cast<int>(code_end(slice(last))));
-      std::string indent = indent_at(body[0]->from);
+      std::string indent = body_indent_;
       std::string t;
       for (auto it = defers_.rbegin(); it != defers_.rend(); ++it)
       {
@@ -1080,7 +1082,7 @@ namespace xc
     {
       const Declaration* lastd = prologue.back();
       int at = line_end(lastd->from + static_cast<int>(code_end(slice(lastd))));
-      std::string indent = indent_at(body[0]->from);
+      std::string indent = body_indent_;
       std::string t;
       for (const std::string& x : inits) { t += nl_ + indent + x; }
       edit(at, at, t);
@@ -1486,7 +1488,7 @@ namespace xc
   // prologue, or before its first statement when it has none.
   void Emitter::hoist_edit(const Body& body)
   {
-    std::string indent = body.empty() ? "  " : indent_at(body[0]->from);
+    std::string indent = body_indent_;
     std::vector<const Declaration*> decls = prologue_of(body);
     Lines lines;
     for (const Hoist& h : hoist_)

@@ -501,7 +501,7 @@ user function envtest()
 
   conout("envtest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " falhas")
 
-envLimpa(cDir)
+  envLimpa(cDir)
 return nBad
 
 // -----------------------------------------------------------------------------

@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 
 user function f()
-flush(validate(aRows))
+  flush(validate(aRows))
 return

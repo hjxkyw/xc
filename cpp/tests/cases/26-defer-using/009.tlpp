@@ -6,7 +6,7 @@ user function f(n)
   if n > 0
     fdf_0_0 := .T.
   endif
-If fdf_0_0
-  bye(x)
-EndIf
+  If fdf_0_0
+    bye(x)
+  EndIf
 return x
