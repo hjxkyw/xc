@@ -327,8 +327,10 @@ Block Type").
 A value whose type xc can tell has to agree with the type declared: a
 literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
 or of two strings. A call, a name, a date less a number say nothing -- what
-they hold is not known here. `Integer`, `Decimal` and `Double` are numbers,
-`Variant` takes anything, and `Nil` fits every type.
+they hold is not known here. `Integer` and `Double` are numbers, `Variant`
+takes anything, and `Nil` fits every type. `Decimal` is not a number to
+TL++ but a type of its own, whose `ValType()` is `"F"`: it takes no number
+the compiler can see, and xc refuses one as its value.
 
 ```xtpl
 User Function Ty(nY)
@@ -340,6 +342,16 @@ Return nX + nOk
 ```text
 ty.xtpl:2: 'nX' is declared as Numeric, but its initial value is Character.
 ```
+
+**Decimal.** "Incompatible types between F and N", the AppServer says of a
+number and a `Decimal` that meet where it can see both: `nD := 5`,
+`nD + 1`, `nD == 5`, `If(lOk, nD, 7)`, a `Decimal` parameter given `5`
+(C9902, "expected F found N"); and `nD + u_f()` is "between F and U". A
+value of no type the compiler knows goes in -- `nD := u_f()`, where `u_f()`
+returns 5, gives `nD` the Decimal 5 -- and a `Decimal` goes into a
+`Numeric` or a variable with no type, and stays one there. `Str()` and
+`Int()` take it; `Round()` refuses it when it runs ("expected N->F"). (All
+tried on 24.3.1.9.)
 
 **What a variable declared with a type starts at.** Not always Nil: TL++
 starts a `Local` or a `Static` declared with no value at its type's value
