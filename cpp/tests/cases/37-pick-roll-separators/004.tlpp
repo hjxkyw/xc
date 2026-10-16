@@ -1,5 +1,5 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 user function f()
-  local nMax := 50000  // the limit
+  local nMax := 50000   // the limit
 return nMax

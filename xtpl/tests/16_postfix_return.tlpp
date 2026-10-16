@@ -12,15 +12,15 @@ user function testPostfixReturn(nX, lSkip)
   local nTotal := 0
 
 
-  If nX > 100  // parenthesised, no space
+  If nX > 100                        // parenthesised, no space
     closeCursor()
     return(nTotal)
   EndIf
-  If nX > 50  // the ordinary form
+  If nX > 50                         // the ordinary form
     closeCursor()
     return nTotal
   EndIf
-  If lSkip  // bare
+  If lSkip                           // bare
     closeCursor()
     return
   EndIf
@@ -28,7 +28,7 @@ user function testPostfixReturn(nX, lSkip)
   nTotal := 1
   while nTotal < 10
     nTotal := nTotal + 1
-    If nX == 0  // not a block word: still a modifier
+    If nX == 0                       // not a block word: still a modifier
       exit
     EndIf
   enddo

@@ -19,12 +19,12 @@ user function testLoopComment(aItems, oDoc)
   Local nIdx  // a block local
   Local fs_0_1  // the source of a 'for ... in'
 
-  For fi_0_0 := 1 To 3  // a literal count
+  For fi_0_0 := 1 To 3               // a literal count
     nTotal := nTotal + 1
   next
 
   fn_0_0 := contaLinhas(oDoc)
-  For fi_0_1 := 1 To fn_0_0  // a bound count
+  For fi_0_1 := 1 To fn_0_0          // a bound count
     nTotal := nTotal + 1
   next
 

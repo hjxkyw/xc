@@ -21,7 +21,7 @@ user function testDeferPinning(nX)
   endif
 
   if nX > 0
-    cB := "sibling"  // would have taken the same slot
+    cB := "sibling"                   // would have taken the same slot
     nT := len(cB)
   endif
 

@@ -3,7 +3,7 @@
 
 user function f(a, b, c)
   local x := 0
-  If c  // one
+  If c       // one
     x := a + ; 
            b
   EndIf

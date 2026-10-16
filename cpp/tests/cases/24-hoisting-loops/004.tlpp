@@ -4,7 +4,7 @@ user function f(a, n)
   local nT := 0
   Local lR  // a block local
   lR := check()
-  If lR  // bound
+  If lR                        // bound
     nT := 1
   endif
 return n

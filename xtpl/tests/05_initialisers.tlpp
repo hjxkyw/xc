@@ -12,16 +12,16 @@
 // -----------------------------------------------------------------------------
 
 user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
-  local nA := u_xtpl_hget(hCfg, "id")                  // a hash read lifts a Get above it
-  local nB := u_xtpl_asum(u_xtpl_distinct(aNums))   // a chain, one temp per stage
+  local nA := u_xtpl_hget(hCfg, "id")     // a hash read lifts a Get above it
+  local nB := u_xtpl_asum(u_xtpl_distinct(aNums))  // a chain, one temp per stage
   Local et_0_0  // the left side of a '?:', evaluated once
-  local cD := If(ValType(et_0_0 := lookupName(1)) != "U", et_0_0, "anon")     // elvis
-  local lE := ((nX % 3) == 0)                     // divisible-by
-  local lF := u_xtpl_in(cC, aC)                    // membership
+  local cD := If(ValType(et_0_0 := lookupName(1)) != "U", et_0_0, "anon")  // elvis
+  local lE := ((nX % 3) == 0)             // divisible-by
+  local lF := u_xtpl_in(cC, aC)           // membership
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  local cG := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oA) != "U", fbv_0_0:cB, Nil)               // optional chaining
-  local nH := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})     // guarded
-  local hM := u_xtpl_hnew({{"a", 1}})                  // a literal, with a comment after it
+  local cG := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oA) != "U", fbv_0_0:cB, Nil)  // optional chaining
+  local nH := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})  // guarded
+  local hM := u_xtpl_hnew({{"a", 1}})     // a literal, with a comment after it
   local nT := 0
   Local s_0_0  // a slot: the block locals 'oIt', 'nS', 'nD'
   Local fs_0_0  // the source of a 'for ... in'
@@ -31,23 +31,23 @@ user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
   Local fbs_0_0  // the subject of a 'with object'
 
   fs_0_0 := u_xtpl_distinct(aRows)
-  For fi_0_0 := 1 To Len(fs_0_0)  // a chain in the source
+  For fi_0_0 := 1 To Len(fs_0_0)     // a chain in the source
     s_0_0 := fs_0_0[fi_0_0]
     nT := nT + s_0_0:nValue
   next
 
   fn_0_0 := u_xtpl_hget(hCfg, "n")
-  For fi_0_1 := 1 To fn_0_0  // a hash read in the count
+  For fi_0_1 := 1 To fn_0_0               // a hash read in the count
     nT := nT + 1
   next
 
   s_0_0 := u_xtpl_asum(aNums)
-  If s_0_0 > 0  // a chain in a conditional binding
+  If s_0_0 > 0                            // a chain in a conditional binding
     nT := nT + s_0_0
   endif
 
   s_0_0 := u_xtpl_amax(aNums)
-  Do Case  // and in a do-case subject
+  Do Case                                 // and in a do-case subject
     case s_0_0 > 5
       nT := 1
   endcase

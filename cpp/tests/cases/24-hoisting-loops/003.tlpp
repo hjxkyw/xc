@@ -6,7 +6,7 @@ user function f(a, n)
   Local a2  // a block local
   while n > 0
     a1 := 1
-    a2 := Nil  // two
+    a2 := Nil           // two
     n := n - a1
   enddo
 return n

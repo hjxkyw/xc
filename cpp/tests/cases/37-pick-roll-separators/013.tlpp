@@ -1,5 +1,5 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 user function f(a, n, c)
-  n := len(a) + 2000 // it's the limit
+  n := len(a) + 2000  // it's the limit
 return n

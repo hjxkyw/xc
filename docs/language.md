@@ -40,9 +40,11 @@ ASCII are written as UTF-8 -- is refused, with the line of its first such
 character. Plain ASCII is both, and fine.
 
 **Comments of a rewritten statement.** A statement xc rewrites loses its
-trailing comment to the rewrite and gets it back, two spaces after the new
-code: on the header line when the rewrite opens a block, on the last line
-otherwise.
+trailing comment to the rewrite and gets it back: on the header line when
+the rewrite opens a block, on the last line otherwise. It keeps the column
+it had when the new code leaves two spaces before it, and goes two spaces
+after the code otherwise -- as does a comment after code xc rewrote a part
+of, so that a column of comments stays one.
 
 **Locals xc adds.** Some rewrites need variables of their own -- a loop's
 counter, a hash's subject, the area a `using alias` found, a value read twice
