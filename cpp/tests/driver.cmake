@@ -8,7 +8,13 @@
 #   ... -DUPDATE=1      writes the NAME.expect files again, after a change that is meant
 #
 # CMake runs it as a test (ctest). A '\' in what xc prints is read as '/', and
-# "\r\n" as "\n": the expected files hold for Windows too.
+# "\r\n" as "\n": the expected files hold for Windows too. What --version
+# says is read as 'xc version COMMIT, DATE'.
+
+# Paths given relative are from where it runs.
+foreach(v XC CASES WORK)
+  get_filename_component(${v} "${${v}}" ABSOLUTE)
+endforeach()
 
 file(GLOB cmds RELATIVE ${CASES} ${CASES}/*.cmd)
 list(SORT cmds)
@@ -32,6 +38,8 @@ foreach(cmd ${cmds})
   set(got "exit ${code}\n--- output\n${out}--- errors\n${err}--- written\n${written}\n")
   string(REPLACE "\r\n" "\n" got "${got}")
   string(REPLACE "\\" "/" got "${got}")
+  # The commit xc is built from changes with each one.
+  string(REGEX REPLACE "xc version [^\n]*" "xc version COMMIT, DATE" got "${got}")
   math(EXPR count "${count} + 1")
   if(UPDATE)
     file(WRITE ${CASES}/${name}.expect "${got}")

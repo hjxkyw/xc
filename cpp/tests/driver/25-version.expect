@@ -1,0 +1,6 @@
+exit 0
+--- output
+xc version COMMIT, DATE
+--- errors
+--- written
+

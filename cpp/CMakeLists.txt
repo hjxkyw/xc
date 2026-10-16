@@ -43,6 +43,15 @@ add_executable(xc-outputs src/outputs.cpp)
 add_executable(xc-cases src/cases.cpp)
 add_executable(xc-doc src/doc.cpp)
 target_link_libraries(xc PRIVATE xclib)
+
+# 'xc --version': the commit it is built from, in version.h, written at each
+# build (version.cmake).
+add_custom_target(xc-version
+                  COMMAND ${CMAKE_COMMAND} -DSRC=${PROJECT_SOURCE_DIR}/..
+                          -DDST=${CMAKE_CURRENT_BINARY_DIR}/version/version.h -P ${PROJECT_SOURCE_DIR}/version.cmake
+                  BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version/version.h)
+add_dependencies(xc xc-version)
+target_include_directories(xc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version)
 target_link_libraries(xc-compare PRIVATE xclib)
 target_link_libraries(xc-outputs PRIVATE xclib)
 target_link_libraries(xc-cases PRIVATE xclib)

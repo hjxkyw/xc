@@ -39,11 +39,15 @@ cpp/build/xc --check src/            # checks, and writes nothing
 cpp/build/xc --includes="lib/include;../shared" file.xtpl    # where its include files are
 cpp/build/xc --dict sx3.csv file.xtpl                   # checks the fields against an exported SX3
 cpp/build/xc --dict sx3.csv --dict-strict file.xtpl     # and what it finds stops the compile
+cpp/build/xc --version               # the commit it was built from, and its date
 ```
 
 The exit code is 0 when every file went through, 1 when one did not, and 2
-when the command line itself is wrong. A source is windows-1252 (cp1252), as
-Protheus' sources are, and so is what xc writes; a file in UTF-8 is refused.
+when the command line itself is wrong. `--version` says the commit xc was
+built from -- `xc version 3d7df6e, 2026-10-15`, with `-dirty` after the hash
+when the files differed from it -- as `run-protheus.raku` shows it too. A
+source is windows-1252 (cp1252), as Protheus' sources are, and so is what xc
+writes; a file in UTF-8 is refused.
 
 A source may bring commands and translations of its own -- `#xcommand`,
 `#xtranslate`, in the file or in an include file. xc reads them from the
