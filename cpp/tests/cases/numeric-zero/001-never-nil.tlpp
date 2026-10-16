@@ -1,0 +1,31 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A Local declared 'as Numeric' with no value starts at 0 in TL++, not at
+// Nil: a '?:' on it, or a '?=' to it, before anything assigns it, is warned
+// of. Not a parameter (its caller gives it), one with a value, one assigned
+// or passed by reference since, one of another type, nor a static's value.
+user function zero(nP as numeric)
+  local nX as numeric
+  local nY as numeric
+  local nZ as numeric
+  local nW := 5 as numeric
+  local nV as numeric
+  local nR as numeric
+  local cX as character
+  local nA := If(ValType(nX) != "U", nX, 5)
+  local nB := If(ValType(nP) != "U", nP, 5)
+  static sZ := If(ValType(nX) != "U", nX, 1)
+  If ValType(nY) == "U"
+    nY := 7
+  EndIf
+  nZ := 3
+  If ValType(nZ) == "U"
+    nZ := 4
+  EndIf
+  nA := If(ValType(nW) != "U", nW, 1)
+  nA := nA + If(ValType(nV) != "U", nV, 2) + If(ValType(cX) != "U", cX, 3)
+  foo(@nR)
+  nA := If(ValType(nR) != "U", nR, 1)
+  conout(nY, nZ, nA, nB, sZ)
+return nil

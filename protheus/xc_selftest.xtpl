@@ -435,7 +435,7 @@ return cName + " " + cText + iif(lIn, "!", "?")
 
 // Names declared with a type: TL++ will not compare them with Nil, so '?:',
 // '?.' and '?=' ask ValType(). A Numeric starts at 0, not at Nil (tried on
-// 24.3.1.9): '?:' keeps it, and '?=' leaves it.
+// 24.3.1.9): '?:' keeps it, and '?=' leaves it -- xc warns of both.
 static function typedNil()
   local nX as numeric
   local oJ as object

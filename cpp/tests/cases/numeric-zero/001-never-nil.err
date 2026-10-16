@@ -1,0 +1,4 @@
+001-never-nil.xtpl:13: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
+001-never-nil.xtpl:15: warning: 'nX' is a local: a static takes its value once, at load, when 'nX' does not exist -- it is Nil there
+001-never-nil.xtpl:16: warning: 'nY' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?=' never assigns it (with no type it would start at Nil)
+001-never-nil.xtpl:20: warning: 'nV' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)

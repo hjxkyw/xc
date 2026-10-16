@@ -331,6 +331,8 @@ namespace xc
       int writes = 0;
       bool is_const = false;
       bool contained = false;
+      // Declared 'as Numeric' with no value: TL++ starts it at 0, not Nil.
+      bool zero = false;
     };
 
     // A scope: the names it declares, and the one around it. A closure scope
@@ -402,6 +404,7 @@ namespace xc
       Scope* scope_ = nullptr;
       int line_ = 0;
       bool in_defer_ = false;
+      bool in_static_ = false;       // in a static's value, where a local is Nil
       std::vector<Var*> records_;
       Set opened_;
       Set warned_alias_;
@@ -453,6 +456,7 @@ namespace xc
       void stmt(Stmt* s);
       void target(Expr* t, const std::string& op = ":=");
       void note_scalar(const Declarator* d);
+      void never_nil(const Expr* e, const std::string& op);
       void expr(Expr* e);
       void call(const Call* c);
       void field(const AliasField* f);
@@ -826,6 +830,7 @@ namespace xc
       if (Found v = find(k))
       {
         v.v->reads++;
+        v.v->zero = false;           // what it is given may be Nil
         if (v.v->is_const)
         {
           problem("'" + name + "' is <const> (declared on line " + num(v.v->line)
@@ -1033,11 +1038,17 @@ namespace xc
             type_word(w.size() > 1 ? OptStr(w[1]) : std::nullopt, d->line);
             agrees(d);
             if (static_decls_.count(s) && d->init) { static_value(d); }
+            in_static_ = static_decls_.count(s) > 0;
             if (d->init) { expr(d->init); }
+            in_static_ = false;
             for (Expr* x : d->dims) { expr(x); }
             if (decl->scope == "private" || static_decls_.count(s)) { continue; }
             declare(d->name, d->line, d->attributes, decl->scope == "public" ? "public" : "local", d->init != nullptr);
             note_scalar(d);
+            if (d->declared == "Numeric" && !d->init && d->dims.empty() && decl->scope == "local")
+            {
+              if (Found f = find(lc(d->name)); f && f.v->line == d->line) { f.v->zero = true; }
+            }
           }
           break;
         }
@@ -1049,6 +1060,7 @@ namespace xc
             dict_type(static_cast<const AliasField*>(a->target), a->value, a->op == ":=");
           }
           expr(a->value);
+          if (a->op == "?=") { never_nil(a->target, a->op); }
           target(a->target, a->op);
           break;
         }
@@ -1245,6 +1257,19 @@ namespace xc
       else { expr(t); }
     }
 
+    // A '?:' on a name, or a '?=' to it, declared 'as Numeric' with no value
+    // and not assigned since: TL++ started it at 0, which is not Nil.
+    void Checker::never_nil(const Expr* e, const std::string& op)
+    {
+      if (!is(e, EK::Name) || in_static_) { return; }
+      const std::string& name = name_of(e);
+      Found f = find(lc(name));
+      if (!f || !f.v->zero || f.v->writes > 0) { return; }
+      warning("'" + name + "' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '" + op + "' "
+              + (op == "?=" ? "never assigns it" : "gives it and never its alternative")
+              + " (with no type it would start at Nil)");
+    }
+
     void Checker::note_scalar(const Declarator* d)
     {
       std::string k = lc(d->name);
@@ -1287,6 +1312,7 @@ namespace xc
       {
         auto b = static_cast<Binary*>(e);
         field_compare = COMPARE.count(b->op) && (is(b->left, EK::AliasField) || is(b->right, EK::AliasField));
+        if (b->op == "?:") { never_nil(b->left, b->op); }
       }
       if (k == EK::Index || k == EK::Member || k == EK::MethodCall || (k == EK::Binary && !field_compare))
       {

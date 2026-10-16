@@ -952,8 +952,9 @@ a name or a literal is held in a Local of xc's own, set where it is first
 read. Whether it is Nil is asked of `ValType()`: TL++ will not compare with
 Nil a value whose type it knows -- a literal, a name declared with a type
 (`Local nX as Numeric`), what is assigned from one -- and `ValType()` takes
-any. A name declared with no type is compared as it is. (One declared
-`as Numeric` starts at 0, not at Nil, in TL++: a `?:` keeps it.)
+any. A name declared with no type is compared as it is. (A `Local`
+declared `as Numeric` starts at 0, not at Nil, in TL++: a `?:` keeps it,
+and xc warns of one with no value used so -- [The checks](#the-checks).)
 
 ```xtpl
 User Function Contact(oUser)
@@ -1523,6 +1524,7 @@ with any name allowed, to say which name it was and why.
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
+| a `Local` declared `as Numeric` with no value, on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
 
