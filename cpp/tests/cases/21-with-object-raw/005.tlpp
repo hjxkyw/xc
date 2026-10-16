@@ -4,5 +4,5 @@
 user function f(o, p, a, n)
   Local fbs_0_0  // the subject of a 'with object'
   fbs_0_0 := o
-    nT := len(fbs_0_0:GetValue("A1_COD"))
+  nT := len(fbs_0_0:GetValue("A1_COD"))
 return 1

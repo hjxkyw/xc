@@ -16,23 +16,23 @@ user function testObject(oModel, oOutro, aRows)
   Local fbs_0_1  // the subject of a 'with object'
 
   fbs_0_0 := oModel:GetModel("SA1DETAIL")
-    fbs_0_0:SetValue("A1_COD", "000001")
-    fbs_0_0:SetValue("A1_NOME", "ACME")
-    cNome := fbs_0_0:GetValue("A1_NOME")
-    nTam := len(fbs_0_0:GetValue("A1_COD"))
+  fbs_0_0:SetValue("A1_COD", "000001")
+  fbs_0_0:SetValue("A1_NOME", "ACME")
+  cNome := fbs_0_0:GetValue("A1_NOME")
+  nTam := len(fbs_0_0:GetValue("A1_COD"))
 
-    // untouched: another object, an index, an assignment, self
-    cNome := oOutro:cRazao
-    nTam := aRows[1]
-    nTam := 5
-    cNome := ::cUltimo
+  // untouched: another object, an index, an assignment, self
+  cNome := oOutro:cRazao
+  nTam := aRows[1]
+  nTam := 5
+  cNome := ::cUltimo
 
-    // nesting: the innermost subject wins, then the outer resumes
-    fbs_0_1 := oOutro
-      fbs_0_1:Ativa()
-      cNome := fbs_0_1:cRazao
+  // nesting: the innermost subject wins, then the outer resumes
+  fbs_0_1 := oOutro
+  fbs_0_1:Ativa()
+  cNome := fbs_0_1:cRazao
 
-    fbs_0_0:Grava()
+  fbs_0_0:Grava()
 
   conout(cValToChar(nTam))
 

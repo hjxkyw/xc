@@ -80,35 +80,35 @@ user function modelo(oModel, cCod, cNome, aContatos)
 
   fbs_0_0 := oModel:GetModel("SA1MASTER")
 
-    fbs_0_0:SetValue("A1_COD", cCod)
-    fbs_0_0:SetValue("A1_NOME", cNome)
-    fbs_0_0:SetValue("A1_STATUS", "1")
+  fbs_0_0:SetValue("A1_COD", cCod)
+  fbs_0_0:SetValue("A1_NOME", cNome)
+  fbs_0_0:SetValue("A1_STATUS", "1")
 
-    // Ler do mesmo sujeito, do outro lado de uma atribuicao.
-    cChave := fbs_0_0:GetValue("A1_FILIAL") + fbs_0_0:GetValue("A1_COD")
+  // Ler do mesmo sujeito, do outro lado de uma atribuicao.
+  cChave := fbs_0_0:GetValue("A1_FILIAL") + fbs_0_0:GetValue("A1_COD")
 
-    // O bloco de contatos: outro modelo, por dentro.
-    fbs_0_1 := oModel:GetModel("SA1CONTATO")
+  // O bloco de contatos: outro modelo, por dentro.
+  fbs_0_1 := oModel:GetModel("SA1CONTATO")
 
-      fs_0_0 := aContatos
-      For nPos := 1 To Len(fs_0_0)
-        oContato := fs_0_0[nPos]
+  fs_0_0 := aContatos
+  For nPos := 1 To Len(fs_0_0)
+    oContato := fs_0_0[nPos]
 
-        If empty(oContato:cEmail)
-          loop
-        EndIf
+    If empty(oContato:cEmail)
+      loop
+    EndIf
 
-        fbs_0_1:GoLine(nPos)
-        fbs_0_1:SetValue("A1C_NOME", oContato:cNome)
-        fbs_0_1:SetValue("A1C_EMAIL", oContato:cEmail)
+    fbs_0_1:GoLine(nPos)
+    fbs_0_1:SetValue("A1C_NOME", oContato:cNome)
+    fbs_0_1:SetValue("A1C_EMAIL", oContato:cEmail)
 
-        nGravados := nGravados + 1
+    nGravados := nGravados + 1
 
-      next
+  next
 
 
-    // De volta ao sujeito de fora: o 'end with' acima devolveu.
-    fbs_0_0:SetValue("A1_CONTATO", cValToChar(nGravados))
+  // De volta ao sujeito de fora: o 'end with' acima devolveu.
+  fbs_0_0:SetValue("A1_CONTATO", cValToChar(nGravados))
 
 
   xconout("modelo ", cChave, ": ", nGravados, " contatos")

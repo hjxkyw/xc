@@ -4,6 +4,6 @@
 user function f(o, p, a, n)
   Local fbs_0_0  // the subject of a 'with object'
   fbs_0_0 := oModel:GetModel("SA1DETAIL")
-    fbs_0_0:SetValue("A1_COD", cCod)
-    fbs_0_0:SetValue("A1_NOME", cNome)
+  fbs_0_0:SetValue("A1_COD", cCod)
+  fbs_0_0:SetValue("A1_NOME", cNome)
 return 1

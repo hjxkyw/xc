@@ -819,15 +819,16 @@ User Function WithObj(oModel, cCod)
   Local cName := ""
   Local fbs_0_0  // the subject of a 'with object'
   fbs_0_0 := oModel:GetModel("SA1DETAIL")
-    fbs_0_0:SetValue("A1_COD", cCod)
-    cName := fbs_0_0:GetValue("A1_NOME")
+  fbs_0_0:SetValue("A1_COD", cCod)
+  cName := fbs_0_0:GetValue("A1_NOME")
 Return cName
 ```
 
-The subject is evaluated once. Inside the block, a `:` where AdvPL could not
-have one -- at the start of a statement or of an operand -- means the
-subject; a `:` after a name, `)` or `]` is a member, as always. Blocks nest,
-and the innermost subject wins. Only `End With` closes it, and a `:x`
+The subject is evaluated once, and the block's body loses the level it
+had: the lines that made it are gone. Inside the block, a `:` where AdvPL
+could not have one -- at the start of a statement or of an operand -- means
+the subject; a `:` after a name, `)` or `]` is a member, as always. Blocks
+nest, and the innermost subject wins. Only `End With` closes it, and a `:x`
 outside one is refused. `with` without `object` is not xtpl.
 
 ### raw

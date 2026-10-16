@@ -5,6 +5,6 @@ User Function WithObj(oModel, cCod)
   Local cName := ""
   Local fbs_0_0  // the subject of a 'with object'
   fbs_0_0 := oModel:GetModel("SA1DETAIL")
-    fbs_0_0:SetValue("A1_COD", cCod)
-    cName := fbs_0_0:GetValue("A1_NOME")
+  fbs_0_0:SetValue("A1_COD", cCod)
+  cName := fbs_0_0:GetValue("A1_NOME")
 Return cName

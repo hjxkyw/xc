@@ -433,6 +433,21 @@ namespace xc
         std::string t = gen("fbs", "the subject of a 'with object'");
         header(s, w->subject, 0, { t + " := " + expr(w->subject) });
         drop_closer(s, "with");
+        // Its body a level less deep: the lines that made the level are gone.
+        if (!w->body.empty())
+        {
+          std::string raw = slice(s);
+          std::size_t ce = code_end(raw);
+          int from = after_break(line_end(code_stop(w->subject, src_)));
+          int to = line_start(s->from + static_cast<int>(last_from(std::string_view(raw).substr(0, ce), "with")));
+          std::string outer = text(line_start(s->from), s->from);
+          std::string inner = text(line_start(w->body[0]->from), w->body[0]->from);
+          bool blank = inner.find_first_not_of(" \t") == std::string::npos;
+          if (blank && inner.size() > outer.size() && inner.compare(0, outer.size(), outer) == 0 && from < to)
+          {
+            dedents_.push_back(Dedent{ from, to, static_cast<int>(inner.size() - outer.size()) });
+          }
+        }
         subjects_.push_back(t);
         collect_bodies(s);
         subjects_.pop_back();

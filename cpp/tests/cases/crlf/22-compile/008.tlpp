@@ -19,7 +19,7 @@ user function f(o)
     DbSelectArea(far_0_0)
   EndIf   // done
   fbs_0_0 := o
-    fbs_0_0:SetValue("A", n)
+  fbs_0_0:SetValue("A", n)
   // set
     ANOTE "x"
   // noted
