@@ -230,7 +230,7 @@ user function envtest()
   If !Empty(far_0_5)
     DbSelectArea(far_0_5)
   EndIf
-  lTmp := fo_0_5  // o maior e 25
+  lTmp := fo_0_5                                        // o maior e 25
   check("rows anyof acha", lTmp, 0, @nOk, @nBad)
 
   far_0_6 := Alias()

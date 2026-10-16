@@ -2,7 +2,7 @@
 #include "tlpp-core.th"
 
 User Function f(a)
-  If a == Nil  // sem valor
+  If a == Nil         // sem valor
     a := 1
   EndIf
 return a

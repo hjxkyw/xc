@@ -107,7 +107,7 @@ user function apuracao(cFil, dCorte)
   // 2. A tabela de trabalho.
   if !DbCreate("ZAPUR", aEstrutura, "TOPCONN")
     TCUnlink()
-    return -2  // TCUnlink() roda aqui
+    return -2                            // TCUnlink() roda aqui
   endif
 
 
@@ -116,7 +116,7 @@ user function apuracao(cFil, dCorte)
   if select("ZAPUR") == 0
     TCDelFile("ZAPUR")
     TCUnlink()
-    return -3  // TCDelFile + TCUnlink rodam aqui
+    return -3                            // TCDelFile + TCUnlink rodam aqui
   endif
 
 
@@ -128,7 +128,7 @@ user function apuracao(cFil, dCorte)
     ZAPUR->(DbCloseArea())
     TCDelFile("ZAPUR")
     TCUnlink()
-    return 0  // as tres rodam, na ordem inversa
+    return 0                             // as tres rodam, na ordem inversa
   endif
 
   // A leitura da tabela: aqui a area E o assunto, entao e 'using alias'.
@@ -161,7 +161,7 @@ user function apuracao(cFil, dCorte)
   ZAPUR->(DbCloseArea())
   TCDelFile("ZAPUR")
   TCUnlink()
-  return nTotal  // e as tres rodam aqui tambem
+  return nTotal                          // e as tres rodam aqui tambem
 
 // -----------------------------------------------------------------------------
 // the end

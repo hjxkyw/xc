@@ -812,8 +812,30 @@ namespace xc
       before = e.from;
     }
     rev.push_back(text(0, before));
+    std::string spliced;
+    for (auto it = rev.rbegin(); it != rev.rend(); ++it) { spliced += *it; }
+
+    // The marks before the comments written again, blanks: up to the column
+    // the comment had, when that leaves two after the code, else two.
     std::string out;
-    for (auto it = rev.rbegin(); it != rev.rend(); ++it) { out += *it; }
+    out.reserve(spliced.size());
+    int col = 0;
+    for (std::size_t i = 0; i < spliced.size(); i++)
+    {
+      char c = spliced[i];
+      if (c == '\x01')
+      {
+        std::size_t e = spliced.find('\x02', i);
+        int want = std::stoi(spliced.substr(i + 1, e - i - 1));
+        int n = want - col >= 2 ? want - col : 2;
+        out.append(static_cast<std::size_t>(n), ' ');
+        col += n;
+        i = e;
+        continue;
+      }
+      out += c;
+      col = c == '\n' || c == '\r' ? 0 : col + 1;
+    }
     return add_includes(out, nl_);
   }
 
@@ -1006,6 +1028,7 @@ namespace xc
     }
     if (!hoist_.empty()) { hoist_edit(body); }
     if (!dedents_.empty()) { dedent_edits(); }
+    align_comments(body);
     // The temps of a prologue declaration, just before it.
     for (const auto& [from, lines] : early_)
     {
@@ -1315,6 +1338,83 @@ namespace xc
     busy_.insert(t);
     if (early_at_ >= 0) { early_names_.insert(t); }
     return t;
+  }
+
+  // ---- trailing comments ----------------------------------------------------
+  // A trailing comment keeps its column when the code before it still leaves
+  // two blanks, and goes two blanks after the code otherwise. Where it goes
+  // is known only once the edits are spliced in: what goes before it is a
+  // mark, '\x01' COLUMN '\x02', that emit() makes blanks of.
+
+  // The column of the last comment on the lines from..to, in the source; -1
+  // when there is none.
+  int Emitter::comment_col(int from, int to) const
+  {
+    int col = -1;
+    for (int l = line_start(from); l < to; l = after_break(line_end(l)))
+    {
+      int end = std::min(line_end(l), to);
+      long k = comment_at(text(l, end));
+      if (k >= 0 && l + k >= from) { col = static_cast<int>(k); }
+      if (line_end(l) >= to || line_end(l) >= static_cast<int>(src_.size())) { break; }
+    }
+    return col;
+  }
+
+  // What goes before a comment written again after new code: the mark of
+  // the column it had, or two blanks.
+  std::string Emitter::before_comment(int from, int to) const
+  {
+    int col = comment_col(from, to);
+    return col >= 0 ? "\x01" + std::to_string(col) + "\x02" : "  ";
+  }
+
+  // A comment after code that an edit changed, on a line nothing rewrites
+  // from the code to the comment: the blanks before it a mark.
+  void Emitter::align_comments(const Body& body)
+  {
+    if (body.empty()) { return; }
+    std::vector<const Edit*> sorted;
+    for (const Edit& e : edits_) { sorted.push_back(&e); }
+    std::sort(sorted.begin(), sorted.end(), [](const Edit* a, const Edit* b) { return a->from < b->from; });
+    int end = body.back()->to;
+    for (int l = line_start(body.front()->from); l < end; l = after_break(line_end(l)))
+    {
+      int le = line_end(l);
+      long k = comment_at(text(l, le));
+      int cs = l + static_cast<int>(k);
+      int ws = cs;
+      auto blank = [&](int p)
+      {
+        char c = src_[static_cast<std::size_t>(p)];
+        return c == ' ' || c == '\t';
+      };
+      while (k > 0 && ws > l && blank(ws - 1)) { ws--; }
+      if (k > 0 && ws > l)
+      {
+        // The edits from this line's start up to the comment change its code;
+        // one that runs over the blanks before the comment -- the last that
+        // starts before them, edits not overlapping -- rewrites the comment.
+        auto first = std::lower_bound(sorted.begin(), sorted.end(), l,
+                                      [](const Edit* e, int p) { return e->from < p; });
+        bool changed = false;
+        bool covered = false;
+        for (auto e = first; e != sorted.end() && (*e)->from < cs; ++e)
+        {
+          if ((*e)->to > ws) { covered = true; }
+          if ((*e)->to <= ws) { changed = true; }
+        }
+        for (auto e = first; e != sorted.begin();)
+        {
+          --e;
+          if ((*e)->to == (*e)->from) { continue; }
+          if ((*e)->to > l) { covered = true; }
+          break;
+        }
+        if (changed && !covered) { edit(ws, cs, "\x01" + std::to_string(k) + "\x02"); }
+      }
+      if (le >= end || le >= static_cast<int>(src_.size())) { break; }
+    }
   }
 
   // A name that may be compared with Nil: one declared with no type.

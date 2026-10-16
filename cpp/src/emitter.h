@@ -172,6 +172,9 @@ namespace xc
     std::string indent_at(int p) const;
     int dedent_at(int p) const;
     void dedent_edits();
+    int comment_col(int from, int to) const;
+    std::string before_comment(int from, int to) const;
+    void align_comments(const Body& body);
     std::string join_at(int p, const Lines& lines) const;
     template <class N> std::string slice(const N* n) const
     {

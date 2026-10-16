@@ -4,7 +4,7 @@ user function f(cP, l, n)
   Local fok_0_0  // whether the file opened
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
-  private pT  // how many
+  private pT                         // how many
   fok_0_0 := File(cP)
   If fok_0_0
     FT_FUse(cP)

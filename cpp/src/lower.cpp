@@ -1260,9 +1260,10 @@ namespace xc
     if (!comment.empty())
     {
       std::string n = at < notes.size() ? notes[at] : "";
-      lines[at] += n.empty()                           ? "  " + comment
-                   : comment.compare(0, 2, "//") == 0 ? "  // " + n + " -- " + trim(comment.substr(2))
-                                                       : "  // " + n + "  " + comment;
+      std::string sp = before_comment(s->from, s->to);
+      lines[at] += n.empty()                           ? sp + comment
+                   : comment.compare(0, 2, "//") == 0 ? sp + "// " + n + " -- " + trim(comment.substr(2))
+                                                       : sp + "// " + n + "  " + comment;
     }
     edit(s->from, s->to, join_at(s->from, lines));
   }
@@ -1277,7 +1278,7 @@ namespace xc
   void Emitter::header_to(const Stmt* s, int end, std::size_t at, Lines lines)
   {
     std::string comment = split_comment(text(s->from, end)).second;
-    if (!comment.empty() && at < lines.size()) { lines[at] += "  " + comment; }
+    if (!comment.empty() && at < lines.size()) { lines[at] += before_comment(s->from, end) + comment; }
     edit(s->from, end, join_at(s->from, lines));
   }
 
@@ -1291,7 +1292,7 @@ namespace xc
       if (!e.comment.empty())
       {
         int at = line_end(e.to);
-        edit(at, at, "  " + e.comment);
+        edit(at, at, before_comment(e.from, e.to) + e.comment);
       }
     }
   }

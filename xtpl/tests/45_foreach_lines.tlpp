@@ -40,7 +40,7 @@ user function testForeachLines(cPath)
 
     nTotal := nTotal + len(cLinha)
 
-    If nTotal > 1000  // closes the file on the way out
+    If nTotal > 1000                  // closes the file on the way out
       If fok_0_0
         FT_FUse()
       EndIf

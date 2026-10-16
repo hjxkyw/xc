@@ -36,7 +36,7 @@ user function testContinuation(cUrl, cBody, aNums, hCfg)
       AAdd(fo_0_0, fv_0_0)
     EndIf
   Next
-  aBig := u_xtpl_distinct(fo_0_0)  // a comment on a continued line
+  aBig := u_xtpl_distinct(fo_0_0)     // a comment on a continued line
 
   nT := u_xtpl_hget(hCfg, "a") + ;
         u_xtpl_hget(hCfg, "b")

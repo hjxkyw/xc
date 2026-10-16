@@ -1,7 +1,7 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 user function f(a)
-  local x  // n
+  local x                                    // n
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain

@@ -86,7 +86,7 @@ user function testTorture(hCfg, cNum, aRows, cPath, nX)
       If !Empty(far_0_2)
         DbSelectArea(far_0_2)
       EndIf
-      aOut := fo_0_0  // split mid-chain // and a block comment
+      aOut := fo_0_0                               // split mid-chain // and a block comment
       If u_xtpl_hget(hCfg, "parar")
         conout("saindo")
         SC6->(DbSetOrder(fol_0_1))

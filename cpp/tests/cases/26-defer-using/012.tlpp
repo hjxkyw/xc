@@ -14,5 +14,5 @@ user function f(n, cA, cP)
   SA1->(DbGoto(frc_0_0))
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
-  EndIf   // done
+  EndIf       // done
   return n

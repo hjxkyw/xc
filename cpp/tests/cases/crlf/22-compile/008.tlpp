@@ -17,7 +17,7 @@ user function f(o)
   SA1->(DbGoto(frc_0_0))
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
-  EndIf   // done
+  EndIf       // done
   fbs_0_0 := o
   fbs_0_0:SetValue("A", n)
   // set

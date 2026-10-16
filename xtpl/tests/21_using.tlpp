@@ -31,7 +31,7 @@ user function testUsing(cAlias, nX)
   fol_0_0 := SA1->(IndexOrd())
   SA1->(DbSetOrder(1))
     nT := SA1->A1_SALDO
-    If nX > 100  // restored before the return
+    If nX > 100                        // restored before the return
       SA1->(DbSetOrder(fol_0_0))
       SA1->(DbGoto(frc_0_0))
       If !Empty(far_0_0)
@@ -43,7 +43,7 @@ user function testUsing(cAlias, nX)
 
     fal_0_0 := cAlias
     far_0_1 := Alias()
-    DbSelectArea(fal_0_0)  // a variable holds the alias here
+    DbSelectArea(fal_0_0)              // a variable holds the alias here
     frc_0_1 := (fal_0_0)->(RecNo())
       nT := nT + 1
     (fal_0_0)->(DbGoto(frc_0_1))
