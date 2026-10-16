@@ -5,7 +5,7 @@ user function f(a, n, o)
   Local fbs_0_0  // the subject of a 'with object'
   Local fbs_0_1  // the subject of a 'with object'
   fbs_0_0 := o
-    fbs_0_1 := fbs_0_0:oFilho
-      fbs_0_1:Ativa()
-    fbs_0_0:Grava()
+  fbs_0_1 := fbs_0_0:oFilho
+  fbs_0_1:Ativa()
+  fbs_0_0:Grava()
 return n

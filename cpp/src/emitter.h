@@ -154,12 +154,24 @@ namespace xc
     // The names the function declares with a type ('as N'), which TL++ will
     // not compare with Nil.
     std::unordered_set<std::string> typed_;
+    // The bodies of 'with object', a level less deep, the lines that made the
+    // level gone: the lines from 'from' up to 'to', and how many characters of
+    // indentation they lose.
+    struct Dedent
+    {
+      int from;
+      int to;
+      int by;
+    };
+    std::vector<Dedent> dedents_;
 
     // ---- lines --------------------------------------------------------------
     int line_start(int p) const;
     int line_end(int p) const;
     int after_break(int e) const;
     std::string indent_at(int p) const;
+    int dedent_at(int p) const;
+    void dedent_edits();
     std::string join_at(int p, const Lines& lines) const;
     template <class N> std::string slice(const N* n) const
     {

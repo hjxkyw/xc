@@ -292,14 +292,67 @@ namespace xc
     return e < static_cast<int>(src_.size()) ? e + static_cast<int>(char_len(src_, static_cast<std::size_t>(e))) : e;
   }
 
+  // The indentation of the line p is on, up to p -- spaces for anything else
+  // -- less what a 'with object' around it takes off.
   std::string Emitter::indent_at(int p) const
   {
     std::string s = text(line_start(p), p);
     for (char c : s)
     {
-      if (!(CHAR_CLASS[static_cast<unsigned char>(c)] & C_S)) { return std::string(s.size(), ' '); }
+      if (!(CHAR_CLASS[static_cast<unsigned char>(c)] & C_S))
+      {
+        s = std::string(s.size(), ' ');
+        break;
+      }
     }
-    return s;
+    std::size_t d = static_cast<std::size_t>(dedent_at(p));
+    return s.substr(0, s.size() > d ? s.size() - d : 0);
+  }
+
+  int Emitter::dedent_at(int p) const
+  {
+    int l = line_start(p);
+    int d = 0;
+    for (const Dedent& x : dedents_)
+    {
+      if (x.from <= l && l < x.to) { d += x.by; }
+    }
+    return d;
+  }
+
+  // Each line of a 'with object''s body loses its level: an edit taking off
+  // the start of its indentation -- but on a line an edit already rewrites
+  // from its start, which writes the indentation itself (indent_at()).
+  void Emitter::dedent_edits()
+  {
+    std::vector<int> starts;
+    for (const Dedent& x : dedents_)
+    {
+      for (int l = x.from; l < x.to; l = after_break(line_end(l)))
+      {
+        starts.push_back(l);
+        if (line_end(l) >= static_cast<int>(src_.size())) { break; }
+      }
+    }
+    std::sort(starts.begin(), starts.end());
+    starts.erase(std::unique(starts.begin(), starts.end()), starts.end());
+    for (int l : starts)
+    {
+      bool covered = false;
+      for (const Edit& e : edits_)
+      {
+        if (e.from <= l && l < e.to) { covered = true; }
+      }
+      if (covered) { continue; }
+      int n = 0;
+      int d = dedent_at(l);
+      while (n < d && l + n < static_cast<int>(src_.size())
+             && (src_[static_cast<std::size_t>(l + n)] == ' ' || src_[static_cast<std::size_t>(l + n)] == '\t'))
+      {
+        n++;
+      }
+      if (n > 0) { edit(l, l + n, ""); }
+    }
   }
 
   std::string Emitter::join_at(int p, const Lines& lines) const
@@ -805,6 +858,7 @@ namespace xc
     pool_.clear();
     busy_.clear();
     typed_.clear();
+    dedents_.clear();
     for (const Param* q : params)
     {
       if (q && q->type_word) { typed_.insert(lc(q->name)); }
@@ -951,6 +1005,7 @@ namespace xc
       edit(at, at, t);
     }
     if (!hoist_.empty()) { hoist_edit(body); }
+    if (!dedents_.empty()) { dedent_edits(); }
     // The temps of a prologue declaration, just before it.
     for (const auto& [from, lines] : early_)
     {

@@ -53,7 +53,7 @@ user function testInitialisers(aNums, hCfg, cC, aC, oUser, nX, aRows, oModel)
   endcase
 
   fbs_0_0 := oModel:GetModel(u_xtpl_hget(hCfg, "id"))  // and in a with-object subject
-    fbs_0_0:SetValue("A1_COD", nT)
+  fbs_0_0:SetValue("A1_COD", nT)
 
   conout(cValToChar(nA + nB + nH + len(hM)) + cD + cG)
   conout(cValToChar(lE) + cValToChar(lF))
