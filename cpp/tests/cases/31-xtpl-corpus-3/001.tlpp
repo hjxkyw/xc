@@ -841,7 +841,8 @@ user function xc_selftest()
   cTmp := inPrologue(aCalls)
   check("'?:', '?.', 'in' in the declarations of the prologue", cTmp == "anon x!" .and. aCalls[1] == 3, cTmp, @nOk, @nBad)
   aTmp := typedNil()
-  check("'?:', '?.', '?=' on names declared with a type", aTmp[1] == 5 .and. aTmp[2] == Nil .and. aTmp[3] == 3, aTmp[1], @nOk, @nBad)
+  check("'?:', '?.', '?=' on names declared with a type", aTmp[1] == 0 .and. aTmp[2] == "x" .and. aTmp[3] == 0, ;
+        cValToChar(aTmp[1]) + " " + cValToChar(aTmp[2]) + " " + cValToChar(aTmp[3]), @nOk, @nBad)
 
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
@@ -937,13 +938,17 @@ static function inPrologue(aCalls)
   local lIn := ((fbv_0_0 := counted(aCalls, 7)) >= 5 .And. fbv_0_0 <= 10)
 return cName + " " + cText + iif(lIn, "!", "?")
 
-// Names declared with a type, and Nil: TL++ will not compare them with Nil,
-// so '?:', '?.' and '?=' ask ValType().
+// Names declared with a type: TL++ will not compare them with Nil, so '?:',
+// '?.' and '?=' ask ValType(). A Numeric starts at 0, not at Nil (tried on
+// 24.3.1.9): '?:' keeps it, and '?=' leaves it.
 static function typedNil()
   local nX as numeric
   local oJ as object
   local nA := If(ValType(nX) != "U", nX, 5)
-  local cB := If(ValType(oJ) != "U", oJ:GetJsonText("a"), Nil)
+  local cB := ""
+  oJ := JsonObject():New()
+  oJ["a"] := "x"
+  cB := If(ValType(oJ) != "U", oJ:GetJsonText("a"), Nil)
   If ValType(nX) == "U"
     nX := 3
   EndIf
