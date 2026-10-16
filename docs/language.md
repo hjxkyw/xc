@@ -949,7 +949,8 @@ a name or a literal is held in a Local of xc's own, set where it is first
 read. Whether it is Nil is asked of `ValType()`: TL++ will not compare with
 Nil a value whose type it knows -- a literal, a name declared with a type
 (`Local nX as Numeric`), what is assigned from one -- and `ValType()` takes
-any. A name declared with no type is compared as it is:
+any. A name declared with no type is compared as it is. (One declared
+`as Numeric` starts at 0, not at Nil, in TL++: a `?:` keeps it.)
 
 ```xtpl
 User Function Contact(oUser)
