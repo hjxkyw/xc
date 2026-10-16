@@ -1,0 +1,13 @@
+// Verbs written as calls are the chain they stand for: as a statement's
+// whole value, a loop where the chain would be -- nested ones, a return,
+// a statement for its effects, a declaration in a block, under a guard.
+user function calls(a, n)
+  local x := 0
+  x := asum(filter(map(a, [v] v * 2), [v] v > 3))
+  tap(a, [v] conout(v))
+  if n > 0
+    local y := count(a, [v] v > 1)
+    x := x + y
+  endif
+  x := map(a, [v] v + 1) fallback {}
+  return filter(a, [v] v > n)

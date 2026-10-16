@@ -164,6 +164,10 @@ namespace xc
       int by;
     };
     std::vector<Dedent> dedents_;
+    // Verbs written as calls, as the chains they are (as_chain): xc's own
+    // Pipelines, made once each.
+    mutable Tree made_;
+    mutable std::unordered_map<const Expr*, const Expr*> chains_made_;
 
     // ---- lines --------------------------------------------------------------
     int line_start(int p) const;
@@ -196,6 +200,7 @@ namespace xc
     std::vector<Finding> scope_problems(const Body& body);
     std::vector<Finding> chain_problems(const Expr* chain, const Stmt* s);
     bool fusable_array(const Expr* e, bool for_effect) const;
+    const Expr* as_chain(const Expr* e) const;
     const Expr* fused_value(const Stmt* s) const;
     bool loop_value(const Expr* e) const;
     const Expr* stream_value(const Stmt* s) const;

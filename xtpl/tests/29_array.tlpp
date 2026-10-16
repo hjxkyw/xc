@@ -14,15 +14,64 @@ user function testArray(aOrders, aNums, aCodes, aDesc)
   local aLive := {}
   local aPairs := {}
   local nTotal := 0
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
+  Local fi_0_4  // the position in the array walked
+  Local fv_0_4  // the element walked
+  Local fo_0_4  // the result of the chain
 
   // transform, keep, discard
-  aVals := u_xtpl_map(aOrders, {|o| o:nValue})
-  aBig  := u_xtpl_filter(aOrders, {|o| o:nValue > 1000})
-  aLive := u_xtpl_reject(aOrders, {|o| o:lCancelled})
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aOrders)
+    fv_0_0 := aOrders[fi_0_0]
+    fv_0_0 := fv_0_0:nValue
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  aVals := fo_0_0
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(aOrders)
+    fv_0_1 := aOrders[fi_0_1]
+    If fv_0_1:nValue > 1000
+      AAdd(fo_0_1, fv_0_1)
+    EndIf
+  Next
+  aBig := fo_0_1
+  fo_0_2 := {}
+  For fi_0_2 := 1 To Len(aOrders)
+    fv_0_2 := aOrders[fi_0_2]
+    If !(fv_0_2:lCancelled)
+      AAdd(fo_0_2, fv_0_2)
+    EndIf
+  Next
+  aLive := fo_0_2
 
   // fold with an explicit seed; fold() starts from the first element instead
-  nTotal := u_xtpl_reduce(aNums, {|acc, x| acc + x}, 0)
-  nTotal := u_xtpl_fold(aNums, {|acc, x| Max(acc, x)})
+  fo_0_3 := 0
+  For fi_0_3 := 1 To Len(aNums)
+    fv_0_3 := aNums[fi_0_3]
+    fo_0_3 := fo_0_3 + fv_0_3
+  Next
+  nTotal := fo_0_3
+  fo_0_4 := Nil
+  For fi_0_4 := 1 To Len(aNums)
+    fv_0_4 := aNums[fi_0_4]
+    If fo_0_4 == Nil
+      fo_0_4 := fv_0_4
+    Else
+      fo_0_4 := Max(fo_0_4, fv_0_4)
+    EndIf
+  Next
+  nTotal := fo_0_4
 
   // slicing and reshaping
   aVals := u_xtpl_take(aNums, 5)

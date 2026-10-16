@@ -4,7 +4,34 @@ user function f(aOrders, aNums)
   local aVals := {}
   local aBig := {}
   local nTotal := 0
-  aVals := u_xtpl_map(aOrders, {|o| o:nValue})
-  aBig  := u_xtpl_filter(aOrders, {|o| o:nValue > 1000})
-  nTotal := u_xtpl_reduce(aNums, {|acc, x| acc + x}, 0)
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_2  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aOrders)
+    fv_0_0 := aOrders[fi_0_0]
+    fv_0_0 := fv_0_0:nValue
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  aVals := fo_0_0
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(aOrders)
+    fv_0_1 := aOrders[fi_0_1]
+    If fv_0_1:nValue > 1000
+      AAdd(fo_0_1, fv_0_1)
+    EndIf
+  Next
+  aBig := fo_0_1
+  fo_0_2 := 0
+  For fi_0_2 := 1 To Len(aNums)
+    fv_0_2 := aNums[fi_0_2]
+    fo_0_2 := fo_0_2 + fv_0_2
+  Next
+  nTotal := fo_0_2
 return nTotal

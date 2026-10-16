@@ -7,14 +7,15 @@
 // private's value and under a postfix modifier, a defer that runs only if it
 // was reached, the temps xc writes around the source's own code, each value
 // of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
-// whole value, Clipper's comments, a name that starts with '__', 'End For'
-// and '%exp:x%' outside BeginSql. Pure computation, as 54 is: no table, no
-// file, no screen, so a right or wrong answer and not an environment.
+// whole value, verbs written as calls as loops, Clipper's comments, a name
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// computation, as 54 is: no table, no file, no screen, so a right or wrong
+// answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 92 ok, 0 failed
+//   xc_selftest: 95 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -342,6 +343,14 @@ user function xc_selftest()
   check("fallback: assigned to an element", aTmp[2] == 4, aTmp[2], @nOk, @nBad)
   check("fallback: a return's whole value", guardedReturn(aNums, 3) == 4 .and. guardedReturn(aNums, 99) == -3, ;
         guardedReturn(aNums, 99), @nOk, @nBad)
+
+  // ---- verbs written as calls: the chain they stand for ---------------------
+  nTmp := asum(filter(map(aNums, [x] x * 2), [x] x > 5))
+  check("calls nested: a loop, as the chain", nTmp == 54, nTmp, @nOk, @nBad)
+  nTmp := count(aNums, [x] x > 3)
+  check("count as a call", nTmp == 4, nTmp, @nOk, @nBad)
+  nTmp := first(aNums, [x] x > 4)
+  check("first as a call: the first that passes", nTmp == 5, nTmp, @nOk, @nBad)
 
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0

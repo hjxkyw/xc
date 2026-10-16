@@ -10,14 +10,15 @@
 // private's value and under a postfix modifier, a defer that runs only if it
 // was reached, the temps xc writes around the source's own code, each value
 // of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
-// whole value, Clipper's comments, a name that starts with '__', 'End For'
-// and '%exp:x%' outside BeginSql. Pure computation, as 54 is: no table, no
-// file, no screen, so a right or wrong answer and not an environment.
+// whole value, verbs written as calls as loops, Clipper's comments, a name
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// computation, as 54 is: no table, no file, no screen, so a right or wrong
+// answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 92 ok, 0 failed
+//   xc_selftest: 95 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -211,10 +212,19 @@ user function xc_selftest()
   Local fv_0_40  // the element walked
   Local fo_0_37  // the result of the chain
   Local ht_0_0  // the value of a 'fallback', before it is assigned
-  Local fs_0_8  // the array walked
   Local fi_0_42  // the position in the array walked
   Local fv_0_41  // the element walked
   Local fo_0_38  // the result of the chain
+  Local fi_0_43  // the position in the array walked
+  Local fv_0_42  // the element walked
+  Local fo_0_39  // the result of the chain
+  Local fi_0_44  // the position in the array walked
+  Local fv_0_43  // the element walked
+  Local fo_0_40  // the result of the chain
+  Local fs_0_8  // the array walked
+  Local fi_0_45  // the position in the array walked
+  Local fv_0_44  // the element walked
+  Local fo_0_41  // the result of the chain
   private pTotal
   fo_0_0 := 0
   For fi_0_0 := 1 To Len(aNums)
@@ -924,6 +934,37 @@ user function xc_selftest()
   check("fallback: a return's whole value", guardedReturn(aNums, 3) == 4 .and. guardedReturn(aNums, 99) == -3, ;
         guardedReturn(aNums, 99), @nOk, @nBad)
 
+  // ---- verbs written as calls: the chain they stand for ---------------------
+  fo_0_38 := 0
+  For fi_0_42 := 1 To Len(aNums)
+    fv_0_41 := aNums[fi_0_42]
+    fv_0_41 := fv_0_41 * 2
+    If fv_0_41 > 5
+      fo_0_38 := fo_0_38 + fv_0_41
+    EndIf
+  Next
+  nTmp := fo_0_38
+  check("calls nested: a loop, as the chain", nTmp == 54, nTmp, @nOk, @nBad)
+  fo_0_39 := 0
+  For fi_0_43 := 1 To Len(aNums)
+    fv_0_42 := aNums[fi_0_43]
+    If fv_0_42 > 3
+      fo_0_39++
+    EndIf
+  Next
+  nTmp := fo_0_39
+  check("count as a call", nTmp == 4, nTmp, @nOk, @nBad)
+  fo_0_40 := Nil
+  For fi_0_44 := 1 To Len(aNums)
+    fv_0_43 := aNums[fi_0_44]
+    If fv_0_43 > 4
+      fo_0_40 := fv_0_43
+      Exit
+    EndIf
+  Next
+  nTmp := fo_0_40
+  check("first as a call: the first that passes", nTmp == 5, nTmp, @nOk, @nBad)
+
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
   for nSeen := 1 to 3
@@ -931,14 +972,14 @@ user function xc_selftest()
   end for
   check("'End For' closes a For", nTmp == 6, nTmp, @nOk, @nBad)
   fs_0_8 := %exp:aNums%
-  fo_0_38 := 0
-  For fi_0_42 := 1 To Len(fs_0_8)
-    fv_0_41 := fs_0_8[fi_0_42]
-    If fv_0_41 > %exp:__v%
-      fo_0_38 := fo_0_38 + fv_0_41
+  fo_0_41 := 0
+  For fi_0_45 := 1 To Len(fs_0_8)
+    fv_0_44 := fs_0_8[fi_0_45]
+    If fv_0_44 > %exp:__v%
+      fo_0_41 := fo_0_41 + fv_0_44
     EndIf
   Next
-  nTmp := fo_0_38
+  nTmp := fo_0_41
   check("'%exp:x%' outside BeginSql: a chain's head, and in a stage", nTmp == 15, nTmp, @nOk, @nBad)
 
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")

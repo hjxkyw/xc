@@ -36,7 +36,6 @@ user function selftest()
   Local fo_0_0  // the result of the chain
   Local fi_0_1  // the position in the array walked
   Local fv_0_1  // the element walked
-  Local fn_0_0  // how many elements have passed
   Local fo_0_1  // the result of the chain
   Local fi_0_2  // the position in the array walked
   Local fv_0_2  // the element walked
@@ -44,6 +43,7 @@ user function selftest()
   Local fi_0_3  // the position in the array walked
   Local fv_0_3  // the element walked
   Local fo_0_3  // the result of the chain
+  Local fs_0_0  // the array walked
   Local fi_0_4  // the position in the array walked
   Local fv_0_4  // the element walked
   Local fo_0_4  // the result of the chain
@@ -52,50 +52,66 @@ user function selftest()
   Local fo_0_5  // the result of the chain
   Local fi_0_6  // the position in the array walked
   Local fv_0_6  // the element walked
+  Local fn_0_0  // how many elements have passed
   Local fo_0_6  // the result of the chain
   Local fi_0_7  // the position in the array walked
   Local fv_0_7  // the element walked
   Local fo_0_7  // the result of the chain
-  Local fbs_0_0  // the best key maxby/minby has seen
-  Local fop_0_0  // whether maxby/minby has seen an element
-  Local fpb_0_0  // the key of the element maxby/minby looks at
-  Local fs_0_0  // the array walked
   Local fi_0_8  // the position in the array walked
   Local fv_0_8  // the element walked
-  Local fa_0_0  // the running value of a scan
   Local fo_0_8  // the result of the chain
-  Local fs_0_1  // the array walked
   Local fi_0_9  // the position in the array walked
   Local fv_0_9  // the element walked
-  Local fpv_0_0  // the element pairwise saw last
-  Local fhd_0_0  // whether pairwise has seen an element
-  Local fol_0_0  // the element before, for pairwise
-  Local frd_0_0  // whether pairwise has a pair
   Local fo_0_9  // the result of the chain
-  Local fs_0_2  // the array walked
   Local fi_0_10  // the position in the array walked
   Local fv_0_10  // the element walked
-  Local fbg_0_0  // the inner array of an expand
-  Local fj_0_0  // the position in the inner array of an expand
   Local fo_0_10  // the result of the chain
   Local fi_0_11  // the position in the array walked
   Local fv_0_11  // the element walked
   Local fo_0_11  // the result of the chain
+  Local fi_0_12  // the position in the array walked
+  Local fv_0_12  // the element walked
+  Local fo_0_12  // the result of the chain
+  Local fbs_0_0  // the best key maxby/minby has seen
+  Local fop_0_0  // whether maxby/minby has seen an element
+  Local fpb_0_0  // the key of the element maxby/minby looks at
+  Local fs_0_1  // the array walked
+  Local fi_0_13  // the position in the array walked
+  Local fv_0_13  // the element walked
+  Local fa_0_0  // the running value of a scan
+  Local fo_0_13  // the result of the chain
+  Local fs_0_2  // the array walked
+  Local fi_0_14  // the position in the array walked
+  Local fv_0_14  // the element walked
+  Local fpv_0_0  // the element pairwise saw last
+  Local fhd_0_0  // whether pairwise has seen an element
+  Local fol_0_0  // the element before, for pairwise
+  Local frd_0_0  // whether pairwise has a pair
+  Local fo_0_14  // the result of the chain
+  Local fs_0_3  // the array walked
+  Local fi_0_15  // the position in the array walked
+  Local fv_0_15  // the element walked
+  Local fbg_0_0  // the inner array of an expand
+  Local fj_0_0  // the position in the inner array of an expand
+  Local fo_0_15  // the result of the chain
+  Local fi_0_16  // the position in the array walked
+  Local fv_0_16  // the element walked
+  Local fo_0_16  // the result of the chain
   Local fch_0_0  // the chunk chunkby is filling
   Local fky_0_0  // the key of the chunk chunkby is filling
   Local fop_0_1  // whether chunkby has seen an element
   Local fsn_0_0  // the key of the element chunkby looks at
-  Local fi_0_12  // the position in the array walked
-  Local fv_0_12  // the element walked
-  Local fo_0_12  // the result of the chain
-  Local fi_0_13  // the position in the array walked
-  Local fv_0_13  // the element walked
+  Local fi_0_17  // the position in the array walked
+  Local fv_0_17  // the element walked
+  Local fo_0_17  // the result of the chain
+  Local fi_0_18  // the position in the array walked
+  Local fv_0_18  // the element walked
   Local fdr_0_0  // whether the leading run of a dropwhile is still on
-  Local fo_0_13  // the result of the chain
+  Local fo_0_18  // the result of the chain
   Local gt_0_0  // the error block a 'fallback' sets aside
   Local nCada  // a block local
-  Local fs_0_3  // the source of a 'for ... in'
-  Local fi_0_14  // the counter of a 'for ... in'
+  Local fs_0_4  // the source of a 'for ... in'
+  Local fi_0_19  // the counter of a 'for ... in'
   Local nDobro  // a block local
 
   // ---- runtime: folds ----------------------------------------------------
@@ -112,11 +128,31 @@ user function selftest()
   check("amax vazio", u_xtpl_amax({}) == Nil, 0, @nOk, @nBad)
 
   // ---- runtime: transformacoes -------------------------------------------
-  aTmp := u_xtpl_map(aNums, {|x| x * 2})
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aNums)
+    fv_0_0 := aNums[fi_0_0]
+    fv_0_0 := fv_0_0 * 2
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  aTmp := fo_0_0
   check("map", len(aTmp) == 8 .and. aTmp[1] == 6, len(aTmp), @nOk, @nBad)
-  aTmp := u_xtpl_filter(aNums, {|x| x > 3})
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(aNums)
+    fv_0_1 := aNums[fi_0_1]
+    If fv_0_1 > 3
+      AAdd(fo_0_1, fv_0_1)
+    EndIf
+  Next
+  aTmp := fo_0_1
   check("filter", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
-  aTmp := u_xtpl_reject(aNums, {|x| x > 3})
+  fo_0_2 := {}
+  For fi_0_2 := 1 To Len(aNums)
+    fv_0_2 := aNums[fi_0_2]
+    If !(fv_0_2 > 3)
+      AAdd(fo_0_2, fv_0_2)
+    EndIf
+  Next
+  aTmp := fo_0_2
   check("reject", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
   aTmp := u_xtpl_take(aNums, 3)
   check("take", len(aTmp) == 3 .and. aTmp[3] == 4, len(aTmp), @nOk, @nBad)
@@ -145,9 +181,24 @@ user function selftest()
   check("sortBy", len(aTmp) == 3, len(aTmp), @nOk, @nBad)
 
   // ---- dobras com bloco --------------------------------------------------
-  nTmp := u_xtpl_reduce(aNums, {|acc, x| acc + x}, 100)
+  fo_0_3 := 100
+  For fi_0_3 := 1 To Len(aNums)
+    fv_0_3 := aNums[fi_0_3]
+    fo_0_3 := fo_0_3 + fv_0_3
+  Next
+  nTmp := fo_0_3
   check("reduce com semente", nTmp == 131, nTmp, @nOk, @nBad)
-  nTmp := u_xtpl_fold({4, 9, 2}, {|acc, x| Iif(x > acc, x, acc)})
+  fs_0_0 := {4, 9, 2}
+  fo_0_4 := Nil
+  For fi_0_4 := 1 To Len(fs_0_0)
+    fv_0_4 := fs_0_0[fi_0_4]
+    If fo_0_4 == Nil
+      fo_0_4 := fv_0_4
+    Else
+      fo_0_4 := Iif(fv_0_4 > fo_0_4, fv_0_4, fo_0_4)
+    EndIf
+  Next
+  nTmp := fo_0_4
   check("fold", nTmp == 9, nTmp, @nOk, @nBad)
   check("fold vazio", u_xtpl_fold({}, {|acc, x| acc}) == Nil, 0, @nOk, @nBad)
 
@@ -165,181 +216,181 @@ user function selftest()
   check("nao divisivel", !((10 % 3) == 0), 0, @nOk, @nBad)
 
   // ---- cadeia fundida: o resultado tem de bater com as etapas -------------
-  fo_0_0 := 0
-  For fi_0_0 := 1 To Len(aNums)
-    fv_0_0 := aNums[fi_0_0]
-    If fv_0_0 > 2
-      fv_0_0 := fv_0_0 * 10
-      fo_0_0 := fo_0_0 + fv_0_0
+  fo_0_5 := 0
+  For fi_0_5 := 1 To Len(aNums)
+    fv_0_5 := aNums[fi_0_5]
+    If fv_0_5 > 2
+      fv_0_5 := fv_0_5 * 10
+      fo_0_5 := fo_0_5 + fv_0_5
     EndIf
   Next
-  nTmp := fo_0_0
+  nTmp := fo_0_5
   check("cadeia fundida", nTmp == 270, nTmp, @nOk, @nBad)
   fn_0_0 := 0
-  fo_0_1 := {}
-  For fi_0_1 := 1 To Len(aNums)
-    fv_0_1 := aNums[fi_0_1]
-    If fv_0_1 > 2
+  fo_0_6 := {}
+  For fi_0_6 := 1 To Len(aNums)
+    fv_0_6 := aNums[fi_0_6]
+    If fv_0_6 > 2
       If fn_0_0 >= 2
         Exit
       EndIf
       fn_0_0++
-      AAdd(fo_0_1, fv_0_1)
+      AAdd(fo_0_6, fv_0_6)
     EndIf
   Next
-  aTmp := fo_0_1
+  aTmp := fo_0_6
   check("take para o laco", len(aTmp) == 2 .and. aTmp[2] == 4, len(aTmp), @nOk, @nBad)
-  fo_0_2 := 0
-  For fi_0_2 := 1 To Len(aNums)
-    fv_0_2 := aNums[fi_0_2]
-    If fv_0_2 > 3
-      fo_0_2++
+  fo_0_7 := 0
+  For fi_0_7 := 1 To Len(aNums)
+    fv_0_7 := aNums[fi_0_7]
+    If fv_0_7 > 3
+      fo_0_7++
     EndIf
   Next
-  nTmp := fo_0_2
+  nTmp := fo_0_7
   check("count", nTmp == 4, nTmp, @nOk, @nBad)
-  fo_0_3 := Nil
-  For fi_0_3 := 1 To Len(aNums)
-    fv_0_3 := aNums[fi_0_3]
-    If fv_0_3 > 4
-      fo_0_3 := fv_0_3
+  fo_0_8 := Nil
+  For fi_0_8 := 1 To Len(aNums)
+    fv_0_8 := aNums[fi_0_8]
+    If fv_0_8 > 4
+      fo_0_8 := fv_0_8
       Exit
     EndIf
   Next
-  nTmp := fo_0_3
+  nTmp := fo_0_8
   check("first", nTmp == 5, nTmp, @nOk, @nBad)
   check("first sem acerto", u_xtpl_first(aNums, {|x| x > 99}) == Nil, 0, @nOk, @nBad)
-  fo_0_4 := .F.
-  For fi_0_4 := 1 To Len(aNums)
-    fv_0_4 := aNums[fi_0_4]
-    If fv_0_4 == 9
-      fo_0_4 := .T.
+  fo_0_9 := .F.
+  For fi_0_9 := 1 To Len(aNums)
+    fv_0_9 := aNums[fi_0_9]
+    If fv_0_9 == 9
+      fo_0_9 := .T.
       Exit
     EndIf
   Next
-  lTmp := fo_0_4
+  lTmp := fo_0_9
   check("anyof", lTmp, 0, @nOk, @nBad)
-  fo_0_5 := .T.
-  For fi_0_5 := 1 To Len(aNums)
-    fv_0_5 := aNums[fi_0_5]
-    If !(fv_0_5 > 0)
-      fo_0_5 := .F.
+  fo_0_10 := .T.
+  For fi_0_10 := 1 To Len(aNums)
+    fv_0_10 := aNums[fi_0_10]
+    If !(fv_0_10 > 0)
+      fo_0_10 := .F.
       Exit
     EndIf
   Next
-  lTmp := fo_0_5
+  lTmp := fo_0_10
   check("allof", lTmp, 0, @nOk, @nBad)
-  fo_0_6 := .T.
-  For fi_0_6 := 1 To Len(aNums)
-    fv_0_6 := aNums[fi_0_6]
-    If fv_0_6 > 99
-      fo_0_6 := .F.
+  fo_0_11 := .T.
+  For fi_0_11 := 1 To Len(aNums)
+    fv_0_11 := aNums[fi_0_11]
+    If fv_0_11 > 99
+      fo_0_11 := .F.
       Exit
     EndIf
   Next
-  lTmp := fo_0_6
+  lTmp := fo_0_11
   check("noneof", lTmp, 0, @nOk, @nBad)
   fbs_0_0 := Nil
   fop_0_0 := .F.
   fpb_0_0 := Nil
-  fo_0_7 := Nil
-  For fi_0_7 := 1 To Len(aNums)
-    fv_0_7 := aNums[fi_0_7]
-    fpb_0_0 := -fv_0_7
+  fo_0_12 := Nil
+  For fi_0_12 := 1 To Len(aNums)
+    fv_0_12 := aNums[fi_0_12]
+    fpb_0_0 := -fv_0_12
     If !fop_0_0 .Or. fpb_0_0 > fbs_0_0
       fop_0_0 := .T.
       fbs_0_0 := fpb_0_0
-      fo_0_7 := fv_0_7
+      fo_0_12 := fv_0_12
     EndIf
   Next
-  nTmp := fo_0_7
+  nTmp := fo_0_12
   check("maxby", nTmp == 1, nTmp, @nOk, @nBad)
 
   // ---- etapas de fluxo ---------------------------------------------------
-  fs_0_0 := {10, -3, 5}
+  fs_0_1 := {10, -3, 5}
   fa_0_0 := 0
-  fo_0_8 := {}
-  For fi_0_8 := 1 To Len(fs_0_0)
-    fv_0_8 := fs_0_0[fi_0_8]
-    fa_0_0 := fa_0_0 + fv_0_8
-    fv_0_8 := fa_0_0
-    AAdd(fo_0_8, fv_0_8)
+  fo_0_13 := {}
+  For fi_0_13 := 1 To Len(fs_0_1)
+    fv_0_13 := fs_0_1[fi_0_13]
+    fa_0_0 := fa_0_0 + fv_0_13
+    fv_0_13 := fa_0_0
+    AAdd(fo_0_13, fv_0_13)
   Next
-  aTmp := fo_0_8
+  aTmp := fo_0_13
   check("scan", len(aTmp) == 3 .and. aTmp[3] == 12, aTmp[3], @nOk, @nBad)
-  fs_0_1 := {1, 4, 9}
+  fs_0_2 := {1, 4, 9}
   fpv_0_0 := Nil
   fhd_0_0 := .F.
-  fo_0_9 := {}
-  For fi_0_9 := 1 To Len(fs_0_1)
-    fv_0_9 := fs_0_1[fi_0_9]
+  fo_0_14 := {}
+  For fi_0_14 := 1 To Len(fs_0_2)
+    fv_0_14 := fs_0_2[fi_0_14]
     fol_0_0 := fpv_0_0
     frd_0_0 := fhd_0_0
-    fpv_0_0 := fv_0_9
+    fpv_0_0 := fv_0_14
     fhd_0_0 := .T.
     If frd_0_0
-      fv_0_9 := {fol_0_0, fv_0_9}
-      fv_0_9 := fv_0_9[2] - fv_0_9[1]
-      AAdd(fo_0_9, fv_0_9)
+      fv_0_14 := {fol_0_0, fv_0_14}
+      fv_0_14 := fv_0_14[2] - fv_0_14[1]
+      AAdd(fo_0_14, fv_0_14)
     EndIf
   Next
-  aTmp := fo_0_9
+  aTmp := fo_0_14
   check("pairwise", len(aTmp) == 2 .and. aTmp[2] == 5, aTmp[2], @nOk, @nBad)
-  fs_0_2 := {1, 2, 3}
-  fo_0_10 := {}
-  For fi_0_10 := 1 To Len(fs_0_2)
-    fv_0_10 := fs_0_2[fi_0_10]
-    fbg_0_0 := {fv_0_10, fv_0_10}
+  fs_0_3 := {1, 2, 3}
+  fo_0_15 := {}
+  For fi_0_15 := 1 To Len(fs_0_3)
+    fv_0_15 := fs_0_3[fi_0_15]
+    fbg_0_0 := {fv_0_15, fv_0_15}
     For fj_0_0 := 1 To Len(fbg_0_0)
-      fv_0_10 := fbg_0_0[fj_0_0]
-      AAdd(fo_0_10, fv_0_10)
+      fv_0_15 := fbg_0_0[fj_0_0]
+      AAdd(fo_0_15, fv_0_15)
     Next
   Next
-  aTmp := fo_0_10
+  aTmp := fo_0_15
   check("expand", len(aTmp) == 6, len(aTmp), @nOk, @nBad)
   fch_0_0 := {}
   fky_0_0 := Nil
   fop_0_1 := .F.
   fsn_0_0 := Nil
-  fo_0_11 := {}
-  For fi_0_11 := 1 To Len(aRep)
-    fv_0_11 := aRep[fi_0_11]
-    fsn_0_0 := fv_0_11
+  fo_0_16 := {}
+  For fi_0_16 := 1 To Len(aRep)
+    fv_0_16 := aRep[fi_0_16]
+    fsn_0_0 := fv_0_16
     If !fop_0_1
       fop_0_1 := .T.
       fky_0_0 := fsn_0_0
     ElseIf !(fsn_0_0 == fky_0_0)
-      AAdd(fo_0_11, fch_0_0)
+      AAdd(fo_0_16, fch_0_0)
       fch_0_0 := {}
       fky_0_0 := fsn_0_0
     EndIf
-    AAdd(fch_0_0, fv_0_11)
+    AAdd(fch_0_0, fv_0_16)
   Next
   If fop_0_1
-    AAdd(fo_0_11, fch_0_0)
+    AAdd(fo_0_16, fch_0_0)
   EndIf
-  aTmp := fo_0_11
+  aTmp := fo_0_16
   check("chunkby", len(aTmp) == 4 .and. len(aTmp[3]) == 1, len(aTmp), @nOk, @nBad)
-  fo_0_12 := {}
-  For fi_0_12 := 1 To Len(aNums)
-    fv_0_12 := aNums[fi_0_12]
-    If !(fv_0_12 < 5)
+  fo_0_17 := {}
+  For fi_0_17 := 1 To Len(aNums)
+    fv_0_17 := aNums[fi_0_17]
+    If !(fv_0_17 < 5)
       Exit
     EndIf
-    AAdd(fo_0_12, fv_0_12)
+    AAdd(fo_0_17, fv_0_17)
   Next
-  aTmp := fo_0_12
+  aTmp := fo_0_17
   check("takewhile", len(aTmp) == 4, len(aTmp), @nOk, @nBad)
   fdr_0_0 := .T.
-  fo_0_13 := {}
-  For fi_0_13 := 1 To Len(aNums)
-    fv_0_13 := aNums[fi_0_13]
-    If !(fdr_0_0 .And. (fv_0_13 < 5))
+  fo_0_18 := {}
+  For fi_0_18 := 1 To Len(aNums)
+    fv_0_18 := aNums[fi_0_18]
+    If !(fdr_0_0 .And. (fv_0_18 < 5))
       fdr_0_0 := .F.
-      AAdd(fo_0_13, fv_0_13)
+      AAdd(fo_0_18, fv_0_18)
     EndIf
   Next
-  aTmp := fo_0_13
+  aTmp := fo_0_18
   check("dropwhile", len(aTmp) == 4 .and. aTmp[1] == 5, len(aTmp), @nOk, @nBad)
 
   // ---- strings -----------------------------------------------------------
@@ -412,9 +463,9 @@ user function selftest()
 
   // ---- escopo de bloco e reciclagem de slot ------------------------------
   nTmp := 0
-  fs_0_3 := {1, 2, 3}
-  For fi_0_14 := 1 To Len(fs_0_3)
-    nCada := fs_0_3[fi_0_14]
+  fs_0_4 := {1, 2, 3}
+  For fi_0_19 := 1 To Len(fs_0_4)
+    nCada := fs_0_4[fi_0_19]
     nDobro := nCada * 2
     nTmp := nTmp + nDobro
   next

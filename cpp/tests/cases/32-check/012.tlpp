@@ -2,6 +2,15 @@
 #include "tlpp-core.th"
 
 user function f(a)
-  a := u_xtpl_map(a, {|x| x + 1})
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    fv_0_0 := fv_0_0 + 1
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  a := fo_0_0
   a := aeval(a, {|y, z| y + z})
 return 1

@@ -13,6 +13,9 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
 
   // folds: named functions, not operators, so they chain too
   nTotal := u_xtpl_asum(aNums)
@@ -29,7 +32,16 @@ user function testOperators(nValor, cCodigo, aCodigos, aNums)
   nTotal := fo_0_0
 
   // fold() for anything the four do not cover
-  nTotal := u_xtpl_fold(aNums, {|acc, n| Max(acc, n * 2)})
+  fo_0_1 := Nil
+  For fi_0_1 := 1 To Len(aNums)
+    fv_0_1 := aNums[fi_0_1]
+    If fo_0_1 == Nil
+      fo_0_1 := fv_0_1
+    Else
+      fo_0_1 := Max(fo_0_1, fv_0_1 * 2)
+    EndIf
+  Next
+  nTotal := fo_0_1
 
   // membership: '$' searches a string only, so an array needs aScan
   lAchou := u_xtpl_in(cCodigo, aCodigos)

@@ -7,6 +7,9 @@ user function f(a)
   Local fo_0_0  // the result of the chain
   Local fi_0_1  // the position in the array walked
   Local fv_0_1  // the element walked
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_1  // the result of the chain
   fo_0_0 := 0
   For fi_0_0 := 1 To Len(a)
     fv_0_0 := a[fi_0_0]
@@ -19,4 +22,10 @@ user function f(a)
     fv_0_1 := aP[fi_0_1]
     conout(fv_0_1)
   Next
-return u_xtpl_map(a, {|o| o * 2})
+fo_0_1 := {}
+For fi_0_2 := 1 To Len(a)
+  fv_0_2 := a[fi_0_2]
+  fv_0_2 := fv_0_2 * 2
+  AAdd(fo_0_1, fv_0_2)
+Next
+return fo_0_1

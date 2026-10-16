@@ -1,0 +1,69 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Verbs written as calls are the chain they stand for: as a statement's
+// whole value, a loop where the chain would be -- nested ones, a return,
+// a statement for its effects, a declaration in a block, under a guard.
+user function calls(a, n)
+  local x := 0
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local y  // a block local
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_2  // the element walked
+  Local fo_0_1  // the result of the chain
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_2  // the result of the chain
+  Local fi_0_4  // the position in the array walked
+  Local fv_0_4  // the element walked
+  Local fo_0_3  // the result of the chain
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    fv_0_0 := fv_0_0 * 2
+    If fv_0_0 > 3
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+  x := fo_0_0
+  For fi_0_1 := 1 To Len(a)
+    fv_0_1 := a[fi_0_1]
+    conout(fv_0_1)
+  Next
+  if n > 0
+    fo_0_1 := 0
+    For fi_0_2 := 1 To Len(a)
+      fv_0_2 := a[fi_0_2]
+      If fv_0_2 > 1
+        fo_0_1++
+      EndIf
+    Next
+    y := fo_0_1
+    x := x + y
+  endif
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_2 := {}
+    For fi_0_3 := 1 To Len(a)
+      fv_0_3 := a[fi_0_3]
+      fv_0_3 := fv_0_3 + 1
+      AAdd(fo_0_2, fv_0_3)
+    Next
+    x := fo_0_2
+  Recover
+    x := {}
+  End Sequence
+  ErrorBlock(gt_0_0)
+  fo_0_3 := {}
+  For fi_0_4 := 1 To Len(a)
+    fv_0_4 := a[fi_0_4]
+    If fv_0_4 > n
+      AAdd(fo_0_3, fv_0_4)
+    EndIf
+  Next
+  return fo_0_3
