@@ -1,0 +1,1 @@
+001-typed.xtpl:13: warning: 'nX' is a local: a static takes its value once, at load, when 'nX' does not exist -- it is Nil there

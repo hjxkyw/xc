@@ -373,9 +373,9 @@ user function selftest()
     cTmp := "outro"
   EndIf
   check("?= nao atribui depois", cTmp == "padrao", 0, @nOk, @nBad)
-  nTmp := If(Nil != Nil, Nil, 42)
+  nTmp := 42
   check("?: pega a alternativa", nTmp == 42, nTmp, @nOk, @nBad)
-  nTmp := If(7 != Nil, 7, 42)
+  nTmp := 7
   check("?: pega o valor", nTmp == 7, nTmp, @nOk, @nBad)
 
   // ---- fallback ----------------------------------------------------------

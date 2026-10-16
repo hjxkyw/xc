@@ -801,6 +801,19 @@ namespace xc
     early_names_.clear();
     pool_.clear();
     busy_.clear();
+    typed_.clear();
+    for (const Param* q : params)
+    {
+      if (q && q->type_word) { typed_.insert(lc(q->name)); }
+    }
+    walk(body, [&](Stmt* s)
+    {
+      if (s->kind != SK::Declaration) { return; }
+      for (const Declarator* d : static_cast<Declaration*>(s)->declarators)
+      {
+        if (d->typespec_text) { typed_.insert(lc(d->name)); }
+      }
+    });
     param_attributes(params);
     for (const Param* q : params) { used_.insert(lc(q->name)); }
     walk(body, [&](Stmt* s)
@@ -1241,6 +1254,12 @@ namespace xc
     busy_.insert(t);
     if (early_at_ >= 0) { early_names_.insert(t); }
     return t;
+  }
+
+  // A name that may be compared with Nil: one declared with no type.
+  bool Emitter::plain_name(const Expr* e) const
+  {
+    return is_expr(e, EK::Name) && !typed_.count(lc(static_cast<const Name*>(e)->name));
   }
 
   // The hoisted Locals go after the last declaration of the function's

@@ -1,0 +1,23 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A name declared with a type: TL++ will not compare it with Nil, so '?:'
+// and '?.' hold it in a temp, and '?=' asks ValType().
+user function typed(nIn as numeric, oIn)
+  local nX as numeric
+  local oJ as object
+  Local et_0_0  // the left side of a '?:', evaluated once
+  local nA := If((et_0_0 := nX) != Nil, et_0_0, 5)
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  local cB := If((fbv_0_0 := oJ) != Nil, fbv_0_0:GetJsonText("a"), Nil)
+  local nC := If((et_0_0 := nIn) != Nil, et_0_0, 7)
+  local cD := If(oIn != Nil, oIn:cName, Nil)
+  If ValType(nX) == "U"
+    nX := 3
+  EndIf
+  If oIn == Nil
+    oIn := nil
+  EndIf
+  nA := (nX >= 1 .And. nX <= 9)
+  static sY := u_xtpl_elvis(nX, {|| 1})
+return {nA, cB, nC, cD, nX, oIn, sY}

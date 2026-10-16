@@ -30,6 +30,9 @@ source once. xtpl's own are in `outputs`. The dictionary's are compiled with
 expected is what xc made of them when they were taken (October 2026) -- the
 same as the Raku xc, checked then.
 
+Cases added since the Raku xc was frozen have folders named for what they
+test (`temps/`: the Locals that hold a value read twice).
+
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change
 that is meant, write them again and read the diff:

@@ -536,7 +536,9 @@ expressions -- on a variable, an element, a field, never a literal.
 
 Only as a statement of its own. Inside an expression, `?:` is the one
 ([`?:`](#elvis-and-safe-access)); in a declaration it could never fail its
-test, and is refused.
+test, and is refused. A name declared with a type (`Local nX as Numeric`)
+is one TL++ will not compare with Nil: for it the test is
+`If ValType(nX) == "U"`.
 
 ### Blocks
 
@@ -927,6 +929,8 @@ only exists in three places: the right of an `in`, the head of a
 | xtpl | TL++ |
 |---|---|
 | `cName ?: "anonymous"` | `If(cName != Nil, cName, "anonymous")` |
+| `Nil ?: nDefault` | `nDefault` |
+| `7 ?: nDefault` | `7` |
 | `oUser?.cName` | `If(oUser != Nil, oUser:cName, Nil)` |
 | `oUser?.Describe(1)` | `If(oUser != Nil, oUser:Describe(1), Nil)` |
 
@@ -936,10 +940,14 @@ is Nil when `o` is, instead of an error, for a member and for a method call;
 a run of them, `oUser?.oAddress?.cCity`, is one test, and `.And.` stops at
 the first Nil.
 
+A literal on the left of a `?:` is Nil or never is, and xc writes the side
+it picks: TL++ will not compare a literal with Nil.
+
 Each value is evaluated once. One read twice -- the left side of a `?:`,
 what a `?.` goes on from, the value an `in lo..hi` tests -- that is more than
 a name or a literal is held in a Local of xc's own, set where it is first
-read:
+read; so is a name declared with a type, for a `?:` or a `?.`, since TL++
+will not compare it with Nil either:
 
 ```xtpl
 User Function Contact(oUser)

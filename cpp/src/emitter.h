@@ -151,6 +151,9 @@ namespace xc
     std::unordered_set<std::string> early_names_;
     std::unordered_map<std::string, Lines> pool_;
     std::unordered_set<std::string> busy_;
+    // The names the function declares with a type ('as N'), which TL++ will
+    // not compare with Nil.
+    std::unordered_set<std::string> typed_;
 
     // ---- lines --------------------------------------------------------------
     int line_start(int p) const;
@@ -197,6 +200,7 @@ namespace xc
     void hoist(const std::string& name, const std::string& comment, const std::string& value = "");
     std::string gen(const std::string& kind, const std::string& comment, const std::string& value = "");
     bool temps_ok() const { return !snippet_ && no_temps_ == 0; }
+    bool plain_name(const Expr* e) const;
     std::string temp(const std::string& kind, const std::string& comment);
     void hoist_edit(const Body& body);
 
