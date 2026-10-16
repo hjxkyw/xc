@@ -13,6 +13,7 @@
 //                       -includes)
 //   --dict sx3.csv      checks the fields used against an exported SX3
 //   --dict-strict       and what it finds is an error, not a warning
+//   --version           the commit xc is built from, and its date
 //
 // A source is windows-1252 (cp1252), as Protheus' are, and so is its .tlpp;
 // a file in UTF-8 is refused. A file that does not parse, that the checks
@@ -36,6 +37,7 @@
 #include "check.h"
 #include "driver.h"
 #include "text.h"
+#include "version.h"
 
 namespace fs = std::filesystem;
 
@@ -49,7 +51,8 @@ namespace
 
   const std::string USAGE =
     "usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
-    "       xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...";
+    "       xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...\n"
+    "       xc --version";
 
   [[noreturn]] void usage_error(const std::string& message)
   {
@@ -183,6 +186,11 @@ namespace
 int main(int argc, char** argv)
 {
   std::vector<std::string> args(argv + 1, argv + argc);
+  if (args.size() == 1 && args[0] == "--version")
+  {
+    std::cout << "xc version " << XC_COMMIT << ", " << XC_DATE << "\n";
+    return 0;
+  }
   Options o;
   std::optional<std::string> dict_path;
   std::optional<std::string> outdir;

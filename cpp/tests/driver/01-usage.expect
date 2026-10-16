@@ -3,5 +3,6 @@ exit 2
 --- errors
 usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]
        xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...
+       xc --version
 --- written
 

@@ -135,6 +135,16 @@ sub is-program(IO::Path $p --> Bool)
 }
 my $xc-program = $xc-path.f && is-program($xc-path);
 
+# What a program says of itself, --version: the commit it is built from --
+# shown with its path. One that says nothing of it shows its path alone.
+if $xc-program
+{
+  my $p = run native($xc-path), '--version', :out, :err;
+  my $said = $p.out.slurp(:close).trim;
+  $p.err.slurp(:close);
+  $xc-shown ~= ", {$said.substr(11)}" if $p.exitcode == 0 && $said.starts-with('xc version ');
+}
+
 # xc run with these arguments.
 sub xc(*@args)
 {
