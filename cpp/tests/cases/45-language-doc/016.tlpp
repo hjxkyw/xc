@@ -21,6 +21,6 @@ User Function Defers(cFile)
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
   EndIf
-conout("saindo")
-FClose(nH)
+  conout("saindo")
+  FClose(nH)
 Return 1

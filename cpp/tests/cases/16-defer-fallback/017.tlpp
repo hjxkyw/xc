@@ -8,7 +8,7 @@ user function f()
     nA := 5
     fdf_0_0 := .T.
   endif
-If fdf_0_0
-  logIt(nA)
-EndIf
+  If fdf_0_0
+    logIt(nA)
+  EndIf
 return

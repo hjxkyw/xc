@@ -703,8 +703,8 @@ User Function Defers(cFile)
   If !Empty(far_0_0)
     DbSelectArea(far_0_0)
   EndIf
-conout("saindo")
-FClose(nH)
+  conout("saindo")
+  FClose(nH)
 Return 1
 ```
 
@@ -747,9 +747,9 @@ User Function DefBlk(lOpen)
     EndIf
   EndIf
   conout("meio")
-If fdf_0_0
-  FClose(nH)
-EndIf
+  If fdf_0_0
+    FClose(nH)
+  EndIf
 Return nH
 ```
 

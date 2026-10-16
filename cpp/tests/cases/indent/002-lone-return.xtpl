@@ -1,0 +1,7 @@
+// A function whose body is only its 'return': the Locals and the loop for
+// its value at two blanks, the 'return' where it is.
+user function dobro(aItens)
+return aItens |> map([x] x * 2) |> filter([x] x > 10)
+
+static function soma(aItens)
+return aItens |> asum

@@ -11,10 +11,10 @@ user function f(a)
     fv_0_0 := aP[fi_0_0]
     conout(fv_0_0)
   Next
-fo_0_0 := {}
-For fi_0_1 := 1 To Len(a)
-  fv_0_1 := a[fi_0_1]
-  fv_0_1 := fv_0_1 * 2
-  AAdd(fo_0_0, fv_0_1)
-Next
+  fo_0_0 := {}
+  For fi_0_1 := 1 To Len(a)
+    fv_0_1 := a[fi_0_1]
+    fv_0_1 := fv_0_1 * 2
+    AAdd(fo_0_0, fv_0_1)
+  Next
 return fo_0_0

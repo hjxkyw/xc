@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 
 user function f()
-nTotal := nTotal + 1
+  nTotal := nTotal + 1
 return

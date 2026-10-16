@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 
 user function f()
-ZAPUR->(DbCloseArea())
+  ZAPUR->(DbCloseArea())
 return

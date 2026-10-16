@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A 'return' at the first column ends the function, as xtpl writes it: what
+// xc puts before it -- a defer, at the natural end and at a 'return' -- goes
+// with the body's lines.
+user function total(aItens)
+  local nSoma := 0
+  nSoma := u_xtpl_asum(aItens)
+  conout("fim")
+return nSoma
+
+user function early(lStop)
+  local nH := 1
+  if lStop
+    conout(nH)
+    return -1
+  endif
+  nH := 2
+  conout(nH)
+return nH

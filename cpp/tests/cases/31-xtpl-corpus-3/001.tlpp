@@ -836,6 +836,9 @@ user function xc_selftest()
   aTmp := {}
   nTmp := deferLoop(0, aTmp)
   check("defer in a loop that never ran: does not run", nTmp == 0 .and. len(aTmp) == 0, len(aTmp), @nOk, @nBad)
+  aTmp := {1, 2}
+  nTmp := deferChain(aTmp)
+  check("defer, then a return whose value is a chain: the defer first", nTmp == 26 .and. len(aTmp) == 3, nTmp, @nOk, @nBad)
 
   // ---- the temps xc writes around the source's own code ---------------------
   // 'f() in lo..hi' and 'o()?.M(x)' hold the value in a Local, read once; a
@@ -1061,9 +1064,9 @@ static function deferIn(lTake, aLog)
   if lTake
     fdf_0_0 := .T.
   endif
-If fdf_0_0
-  aadd(aLog, "ran")
-EndIf
+  If fdf_0_0
+    aadd(aLog, "ran")
+  EndIf
 return nil
 
 // The same, at a return after the If: its condition is read first, then the
@@ -1080,9 +1083,9 @@ static function deferEarly(lTake, aLog)
     EndIf
     return nRet
   EndIf
-If fdf_0_0
-  aadd(aLog, "ran")
-EndIf
+  If fdf_0_0
+    aadd(aLog, "ran")
+  EndIf
 return 0
 
 // A defer in a loop, and a return above it in the loop: from the second round
@@ -1099,10 +1102,25 @@ static function deferLoop(nRounds, aLog)
     EndIf
     fdf_0_0 := .T.
   next
-If fdf_0_0
-  aadd(aLog, nI)
-EndIf
+  If fdf_0_0
+    aadd(aLog, nI)
+  EndIf
 return 0
+
+// A defer, and a 'return' whose value is a chain: the defer runs first, as
+// at any 'return', then the loop for the value.
+static function deferChain(aLog)
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  aadd(aLog, 10)
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(aLog)
+    fv_0_0 := aLog[fi_0_0]
+    fv_0_0 := fv_0_0 * 2
+    fo_0_0 := fo_0_0 + fv_0_0
+  Next
+return fo_0_0
 
 // '?:', '?.' and 'in lo..hi' in the declarations at a function's top: the
 // Locals that hold their values are declared before them.
@@ -1133,15 +1151,15 @@ return {nA, cB, nX}
 // 'return x fallback y': the value held in a temp, returned after the
 // Begin Sequence.
 static function guardedReturn(aData, nAt)
-Local ht_0_0  // the value a 'return ... fallback' returns
-Local gt_0_0  // the error block a 'fallback' sets aside
-gt_0_0 := ErrorBlock({|e| Break(e)})
-Begin Sequence
-  ht_0_0 := aData[nAt]
-Recover
-  ht_0_0 := -3
-End Sequence
-ErrorBlock(gt_0_0)
+  Local ht_0_0  // the value a 'return ... fallback' returns
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    ht_0_0 := aData[nAt]
+  Recover
+    ht_0_0 := -3
+  End Sequence
+  ErrorBlock(gt_0_0)
 return ht_0_0
 
 // A chain as the value of a declaration of the prologue: the calls it stands
