@@ -36,8 +36,10 @@ guard as a statement's whole value, and one that stays an expression;
 `calls/`, verbs written as calls; `distinct/`, a `distinct` in a loop;
 `prologue/`, the values a prologue keeps, and the one it cannot;
 `indent/`, the lines xc writes before a `return` at the first column;
-`numeric-zero/`, the warning for a `?:` or a `?=` on a `Local` declared
-`as Numeric` with no value.
+`typed-start/`, the warning for a `?:` or a `?=` on a `Local` declared
+with a type and no value that TL++ starts at something else than Nil;
+`refused/`, what the AppServer was seen to refuse since (`as Block`, a
+variable named `as`).
 
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change

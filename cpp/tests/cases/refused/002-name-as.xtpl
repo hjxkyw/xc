@@ -1,0 +1,5 @@
+// 'as' is no name for a variable: the AppServer refuses 'Local as := 1'
+// (C2003, tried on 24.3.1.9).
+user function nm()
+  local as := 1
+return as

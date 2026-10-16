@@ -331,8 +331,23 @@ namespace xc
       int writes = 0;
       bool is_const = false;
       bool contained = false;
-      // Declared 'as Numeric' with no value: TL++ starts it at 0, not Nil.
-      bool zero = false;
+      // Declared with a type and no value, one TL++ does not start at Nil:
+      // the type, and what it starts at ('' for every other).
+      std::string type = {};
+      std::string start = {};
+    };
+
+    // The types TL++ starts a variable declared with no value at something
+    // else than Nil (tried on 24.3.1.9): the type as shown, and the value.
+    // Array, Object, CodeBlock, JSON, Variant and Decimal start at Nil.
+    const std::unordered_map<std::string, std::pair<std::string, std::string>> TYPED_START =
+    {
+      { "numeric", { "Numeric", "0" } },
+      { "integer", { "Integer", "0" } },
+      { "double", { "Double", "0" } },
+      { "character", { "Character", "\"\"" } },
+      { "logical", { "Logical", ".F." } },
+      { "date", { "Date", "the date 1899-12-31" } },
     };
 
     // A scope: the names it declares, and the one around it. A closure scope
@@ -588,11 +603,12 @@ namespace xc
 
     void Checker::type_word(const OptStr& word, int line)
     {
-      if (!word || !(word->size() == 1 || lc(*word) == "char")) { return; }
+      if (!word || !(word->size() == 1 || lc(*word) == "char" || lc(*word) == "block")) { return; }
       static const std::unordered_map<std::string, std::string> whole =
       {
         { "a", "Array" }, { "n", "Numeric" }, { "c", "Character" }, { "l", "Logical" }, { "d", "Date" },
         { "o", "Object" }, { "b", "CodeBlock" }, { "j", "JSON" }, { "u", "Variant" }, { "char", "Character" },
+        { "block", "CodeBlock" },
       };
       line_ = line;
       auto w = whole.find(lc(*word));
@@ -830,7 +846,7 @@ namespace xc
       if (Found v = find(k))
       {
         v.v->reads++;
-        v.v->zero = false;           // what it is given may be Nil
+        v.v->start.clear();          // what it is given may be Nil
         if (v.v->is_const)
         {
           problem("'" + name + "' is <const> (declared on line " + num(v.v->line)
@@ -1045,9 +1061,14 @@ namespace xc
             if (decl->scope == "private" || static_decls_.count(s)) { continue; }
             declare(d->name, d->line, d->attributes, decl->scope == "public" ? "public" : "local", d->init != nullptr);
             note_scalar(d);
-            if (d->declared == "Numeric" && !d->init && d->dims.empty() && decl->scope == "local")
+            auto t = w.size() > 1 ? TYPED_START.find(lc(w[1])) : TYPED_START.end();
+            if (t != TYPED_START.end() && !d->init && d->dims.empty() && decl->scope == "local")
             {
-              if (Found f = find(lc(d->name)); f && f.v->line == d->line) { f.v->zero = true; }
+              if (Found f = find(lc(d->name)); f && f.v->line == d->line)
+              {
+                f.v->type = t->second.first;
+                f.v->start = t->second.second;
+              }
             }
           }
           break;
@@ -1257,16 +1278,16 @@ namespace xc
       else { expr(t); }
     }
 
-    // A '?:' on a name, or a '?=' to it, declared 'as Numeric' with no value
-    // and not assigned since: TL++ started it at 0, which is not Nil.
+    // A '?:' on a name, or a '?=' to it, declared with a type and no value,
+    // and not assigned since: TL++ started it at its type's value, not Nil.
     void Checker::never_nil(const Expr* e, const std::string& op)
     {
       if (!is(e, EK::Name) || in_static_) { return; }
       const std::string& name = name_of(e);
       Found f = find(lc(name));
-      if (!f || !f.v->zero || f.v->writes > 0) { return; }
-      warning("'" + name + "' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '" + op + "' "
-              + (op == "?=" ? "never assigns it" : "gives it and never its alternative")
+      if (!f || f.v->start.empty() || f.v->writes > 0) { return; }
+      warning("'" + name + "' is declared as " + f.v->type + " with no value: TL++ starts it at " + f.v->start
+              + ", not Nil, so '" + op + "' " + (op == "?=" ? "never assigns it" : "gives it and never its alternative")
               + " (with no type it would start at Nil)");
     }
 
