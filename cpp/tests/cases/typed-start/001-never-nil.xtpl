@@ -1,0 +1,35 @@
+// A Local declared with a type and no value starts, in TL++, at its type's
+// value, not at Nil, for Numeric, Integer, Double (0), Character (""),
+// Logical (.F.) and Date (1899-12-31): a '?:' on it, or a '?=' to it,
+// before anything assigns it, is warned of. Not a parameter (its caller
+// gives it), one with a value, one assigned or passed by reference since,
+// one of a type that starts at Nil, nor a static's value.
+user function start(nP as numeric)
+  local nX as numeric
+  local nI as integer
+  local nF as double
+  local cX as character
+  local lX as logical
+  local dX as date
+  local nY as numeric
+  local nZ as numeric
+  local nW as numeric := 5
+  local nR as numeric
+  local aX as array
+  local oX as object
+  local jX as json
+  local bX as codeblock
+  local xX as variant
+  local nD as decimal
+  local aR := {nX ?: 1, nI ?: 2, nF ?: 3, cX ?: "a", lX ?: .T., dX ?: Date()}
+  local nB := nP ?: 5
+  static sZ := nX ?: 1
+  nY ?= 7
+  nZ := 3
+  nZ ?= 4
+  nB := nW ?: 1
+  foo(@nR)
+  nB := nR ?: 1
+  aR := {aX ?: {}, oX ?: 1, jX ?: 2, bX ?: 3, xX ?: 4, nD ?: 5}
+  conout(nY, nZ, nB, sZ, aR)
+return nil

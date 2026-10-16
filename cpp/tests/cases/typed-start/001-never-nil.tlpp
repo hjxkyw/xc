@@ -1,0 +1,42 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A Local declared with a type and no value starts, in TL++, at its type's
+// value, not at Nil, for Numeric, Integer, Double (0), Character (""),
+// Logical (.F.) and Date (1899-12-31): a '?:' on it, or a '?=' to it,
+// before anything assigns it, is warned of. Not a parameter (its caller
+// gives it), one with a value, one assigned or passed by reference since,
+// one of a type that starts at Nil, nor a static's value.
+user function start(nP as numeric)
+  local nX as numeric
+  local nI as integer
+  local nF as double
+  local cX as character
+  local lX as logical
+  local dX as date
+  local nY as numeric
+  local nZ as numeric
+  local nW := 5 as numeric
+  local nR as numeric
+  local aX as array
+  local oX as object
+  local jX as json
+  local bX as codeblock
+  local xX as variant
+  local nD as decimal
+  local aR := {If(ValType(nX) != "U", nX, 1), If(ValType(nI) != "U", nI, 2), If(ValType(nF) != "U", nF, 3), If(ValType(cX) != "U", cX, "a"), If(ValType(lX) != "U", lX, .T.), If(ValType(dX) != "U", dX, Date())}
+  local nB := If(ValType(nP) != "U", nP, 5)
+  static sZ := If(ValType(nX) != "U", nX, 1)
+  If ValType(nY) == "U"
+    nY := 7
+  EndIf
+  nZ := 3
+  If ValType(nZ) == "U"
+    nZ := 4
+  EndIf
+  nB := If(ValType(nW) != "U", nW, 1)
+  foo(@nR)
+  nB := If(ValType(nR) != "U", nR, 1)
+  aR := {If(ValType(aX) != "U", aX, {}), If(ValType(oX) != "U", oX, 1), If(ValType(jX) != "U", jX, 2), If(ValType(bX) != "U", bX, 3), If(ValType(xX) != "U", xX, 4), If(ValType(nD) != "U", nD, 5)}
+  conout(nY, nZ, nB, sZ, aR)
+return nil

@@ -320,8 +320,9 @@ names -- `as N` is "Invalid Type N" to Protheus, and an error to xc:
 `Numeric`, `Character`, `Logical`, `Date`, `Array`, `Object`, `CodeBlock`,
 `JSON`, `Variant`, `Integer`, `Decimal`, `Double`, and `Variadic` -- a
 parameter that takes every argument there is, read as `parm:vCount` and
-`parm:vArgs[i]`. `Char` is refused, as Protheus refuses it ("Use Character
-Type instead of Char Type").
+`parm:vArgs[i]`. `Char` and `Block` are refused, as Protheus refuses them
+("Use Character Type instead of Char Type", "Use CodeBlock Type instead of
+Block Type").
 
 A value whose type xc can tell has to agree with the type declared: a
 literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
@@ -339,6 +340,17 @@ Return nX + nOk
 ```text
 ty.xtpl:2: 'nX' is declared as Numeric, but its initial value is Character.
 ```
+
+**What a variable declared with a type starts at.** Not always Nil: TL++
+starts a `Local` or a `Static` declared with no value at its type's value
+when the type is `Numeric`, `Integer` or `Double` (0), `Character` (`""`),
+`Logical` (`.F.`) or `Date` -- 31 December 1899, whose `DtoS()` is
+`"18991231"` and which is not `Empty()`. `Array`, `Object`, `CodeBlock`,
+`JSON`, `Variant` and `Decimal` start at Nil. A parameter the call gives
+nothing is Nil, whatever its type, and any of them takes a Nil assigned to
+it later (tried on 24.3.1.9). So a `?:` on a `Local` of the first kind, or a
+`?=` to it, before anything assigns it, never takes its alternative, and xc
+warns of it.
 
 **Attributes**, between the name and the value, outside TL++: `<const>` --
 the variable is never assigned again nor passed by reference with `@`, so it
@@ -953,8 +965,9 @@ read. Whether it is Nil is asked of `ValType()`: TL++ will not compare with
 Nil a value whose type it knows -- a literal, a name declared with a type
 (`Local nX as Numeric`), what is assigned from one -- and `ValType()` takes
 any. A name declared with no type is compared as it is. (A `Local`
-declared `as Numeric` starts at 0, not at Nil, in TL++: a `?:` keeps it,
-and xc warns of one with no value used so -- [The checks](#the-checks).)
+declared `as Numeric` and no value starts at 0, not at Nil, in TL++ -- as
+`Character`, `Logical` and `Date` start at theirs: a `?:` keeps it, and xc
+warns of one used so -- [Declarations](#declarations).)
 
 ```xtpl
 User Function Contact(oUser)
@@ -1488,7 +1501,7 @@ parses, in xtpl's words.
 | a `<contained>` named in a code block, a lambda, a `defer` | `'aWork' is <contained> (declared on line 2) and cannot leave its block.` |
 | an `external` assigned | `'cEmpAnt' is external (line 1) and cannot be assigned.` |
 | a `Local` after a `Private` or `Public` | `'local' after 'private' (line 3): a private or a public is a statement, and every local comes before the first statement.` |
-| a type by its letter, or `Char` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
+| a type by its letter, `Char` or `Block` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
 | a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
@@ -1524,7 +1537,7 @@ with any name allowed, to say which name it was and why.
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
-| a `Local` declared `as Numeric` with no value, on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
+| a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
 
@@ -1576,7 +1589,7 @@ free:
 
 ```text
 function static return if else elseif endif for next while enddo do
-local private public with without orwith given when otherwise end len
+local private public with without orwith given when otherwise end len as
 ```
 
 ```xtpl
@@ -1589,7 +1602,8 @@ Return len
 res.xtpl:2: Cannot use reserved word 'len' as a variable name.
 ```
 
-`len` is the one native function the AppServer refuses as a name.
+`len` is the one native function the AppServer refuses as a name, and
+`as`, the word before a type, is refused too (C2003).
 `with`, `without`, `orwith`, `given` and `when` were xtpl's. `user`, `array`,
 `conout`, `eval`, `aadd`, `substr` and `userexception` are names to the
 AppServer, and so to xc. A statement cannot start with a word that starts

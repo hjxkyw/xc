@@ -143,9 +143,9 @@ Raku xc's tree, checks and TL++ -- and runs both drivers on the same files.
 The trees and the drivers agree. The TL++ differs wherever the C++ xc has
 written it better since (`?:`, `?.` and `in lo..hi` hold a value read twice
 in a Local, not in a block; verbs written as calls are loops), and so do the
-checks it has added or reworded (a `?:` on a Numeric with no value, a
-`fallback` inside an expression), and `t/45`, which holds
-`docs/language.md` to the Raku xc's TL++.
+checks it has added or reworded (a `?:` on a typed variable with no value,
+`as Block` and a variable named `as`, a `fallback` inside an expression),
+and `t/45`, which holds `docs/language.md` to the Raku xc's TL++.
 
 ```sh
 rakupp tools/compare-cpp.raku xtpl protheus        # files or folders

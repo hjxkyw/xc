@@ -1,0 +1,5 @@
+// 'as Block' is no type of TL++'s: the AppServer says "Use CodeBlock Type
+// instead of Block Type" (tried on 24.3.1.9).
+user function blk()
+  local bX as block
+return bX

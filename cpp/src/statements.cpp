@@ -36,7 +36,7 @@ namespace xc
     {
       "function", "static", "return", "if", "else", "elseif", "endif", "for", "next", "while",
       "enddo", "do", "local", "private", "public", "with", "without", "orwith", "given", "when",
-      "otherwise", "end", "len",
+      "otherwise", "end", "len", "as",
     };
 
     bool is_s(int c) { return c >= 0 && (CHAR_CLASS[c] & C_S); }
