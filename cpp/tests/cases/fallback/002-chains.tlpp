@@ -4,41 +4,23 @@
 // A chain under a statement's guard is a loop inside the Begin Sequence; in
 // the prologue, a guard around a chain that fuses moves the values after it.
 user function chains(a)
-  local y
-  local z
+  local y := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(a, {|v| v > 1}))}, {|| -1})
+  local z := 2
   Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
-  Local fi_0_1  // the position in the array walked
-  Local fv_0_1  // the element walked
-  Local fo_0_1  // the result of the chain
   gt_0_0 := ErrorBlock({|e| Break(e)})
   Begin Sequence
-    fo_0_0 := 0
+    fo_0_0 := {}
     For fi_0_0 := 1 To Len(a)
       fv_0_0 := a[fi_0_0]
-      If fv_0_0 > 1
-        fo_0_0 := fo_0_0 + fv_0_0
+      fv_0_0 := fv_0_0 * 2
+      If fv_0_0 > 3
+        AAdd(fo_0_0, fv_0_0)
       EndIf
     Next
     y := fo_0_0
-  Recover
-    y := -1
-  End Sequence
-  ErrorBlock(gt_0_0)
-  z := 2
-  gt_0_0 := ErrorBlock({|e| Break(e)})
-  Begin Sequence
-    fo_0_1 := {}
-    For fi_0_1 := 1 To Len(a)
-      fv_0_1 := a[fi_0_1]
-      fv_0_1 := fv_0_1 * 2
-      If fv_0_1 > 3
-        AAdd(fo_0_1, fv_0_1)
-      EndIf
-    Next
-    y := fo_0_1
   Recover
     y := {}
   End Sequence

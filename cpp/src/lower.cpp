@@ -865,6 +865,16 @@ namespace xc
         elem = fv;
         ind += "  ";
       }
+      else if (n == "distinct")
+      {
+        // An element seen before is skipped: what distinct() asks of each, the
+        // runtime's record of the values seen asks here.
+        std::string seen = gen("ffs", "the values distinct has seen");
+        ahead.push_back(seen + " := THashMap():New()");
+        body.push_back(ind + "If !u_xtpl_seen(" + seen + ", " + el() + ")");
+        close.insert(close.begin(), ind + "EndIf");
+        ind += "  ";
+      }
       else if (n == "distinctadjacent")
       {
         // A key equal to the one before is skipped; the first always passes.

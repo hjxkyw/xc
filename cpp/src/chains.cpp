@@ -27,7 +27,7 @@ namespace xc
     const Set FUSED =
     {
       "filter", "reject", "map", "tap", "take", "takewhile", "drop", "dropwhile", "expand",
-      "distinctadjacent", "scan", "pairwise",
+      "distinctadjacent", "scan", "pairwise", "distinct",
     };
 
     const Set TERMINAL =
@@ -90,6 +90,7 @@ namespace xc
                        || (TAKES_BLOCK.count(n) && is_name(a[0])
                            && !declared(lc(static_cast<const Name*>(a[0])->name))));
       if (n == "take" || n == "drop") { return a.size() == 1; }
+      if (n == "distinct") { return a.empty(); }
       if (n == "distinctadjacent" || n == "count" || n == "first") { return a.empty() || block; }
       if (n == "asum" || n == "aprod" || n == "amax" || n == "amin" || n == "pairwise") { return a.empty(); }
       if (n == "scan")

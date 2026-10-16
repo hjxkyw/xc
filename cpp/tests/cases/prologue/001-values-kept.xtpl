@@ -1,0 +1,8 @@
+// The prologue keeps its values where they are written: a chain over an
+// array, a verb written as a call, a guard -- each the expression it is.
+user function kept(a)
+  local nSum := a |> filter([v] v > 1) |> map([v] v * 2) |> asum
+  local nCount := count(a, [v] v > 3)
+  local aSafe := a |> map([v] 10 / v) fallback {}
+  local nOne := 1
+return nSum + nCount + len(aSafe) + nOne

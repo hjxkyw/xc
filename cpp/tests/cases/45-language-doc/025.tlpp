@@ -2,33 +2,5 @@
 #include "tlpp-core.th"
 
 User Function TopThree(aOrders)
-  Local aTop
-  Local fi_0_0  // the position in the array walked
-  Local fv_0_0  // the element walked
-  Local fo_0_0  // what a loop collected, for the stages after it
-  Local fs_0_0  // the array walked
-  Local fi_0_1  // the position in the array walked
-  Local fv_0_1  // the element walked
-  Local fn_0_0  // how many elements have passed
-  Local fo_0_1  // the result of the chain
-  fo_0_0 := {}
-  For fi_0_0 := 1 To Len(aOrders)
-    fv_0_0 := aOrders[fi_0_0]
-    If fv_0_0:nValue > 0
-      AAdd(fo_0_0, fv_0_0)
-    EndIf
-  Next
-  fs_0_0 := u_xtpl_sortby(fo_0_0, {|o| -o:nValue})
-  fn_0_0 := 0
-  fo_0_1 := {}
-  For fi_0_1 := 1 To Len(fs_0_0)
-    fv_0_1 := fs_0_0[fi_0_1]
-    If fn_0_0 >= 3
-      Exit
-    EndIf
-    fn_0_0++
-    fv_0_1 := fv_0_1:cCode
-    AAdd(fo_0_1, fv_0_1)
-  Next
-  aTop := fo_0_1
+  Local aTop := u_xtpl_map(u_xtpl_take(u_xtpl_sortby(u_xtpl_filter(aOrders, {|o| o:nValue > 0}), {|o| -o:nValue}), 3), {|o| o:cCode})
 Return aTop

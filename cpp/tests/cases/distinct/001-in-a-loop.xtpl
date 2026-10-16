@@ -1,0 +1,9 @@
+// 'distinct' fuses: each element asked of the runtime's u_xtpl_seen(), and
+// a THashMap of what was seen, made before the loop.
+user function inLoop(a)
+  local n := 0
+  local aOut := {}
+  n := a |> distinct |> asum
+  aOut := a |> filter([v] v > 1) |> distinct |> map([v] v * 2)
+  aOut := a |> distinct
+return n + len(aOut)

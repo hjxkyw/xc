@@ -15,7 +15,7 @@
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 95 ok, 0 failed
+//   xc_selftest: 99 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -352,6 +352,16 @@ user function xc_selftest()
   nTmp := first(aNums, [x] x > 4)
   check("first as a call: the first that passes", nTmp == 5, nTmp, @nOk, @nBad)
 
+  // ---- distinct in a loop: the runtime's u_xtpl_seen() asked of each --------
+  nTmp := aRep |> distinct |> asum
+  check("distinct in a loop", nTmp == 6, nTmp, @nOk, @nBad)
+  nTmp := {1, "1", 1, nil, nil, 2} |> distinct |> count
+  check("distinct in a loop: a value of each type, Nil once", nTmp == 4, nTmp, @nOk, @nBad)
+  aTmp := aPal |> map([x] upper(x)) |> distinct |> take(2)
+  check("distinct in a loop, then take", len(aTmp) == 2 .and. aTmp[2] == "ALFA", len(aTmp), @nOk, @nBad)
+  nTmp := prologueChain(aRep)
+  check("a chain as a prologue's value: calls, the values as written", nTmp == 7, nTmp, @nOk, @nBad)
+
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
   for nSeen := 1 to 3
@@ -432,6 +442,13 @@ return {nA, cB, nX}
 // Begin Sequence.
 static function guardedReturn(aData, nAt)
 return aData[nAt] fallback -3
+
+// A chain as the value of a declaration of the prologue: the calls it stands
+// for, and the declarations after it keep their values.
+static function prologueChain(aData)
+  local nSum := aData |> distinct |> asum
+  local nOne := 1
+return nSum + nOne
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)

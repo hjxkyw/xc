@@ -16,8 +16,12 @@ user function testComments(aNums, nX, hCfg, oUser)
   local nT := 0
   Local gt_0_0  // the error block a 'fallback' sets aside
   Local et_0_0  // the left side of a '?:', evaluated once
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local ffs_0_0  // the values distinct has seen
+  Local fo_0_0  // the result of the chain
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  Local fi_0_0  // the counter of a 'for ... times'
+  Local fi_0_1  // the counter of a 'for ... times'
 
   gt_0_0 := ErrorBlock({|e| Break(e)})
   Begin Sequence
@@ -27,13 +31,21 @@ user function testComments(aNums, nX, hCfg, oUser)
   End Sequence
   ErrorBlock(gt_0_0)                      // fallback wraps the tail in a block
   cOut := If(ValType(et_0_0 := lookupName(1)) != "U", et_0_0, "anonymous")  // elvis wraps it in an If()
-  nT := u_xtpl_asum(u_xtpl_distinct(aNums))  // a chain lands in a temp
+  ffs_0_0 := THashMap():New()
+  fo_0_0 := 0
+  For fi_0_0 := 1 To Len(aNums)
+    fv_0_0 := aNums[fi_0_0]
+    If !u_xtpl_seen(ffs_0_0, fv_0_0)
+      fo_0_0 := fo_0_0 + fv_0_0
+    EndIf
+  Next
+  nT := fo_0_0                            // a chain lands in a temp
   nT := u_xtpl_hget(hCfg, "taxa")         // a hash read lifts to a Get
   nT := ((nX % 3) == 0)                   // divisible-by
   cOut := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddr) != "U", fbv_0_0:cCity, Nil)  // optional chaining
   xconout("total=", nT)                   // xconout
 
-  For fi_0_0 := 1 To 3                    // a loop header
+  For fi_0_1 := 1 To 3                    // a loop header
     nT := nT + 1
   next
 

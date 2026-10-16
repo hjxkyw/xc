@@ -1016,13 +1016,13 @@ namespace xc
       d.flag = gen("fdf", "whether '" + what + "' was reached", ".F.");
     }
 
-    // A chain from a source as the value of a prologue declaration runs as a
-    // loop, which is a statement: from the first such declaration on, the
-    // 'local' declarations keep their names, and their values become
-    // assignments after the prologue, in the order written. A guard does so
-    // only around a chain that fuses -- for the loop; any other stays an
-    // expression, and the prologue as written. So does a verb written as a
-    // call: only a chain written as one moves the prologue.
+    // The prologue keeps its values where they are written: a chain over an
+    // array, a guard, a verb written as a call, there, stay expressions. A
+    // chain from a source has no expression to be -- rows(), lines() and
+    // 'lo..hi' are walked by a loop, which is a statement: from the first
+    // such declaration on, the 'local' declarations keep their names, and
+    // their values become assignments after the prologue, in the order
+    // written.
     done_.clear();
     std::vector<const Declaration*> prologue = prologue_of(body);
     long first = -1;
@@ -1031,8 +1031,7 @@ namespace xc
       if (prologue[i]->scope != "local") { continue; }
       for (const Declarator* d : prologue[i]->declarators)
       {
-        const Expr* v = is_expr(d->init, EK::Guard) ? static_cast<const Guard*>(d->init)->expr : d->init;
-        if (loop_value(v) && !is_expr(v, EK::Guard) && as_chain(v) == v)
+        if (chains_ && d->init && source_call(d->init))
         {
           first = static_cast<long>(i);
           break;
