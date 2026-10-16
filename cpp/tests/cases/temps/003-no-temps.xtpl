@@ -1,0 +1,9 @@
+// Where no Local can hold a value: a static's, a raw line's string. A
+// declaration of the prologue gets its temps just before it.
+user function noTemps(o)
+  local cA := f() ?: "x"
+  static sB := f() ?: "y"
+  local cC := o?.oA?.cB
+  sB := sB + "."
+  raw ANOTE "v=${f() ?: 'z'} w=${o?.oA?.cB}"
+return cA + cC + sB

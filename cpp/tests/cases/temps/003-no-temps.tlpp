@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Where no Local can hold a value: a static's, a raw line's string. A
+// declaration of the prologue gets its temps just before it.
+user function noTemps(o)
+  Local et_0_0  // the left side of a '?:', evaluated once
+  local cA := If((et_0_0 := f()) != Nil, et_0_0, "x")
+  static sB := u_xtpl_elvis(f(), {|| "y"})
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  local cC := If(o != Nil .And. (fbv_0_0 := o:oA) != Nil, fbv_0_0:cB, Nil)
+  sB := sB + "."
+  ANOTE ("v=" + cValToChar(u_xtpl_elvis(f(), {|| 'z'})) + " w=" + cValToChar(Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0:cB, Nil)}, If(o != Nil, o:oA, Nil))))
+return cA + cC + sB

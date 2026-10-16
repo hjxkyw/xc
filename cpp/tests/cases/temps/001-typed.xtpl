@@ -1,0 +1,14 @@
+// A name declared with a type: TL++ will not compare it with Nil, so '?:'
+// and '?.' hold it in a temp, and '?=' asks ValType().
+user function typed(nIn as numeric, oIn)
+  local nX as numeric
+  local oJ as object
+  local nA := nX ?: 5
+  local cB := oJ?.GetJsonText("a")
+  local nC := nIn ?: 7
+  local cD := oIn?.cName
+  nX ?= 3
+  oIn ?= nil
+  nA := nX in 1..9
+  static sY := nX ?: 1
+return {nA, cB, nC, cD, nX, oIn, sY}

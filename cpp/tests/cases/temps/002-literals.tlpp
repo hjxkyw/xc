@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A literal on the left of '?:' is Nil or never is: the side it picks.
+user function literals(a)
+  local x := a
+  local y := 7
+  local z := "s"
+  local w := {1, 2}
+  local v := (a + 1)
+  local u := a * 2
+return {x, y, z, w, v, u}

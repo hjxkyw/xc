@@ -1,0 +1,9 @@
+// A literal on the left of '?:' is Nil or never is: the side it picks.
+user function literals(a)
+  local x := nil ?: a
+  local y := 7 ?: a
+  local z := "s" ?: a
+  local w := {1, 2} ?: a
+  local v := nil ?: a + 1
+  local u := (nil ?: a) * 2
+return {x, y, z, w, v, u}
