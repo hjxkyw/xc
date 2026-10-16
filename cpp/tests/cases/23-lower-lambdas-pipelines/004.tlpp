@@ -2,5 +2,14 @@
 #include "tlpp-core.th"
 user function f(a, b, o, aP)
   local x := 0
-  x := u_xtpl_map(a, {|r| u_xtpl_filter(r, {|y| y > 0})})
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    fv_0_0 := u_xtpl_filter(fv_0_0, {|y| y > 0})
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  x := fo_0_0
 return x

@@ -3,9 +3,18 @@
 
 user function f(o, p, a, n)
   Local fbs_0_0  // the subject of a 'with object'
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
   fbs_0_0 := o
   if n > 0
     fbs_0_0:Ativa()
   endif
-  a := u_xtpl_map(a, {|x| fbs_0_0:GetValue(x)})
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(a)
+    fv_0_0 := a[fi_0_0]
+    fv_0_0 := fbs_0_0:GetValue(fv_0_0)
+    AAdd(fo_0_0, fv_0_0)
+  Next
+  a := fo_0_0
 return 1

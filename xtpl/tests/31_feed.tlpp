@@ -23,10 +23,13 @@ user function testFeed(aOrders, aNums)
   Local fi_0_2  // the position in the array walked
   Local fv_0_2  // the element walked
   Local fo_0_2  // the result of the chain
-  Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_3  // the position in the array walked
   Local fv_0_3  // the element walked
   Local fo_0_3  // the result of the chain
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local fi_0_4  // the position in the array walked
+  Local fv_0_4  // the element walked
+  Local fo_0_4  // the result of the chain
 
   // chaining runtime functions
   fo_0_0 := {}
@@ -50,31 +53,37 @@ user function testFeed(aOrders, aNums)
   // amin clear of AdvPL's own two-argument Max and Min.
   nTotal := u_xtpl_asum(aNums)
   nMax := u_xtpl_amax(aNums)
-  nTotal := u_xtpl_asum(u_xtpl_map(aOrders, {|o| o:nValue}))
-
-  // and as a chain stage, since they are ordinary calls
   fo_0_1 := 0
   For fi_0_1 := 1 To Len(aOrders)
     fv_0_1 := aOrders[fi_0_1]
-    If fv_0_1:lPaid
-      fv_0_1 := fv_0_1:nValue
-      fo_0_1 := fo_0_1 + fv_0_1
-    EndIf
+    fv_0_1 := fv_0_1:nValue
+    fo_0_1 := fo_0_1 + fv_0_1
   Next
   nTotal := fo_0_1
+
+  // and as a chain stage, since they are ordinary calls
+  fo_0_2 := 0
+  For fi_0_2 := 1 To Len(aOrders)
+    fv_0_2 := aOrders[fi_0_2]
+    If fv_0_2:lPaid
+      fv_0_2 := fv_0_2:nValue
+      fo_0_2 := fo_0_2 + fv_0_2
+    EndIf
+  Next
+  nTotal := fo_0_2
 
   // a chain inside an expression is lifted into its own statement first
   nTotal := len(u_xtpl_distinct(aNums))
   nTotal := len(u_xtpl_filter(aNums, {|x| x > 100})) + len(aOrders)
 
   // reduce chains like any other call, so no parentheses are needed
-  fo_0_2 := 0
-  For fi_0_2 := 1 To Len(aOrders)
-    fv_0_2 := aOrders[fi_0_2]
-    fv_0_2 := fv_0_2:nValue
-    fo_0_2 := fo_0_2 + fv_0_2
+  fo_0_3 := 0
+  For fi_0_3 := 1 To Len(aOrders)
+    fv_0_3 := aOrders[fi_0_3]
+    fv_0_3 := fv_0_3:nValue
+    fo_0_3 := fo_0_3 + fv_0_3
   Next
-  nTotal := fo_0_2
+  nTotal := fo_0_3
 
   // the lifted result can be indexed like any other expression
   nTotal := len(aNums) + (u_xtpl_distinct(aNums))[1]
@@ -92,14 +101,14 @@ user function testFeed(aOrders, aNums)
   ErrorBlock(gt_0_0)
   gt_0_0 := ErrorBlock({|e| Break(e)})
   Begin Sequence
-    fo_0_3 := 0
-    For fi_0_3 := 1 To Len(aNums)
-      fv_0_3 := aNums[fi_0_3]
-      If fv_0_3 > 100
-        fo_0_3 := fo_0_3 + fv_0_3
+    fo_0_4 := 0
+    For fi_0_4 := 1 To Len(aNums)
+      fv_0_4 := aNums[fi_0_4]
+      If fv_0_4 > 100
+        fo_0_4 := fo_0_4 + fv_0_4
       EndIf
     Next
-    nSafe := fo_0_3
+    nSafe := fo_0_4
   Recover
     nSafe := 0
   End Sequence

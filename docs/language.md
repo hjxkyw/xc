@@ -1237,7 +1237,10 @@ A chain that is the whole value of a statement -- `x := chain`, a `Local`'s
 value, `Return chain`, or a statement of its own -- becomes a loop, with no
 array built between its stages, where at least two stages in a row fuse, or
 one that carries a block (a lambda written in the stage, or a function's
-name):
+name). Verbs written as calls are the chain they stand for:
+`filter(map(a, f), g)` is `a |> map(f) |> filter(g)`, and as a statement's
+whole value it is a loop the same way -- but in a declaration of the
+prologue, which keeps its values where they are written.
 
 ```xtpl
 User Function Fused(aOrders)

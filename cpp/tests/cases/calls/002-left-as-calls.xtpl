@@ -1,0 +1,9 @@
+// What stays a call: a verb inside an expression, one that does not fuse
+// alone, one over a block held in a variable, and in a prologue's value.
+user function left(a, b)
+  local x := map(a, [v] v)
+  x := len(map(a, [v] v * 2))
+  x := sort(a)
+  x := join(a, ",")
+  x := map(a, b)
+return x

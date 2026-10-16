@@ -6,6 +6,9 @@ user function f(a, n, cP)
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // what a loop collected, for the stages after it
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
   fo_0_0 := {}
   For fi_0_0 := 1 To Len(a)
     fv_0_0 := a[fi_0_0]
@@ -13,5 +16,11 @@ user function f(a, n, cP)
     AAdd(fo_0_0, fv_0_0)
   Next
   x := u_xtpl_filter(fo_0_0, bOk)
-  x := u_xtpl_map(a, {|__it| upper(__it)})
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(a)
+    fv_0_1 := a[fi_0_1]
+    fv_0_1 := upper(fv_0_1)
+    AAdd(fo_0_1, fv_0_1)
+  Next
+  x := fo_0_1
 return n

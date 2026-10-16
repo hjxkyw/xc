@@ -508,6 +508,46 @@ namespace xc
     return found;
   }
 
+  // A verb written as a call is the chain it stands for: 'filter(map(a, f),
+  // g)' is 'a |> map(f) |> filter(g)', and as a statement's whole value it is
+  // lowered as one -- a loop where the chain would be. Anything else is
+  // itself.
+  const Expr* Emitter::as_chain(const Expr* e) const
+  {
+    if (!is_expr(e, EK::Call) || !is_runtime_verb(static_cast<const Call*>(e)->name)) { return e; }
+    if (auto it = chains_made_.find(e); it != chains_made_.end()) { return it->second; }
+    std::vector<const Call*> outer;
+    const Expr* x = e;
+    while (is_expr(x, EK::Call) && is_runtime_verb(static_cast<const Call*>(x)->name)
+           && !static_cast<const Call*>(x)->args.empty())
+    {
+      outer.push_back(static_cast<const Call*>(x));
+      x = outer.back()->args[0];
+    }
+    const Expr* made = e;
+    if (!outer.empty() && x && x->kind != EK::Omitted && !is_source(x) && !is_expr(x, EK::Pipeline))
+    {
+      Pipeline* p = made_.make<Pipeline>();
+      p->line = e->line;
+      p->from = e->from;
+      p->to = e->to;
+      p->source = const_cast<Expr*>(x);
+      for (auto c = outer.rbegin(); c != outer.rend(); ++c)
+      {
+        Call* st = made_.make<Call>();
+        st->name = (*c)->name;
+        st->args.assign((*c)->args.begin() + 1, (*c)->args.end());
+        st->line = (*c)->line;
+        st->from = (*c)->from;
+        st->to = (*c)->to;
+        p->stages.push_back(st);
+      }
+      made = p;
+    }
+    chains_made_[e] = made;
+    return made;
+  }
+
   bool Emitter::fusable_array(const Expr* e, bool for_effect) const
   {
     if (!is_expr(e, EK::Pipeline) || is_source(static_cast<const Pipeline*>(e)->source)) { return false; }
@@ -523,19 +563,19 @@ namespace xc
       case SK::Assignment:
       {
         auto a = static_cast<const Assignment*>(s);
-        if (a->op == ":=" && fusable_array(a->value, false)) { return a->value; }
+        if (a->op == ":=" && fusable_array(as_chain(a->value), false)) { return as_chain(a->value); }
         break;
       }
       case SK::ReturnStmt:
       {
         auto r = static_cast<const ReturnStmt*>(s);
-        if (r->value && fusable_array(r->value, false)) { return r->value; }
+        if (r->value && fusable_array(as_chain(r->value), false)) { return as_chain(r->value); }
         break;
       }
       case SK::CallStmt:
       {
         auto c = static_cast<const CallStmt*>(s);
-        if (fusable_array(c->call, true)) { return c->call; }
+        if (fusable_array(as_chain(c->call), true)) { return as_chain(c->call); }
         break;
       }
       default:
@@ -550,7 +590,7 @@ namespace xc
   {
     if (is_expr(e, EK::Guard)) { return true; }
     if (!chains_) { return false; }
-    return e && (source_call(e) || fusable_array(e, false));
+    return e && (source_call(e) || fusable_array(as_chain(e), false));
   }
 
   const Expr* Emitter::stream_value(const Stmt* s) const
@@ -709,6 +749,25 @@ namespace xc
   // ---- the whole file -------------------------------------------------------
   std::string Emitter::emit(const Program* p)
   {
+    // A verb written as a call may be a loop too (as_chain).
+    if (!chains_)
+    {
+      auto verb = [&](const Body& body)
+      {
+        walk(body, [&](Stmt* s)
+        {
+          for (Expr* e : exprs_of(s))
+          {
+            walk_expr(e, [&](Expr* x)
+            {
+              if (x->kind == EK::Call && is_runtime_verb(static_cast<Call*>(x)->name)) { chains_ = true; }
+            });
+          }
+        });
+      };
+      for (const FunctionDef* f : p->functions) { verb(f->body); }
+      for (const MethodImpl* m : p->methods) { verb(m->body); }
+    }
     std::vector<Finding> problems = not_lowered(p);
     if (!problems.empty()) { throw NotLowered(std::move(problems)); }
 
@@ -962,7 +1021,8 @@ namespace xc
     // 'local' declarations keep their names, and their values become
     // assignments after the prologue, in the order written. A guard does so
     // only around a chain that fuses -- for the loop; any other stays an
-    // expression, and the prologue as written.
+    // expression, and the prologue as written. So does a verb written as a
+    // call: only a chain written as one moves the prologue.
     done_.clear();
     std::vector<const Declaration*> prologue = prologue_of(body);
     long first = -1;
@@ -972,7 +1032,7 @@ namespace xc
       for (const Declarator* d : prologue[i]->declarators)
       {
         const Expr* v = is_expr(d->init, EK::Guard) ? static_cast<const Guard*>(d->init)->expr : d->init;
-        if (loop_value(v) && !is_expr(v, EK::Guard))
+        if (loop_value(v) && !is_expr(v, EK::Guard) && as_chain(v) == v)
         {
           first = static_cast<long>(i);
           break;

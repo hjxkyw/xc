@@ -1096,7 +1096,7 @@ namespace xc
   {
     if (!loop_value(value)) { return { name + " := " + expr(value) }; }
     if (is_expr(value, EK::Guard)) { return sequence_lines(name, static_cast<const Guard*>(value)); }
-    Stream st = stream(value, true);
+    Stream st = stream(as_chain(value), true);
     st.lines.push_back(name + " := " + st.result);
     return st.lines;
   }
