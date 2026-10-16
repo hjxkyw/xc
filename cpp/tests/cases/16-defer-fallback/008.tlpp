@@ -2,7 +2,14 @@
 #include "tlpp-core.th"
 
 user function f()
+  Local gt_0_0  // the error block a 'fallback' sets aside
   If lX
-    nS := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
+    gt_0_0 := ErrorBlock({|e| Break(e)})
+    Begin Sequence
+      nS := riskyCall(1)
+    Recover
+      nS := 0
+    End Sequence
+    ErrorBlock(gt_0_0)
   EndIf
 return

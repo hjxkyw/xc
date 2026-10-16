@@ -6,15 +6,15 @@
 // setMaxRoll, digit separators, hash writes inside expressions, chains as a
 // private's value and under a postfix modifier, a defer that runs only if it
 // was reached, the temps xc writes around the source's own code, each value
-// of '?:', '?.' and 'in lo..hi' evaluated once, Clipper's comments, a name
-// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
-// computation, as 54 is: no table, no file, no screen, so a right or wrong
-// answer and not an environment.
+// of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
+// whole value, Clipper's comments, a name that starts with '__', 'End For'
+// and '%exp:x%' outside BeginSql. Pure computation, as 54 is: no table, no
+// file, no screen, so a right or wrong answer and not an environment.
 //
 // Compile it with runtime/xtpl_runtime.tlpp and call u_xc_selftest(): it
 // prints a line per failure and a total, and returns how many failed.
 //
-//   xc_selftest: 86 ok, 0 failed
+//   xc_selftest: 92 ok, 0 failed
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
@@ -44,6 +44,7 @@ user function xc_selftest()
   local jKeys := {"a": "x", "v5": "cinco"}
   local __v := 5            && a name that starts with '__', and a Clipper comment
   local bHi := [x] iif(same(x) in 1..5, 10, 20)
+  local bOld
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -316,6 +317,32 @@ user function xc_selftest()
   check("'?:', '?.', '?=' on names declared with a type", aTmp[1] == 0 .and. aTmp[2] == "x" .and. aTmp[3] == 0, ;
         cValToChar(aTmp[1]) + " " + cValToChar(aTmp[2]) + " " + cValToChar(aTmp[3]), @nOk, @nBad)
 
+  // ---- fallback as a statement's whole value: a Begin Sequence --------------
+  // The error caught, and the error block put back as it was: one that
+  // gives "mine", where a Break() would land in the Recover below.
+  bOld := ErrorBlock([e] "mine")
+  nTmp := aNums[99] fallback -1
+  cTmp := ""
+  begin sequence
+    cTmp := eval(ErrorBlock(), nil)
+  recover
+    cTmp := "not put back"
+  end sequence
+  ErrorBlock(bOld)
+  check("fallback: the error caught, the error block put back", nTmp == -1 .and. cTmp == "mine", cTmp, @nOk, @nBad)
+  aCalls := {0}
+  nTmp := counted(aCalls, 5) fallback counted(aCalls, 7)
+  check("fallback: the alternative only on an error", nTmp == 5 .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
+  nTmp := aNums |> filter([x] x > 2) |> map([x] x * 10) |> asum fallback -1
+  check("fallback: a chain under it, a loop", nTmp == 270, nTmp, @nOk, @nBad)
+  nTmp := aNums |> map([x] aNums[x * 10]) |> asum fallback -2
+  check("fallback: an error in the loop", nTmp == -2, nTmp, @nOk, @nBad)
+  aTmp := {0, 0}
+  aTmp[2] := aNums[99] fallback 4
+  check("fallback: assigned to an element", aTmp[2] == 4, aTmp[2], @nOk, @nBad)
+  check("fallback: a return's whole value", guardedReturn(aNums, 3) == 4 .and. guardedReturn(aNums, 99) == -3, ;
+        guardedReturn(aNums, 99), @nOk, @nBad)
+
   // ---- AdvPL's forms xc reads (tried: outputs/xcx) --------------------------
   nTmp := 0
   for nSeen := 1 to 3
@@ -391,6 +418,11 @@ static function typedNil()
   cB := oJ?.GetJsonText("a")
   nX ?= 3
 return {nA, cB, nX}
+
+// 'return x fallback y': the value held in a temp, returned after the
+// Begin Sequence.
+static function guardedReturn(aData, nAt)
+return aData[nAt] fallback -3
 
 // A key that counts how often it is asked for.
 static function counted(aCalls, xValue)

@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A guard that stays an expression: in parentheses, a hash's value, a
+// declaration of the prologue, a static's -- and the warning when a chain
+// under it would have fused.
+user function expressions(a, h)
+  local x := u_xtpl_safe_pipe({|| f(1)}, {|| 0})
+  static s := u_xtpl_safe_pipe({|| f(2)}, {|| 1})
+  h:Set("k", u_xtpl_safe_pipe({|| f(3)}, {|| 7}))
+  x := u_xtpl_safe_pipe({|| f(4)}, {|| 8}) + 1
+  x := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(a, {|v| v > 1}))}, {|| 0}) + s
+return x

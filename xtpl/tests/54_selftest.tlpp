@@ -92,6 +92,7 @@ user function selftest()
   Local fv_0_13  // the element walked
   Local fdr_0_0  // whether the leading run of a dropwhile is still on
   Local fo_0_13  // the result of the chain
+  Local gt_0_0  // the error block a 'fallback' sets aside
   Local nCada  // a block local
   Local fs_0_3  // the source of a 'for ... in'
   Local fi_0_14  // the counter of a 'for ... in'
@@ -379,9 +380,21 @@ user function selftest()
   check("?: pega o valor", nTmp == 7, nTmp, @nOk, @nBad)
 
   // ---- fallback ----------------------------------------------------------
-  nTmp := u_xtpl_safe_pipe({|| aNums[99]}, {|| -1})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nTmp := aNums[99]
+  Recover
+    nTmp := -1
+  End Sequence
+  ErrorBlock(gt_0_0)
   check("fallback pega o erro", nTmp == -1, nTmp, @nOk, @nBad)
-  nTmp := u_xtpl_safe_pipe({|| len({1, 2})}, {|| -1})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nTmp := len({1, 2})
+  Recover
+    nTmp := -1
+  End Sequence
+  ErrorBlock(gt_0_0)
   check("fallback nao atrapalha", nTmp == 2, nTmp, @nOk, @nBad)
 
   // ---- fila --------------------------------------------------------------

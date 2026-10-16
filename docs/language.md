@@ -1064,14 +1064,69 @@ them -- the AppServer takes it so, and xc warns.
 
 | xtpl | TL++ |
 |---|---|
-| `callService(cUrl) fallback ""` | `u_xtpl_safe_pipe({\|\| callService(cUrl)}, {\|\| ""})` |
 | `(risky(2) fallback 0) + 1` | `u_xtpl_safe_pipe({\|\| risky(2)}, {\|\| 0}) + 1` |
 
 Guards an expression: if it raises an error, the alternative is the value,
 and it is only evaluated then. `fallback` goes at the end of the value of an
 assignment, a declaration or a `Return`, and in parentheses, which is how to
-guard just a piece. It guards a whole chain, and a chain it guards does not
-[fuse](#when-a-chain-is-a-loop).
+guard just a piece. It guards a whole chain.
+
+As the whole value of `x := ...`, of a declaration or of a `Return`, the
+guard is the statement inside a `Begin Sequence`, in place: the error block
+set to one that breaks out to its `Recover` while it runs -- what
+`u_xtpl_safe_pipe()` does, with no block and no call -- and a chain under it
+is a loop, as a statement's is
+([When a chain is a loop](#when-a-chain-is-a-loop)). A target that is not a
+name, and a `Return`, take the value from a temp after it:
+
+```xtpl
+User Function Reply(cUrl, aNums)
+  Local cReply := ""
+  Local nBig := 0
+  cReply := callService(cUrl) fallback ""
+  nBig := aNums |> filter([x] x > 100) |> asum fallback 0
+Return cReply + cValToChar(nBig)
+```
+
+```tlpp
+User Function Reply(cUrl, aNums)
+  Local cReply := ""
+  Local nBig := 0
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    cReply := callService(cUrl)
+  Recover
+    cReply := ""
+  End Sequence
+  ErrorBlock(gt_0_0)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_0 := 0
+    For fi_0_0 := 1 To Len(aNums)
+      fv_0_0 := aNums[fi_0_0]
+      If fv_0_0 > 100
+        fo_0_0 := fo_0_0 + fv_0_0
+      EndIf
+    Next
+    nBig := fo_0_0
+  Recover
+    nBig := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
+Return cReply + cValToChar(nBig)
+```
+
+Inside an expression -- in parentheses -- a guard is a call to
+`u_xtpl_safe_pipe()` with two blocks, and a chain under it does not fuse:
+xc warns. So does a guard that is the value of a declaration of the
+prologue, where no statement may be yet, unless it is around a chain that
+fuses: then, as for a chain, the prologue's values from that declaration on
+are given after it ([The prologue](#the-prologue)). A `Static`'s guard is an
+expression.
 
 ### TL++'s own
 
@@ -1457,7 +1512,7 @@ with any name allowed, to say which name it was and why.
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
-| a `fallback` around a chain that would fuse | `'fallback' turns off fusion for this chain -- ...` |
+| a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
 
 A User Function of the file called without its `u_` is refused even when
@@ -1493,7 +1548,7 @@ They are `User Function`s, so the names the output calls carry the `u_`:
 - `u_xtpl_elvis`, for a `?:` where no Local can hold its left side;
 - `u_xtpl_hget`, `u_xtpl_hset`, `u_xtpl_hhas`, `u_xtpl_hnew`, for hashes;
 - `u_xtpl_jnew`, for JSON objects;
-- `u_xtpl_safe_pipe`, for `fallback`.
+- `u_xtpl_safe_pipe`, for a `fallback` inside an expression.
 
 The verbs leave their arguments alone: `sort` and `sortby` sort a copy.
 `apick` and `aroll` draw with `Random()`, which needs AppServer 19.3.1 or

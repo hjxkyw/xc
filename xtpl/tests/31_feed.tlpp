@@ -23,6 +23,10 @@ user function testFeed(aOrders, aNums)
   Local fi_0_2  // the position in the array walked
   Local fv_0_2  // the element walked
   Local fo_0_2  // the result of the chain
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local fi_0_3  // the position in the array walked
+  Local fv_0_3  // the element walked
+  Local fo_0_3  // the result of the chain
 
   // chaining runtime functions
   fo_0_0 := {}
@@ -79,8 +83,27 @@ user function testFeed(aOrders, aNums)
   sortRows(myOwnHelper(aOrders, 3))
 
   // fallback guards a bare call, a chain, or a return
-  nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
-  nSafe := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(aNums, {|x| x > 100}))}, {|| 0})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nSafe := riskyCall(1)
+  Recover
+    nSafe := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_3 := 0
+    For fi_0_3 := 1 To Len(aNums)
+      fv_0_3 := aNums[fi_0_3]
+      If fv_0_3 > 100
+        fo_0_3 := fo_0_3 + fv_0_3
+      EndIf
+    Next
+    nSafe := fo_0_3
+  Recover
+    nSafe := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   conout(cValToChar(nMax) + cValToChar(nSafe))
 

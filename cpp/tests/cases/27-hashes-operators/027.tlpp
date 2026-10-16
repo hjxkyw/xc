@@ -2,5 +2,12 @@
 #include "tlpp-core.th"
 user function f(h, a, o, l)
   local x := 0
-  x := u_xtpl_safe_pipe({|| calc(a)}, {|| 0})
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    x := calc(a)
+  Recover
+    x := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 return x

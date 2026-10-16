@@ -491,8 +491,11 @@ namespace xc
     return nullptr;
   }
 
+  // A value that runs as statements: a chain as a loop, a guard as a Begin
+  // Sequence.
   bool Emitter::loop_value(const Expr* e) const
   {
+    if (is_expr(e, EK::Guard)) { return true; }
     if (!chains_) { return false; }
     return e && (source_call(e) || fusable_array(e, false));
   }
@@ -881,7 +884,9 @@ namespace xc
     // A chain from a source as the value of a prologue declaration runs as a
     // loop, which is a statement: from the first such declaration on, the
     // 'local' declarations keep their names, and their values become
-    // assignments after the prologue, in the order written.
+    // assignments after the prologue, in the order written. A guard does so
+    // only around a chain that fuses -- for the loop; any other stays an
+    // expression, and the prologue as written.
     done_.clear();
     std::vector<const Declaration*> prologue = prologue_of(body);
     long first = -1;
@@ -890,7 +895,8 @@ namespace xc
       if (prologue[i]->scope != "local") { continue; }
       for (const Declarator* d : prologue[i]->declarators)
       {
-        if (loop_value(d->init))
+        const Expr* v = is_expr(d->init, EK::Guard) ? static_cast<const Guard*>(d->init)->expr : d->init;
+        if (loop_value(v) && !is_expr(v, EK::Guard))
         {
           first = static_cast<long>(i);
           break;

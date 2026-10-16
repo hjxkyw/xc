@@ -16,32 +16,62 @@ user function testFallbackShapes(aNums, hCfg)
   local nSafe := 0
   local nHash := 0
   local aList := {}
-  Local fs_0_0  // the array walked
+  Local gt_0_0  // the error block a 'fallback' sets aside
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
+  Local fs_0_0  // the array walked
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
 
   // a bare call
-  nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nSafe := riskyCall(1)
+  Recover
+    nSafe := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   // a chain: unfused under the guard, so every step is an expression -- and
   // xtpl says so, because losing a pass is invisible in the source
-  nSafe := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_map(u_xtpl_filter(aNums, {|x| x > 100}), {|x| x * 2}))}, {|| 0})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_0 := 0
+    For fi_0_0 := 1 To Len(aNums)
+      fv_0_0 := aNums[fi_0_0]
+      If fv_0_0 > 100
+        fv_0_0 := fv_0_0 * 2
+        fo_0_0 := fo_0_0 + fv_0_0
+      EndIf
+    Next
+    nSafe := fo_0_0
+  Recover
+    nSafe := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   // the guard on the part that can fail, and the chain left to fuse
   fs_0_0 := u_xtpl_safe_pipe({|| riskyCall(2)}, {|| {}})
-  fo_0_0 := {}
-  For fi_0_0 := 1 To Len(fs_0_0)
-    fv_0_0 := fs_0_0[fi_0_0]
-    If fv_0_0 > 1
-      fv_0_0 := fv_0_0 * 2
-      AAdd(fo_0_0, fv_0_0)
+  fo_0_1 := {}
+  For fi_0_1 := 1 To Len(fs_0_0)
+    fv_0_1 := fs_0_0[fi_0_1]
+    If fv_0_1 > 1
+      fv_0_1 := fv_0_1 * 2
+      AAdd(fo_0_1, fv_0_1)
     EndIf
   Next
-  aList := fo_0_0
+  aList := fo_0_1
 
   // a hash read lifts statements, and they are expressions too
-  nHash := u_xtpl_safe_pipe({|| u_xtpl_hget(hCfg, "taxa")}, {|| 0})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nHash := u_xtpl_hget(hCfg, "taxa")
+  Recover
+    nHash := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 
 
   return nSafe + nHash + len(aList)

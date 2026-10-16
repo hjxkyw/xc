@@ -2,5 +2,22 @@
 #include "tlpp-core.th"
 
 user function f(a)
-  a := u_xtpl_safe_pipe({|| u_xtpl_asum(u_xtpl_filter(a, {|x| x > 1}))}, {|| 0})
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    fo_0_0 := 0
+    For fi_0_0 := 1 To Len(a)
+      fv_0_0 := a[fi_0_0]
+      If fv_0_0 > 1
+        fo_0_0 := fo_0_0 + fv_0_0
+      EndIf
+    Next
+    a := fo_0_0
+  Recover
+    a := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 return 1

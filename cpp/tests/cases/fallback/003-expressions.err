@@ -1,0 +1,1 @@
+003-expressions.xtpl:9: warning: 'fallback' inside an expression turns off fusion for this chain -- a guard there needs an expression and a fused loop is not one, so each stage builds an array again. Make the guard the whole value of the statement, or guard the part that can fail and leave the chain outside it.

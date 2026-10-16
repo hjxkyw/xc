@@ -11,11 +11,18 @@ user function testCrossPass(hCfg, aNums, lFlag, nX)
   local nA := 0
   local nB := 0
   local nC := 0
+  Local gt_0_0  // the error block a 'fallback' sets aside
 
   // The hash read turns one line into three. 'fallback' has to be peeled
   // before that happens, or the assignment ends up inside the guard and a
   // failure leaves nA untouched.
-  nA := u_xtpl_safe_pipe({|| u_xtpl_hget(hCfg, "k")}, {|| 0})
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nA := u_xtpl_hget(hCfg, "k")
+  Recover
+    nA := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
 
   // The modifier has to come off before the chain pass, which would take
   // 'asum if lFlag' as a stage name and keep only the name. Every line the
