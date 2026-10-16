@@ -136,15 +136,26 @@ namespace xc
       return "?";
     }
 
-    // What is wrong with a declarator's value for its type, if anything.
+    // What is wrong with a declarator's value for its type, if anything. A
+    // Decimal -- a Numeric in the tree, as the Raku xc has it -- is a type of
+    // its own to TL++, 'F', that takes no number the compiler can see
+    // (tried on 24.3.1.9).
     std::optional<std::string> type_problem(const Declarator* v)
     {
       if (v->declared == "?" || !v->init) { return std::nullopt; }
       std::string found = type_of(v->init);
       if (found == "?" || v->declared == "Variant") { return std::nullopt; }
       if (is_literal(v->init) && lc(static_cast<const Literal*>(v->init)->text) == "nil") { return std::nullopt; }
-      if (found == v->declared) { return std::nullopt; }
-      return "'" + v->name + "' is declared as " + v->declared + ", but its initial value is " + found + ".";
+      std::vector<std::string> w = words(v->typespec_text.value_or(""));
+      bool decimal = w.size() > 1 && lc(w[1]) == "decimal";
+      std::string declared = decimal ? "Decimal" : v->declared;
+      if (found == declared) { return std::nullopt; }
+      std::string m = "'" + v->name + "' is declared as " + declared + ", but its initial value is " + found;
+      if (decimal && found == "Numeric")
+      {
+        m += " -- TL++ takes no number into a Decimal (\"Incompatible types between F and N\")";
+      }
+      return m + ".";
     }
 
     // ---- small subs ---------------------------------------------------------

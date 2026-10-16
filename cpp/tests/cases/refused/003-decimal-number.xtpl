@@ -1,0 +1,9 @@
+// A Decimal is a type of its own to TL++, 'F', and takes no number the
+// compiler can see: 'Local nD := 5 as Decimal' is "Incompatible types
+// between F and N" (tried on 24.3.1.9). A value of no known type goes in.
+user function dec(cText)
+  local nD := 5 as decimal
+  local nE as decimal := 1.25
+  local nF := u_value(cText) as decimal
+  local nG := "a" as decimal
+return {nD, nE, nF, nG}

@@ -1,0 +1,3 @@
+003-decimal-number.xtpl:5: 'nD' is declared as Decimal, but its initial value is Numeric -- TL++ takes no number into a Decimal ("Incompatible types between F and N").
+003-decimal-number.xtpl:6: 'nE' is declared as Decimal, but its initial value is Numeric -- TL++ takes no number into a Decimal ("Incompatible types between F and N").
+003-decimal-number.xtpl:8: 'nG' is declared as Decimal, but its initial value is Character.
