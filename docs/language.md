@@ -536,9 +536,9 @@ expressions -- on a variable, an element, a field, never a literal.
 
 Only as a statement of its own. Inside an expression, `?:` is the one
 ([`?:`](#elvis-and-safe-access)); in a declaration it could never fail its
-test, and is refused. A name declared with a type (`Local nX as Numeric`)
-is one TL++ will not compare with Nil: for it the test is
-`If ValType(nX) == "U"`.
+test, and is refused. Anything but a name declared with no type is asked of
+`ValType()`, which TL++ takes whatever the type: `If ValType(nX) == "U"`
+for a `Local nX as Numeric`.
 
 ### Blocks
 
@@ -941,13 +941,15 @@ a run of them, `oUser?.oAddress?.cCity`, is one test, and `.And.` stops at
 the first Nil.
 
 A literal on the left of a `?:` is Nil or never is, and xc writes the side
-it picks: TL++ will not compare a literal with Nil.
+it picks.
 
 Each value is evaluated once. One read twice -- the left side of a `?:`,
 what a `?.` goes on from, the value an `in lo..hi` tests -- that is more than
 a name or a literal is held in a Local of xc's own, set where it is first
-read; so is a name declared with a type, for a `?:` or a `?.`, since TL++
-will not compare it with Nil either:
+read. Whether it is Nil is asked of `ValType()`: TL++ will not compare with
+Nil a value whose type it knows -- a literal, a name declared with a type
+(`Local nX as Numeric`), what is assigned from one -- and `ValType()` takes
+any. A name declared with no type is compared as it is:
 
 ```xtpl
 User Function Contact(oUser)
@@ -963,9 +965,9 @@ Return cText
 ```tlpp
 User Function Contact(oUser)
   Local et_0_0  // the left side of a '?:', evaluated once
-  Local cName := If((et_0_0 := cached()) != Nil, et_0_0, If((et_0_0 := computed()) != Nil, et_0_0, "last"))
+  Local cName := If(ValType(et_0_0 := cached()) != "U", et_0_0, If(ValType(et_0_0 := computed()) != "U", et_0_0, "last"))
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  Local cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
+  Local cCity := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddress) != "U", fbv_0_0:cCity, Nil)
   Local cText := ""
   if ((fbv_0_0 := age(oUser)) >= 18 .And. fbv_0_0 <= 120)
     cText := cName + ", " + If(cCity != Nil, cCity, "-")

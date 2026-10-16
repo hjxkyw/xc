@@ -3,5 +3,5 @@
 user function f(h, a, o, l)
   local x := 0
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  x := If((fbv_0_0 := getObj()) != Nil, fbv_0_0:cNome, Nil)
+  x := If(ValType(fbv_0_0 := getObj()) != "U", fbv_0_0:cNome, Nil)
 return x

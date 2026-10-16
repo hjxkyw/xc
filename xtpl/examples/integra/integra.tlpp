@@ -82,7 +82,7 @@ user function integra(cUrl, cChave)
   // 3. Um campo que pode nao existir. Aqui nao se quer erro nenhum: a
   //    ausencia e uma resposta legitima, e '?:' da o valor de quando vier
   //    vazio.
-  aItens := If((et_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})) != Nil, et_0_0, {})
+  aItens := If(ValType(et_0_0 := u_xtpl_safe_pipe({|| jDados["itens"]}, {|| nil})) != "U", et_0_0, {})
   nQuantos := len(aItens)
 
   xconout("integra: ", nQuantos, " itens de ", cUrl)

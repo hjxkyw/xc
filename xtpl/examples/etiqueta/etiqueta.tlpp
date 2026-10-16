@@ -69,20 +69,20 @@ user function etiqueta(oPedido)
 
   // O nome fantasia e opcional; a razao social nao. Se nao houver fantasia,
   // vale a razao social.
-  cLinha1 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oCliente) != Nil, fbv_0_0:cFantasia, Nil)) != Nil, et_0_0, If((et_0_0 := If(oPedido != Nil .And. (fbv_0_1 := oPedido:oCliente) != Nil, fbv_0_1:cRazao, Nil)) != Nil, et_0_0, "SEM NOME"))
+  cLinha1 := If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_0 := oPedido:oCliente) != "U", fbv_0_0:cFantasia, Nil)) != "U", et_0_0, If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_1 := oPedido:oCliente) != "U", fbv_0_1:cRazao, Nil)) != "U", et_0_0, "SEM NOME"))
 
   // Tres niveis, e nenhum deles garantido.
-  cLinha2 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cRua, Nil)) != Nil, et_0_0, "endereco nao informado")
+  cLinha2 := If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_0 := oPedido:oEntrega) != "U", fbv_0_0:cRua, Nil)) != "U", et_0_0, "endereco nao informado")
 
   // Existir e estar preenchido sao coisas diferentes: o complemento pode vir
   // como "" e '?.' entrega isso sem reclamar, porque "" nao e Nil.
-  cCompl := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cComplemento, Nil)) != Nil, et_0_0, "")
+  cCompl := If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_0 := oPedido:oEntrega) != "U", fbv_0_0:cComplemento, Nil)) != "U", et_0_0, "")
   if !empty(cCompl)
     cLinha2 := cLinha2 + ", " + alltrim(cCompl)
   endif
 
-  cLinha3 := If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cCidade, Nil)) != Nil, et_0_0, "") 
-  cLinha3 := alltrim(cLinha3) + " " + If((et_0_0 := If(oPedido != Nil .And. (fbv_0_0 := oPedido:oEntrega) != Nil, fbv_0_0:cUf, Nil)) != Nil, et_0_0, "")
+  cLinha3 := If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_0 := oPedido:oEntrega) != "U", fbv_0_0:cCidade, Nil)) != "U", et_0_0, "") 
+  cLinha3 := alltrim(cLinha3) + " " + If(ValType(et_0_0 := If(oPedido != Nil .And. ValType(fbv_0_0 := oPedido:oEntrega) != "U", fbv_0_0:cUf, Nil)) != "U", et_0_0, "")
 
   xconout("etiqueta: ", cLinha1, " / ", cLinha2, " / ", cLinha3)
 

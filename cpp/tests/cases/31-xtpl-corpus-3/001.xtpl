@@ -378,7 +378,7 @@ static function inPrologue(aCalls)
 return cName + " " + cText + iif(lIn, "!", "?")
 
 // Names declared with a type, and Nil: TL++ will not compare them with Nil,
-// so '?:' and '?.' hold the value in a temp, and '?=' asks ValType().
+// so '?:', '?.' and '?=' ask ValType().
 static function typedNil()
   local nX as numeric
   local oJ as object

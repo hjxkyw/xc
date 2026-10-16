@@ -37,6 +37,11 @@ namespace xc
       return is_expr(e, EK::Literal) && lc(static_cast<const Literal*>(e)->text) == "nil";
     }
 
+    // Whether a value is not Nil, asked of ValType(): TL++ will not compare
+    // with Nil a value whose type it knows -- a literal, a name declared with
+    // a type, what is assigned from one -- and ValType() takes any.
+    std::string not_nil(const std::string& v) { return "ValType(" + v + ") != \"U\""; }
+
     void append(Lines& to, const Lines& more) { to.insert(to.end(), more.begin(), more.end()); }
 
     // What an 'fbv' temp holds, as its Local's comment says.
@@ -1249,11 +1254,10 @@ namespace xc
       {
         auto a = static_cast<const Assignment*>(s);
         if (is_expr(a->target, EK::HashIndex)) { return hash_set(a); }
-        // '?=': assign only when the target is Nil -- asked of ValType() for
-        // a name declared with a type, which TL++ will not compare with Nil.
+        // '?=': assign only when the target is Nil -- asked of ValType() but
+        // for a name declared with no type.
         std::string t = expr(a->target);
-        std::string nil = is_expr(a->target, EK::Name) && !plain_name(a->target) ? "ValType(" + t + ") == \"U\""
-                                                                                 : t + " == Nil";
+        std::string nil = plain_name(a->target) ? t + " == Nil" : "ValType(" + t + ") == \"U\"";
         return Lowered{ true, { "If " + nil, "  " + t + " := " + expr(a->value), "EndIf" } };
       }
       case SK::Declaration:
@@ -1443,8 +1447,7 @@ namespace xc
           std::string rr = name_or_literal(b->right) ? expr(b->right) : "(" + expr(b->right) + ")";
           return "((" + ll + " % " + rr + ") == 0)";
         }
-        // A literal is Nil or never is: the side it picks, as it is -- TL++
-        // will not compare a literal with Nil.
+        // A literal is Nil or never is: the side it picks, as it is.
         if (is_literal_kind(b->left))
         {
           if (!is_nil(b->left)) { return l; }
@@ -1452,13 +1455,14 @@ namespace xc
           return name_or_literal(b->right) ? r : "(" + r + ")";
         }
         // The right side only when the left is Nil -- If() evaluates only the
-        // branch it takes -- and the left read once: a name as it is, but for
-        // one declared with a type, held in a temp, which has none.
+        // branch it takes -- and the left read once: a name as it is, the rest
+        // held in a temp.
         if (plain_name(b->left)) { return "If(" + l + " != Nil, " + l + ", " + expr(b->right) + ")"; }
+        if (is_expr(b->left, EK::Name)) { return "If(" + not_nil(l) + ", " + l + ", " + expr(b->right) + ")"; }
         if (temps_ok())
         {
           std::string t = temp("et", "the left side of a '?:', evaluated once");
-          return "If((" + t + " := " + l + ") != Nil, " + t + ", " + expr(b->right) + ")";
+          return "If(" + not_nil(t + " := " + l) + ", " + t + ", " + expr(b->right) + ")";
         }
         return "u_xtpl_elvis(" + l + ", {|| " + expr(b->right) + "})";
       }
@@ -1581,7 +1585,8 @@ namespace xc
 
   // 'o?.x' / 'o?.M(...)': Nil when the base is Nil -- a chain of them one
   // test, each value it goes on from read once:
-  // 'o?.a?.b' -> 'If(o != Nil .And. (fbv_0_0 := o:a) != Nil, fbv_0_0:b, Nil)'.
+  // 'o?.a?.b' -> 'If(o != Nil .And. ValType(fbv_0_0 := o:a) != "U", fbv_0_0:b,
+  // Nil)'.
   std::string Emitter::safe_chain(const Expr* e)
   {
     Lines conds;
@@ -1610,18 +1615,18 @@ namespace xc
       std::string v;
       safe_steps(base, conds, v);
       from = temp("fbv", HELD);
-      conds.push_back("(" + from + " := " + v + ") != Nil");
+      conds.push_back(not_nil(from + " := " + v));
     }
-    else if (plain_name(base))
+    else if (is_expr(base, EK::Name))
     {
       from = expr(base);
-      conds.push_back(from + " != Nil");
+      conds.push_back(plain_name(base) ? from + " != Nil" : not_nil(from));
     }
     else
     {
       std::string b = expr(base);
       from = temp("fbv", HELD);
-      conds.push_back("(" + from + " := " + b + ") != Nil");
+      conds.push_back(not_nil(from + " := " + b));
     }
     if (e->kind == EK::SafeCall)
     {
@@ -1640,8 +1645,11 @@ namespace xc
   std::string Emitter::safe(const Expr* base, const std::string& tail)
   {
     std::string b = expr(base);
-    return plain_name(base) ? "If(" + b + " != Nil, " + b + tail + ", Nil)"
-                                   : "Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0" + tail + ", Nil)}, " + b + ")";
+    if (is_expr(base, EK::Name))
+    {
+      return "If(" + (plain_name(base) ? b + " != Nil" : not_nil(b)) + ", " + b + tail + ", Nil)";
+    }
+    return "Eval({|fbv_0_0| If(fbv_0_0 != Nil, fbv_0_0" + tail + ", Nil)}, " + b + ")";
   }
 
   // 'h{k} := v' -> 'h:Set(k, v)'. One that also reads holds anything but a

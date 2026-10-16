@@ -19,11 +19,11 @@ user function testComments(aNums, nX, hCfg, oUser)
   Local fi_0_0  // the counter of a 'for ... times'
 
   nSafe := u_xtpl_safe_pipe({|| riskyCall(1)}, {|| 0})        // fallback wraps the tail in a block
-  cOut := If((et_0_0 := lookupName(1)) != Nil, et_0_0, "anonymous")    // elvis wraps it in an If()
+  cOut := If(ValType(et_0_0 := lookupName(1)) != "U", et_0_0, "anonymous")    // elvis wraps it in an If()
   nT := u_xtpl_asum(u_xtpl_distinct(aNums))         // a chain lands in a temp
   nT := u_xtpl_hget(hCfg, "taxa")                      // a hash read lifts to a Get
   nT := ((nX % 3) == 0)                           // divisible-by
-  cOut := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddr) != Nil, fbv_0_0:cCity, Nil)             // optional chaining
+  cOut := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddr) != "U", fbv_0_0:cCity, Nil)             // optional chaining
   xconout("total=", nT)                   // xconout
 
   For fi_0_0 := 1 To 3  // a loop header

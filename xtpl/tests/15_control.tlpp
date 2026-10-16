@@ -82,7 +82,7 @@ user function testControl(oUser, nLimit, aItens)
   endcase
 
   // optional chaining: a missing link yields Nil rather than crashing
-  cCity := If(oUser != Nil .And. (fbv_0_0 := oUser:oAddress) != Nil, fbv_0_0:cCity, Nil)
+  cCity := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddress) != "U", fbv_0_0:cCity, Nil)
 
   // postfix modifiers
   If nTotal > 5

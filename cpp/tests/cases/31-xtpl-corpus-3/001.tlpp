@@ -647,7 +647,7 @@ user function xc_selftest()
   check("a range run for its effects, a tap after a stop", nTmp == 321, nTmp, @nOk, @nBad)
 
   // ---- hash writes inside expressions ---------------------------------------
-  aeval(aRep, {|x| u_xtpl_hset(hCount, x, If((et_0_0 := u_xtpl_hget(hCount, x)) != Nil, et_0_0, 0) + 1)})
+  aeval(aRep, {|x| u_xtpl_hset(hCount, x, If(ValType(et_0_0 := u_xtpl_hget(hCount, x)) != "U", et_0_0, 0) + 1)})
   check("counting in a lambda", u_xtpl_hget(hCount, 1) == 3 .and. u_xtpl_hget(hCount, 2) == 3 .and. u_xtpl_hget(hCount, 3) == 1, u_xtpl_hget(hCount, 1), @nOk, @nBad)
   aeval({1, 2, 3}, {|x| u_xtpl_hset(hMap, "a", u_xtpl_hget(hMap, "a") + (x))})
   check("'+=' in a lambda", u_xtpl_hget(hMap, "a") == 7, u_xtpl_hget(hMap, "a"), @nOk, @nBad)
@@ -811,26 +811,26 @@ user function xc_selftest()
   check("'f() in lo..hi', a '__v' of the source's in a bound: in", lTmp, lTmp, @nOk, @nBad)
   lTmp := ((fbv_0_1 := same(3)) >= __v .And. fbv_0_1 <= 10)
   check("'f() in lo..hi', a '__v' of the source's in a bound: out", !lTmp, lTmp, @nOk, @nBad)
-  cTmp := If((fbv_0_1 := same(jKeys)) != Nil, fbv_0_1:GetJsonText("v" + cValToChar(__v)), Nil)
+  cTmp := If(ValType(fbv_0_1 := same(jKeys)) != "U", fbv_0_1:GetJsonText("v" + cValToChar(__v)), Nil)
   check("'o()?.M(x)', a '__v' of the source's in the argument", cTmp == "cinco", cTmp, @nOk, @nBad)
 
   // ---- '?:', '?.', 'in lo..hi': each value evaluated once -------------------
   aCalls := {0}
-  nTmp := If((et_0_0 := counted(aCalls, Nil)) != Nil, et_0_0, counted(aCalls, 3))
+  nTmp := If(ValType(et_0_0 := counted(aCalls, Nil)) != "U", et_0_0, counted(aCalls, 3))
   check("'?:': the left Nil, then the right", nTmp == 3 .and. aCalls[1] == 2, aCalls[1], @nOk, @nBad)
   aCalls := {0}
-  nTmp := If((et_0_0 := counted(aCalls, 4)) != Nil, et_0_0, counted(aCalls, 3))
+  nTmp := If(ValType(et_0_0 := counted(aCalls, 4)) != "U", et_0_0, counted(aCalls, 3))
   check("'?:': the left once, the right not at all", nTmp == 4 .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
-  nTmp := If((et_0_0 := same(Nil)) != Nil, et_0_0, If((et_0_0 := same(Nil)) != Nil, et_0_0, 9))
+  nTmp := If(ValType(et_0_0 := same(Nil)) != "U", et_0_0, If(ValType(et_0_0 := same(Nil)) != "U", et_0_0, 9))
   check("'?:' chained, to the last", nTmp == 9, nTmp, @nOk, @nBad)
-  nTmp := If((et_0_0 := same(Nil)) != Nil, et_0_0, If((et_0_0 := same(8)) != Nil, et_0_0, 9))
+  nTmp := If(ValType(et_0_0 := same(Nil)) != "U", et_0_0, If(ValType(et_0_0 := same(8)) != "U", et_0_0, 9))
   check("'?:' chained, to the middle", nTmp == 8, nTmp, @nOk, @nBad)
-  nTmp := If((et_0_0 := If((et_0_0 := same(Nil)) != Nil, et_0_0, same(Nil))) != Nil, et_0_0, 5)
+  nTmp := If(ValType(et_0_0 := If(ValType(et_0_0 := same(Nil)) != "U", et_0_0, same(Nil))) != "U", et_0_0, 5)
   check("'?:' in the left side of a '?:'", nTmp == 5, nTmp, @nOk, @nBad)
   aCalls := {0}
-  cTmp := If((fbv_0_1 := counted(aCalls, jTmp)) != Nil .And. (fbv_0_2 := fbv_0_1:GetJsonObject("b")) != Nil, fbv_0_2:GetJsonText("c"), Nil)
+  cTmp := If(ValType(fbv_0_1 := counted(aCalls, jTmp)) != "U" .And. ValType(fbv_0_2 := fbv_0_1:GetJsonObject("b")) != "U", fbv_0_2:GetJsonText("c"), Nil)
   check("'?.' chained: each step once", cTmp == "x" .and. aCalls[1] == 1, aCalls[1], @nOk, @nBad)
-  cTmp := If((fbv_0_1 := same(Nil)) != Nil .And. (fbv_0_2 := fbv_0_1:GetJsonObject("b")) != Nil, fbv_0_2:GetJsonText("c"), Nil)
+  cTmp := If(ValType(fbv_0_1 := same(Nil)) != "U" .And. ValType(fbv_0_2 := fbv_0_1:GetJsonObject("b")) != "U", fbv_0_2:GetJsonText("c"), Nil)
   check("'?.' chained: Nil at the first step", cTmp == Nil, cTmp, @nOk, @nBad)
   aCalls := {0}
   lTmp := ((fbv_0_1 := counted(aCalls, 7)) >= 5 .And. fbv_0_1 <= 10)
@@ -931,21 +931,19 @@ return 0
 // Locals that hold their values are declared before them.
 static function inPrologue(aCalls)
   Local et_0_0  // the left side of a '?:', evaluated once
-  local cName := If((et_0_0 := counted(aCalls, Nil)) != Nil, et_0_0, "anon")
+  local cName := If(ValType(et_0_0 := counted(aCalls, Nil)) != "U", et_0_0, "anon")
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  local cText := If((fbv_0_0 := counted(aCalls, u_xtpl_jnew({{"c", "x"}}))) != Nil, fbv_0_0:GetJsonText("c"), Nil)
+  local cText := If(ValType(fbv_0_0 := counted(aCalls, u_xtpl_jnew({{"c", "x"}}))) != "U", fbv_0_0:GetJsonText("c"), Nil)
   local lIn := ((fbv_0_0 := counted(aCalls, 7)) >= 5 .And. fbv_0_0 <= 10)
 return cName + " " + cText + iif(lIn, "!", "?")
 
 // Names declared with a type, and Nil: TL++ will not compare them with Nil,
-// so '?:' and '?.' hold the value in a temp, and '?=' asks ValType().
+// so '?:', '?.' and '?=' ask ValType().
 static function typedNil()
   local nX as numeric
   local oJ as object
-  Local et_0_0  // the left side of a '?:', evaluated once
-  local nA := If((et_0_0 := nX) != Nil, et_0_0, 5)
-  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  local cB := If((fbv_0_0 := oJ) != Nil, fbv_0_0:GetJsonText("a"), Nil)
+  local nA := If(ValType(nX) != "U", nX, 5)
+  local cB := If(ValType(oJ) != "U", oJ:GetJsonText("a"), Nil)
   If ValType(nX) == "U"
     nX := 3
   EndIf
