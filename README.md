@@ -140,9 +140,11 @@ the reference for what a source means: `tools/compare-cpp.raku` compares
 the two xc's, tree for tree, message for message and byte for byte -- with
 `cpp/build/xc-compare`, against what `tools/ast-json.raku` writes of the
 Raku xc's tree, checks and TL++ -- and runs both drivers on the same files.
-The trees, the checks and the drivers agree; the TL++ differs wherever the
-C++ xc has written it better since (`?:`, `?.` and `in lo..hi` hold a value
-read twice in a Local, not in a block), and so does `t/45`, which holds
+The trees and the drivers agree. The TL++ differs wherever the C++ xc has
+written it better since (`?:`, `?.` and `in lo..hi` hold a value read twice
+in a Local, not in a block; verbs written as calls are loops), and so do the
+checks it has added or reworded (a `?:` on a Numeric with no value, a
+`fallback` inside an expression), and `t/45`, which holds
 `docs/language.md` to the Raku xc's TL++.
 
 ```sh
