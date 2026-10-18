@@ -499,19 +499,22 @@ namespace xc
     };
 
     // ---- the file -----------------------------------------------------------
+    // What the AppServer says of a regular function.
+    const std::string REGULAR = "it refuses one in a compile without TOTVS' authorization (\"Regular functions are not "
+                                "allowed in code. Use USER FUNCTION or STATIC FUNCTION.\")";
+
     void Checker::program(const Program* p)
     {
       for (const FunctionDef* f : p->functions)
       {
         funcs_[lc(f->name)] = Func{ f->name, lc(f->type), f->params.size(), f->line };
-        // A bare 'Function' whose name has no 'u_': a regular function, which
-        // TOTVS compiles with its authorization -- without one the AppServer
-        // refuses it (tried on 24.3.1.9).
-        if (f->type.empty() && !starts_with(lc(f->name), "u_"))
+        // A bare 'Function' whose name has no 'u_', or a 'Main Function': a
+        // regular function, which TOTVS compiles with its authorization --
+        // without one the AppServer refuses it (tried on 24.3.1.9).
+        if ((f->type.empty() && !starts_with(lc(f->name), "u_")) || lc(f->type) == "main")
         {
-          warned.push_back({ f->line, "'" + f->name + "' is a regular function: the AppServer refuses one in a compile "
-                                      + "without TOTVS' authorization (\"Regular functions are not allowed in code. "
-                                      + "Use USER FUNCTION or STATIC FUNCTION.\")" });
+          std::string what = f->type.empty() ? "a regular function" : "a Main Function, a regular function to the AppServer";
+          warned.push_back({ f->line, "'" + f->name + "' is " + what + ": " + REGULAR });
         }
         if (is_runtime_verb(f->name))
         {
@@ -547,6 +550,14 @@ namespace xc
       {
         ends_.push_back(c->line);
         classes_.insert(lc(c->name));
+      }
+      // A method of a class this file does not declare: the AppServer takes
+      // it for a regular function (tried on 24.3.1.9).
+      for (const MethodImpl* m : p->methods)
+      {
+        if (m->ws || m->class_name.empty() || classes_.count(lc(m->class_name))) { continue; }
+        warned.push_back({ m->line, "'" + m->name + "' is a method of " + m->class_name + ", which this file does not "
+                                    + "declare, so the AppServer takes it for a regular function: " + REGULAR });
       }
       std::sort(ends_.begin(), ends_.end());
       // '#define NAME': m:i/ ^ '#' \h* 'define' \h+ (\w+) /

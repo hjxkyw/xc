@@ -499,6 +499,7 @@ namespace xc
     OptStr returns;
     Body body;
     int line = 0;
+    bool ws = false;                 // a web service's: 'WSMETHOD ... WSSERVICE Name'
   };
 
   struct External : Node

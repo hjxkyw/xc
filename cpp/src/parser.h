@@ -266,6 +266,7 @@ namespace xc
     Stmt* nilassign();
     bool modifier(std::string& op, Expr*& cond);
     int modkw(int p) const;
+    bool if_call(int p) const;
     bool closer(std::string_view one, std::string_view two, bool word_end_two);
     bool next_name(int& from, int& to);
     Expr* addexpr();

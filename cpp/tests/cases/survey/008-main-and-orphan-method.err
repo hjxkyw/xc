@@ -1,0 +1,2 @@
+008-main-and-orphan-method.xtpl:5: warning: 'DsSched2' is a Main Function, a regular function to the AppServer: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")
+008-main-and-orphan-method.xtpl:8: warning: 'myMethod' is a method of MyClass, which this file does not declare, so the AppServer takes it for a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")

@@ -1,0 +1,15 @@
+// 'Return If(c, a, b)' returns AdvPL's If(): its parentheses hold a comma of
+// their own. It is not 'return if c', the modifier -- xc took it so, and
+// returned nothing (saulogm/advpl-excel, custom.excel.tlpp). 'return if
+// lSkip' and 'return if (lSkip)' stay modifiers.
+user function f(lOk, nDiv)
+  if lOk
+    return if(nDiv > 1, 2, 3)
+  endif
+return If( nDiv>Int(nDiv), Int(nDiv)+1, ;
+  Int(nDiv) )
+
+user function g(lSkip)
+  return if lSkip
+  return if (lSkip)
+return 2

@@ -1,4 +1,5 @@
 004.xtpl:1: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
 004.xtpl:2: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
+004.xtpl:3: warning: 'Principal' is a Main Function, a regular function to the AppServer: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")
 004.xtpl:3: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it
 004.xtpl:4: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

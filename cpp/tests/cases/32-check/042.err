@@ -1,4 +1,4 @@
-042.xtpl:5: warning: 'join' is a regular function: the AppServer refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")
+042.xtpl:5: warning: 'join' is a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")
 042.xtpl:1: 'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.
 042.xtpl:3: 'first' is the name of one of xtpl's verbs: a call to first() is the runtime's u_xtpl_first, never a function of the file. Give it another name.
 042.xtpl:5: 'join' is the name of one of xtpl's verbs: a call to join() is the runtime's u_xtpl_join, never a function of the file. Give it another name.

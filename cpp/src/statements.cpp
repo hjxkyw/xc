@@ -1541,6 +1541,7 @@ namespace xc
     auto m = make<MethodImpl>();
     m->line = line(start);
     m->class_name = text(svc_from, svc_to);
+    m->ws = true;
     std::vector<std::string> w = words(src_.substr(start, head_end - start));
     m->name = w.size() > 1 ? w[1] : "wsmethod";
     m->body = funcbody();
@@ -2343,6 +2344,72 @@ namespace xc
       return p + 5;
     }
     return -1;
+  }
+
+  // Whether 'if' at p is AdvPL's If(), called -- 'Return If(lOk, 1, 2)': its
+  // parentheses hold a comma of their own -- and not the modifier, 'return
+  // if lSkip', which a condition follows.
+  bool Parser::if_call(int p) const
+  {
+    if (!iword_at(p, "if") || is_w(c(p + 2)))
+    {
+      return false;
+    }
+    int q = p + 2;
+    while (is_h(c(q)))
+    {
+      q++;
+    }
+    if (c(q) != '(')
+    {
+      return false;
+    }
+    int depth = 0;
+    for (; q < n_; q++)
+    {
+      int ch = c(q);
+      if (ch == '"' || ch == '\'')
+      {
+        int e = q + 1;
+        while (e < n_ && c(e) != ch && c(e) != '\n')
+        {
+          e++;
+        }
+        if (c(e) != ch)
+        {
+          return false;
+        }
+        q = e;
+      }
+      else if (ch == '(' || ch == '[' || ch == '{')
+      {
+        depth++;
+      }
+      else if (ch == ')' || ch == ']' || ch == '}')
+      {
+        if (--depth == 0)
+        {
+          return false;
+        }
+      }
+      else if (ch == ',' && depth == 1)
+      {
+        return true;
+      }
+      else if (ch == '\n')
+      {
+        int b = q - 1;
+        while (b > p && (c(b) == ' ' || c(b) == '\t' || c(b) == '\r'))
+        {
+          b--;
+        }
+        if (c(b) != ';')
+        {
+          return false;
+        }
+      }
+    }
+    return false;
   }
 
   bool Parser::modifier(std::string& op, Expr*& cnd)
@@ -4180,7 +4247,7 @@ namespace xc
         auto it = trans_.find(p_);
         trans = it != trans_.end() && it->second > p_;
       }
-      if (trans || modkw(p_) < 0)
+      if (trans || modkw(p_) < 0 || if_call(p_))
       {
         if (Expr* g = guardexpr())
         {

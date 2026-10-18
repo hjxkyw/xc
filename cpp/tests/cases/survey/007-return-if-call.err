@@ -1,0 +1,2 @@
+007-return-if-call.xtpl:13: warning: this returns nothing, but the function returns a value on line 15
+007-return-if-call.xtpl:14: warning: this returns nothing, but the function returns a value on line 15

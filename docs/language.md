@@ -203,7 +203,9 @@ Function u_Bare(nX)
 `Function`, which TL++ allows when the name starts with `u_`. One whose name
 does not is a regular function, which TOTVS compiles with its
 authorization: the AppServer refuses it in a compile without one ("Regular
-functions are not allowed in code"), and xc warns. The AppServer
+functions are not allowed in code"), and xc warns. A `Main Function` is a
+regular function to the AppServer too, and so is a method whose class the
+file does not declare -- a method goes in the file of its class. The AppServer
 finds a `Web Function` as `w_` and its name, an `Html Function` as `h_`
 (tried on 24.3.1.9), so xc refuses either called by its plain name, as it
 refuses a `User Function` without its `u_`. Parameters may be typed, `as
@@ -1558,7 +1560,7 @@ with any name allowed, to say which name it was and why.
 | a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
 | a field of an area nothing in the function opened -- `M->` and `MEMVAR->` are variables, no area | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
 | a value on one path and none on another | `the function can reach its end without a return, but returns a value on line 3` |
-| a regular function: a bare `Function` whose name has no `u_` | `'ESPA003' is a regular function: the AppServer refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")` |
+| a regular function: a bare `Function` whose name has no `u_`, a `Main Function`, a method of a class the file does not declare | `'ESPA003' is a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |

@@ -1,3 +1,4 @@
 059.xtpl:6: warning: 'EndFunction' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)
 059.xtpl:10: warning: 'EndFunc' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)
+059.xtpl:12: warning: 'New' is a method of C, which this file does not declare, so the AppServer takes it for a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")
 059.xtpl:14: warning: 'EndMethod' is no TL++ keyword: the AppServer takes it as a name on its own, and the line does nothing (W0001)

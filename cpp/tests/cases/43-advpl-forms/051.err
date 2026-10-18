@@ -1,0 +1,1 @@
+051.xtpl:4: warning: 'Cria' is a method of TDb, which this file does not declare, so the AppServer takes it for a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")

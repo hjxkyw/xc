@@ -1,0 +1,16 @@
+// A 'Main Function', and a method whose class the file does not declare, are
+// regular functions to the AppServer: refused in a compile without TOTVS'
+// authorization (DSSCHED2.prw; TDS's wrap_parameters.prw). A method of a
+// class of the file is not warned of.
+main function DsSched2(aParams)
+return nil
+
+method myMethod(pX) class MyClass
+return pX
+
+class Mine
+  method New() constructor
+endclass
+
+method New() class Mine
+return self
