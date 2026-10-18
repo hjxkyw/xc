@@ -1486,6 +1486,22 @@ namespace xc
       // though a User Function has its name: an idiom of Protheus', which a
       // file of a class compiles with a function of the same name.
       if (!u && classes_.count(n)) { return; }
+      // A Web Function is found as 'w_' and its name, an Html Function as
+      // 'h_' (tried on 24.3.1.9): called by the plain name, it is not found.
+      static const std::unordered_map<std::string, std::pair<std::string, std::string>> PREFIXED =
+      {
+        { "web", { "w_", "Web Function" } },
+        { "html", { "h_", "Html Function" } },
+      };
+      if (auto f = funcs_.find(n); f != funcs_.end())
+      {
+        if (auto w = PREFIXED.find(f->second.kind); w != PREFIXED.end())
+        {
+          problem("'" + c->name + "' is a " + w->second.second + " (line " + num(f->second.line) + "), so it is called "
+                  + "as '" + w->second.first + c->name + "' -- the compiler puts the prefix on the declaration.");
+          return;
+        }
+      }
       if (auto f = funcs_.find(plain); f != funcs_.end())
       {
         if (u && f->second.kind == "static")
@@ -1521,6 +1537,9 @@ namespace xc
       auto word = alias_word(f);
       if (!word) { return; }
       std::string a = uc(*word);
+      // 'M->x' and 'MEMVAR->x' are the variable x, a Private's or a Public's:
+      // no area, and no field of the dictionary.
+      if (a == "M" || a == "MEMVAR") { return; }
       if (!(opened_.count(a) || external_alias_.count(a) || starts_with(a, "__") || !warned_alias_.insert(a).second))
       {
         warning("nothing in this function opened " + a + ". Wrap the use in 'using alias " + a + " do', "

@@ -622,6 +622,19 @@ namespace xc
     }
     if (!any)
     {
+      int e = annotationdef();
+      if (e >= 0)
+      {
+        p_ = e;
+        any = ws();
+        if (!any)
+        {
+          p_ = start;
+        }
+      }
+    }
+    if (!any)
+    {
       if (cmdst())
       {
         any = ws();
@@ -700,7 +713,7 @@ namespace xc
       return nullptr;
     }
     int kind = p_;
-    for (std::string_view w : { "user", "static", "main" })
+    for (std::string_view w : { "user", "static", "main", "web", "html" })
     {
       int save = p_;
       if (ilit(w) && is_s(c(p_)))
@@ -1865,6 +1878,57 @@ namespace xc
     }
   }
 
+  // TL++'s annotation of the file's own, taken whole, as written:
+  //   '@' :i 'annotation' <!ww> \N* \v [ <!before \h* '@' :i 'end' <!ww>> \N* \v ]*
+  //   \h* '@' :i 'end' <!ww> \N*
+  // Where it ends, or -1.
+  int Parser::annotationdef()
+  {
+    auto at_word = [&](int p, std::string_view w) -> int
+    {
+      if (c(p) != '@' || !iword_at(p + 1, w))
+      {
+        return -1;
+      }
+      int q = p + 1 + static_cast<int>(w.size());
+      return is_w(c(q)) ? -1 : q;
+    };
+    auto line_rest = [&](int p) -> int
+    {
+      while (is_nn(c(p)))
+      {
+        p++;
+      }
+      return p;
+    };
+    int q = at_word(p_, "annotation");
+    if (q < 0)
+    {
+      return -1;
+    }
+    q = line_rest(q);
+    for (;;)
+    {
+      int v = vchar(q);
+      if (!v)
+      {
+        return -1;
+      }
+      q += v;
+      int h = q;
+      while (is_h(c(h)))
+      {
+        h++;
+      }
+      int e = at_word(h, "end");
+      if (e >= 0)
+      {
+        return line_rest(e);
+      }
+      q = line_rest(q);
+    }
+  }
+
   // rule annotation { '@' <name> [ '(' ~ ')' <arglist> ]? }
   Annotation* Parser::annotation()
   {
@@ -2413,9 +2477,14 @@ namespace xc
     int start = p_;
     auto fail = [&]() -> Declarator* { p_ = start; return nullptr; };
     int e = 0;
+    if (memvar_ok_ && lower(c(p_)) == 'm' && c(p_ + 1) == '-' && c(p_ + 2) == '>')
+    {
+      p_ += 3;                       // 'Private M->nX': nX, as the AppServer has it
+    }
     std::string name = name_text(e);
     if (e < 0)
     {
+      p_ = start;
       return nullptr;
     }
     p_ = e;
@@ -2755,6 +2824,12 @@ namespace xc
     auto d = make<Declaration>();
     d->scope = scope;
     d->line = line(start);
+    struct Reset
+    {
+      bool& on;
+      ~Reset() { on = false; }
+    } reset{ memvar_ok_ };
+    memvar_ok_ = scope == "private";
     Declarator* first = declarator(false);
     if (!first)
     {

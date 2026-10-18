@@ -1,0 +1,16 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// An annotation of the file's own, '@annotation NAME' to '@end', is TL++'s
+// (TDS's annotations.tlpp; tried on 24.3.1.9): xc writes it as it is.
+@annotation xdaNote
+cText as character
+nSize as numeric default 10
+@end
+
+@ANNOTATION other
+  cName as character
+@END
+
+user function noted()
+return nil

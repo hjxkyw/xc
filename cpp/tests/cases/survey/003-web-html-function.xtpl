@@ -1,0 +1,14 @@
+// 'Web Function' and 'Html Function' are AdvPL's: the AppServer finds the
+// first as 'w_' and its name, the second as 'h_' (tried on 24.3.1.9). By
+// the plain name each is not found: that call is refused, as a user
+// function's without its 'u_'.
+web function page()
+return "<p>web</p>"
+
+html function view()
+return "<p>html</p>"
+
+user function both()
+  local cA := w_page() + h_view()
+  local cB := page()
+return cA + cB

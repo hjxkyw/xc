@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'Private M->nX := ...' declares nX, the same variable as 'M->nX' (tried
+// on 24.3.1.9: 'M->nX := M->nX + 1' and nX see 2) -- ngjsonobject.prw.
+// 'M->' is no area: nothing has to open it.
+user function indent()
+  private M->nIndent := 1
+  M->nIndent := M->nIndent + 1
+return nIndent

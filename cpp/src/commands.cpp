@@ -494,7 +494,7 @@ namespace xc
       std::string_view f = first;
       auto word_at = [&](std::size_t i, std::string_view w) { return f.substr(i, w.size()) == w && !is_w(at(f, i + w.size())); };
       std::size_t i = 0;
-      for (std::string_view w : { "user", "static", "main" })
+      for (std::string_view w : { "user", "static", "main", "web", "html" })
       {
         if (f.substr(0, w.size()) == w && is_s(at(f, w.size())))
         {

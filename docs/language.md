@@ -157,7 +157,9 @@ A file holds, in any order:
 - `external` declarations;
 - file statics: `Static aCache := {}`;
 - functions, classes, interfaces, method implementations, web services;
-- annotations, before the function or method they annotate;
+- annotations, before the function or method they annotate, and the
+  definitions of the file's own, `@annotation Name` to `@end`, passed
+  through whole;
 - TOTVS' commands ([TOTVS' commands](#totvs-commands)), and those the
   source declares itself ([A source's own commands](#a-sources-own-commands)).
 
@@ -197,8 +199,11 @@ Main Function Principal()
 Function u_Bare(nX)
 ```
 
-`User`, `Static` and `Main`, or none: xc takes a bare `Function`, which TL++
-allows when the name starts with `u_`. Parameters may be typed, `as
+`User`, `Static`, `Main`, `Web` and `Html`, or none: xc takes a bare
+`Function`, which TL++ allows when the name starts with `u_`. The AppServer
+finds a `Web Function` as `w_` and its name, an `Html Function` as `h_`
+(tried on 24.3.1.9), so xc refuses either called by its plain name, as it
+refuses a `User Function` without its `u_`. Parameters may be typed, `as
 Numeric`, and take the attributes of a local, `<const>` and `<contained>`.
 The return type goes after the parentheses. A `User Function` needs no
 parentheses when it takes nothing.
@@ -259,6 +264,10 @@ annotates: `@Get("/api/v1/saldo")` before a function or a method. A line
 that starts with `@` and goes on as an assignment, `@oJSON := x`, is an
 assignment.
 
+An annotation of the file's own is TL++'s too: `@annotation Name`, its
+fields one to a line -- `cText as character`, `nSize as numeric default
+10` -- and `@end`. xc writes the definition as it is.
+
 ### Web services
 
 AdvPL's web services come from include files xc cannot read (`restful.ch`,
@@ -311,7 +320,9 @@ Return nTotal
 
 `Local`, `Static`, `Private` and `Public`, one or more declarators to a
 line, separated by commas. A trailing comma is refused: a declaration that
-goes on to the next line ends in `;`.
+goes on to the next line ends in `;`. A `Private` may name its variable as
+`M->nX`, the alias of the variables: it declares `nX`, as the AppServer
+takes it.
 
 **Types.** The type comes before the value or after it. TL++ only takes it
 after, so xc moves it there. Only one of the two places: `Local nX as
@@ -1542,7 +1553,7 @@ with any name allowed, to say which name it was and why.
 | a name nothing declares, assigned | `'nCount' is not declared, so this creates a PRIVATE` |
 | a variable never read, or never used | `'cX' is assigned but never read`, `'cY' is declared but never used` |
 | a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
-| a field of an area nothing in the function opened | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
+| a field of an area nothing in the function opened -- `M->` and `MEMVAR->` are variables, no area | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
 | a value on one path and none on another | `the function can reach its end without a return, but returns a value on line 3` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |

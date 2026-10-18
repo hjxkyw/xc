@@ -74,6 +74,7 @@ namespace xc
     bool user_on_;
     int furthest_ = 0;
     bool past_prologue_ = false; // the body's declarations are over
+    bool memvar_ok_ = false;     // a Private's names: 'M->' may come before one
     bool top_level_ = false;     // in a function's own body, not a block's
     std::vector<int> rows_;      // where each line starts, as Raku's .lines splits them
     bool in_with_ = false;       // inside 'with object': ':x' is the subject's
@@ -217,6 +218,7 @@ namespace xc
     External* externalst();
     Declaration* filestatic();
     int wsblock();
+    int annotationdef();
     Annotation* annotation();
     std::string name_text(int& end);
 

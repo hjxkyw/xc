@@ -1,0 +1,1 @@
+003-web-html-function.xtpl:13: 'page' is a Web Function (line 5), so it is called as 'w_page' -- the compiler puts the prefix on the declaration.
