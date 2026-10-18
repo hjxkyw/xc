@@ -1,0 +1,1 @@
+006-regular-function.xtpl:7: warning: 'ESPA003' is a regular function: the AppServer refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")

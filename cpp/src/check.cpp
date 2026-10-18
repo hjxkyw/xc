@@ -504,6 +504,15 @@ namespace xc
       for (const FunctionDef* f : p->functions)
       {
         funcs_[lc(f->name)] = Func{ f->name, lc(f->type), f->params.size(), f->line };
+        // A bare 'Function' whose name has no 'u_': a regular function, which
+        // TOTVS compiles with its authorization -- without one the AppServer
+        // refuses it (tried on 24.3.1.9).
+        if (f->type.empty() && !starts_with(lc(f->name), "u_"))
+        {
+          warned.push_back({ f->line, "'" + f->name + "' is a regular function: the AppServer refuses one in a compile "
+                                      + "without TOTVS' authorization (\"Regular functions are not allowed in code. "
+                                      + "Use USER FUNCTION or STATIC FUNCTION.\")" });
+        }
         if (is_runtime_verb(f->name))
         {
           found.push_back({ f->line, "'" + f->name + "' is the name of one of xtpl's verbs: a call to "

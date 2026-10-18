@@ -1,0 +1,11 @@
+// A bare 'Function' whose name has no 'u_' is a regular function: TOTVS
+// compiles those with its authorization, and the AppServer refused one in
+// a compile without it ("Regular functions are not allowed in code", tried
+// on 24.3.1.9; probe xda: 'Template Function' and 'Project Function' are
+// read so too). A warning: the file is written. 51 files of the survey have
+// one. A bare 'Function u_Name' is a user function, and is not warned of.
+function ESPA003()
+return nil
+
+function u_Bare()
+return ESPA003()
