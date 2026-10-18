@@ -58,5 +58,7 @@ namespace xc
   std::size_t last_from(std::string_view t, std::string_view word);
 
   // The two includes every output gets, when missing.
-  std::string add_includes(const std::string& out, const std::string& nl);
+  // The include files the output needs and does not name: totvs.ch, and for
+  // TL++ tlpp-core.th -- not for AdvPL ('advpl'), whose output stays a .prw.
+  std::string add_includes(const std::string& out, const std::string& nl, bool advpl = false);
 }

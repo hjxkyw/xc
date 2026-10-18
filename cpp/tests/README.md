@@ -17,7 +17,8 @@ ctest --test-dir cpp/build
 
 ## cases/
 
-`NAME.xtpl` and beside it `NAME.tlpp`, the TL++ (none when xc writes none),
+`NAME.xtpl` and beside it `NAME.tlpp`, the TL++ (none when xc writes none;
+for `NAME.prw`, an AdvPL source, `NAME.out.prw`, the AdvPL xc writes),
 `NAME.err`, what xc says of it -- warnings, errors, the line it could not
 parse -- (none when it says nothing), and `NAME.args` when it is compiled with
 options: `--dict FILE`, `--dict-strict`, `--includes=DIRS`, the paths from its
@@ -40,7 +41,8 @@ guard as a statement's whole value, and one that stays an expression;
 with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
 variable named `as`, a number as a `Decimal`'s value); `survey/`, forms
-of the survey of AdvPL and TL++ on GitHub that xc refused wrongly.
+of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
+`advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++.
 
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change

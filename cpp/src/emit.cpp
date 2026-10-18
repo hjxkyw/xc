@@ -260,13 +260,13 @@ namespace xc
 
   NotLowered::NotLowered(std::vector<Finding> found) : std::runtime_error(what_of(found)), problems(std::move(found)) {}
 
-  std::string emit(const Program* p, const std::string& src)
+  std::string emit(const Program* p, const std::string& src, bool advpl)
   {
-    return Emitter(src).emit(p);
+    return Emitter(src, advpl).emit(p);
   }
 
   // ---- the emitter ----------------------------------------------------------
-  Emitter::Emitter(std::string src) : src_(std::move(src))
+  Emitter::Emitter(std::string src, bool advpl) : src_(std::move(src)), advpl_(advpl)
   {
     nl_ = src_.find("\r\n") != std::string::npos ? "\r\n" : "\n";
     std::string l = lc(src_);
@@ -895,7 +895,7 @@ namespace xc
       out += c;
       col = c == '\n' || c == '\r' ? 0 : col + 1;
     }
-    return add_includes(out, nl_);
+    return add_includes(out, nl_, advpl_);
   }
 
   // A parameter's '<const>' or '<contained>' leaves the header, and a comment

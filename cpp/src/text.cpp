@@ -342,7 +342,7 @@ namespace xc
     return found;
   }
 
-  std::string add_includes(const std::string& out, const std::string& nl)
+  std::string add_includes(const std::string& out, const std::string& nl, bool advpl)
   {
     std::vector<std::string> all = lines_of(out);
     auto included = [&](std::string_view h)
@@ -356,7 +356,7 @@ namespace xc
     std::vector<std::string> top;
     if (!included("totvs.ch")) { top.push_back("totvs.ch"); }
     std::string text = out;
-    if (!included("tlpp-core.th"))
+    if (!advpl && !included("tlpp-core.th"))
     {
       std::vector<std::string> lines = lines_of(out, true);
       long last = -1;

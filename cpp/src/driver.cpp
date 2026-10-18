@@ -162,8 +162,17 @@ namespace xc
     return cut != std::string::npos ? p.substr(0, cut) : ".";
   }
 
+  bool is_advpl(const std::string& path)
+  {
+    std::size_t dot = path.rfind('.');
+    if (dot == std::string::npos || path.find_first_of("/\\", dot) != std::string::npos) { return false; }
+    std::string ext = lc(path.substr(dot + 1));
+    return ext == "prw" || ext == "prx";
+  }
+
   Compiled compile(const std::string& path, const std::string& in, const CompileOptions& o)
   {
+    bool advpl = is_advpl(path);
     Compiled c;
     std::string src;
     if (!slurp(path, src))
@@ -188,7 +197,7 @@ namespace xc
 
     // What xtpl refuses although it parses, and what it warns about.
     int nlines = static_cast<int>(lines_of(src).size());
-    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src));
+    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl);
     for (const Finding& f : checked.warnings)
     {
       c.said += in + ":" + std::to_string(f.line) + ": warning: " + said(f.message) + "\n";
@@ -202,7 +211,7 @@ namespace xc
     // What xc cannot lower yet stops the compile, with --check too.
     try
     {
-      c.tlpp = emit(prog, src);
+      c.tlpp = emit(prog, src, advpl);
     }
     catch (const NotLowered& e)
     {

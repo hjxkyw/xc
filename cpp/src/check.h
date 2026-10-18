@@ -49,8 +49,10 @@ namespace xc
   // Everything the checks find in a program, each list in the order of its
   // lines, a message said once per line. lines: the file's length (where the
   // last function ends); source: the text, for what a warning quotes of it.
+  // 'advpl': the source is AdvPL's (.prw), and what it makes stays AdvPL --
+  // TL++'s own rules do not hold.
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source);
+                    std::optional<std::string_view> source, bool advpl = false);
 
   // The names a program declares that xc keeps for itself -- for a file
   // read again with any name allowed.

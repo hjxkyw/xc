@@ -37,7 +37,7 @@ namespace xc
   class Emitter
   {
   public:
-    explicit Emitter(std::string src);
+    explicit Emitter(std::string src, bool advpl = false);
 
     std::string emit(const Program* p);
 
@@ -121,6 +121,7 @@ namespace xc
 
     // ---- state --------------------------------------------------------------
     std::string src_;
+    bool advpl_;
     std::string nl_;
     std::vector<Edit> edits_;
     std::unordered_set<std::string> used_;

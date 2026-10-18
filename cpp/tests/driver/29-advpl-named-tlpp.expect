@@ -1,0 +1,6 @@
+exit 2
+--- output
+--- errors
+out.tlpp: extra/adv.prw is AdvPL, and makes a .prw
+--- written
+

@@ -1,0 +1,5 @@
+002-the-same-as-tlpp.xtpl:21: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
+002-the-same-as-tlpp.xtpl:8: 'as String': TL++ has no type 'String' -- write 'as Character' (a .prw takes it: AdvPL does not check its types).
+002-the-same-as-tlpp.xtpl:9: 'as Logic': TL++ has no type 'Logic' -- write 'as Logical' (a .prw takes it: AdvPL does not check its types).
+002-the-same-as-tlpp.xtpl:20: 'nD' is declared as Decimal, but its initial value is Numeric -- TL++ takes no number into a Decimal ("Incompatible types between F and N").
+002-the-same-as-tlpp.xtpl:23: Dobro() takes 1 parameter (line 26), but is given 2 -- TL++ refuses the call ("More parameters used in function call than expected").

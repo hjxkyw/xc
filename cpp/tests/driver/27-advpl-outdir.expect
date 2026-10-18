@@ -1,0 +1,7 @@
+exit 0
+--- output
+extra/adv.prw -> out/adv.prw
+--- errors
+extra/adv.prw:24: warning: Dobro() takes 1 parameter (line 27), but is given 2 -- the rest are dropped.
+--- written
+out/adv.prw

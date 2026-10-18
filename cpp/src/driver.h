@@ -12,6 +12,10 @@
 
 namespace xc
 {
+  // Whether a source is AdvPL's -- a .prw or a .prx -- and what xc makes of
+  // it stays AdvPL, in a file of its kind; anything else makes TL++.
+  bool is_advpl(const std::string& path);
+
   struct CompileOptions
   {
     bool strict = false;                 // the dictionary's findings are errors

@@ -1,1 +1,1 @@
-040.xtpl:6: warning: u() takes 1 parameter (line 3), but is given 2 -- the rest are dropped.
+040.xtpl:6: u() takes 1 parameter (line 3), but is given 2 -- TL++ refuses the call ("More parameters used in function call than expected").

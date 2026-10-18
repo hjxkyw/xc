@@ -1,0 +1,2 @@
+003-ten-characters.prw:11: 'ProcessOrderUpdated' and 'ProcessOrderCreated' (line 8) are one function in a .prw, which counts a name to 10 characters (PROCESSORD): the AppServer refuses the second.
+003-ten-characters.prw:17: 'HttpClientPost' and 'HttpClientGet' (line 14) are one function in a .prw, which counts a name to 10 characters (U_HTTPCLIE): the AppServer refuses the second.

@@ -1262,6 +1262,7 @@ namespace xc
       auto m = make<DataMember>();
       m->name = name;
       m->visibility = vis;
+      m->line = line(s);
       int save = p_;
       if (ilit("as") && ws())
       {

@@ -29,5 +29,6 @@ namespace xc
 
   // The TL++ a program becomes, from its tree and its source. Throws
   // NotLowered, or std::runtime_error when something inside went wrong.
-  std::string emit(const Program* p, const std::string& src);
+  // 'advpl': the source is AdvPL's, and so is what comes out (no tlpp-core.th).
+  std::string emit(const Program* p, const std::string& src, bool advpl = false);
 }

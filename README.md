@@ -40,7 +40,15 @@ cpp/build/xc --includes="lib/include;../shared" file.xtpl    # where its include
 cpp/build/xc --dict sx3.csv file.xtpl                   # checks the fields against an exported SX3
 cpp/build/xc --dict sx3.csv --dict-strict file.xtpl     # and what it finds stops the compile
 cpp/build/xc --version               # the commit it was built from, and its date
+cpp/build/xc --outdir=out a.prw      # an AdvPL source stays AdvPL: out/a.prw
+cpp/build/xc a.prw b.prw             # writes b.prw -- never over its source
 ```
+
+xtpl is TL++, and so is what xc makes of it: a `.tlpp`. A `.prw` (or
+`.prx`) is AdvPL, and stays AdvPL: xc writes a `.prw`, without
+`tlpp-core.th`, and holds it to AdvPL's rules, not TL++'s -- AdvPL takes
+`As String`, drops the arguments a function does not take, and checks no
+types (see `docs/language.md`, The output).
 
 The exit code is 0 when every file went through, 1 when one did not, and 2
 when the command line itself is wrong. `--version` says the commit xc was

@@ -32,7 +32,14 @@ foreach(cmd ${cmds})
                   OUTPUT_VARIABLE out
                   ERROR_VARIABLE err
                   RESULT_VARIABLE code)
-  file(GLOB_RECURSE written RELATIVE ${run} ${run}/*.tlpp)
+  # What xc wrote: the .tlpp, .prw and .prx that were not copied in.
+  file(GLOB_RECURSE found RELATIVE ${run} ${run}/*.tlpp ${run}/*.prw ${run}/*.prx)
+  set(written "")
+  foreach(w ${found})
+    if(NOT EXISTS ${CASES}/${w})
+      list(APPEND written ${w})
+    endif()
+  endforeach()
   list(SORT written)
   string(REPLACE ";" "\n" written "${written}")
   set(got "exit ${code}\n--- output\n${out}--- errors\n${err}--- written\n${written}\n")

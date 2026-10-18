@@ -471,6 +471,7 @@ namespace xc
     std::string name;
     OptStr type;
     OptStr visibility;
+    int line = 0;
   };
 
   struct MethodSig : Node

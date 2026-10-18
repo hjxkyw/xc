@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+extra/t.tlpp: what xc makes of it would be written over it -- name the output, or use --outdir
+--- written
+

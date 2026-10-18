@@ -33,6 +33,21 @@ plain TL++ comes out unchanged, but for two includes: `totvs.ch` at the top
 when the file does not include it, and `tlpp-core.th` after the last `.ch`
 include when it does not include that.
 
+**An AdvPL source stays AdvPL.** A `.prw` (or `.prx`) is AdvPL, and what xc
+makes of it is a `.prw` too -- `xc --outdir=out a.prw` writes `out/a.prw`,
+`xc a.prw b.prw` writes `b.prw`, never one over its source -- without
+`tlpp-core.th`. AdvPL is not TL++: it takes words for types TL++ refuses
+(`As String`), drops the arguments a function of the file does not take,
+and does not check its types -- 48 of 575 real sources tried on 24.3.1.9
+compile as a `.prw` and not as a `.tlpp`. So TL++'s own rules do not hold
+for a `.prw`: those are errors only for TL++, and the warnings that are
+about what TL++ does with a type (what it starts at, a `Decimal`) are not
+given. xtpl's own forms are lowered the same in both. AdvPL has a rule of
+its own that xc holds a `.prw` to: a function's name counts to 10
+characters, its `U_` included, so `ProcessOrderCreated` and
+`ProcessOrderUpdated` are one function there, and the AppServer refuses the
+second ("Redefinition of function PROCESSORD").
+
 **Encoding and line ends.** A source is windows-1252 (cp1252), as Protheus'
 sources are, and so is its output, with the same line ends. A file in UTF-8
 -- one that starts with UTF-8's byte order mark, or whose characters beyond
@@ -359,26 +374,27 @@ Return nX + nOk
 ty.xtpl:2: 'nX' is declared as Numeric, but its initial value is Character.
 ```
 
-**Decimal.** "Incompatible types between F and N", the AppServer says of a
-number and a `Decimal` that meet where it can see both: `nD := 5`,
-`nD + 1`, `nD == 5`, `If(lOk, nD, 7)`, a `Decimal` parameter given `5`
-(C9902, "expected F found N"); and `nD + u_f()` is "between F and U". A
-value of no type the compiler knows goes in -- `nD := u_f()`, where `u_f()`
-returns 5, gives `nD` the Decimal 5 -- and a `Decimal` goes into a
-`Numeric` or a variable with no type, and stays one there. `Str()` and
-`Int()` take it; `Round()` refuses it when it runs ("expected N->F"). (All
-tried on 24.3.1.9.)
+**Decimal**, in TL++. "Incompatible types between F and N", the AppServer
+says of a number and a `Decimal` that meet where it can see both:
+`nD := 5`, `nD + 1`, `nD == 5`, `If(lOk, nD, 7)`, a `Decimal` parameter
+given `5` (C9902, "expected F found N"); and `nD + u_f()` is "between F
+and U". A value of no type the compiler knows goes in -- `nD := u_f()`,
+where `u_f()` returns 5, gives `nD` the Decimal 5 -- and a `Decimal` goes
+into a `Numeric` or a variable with no type, and stays one there. `Str()`
+and `Int()` take it; `Round()` refuses it when it runs ("expected N->F").
+(All tried on 24.3.1.9.)
 
-**What a variable declared with a type starts at.** Not always Nil: TL++
-starts a `Local` or a `Static` declared with no value at its type's value
-when the type is `Numeric`, `Integer` or `Double` (0), `Character` (`""`),
-`Logical` (`.F.`) or `Date` -- 31 December 1899, whose `DtoS()` is
-`"18991231"` and which is not `Empty()`. `Array`, `Object`, `CodeBlock`,
-`JSON`, `Variant` and `Decimal` start at Nil. A parameter the call gives
-nothing is Nil, whatever its type, and any of them takes a Nil assigned to
-it later (tried on 24.3.1.9). So a `?:` on a `Local` of the first kind, or a
-`?=` to it, before anything assigns it, never takes its alternative, and xc
-warns of it.
+**What a variable declared with a type starts at**, in TL++ -- a `.prw`
+does not check its types. Not always Nil: TL++ starts a `Local` or a
+`Static` declared with no value at its type's value when the type is
+`Numeric`, `Integer` or `Double` (0), `Character` (`""`), `Logical`
+(`.F.`) or `Date` -- 31 December 1899, whose `DtoS()` is `"18991231"` and
+which is not `Empty()`. `Array`, `Object`, `CodeBlock`, `JSON`, `Variant`
+and `Decimal` start at Nil. A parameter the call gives nothing is Nil,
+whatever its type, and any of them takes a Nil assigned to it later (tried
+on 24.3.1.9). So a `?:` on a `Local` of the first kind, or a `?=` to it,
+before anything assigns it, never takes its alternative, and xc warns of
+it.
 
 **Attributes**, between the name and the value, outside TL++: `<const>` --
 the variable is never assigned again nor passed by reference with `@`, so it
@@ -1530,12 +1546,15 @@ parses, in xtpl's words.
 | an `external` assigned | `'cEmpAnt' is external (line 1) and cannot be assigned.` |
 | a `Local` after a `Private` or `Public` | `'local' after 'private' (line 3): a private or a public is a statement, and every local comes before the first statement.` |
 | a type by its letter, `Char` or `Block` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
+| in TL++, AdvPL's words for a type: `String`, `Number`, `Logic`, `Boolean` | `'as String': TL++ has no type 'String' -- write 'as Character' (a .prw takes it: AdvPL does not check its types).` |
+| in TL++, more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3 -- TL++ refuses the call ("More parameters used in function call than expected").` |
 | a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
 | a name of xc's shape declared | `'fo_0_0' has the shape of a name xc generates, so it cannot be declared. ...` |
 | a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
+| in a `.prw`, two functions one in their first 10 characters | `'ProcessOrderUpdated' and 'ProcessOrderCreated' (line 8) are one function in a .prw, which counts a name to 10 characters (PROCESSORD): the AppServer refuses the second.` |
 | a single value at the head of a chain | `nX is a single value -- it was declared as 5, and a chain walks a collection. Write {nX} for a one-element array, or 'lo..hi' for a range.` |
 | a source anywhere but the head of a chain | `'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '\|>'.` |
 | a chain from a source in the wrong place | `a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', ...` |
@@ -1565,7 +1584,7 @@ with any name allowed, to say which name it was and why.
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
-| more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
+| in a `.prw`, more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |

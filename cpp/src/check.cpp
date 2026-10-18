@@ -140,14 +140,14 @@ namespace xc
     // Decimal -- a Numeric in the tree, as the Raku xc has it -- is a type of
     // its own to TL++, 'F', that takes no number the compiler can see
     // (tried on 24.3.1.9).
-    std::optional<std::string> type_problem(const Declarator* v)
+    std::optional<std::string> type_problem(const Declarator* v, bool advpl)
     {
       if (v->declared == "?" || !v->init) { return std::nullopt; }
       std::string found = type_of(v->init);
       if (found == "?" || v->declared == "Variant") { return std::nullopt; }
       if (is_literal(v->init) && lc(static_cast<const Literal*>(v->init)->text) == "nil") { return std::nullopt; }
       std::vector<std::string> w = words(v->typespec_text.value_or(""));
-      bool decimal = w.size() > 1 && lc(w[1]) == "decimal";
+      bool decimal = !advpl && w.size() > 1 && lc(w[1]) == "decimal";
       std::string declared = decimal ? "Decimal" : v->declared;
       if (found == declared) { return std::nullopt; }
       std::string m = "'" + v->name + "' is declared as " + declared + ", but its initial value is " + found;
@@ -397,8 +397,8 @@ namespace xc
     class Checker
     {
     public:
-      Checker(int lines, const Dictionary& dictionary, bool strict, std::optional<std::string_view> source)
-        : lines_(lines), dictionary_(dictionary), strict_(strict), source_(source)
+      Checker(int lines, const Dictionary& dictionary, bool strict, std::optional<std::string_view> source, bool advpl)
+        : lines_(lines), dictionary_(dictionary), strict_(strict), source_(source), advpl_(advpl)
       {
       }
 
@@ -412,6 +412,7 @@ namespace xc
       const Dictionary& dictionary_;
       bool strict_;
       std::optional<std::string_view> source_;
+      bool advpl_;                   // an AdvPL source (.prw): TL++'s own rules do not hold
 
       Set warned_names_;
       Set implicit_;
@@ -450,7 +451,7 @@ namespace xc
 
       void agrees(const Declarator* d)
       {
-        if (auto p = type_problem(d)) { found.push_back({ d->line, *p }); }
+        if (auto p = type_problem(d, advpl_)) { found.push_back({ d->line, *p }); }
       }
 
       Scope* new_scope(Scope* outer, bool closure)
@@ -521,6 +522,28 @@ namespace xc
           found.push_back({ f->line, "'" + f->name + "' is the name of one of xtpl's verbs: a call to "
                                      + lc(f->name) + "() is the runtime's u_xtpl_" + lc(f->name)
                                      + ", never a function of the file. Give it another name." });
+        }
+      }
+      // A .prw counts a function's name to 10 characters, its prefix
+      // included: 'ProcessOrderCreated' and 'ProcessOrderUpdated' are one
+      // function there, PROCESSORD (tried on 24.3.1.9).
+      if (advpl_)
+      {
+        static const std::unordered_map<std::string, std::string> prefix = { { "user", "u_" }, { "web", "w_" },
+                                                                             { "html", "h_" } };
+        std::unordered_map<std::string, const FunctionDef*> first;
+        for (const FunctionDef* f : p->functions)
+        {
+          auto x = prefix.find(lc(f->type));
+          std::string full = (x != prefix.end() && !starts_with(lc(f->name), x->second.c_str()) ? x->second : std::string()) + f->name;
+          std::string key = uc(full.substr(0, 10));
+          auto [it, fresh] = first.emplace(key, f);
+          if (!fresh && lc(it->second->name) != lc(f->name))
+          {
+            found.push_back({ f->line, "'" + f->name + "' and '" + it->second->name + "' (line "
+                                       + num(it->second->line) + ") are one function in a .prw, which counts a name "
+                                       + "to 10 characters (" + key + "): the AppServer refuses the second." });
+          }
         }
       }
       for (const External* x : p->externals)
@@ -600,6 +623,11 @@ namespace xc
         type_word(m->returns, m->line);
         function(m->params, m->body, m->line);
       }
+      for (const ClassDef* c : p->classes)
+      {
+        if (advpl_) { break; }
+        for (const DataMember* d : c->members) { type_word(d->type, d->line ? d->line : c->line); }
+      }
       static_never_read();
     }
 
@@ -639,6 +667,22 @@ namespace xc
 
     void Checker::type_word(const OptStr& word, int line)
     {
+      // AdvPL's own words for a type, which a .prw takes and TL++ does not
+      // ("Invalid Type STRING", tried on 24.3.1.9).
+      static const std::unordered_map<std::string, std::string> advpl_words =
+      {
+        { "string", "Character" }, { "number", "Numeric" }, { "logic", "Logical" }, { "boolean", "Logical" },
+      };
+      if (word && !advpl_)
+      {
+        if (auto a = advpl_words.find(lc(*word)); a != advpl_words.end())
+        {
+          line_ = line;
+          problem("'as " + *word + "': TL++ has no type '" + *word + "' -- write 'as " + a->second + "' (a .prw "
+                  + "takes it: AdvPL does not check its types).");
+          return;
+        }
+      }
       if (!word || !(word->size() == 1 || lc(*word) == "char" || lc(*word) == "block")) { return; }
       static const std::unordered_map<std::string, std::string> whole =
       {
@@ -1320,7 +1364,7 @@ namespace xc
     // and not assigned since: TL++ started it at its type's value, not Nil.
     void Checker::never_nil(const Expr* e, const std::string& op)
     {
-      if (!is(e, EK::Name) || in_static_) { return; }
+      if (!is(e, EK::Name) || in_static_ || advpl_) { return; }
       const std::string& name = name_of(e);
       Found f = find(lc(name));
       if (!f || f.v->start.empty() || f.v->writes > 0) { return; }
@@ -1546,9 +1590,11 @@ namespace xc
       std::size_t params = f->second.params;
       if (given > params)
       {
-        warning(f->second.name + "() takes " + std::to_string(params) + " parameter" + (params == 1 ? "" : "s")
-                + " (line " + num(f->second.line) + "), but is given " + std::to_string(given)
-                + " -- the rest are dropped.");
+        // AdvPL drops the rest; TL++ refuses the call (C9901, tried on 24.3.1.9).
+        std::string m = f->second.name + "() takes " + std::to_string(params) + " parameter" + (params == 1 ? "" : "s")
+                        + " (line " + num(f->second.line) + "), but is given " + std::to_string(given);
+        if (advpl_) { warning(m + " -- the rest are dropped."); }
+        else { problem(m + " -- TL++ refuses the call (\"More parameters used in function call than expected\")."); }
       }
     }
 
@@ -1846,9 +1892,9 @@ namespace xc
   }
 
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source)
+                    std::optional<std::string_view> source, bool advpl)
   {
-    Checker c(lines, dictionary, strict, source);
+    Checker c(lines, dictionary, strict, source, advpl);
     c.program(p);
     return Checked{ tidy(c.found), tidy(c.warned) };
   }

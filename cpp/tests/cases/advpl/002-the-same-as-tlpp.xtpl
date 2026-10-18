@@ -1,0 +1,27 @@
+#include "protheus.ch"
+
+// The same source as 001-stays-advpl.prw, but TL++ (.xtpl): TL++'s rules
+// hold -- AdvPL's words for types are refused, and so is a call with more
+// arguments than the function takes, and a Decimal given a number; a typed
+// Local's '?:' is warned of.
+Class Pessoa
+  Data cNome As String
+  Data lAtivo As Logic
+  Method New() Constructor
+EndClass
+
+Method New() Class Pessoa
+  ::cNome := "x"
+  ::lAtivo := .T.
+Return Self
+
+User Function Adv(aItens)
+  Local nX as Numeric
+  Local nD := 5 as Decimal
+  Local nA := nX ?: 1
+  Local nSoma := aItens |> filter([x] x > 0) |> asum
+  conout(Dobro(nA, nD))
+Return nSoma
+
+Static Function Dobro(n)
+Return n * 2

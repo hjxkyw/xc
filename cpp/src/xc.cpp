@@ -4,6 +4,8 @@
 //   xc file.xtpl out.tlpp       writes out.tlpp
 //   xc a.xtpl b.xtpl src/       each one next to itself -- a folder stands
 //                               for every .xtpl under it
+//   xc --outdir=out a.prw       an AdvPL source (.prw, .prx) stays AdvPL:
+//                               out/a.prw; never over its source
 //
 //   --check             checks, and writes nothing: everything that would stop
 //                       the compile is reported, the warnings too
@@ -51,6 +53,7 @@ namespace
 
   const std::string USAGE =
     "usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
+    "       xc [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.prw out.prw\n"
     "       xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...\n"
     "       xc --version";
 
@@ -181,6 +184,14 @@ namespace
     std::size_t dot = name.rfind('.');
     return dot == std::string::npos ? name : name.substr(0, dot);
   }
+
+  // What a source's output is named with: an AdvPL source keeps its own
+  // extension, as written; any other makes a .tlpp.
+  std::string out_ext(const std::string& in)
+  {
+    if (!xc::is_advpl(in)) { return ".tlpp"; }
+    return in.substr(in.rfind('.'));
+  }
 }
 
 int main(int argc, char** argv)
@@ -225,12 +236,20 @@ int main(int argc, char** argv)
   if (o.c.strict && !dict_path) { usage_error("--dict-strict needs --dict"); }
   if (dict_path && !is_file(*dict_path)) { usage_error(*dict_path + ": no such file"); }
 
-  // 'file.xtpl out.tlpp': the one form with an output named.
+  // 'file.xtpl out.tlpp', 'file.prw out.prw': the one form with an output
+  // named. Two AdvPL sources are compiled with --outdir, never next to
+  // themselves, so a second .prw is an output only without it.
   std::optional<std::string> named_out;
-  if (given.size() == 2 && ends_with_ci(given[1], ".tlpp") && !is_dir(given[1]))
+  bool advpl_out = given.size() == 2 && xc::is_advpl(given[0]) && xc::is_advpl(given[1]) && !outdir && !o.check;
+  if (given.size() == 2 && (ends_with_ci(given[1], ".tlpp") || advpl_out) && !is_dir(given[1]))
   {
     named_out = given.back();
     given.pop_back();
+    if (xc::is_advpl(given[0]) != xc::is_advpl(*named_out))
+    {
+      usage_error(*named_out + ": " + given[0] + (xc::is_advpl(given[0]) ? " is AdvPL, and makes a .prw"
+                                                                           : " makes TL++, a .tlpp"));
+    }
   }
   if (o.check && named_out) { usage_error("--check writes nothing: no output to name"); }
   if (outdir && named_out) { usage_error("--outdir with an output named: one or the other"); }
@@ -290,10 +309,10 @@ int main(int argc, char** argv)
     std::unordered_map<std::string, std::string> seen;
     for (const std::string& in : sources)
     {
-      std::string k = xc::lc(stem(in));
+      std::string k = xc::lc(stem(in) + out_ext(in));
       if (auto it = seen.find(k); it != seen.end())
       {
-        usage_error(in + " and " + it->second + ": both would be " + stem(in) + ".tlpp in " + *outdir);
+        usage_error(in + " and " + it->second + ": both would be " + stem(in) + out_ext(in) + " in " + *outdir);
       }
       seen[k] = in;
     }
@@ -316,14 +335,21 @@ int main(int argc, char** argv)
     {
       std::string d = *outdir;
       while (!d.empty() && (d.back() == '/' || d.back() == '\\')) { d.pop_back(); }
-      out = d + sep + stem(in) + ".tlpp";
+      out = d + sep + stem(in) + out_ext(in);
     }
     else
     {
       // The extension goes: the last '.' with no '.', '/' or '\' after it.
       std::size_t dot = in.rfind('.');
       bool ext = dot != std::string::npos && in.find_first_of("/\\", dot) == std::string::npos;
-      out = (ext ? in.substr(0, dot) : in) + ".tlpp";
+      out = (ext ? in.substr(0, dot) : in) + out_ext(in);
+    }
+    // A .prw -- or a .tlpp -- would be written over itself.
+    if (!o.check && file_key(out) == file_key(in))
+    {
+      std::cerr << in << ": what xc makes of it would be written over it -- name the output, or use --outdir\n";
+      failed++;
+      continue;
     }
     if (!run(in, out, o)) { failed++; }
   }
