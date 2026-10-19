@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(cKey)
+  local jA := u_xtpl_jnew({{cKey, 1}, {"b", 2}})
+  local jB := {"a": u_xtpl_jnew({{cKey, 1}})}
+  local jC := u_xtpl_jnew({{'k', 1}})
+return {jA, jB, jC}

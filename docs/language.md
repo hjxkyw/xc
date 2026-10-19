@@ -158,8 +158,8 @@ the checks warn. `${expression}` inside a string, of either quote, is
 [interpolation](#interpolation). A `$` not followed by `{` is text:
 `"R$ 10"`.
 
-Hashes, JSON objects and lambdas are [expressions](#expressions) xc
-rewrites; arrays and code blocks are TL++'s own.
+Hashes and lambdas are [expressions](#expressions) xc rewrites; arrays,
+code blocks and the JSON objects TL++ takes as written are TL++'s own.
 
 ## A file
 
@@ -1088,11 +1088,20 @@ type keeps `u_xtpl_hget`: TL++ would not take the Nil written out.
 
 | xtpl | TL++ |
 |---|---|
-| `{"name": cName, "qty": 3}` | `u_xtpl_jnew({{"name", cName}, {"qty", 3}})` |
+| `{"name": cName, "qty": 3}` | `{"name": cName, "qty": 3}` |
+| `{"n": hCfg{"t"}}` | `{"n": u_xtpl_hget(hCfg, "t")}` |
 | `{ : }` | `JsonObject():New()` |
+| `{cKey: 1}` | `u_xtpl_jnew({{cKey, 1}})` |
 
-TL++ has no JSON literal -- `{ : }` is a syntax error to the AppServer --
-so xc makes the object with the runtime's `u_xtpl_jnew`.
+TL++ has the JSON literal itself, and xc leaves it as it is written, what is
+in it lowered: the AppServer (24.3.1.9) makes a `JsonObject` of
+`{ "k" : 1 }`, one inside another and an array in it, with `totvs.ch`,
+`tlpp-core.th` or no include at all. What it refuses xc makes with the
+runtime's `u_xtpl_jnew`, or `JsonObject():New()`: the empty one, `{ : }`
+(C2003); a key that is not a string in double quotes, `{cKey: 1}` (C2003);
+and any of them in a `.prw` (C9905, "Invalid use of Json Syntax in ADVPL
+source file") -- there `{"name": cName, "qty": 3}` is
+`u_xtpl_jnew({{"name", cName}, {"qty", 3}})`.
 
 ### Interpolation
 
@@ -1632,7 +1641,7 @@ They are `User Function`s, so the names the output calls carry the `u_`:
 - `u_xtpl_in`, for `in`;
 - `u_xtpl_elvis`, for a `?:` where no Local can hold its left side;
 - `u_xtpl_hget`, `u_xtpl_hset`, `u_xtpl_hhas`, `u_xtpl_hnew`, for hashes;
-- `u_xtpl_jnew`, for JSON objects;
+- `u_xtpl_jnew`, for the JSON objects TL++ will not take as written;
 - `u_xtpl_safe_pipe`, for a `fallback` inside an expression.
 - `u_xtpl_seen`, for a `distinct` in a loop.
 

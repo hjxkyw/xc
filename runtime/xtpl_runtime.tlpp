@@ -164,8 +164,9 @@ User Function xtpl_hnew(aPairs)
   Next
 Return oHash
 
-// xc: a JSON literal, '{"k1": v1, "k2": v2}', from {{"k1", v1}, {"k2", v2}}.
-// TL++ has none: '{ : }' is a syntax error to the AppServer.
+// xc: a JSON literal, '{k1: v1, "k2": v2}', from {{k1, v1}, {"k2", v2}}, where
+// TL++ will not take it as written: a key that is not a string in double
+// quotes, and any JSON literal in a .prw.
 User Function xtpl_jnew(aPairs)
   Local jObj := JsonObject():New()
   Local nX

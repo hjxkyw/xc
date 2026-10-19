@@ -1,0 +1,5 @@
+user function f(cKey)
+  local jA := {cKey: 1, "b": 2}
+  local jB := {"a": {cKey: 1}}
+  local jC := {'k': 1}
+return {jA, jB, jC}

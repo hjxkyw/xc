@@ -1,0 +1,6 @@
+user function f(cName, h, cKey)
+  local jA := {"name": cName, "qty": 3}
+  local jB := {"k": h{"x"}, "o": {"p": {1, 2}}}
+  local jC := {"name": cName, ;
+               "qty": [x] x * 2}
+return {jA, jB, jC}

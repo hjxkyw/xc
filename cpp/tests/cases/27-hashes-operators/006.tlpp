@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 user function f(h, a, o, l)
   local x := 0
-  x := u_xtpl_jnew({{"a", 1}, {"b", u_xtpl_jnew({{"c", l}})}, {"d", {1, 2}}})
+  x := {"a": 1, "b": {"c": l}, "d": {1, 2}}
 return x

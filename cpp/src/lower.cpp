@@ -1518,6 +1518,8 @@ namespace xc
       case EK::HashLit:
       case EK::JsonLit:
       {
+        // TL++'s own JSON object: as written, what is in it lowered.
+        if (native_json(e)) { return with_edits(e, subexprs(e)); }
         const std::vector<KeyValue*>& pairs = k == EK::HashLit ? static_cast<const HashLit*>(e)->pairs
                                                                : static_cast<const JsonLit*>(e)->pairs;
         if (pairs.empty()) { return k == EK::HashLit ? "THashMap():New()" : "JsonObject():New()"; }
@@ -1660,8 +1662,10 @@ namespace xc
       case EK::InAlias: case EK::ExprList: case EK::Macro: case EK::Ref: case EK::Omitted: case EK::UserTrans:
         return false;
       case EK::Lambda: case EK::Pipeline: case EK::HashIndex: case EK::HashLit: case EK::Guard: case EK::Interp:
-      case EK::SafeMember: case EK::SafeCall: case EK::JsonLit:
+      case EK::SafeMember: case EK::SafeCall:
         return true;
+      case EK::JsonLit:
+        return !native_json(e);
       case EK::Call:
         return is_runtime_verb(static_cast<const Call*>(e)->name);
       case EK::Name:
@@ -1687,6 +1691,24 @@ namespace xc
       }
     }
     return false;
+  }
+
+  // A JSON object TL++ takes as written: in TL++ (not a .prw: "Invalid use of
+  // Json Syntax in ADVPL source file"), with a pair at least ('{ : }' is
+  // refused), each key a string in double quotes ('{ cKey : 1 }' is
+  // refused). It makes a JsonObject (all tried on 24.3.1.9).
+  bool Emitter::native_json(const Expr* e) const
+  {
+    if (advpl_ || !is_expr(e, EK::JsonLit)) { return false; }
+    const std::vector<KeyValue*>& pairs = static_cast<const JsonLit*>(e)->pairs;
+    if (pairs.empty()) { return false; }
+    for (const KeyValue* kv : pairs)
+    {
+      if (!is_expr(kv->key, EK::Literal)) { return false; }
+      auto l = static_cast<const Literal*>(kv->key);
+      if (l->type != "Character" || l->text.empty() || l->text[0] != '"') { return false; }
+    }
+    return true;
   }
 
   bool Emitter::contains_lowering(const Expr* e) const

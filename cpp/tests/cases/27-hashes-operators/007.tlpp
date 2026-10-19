@@ -2,5 +2,5 @@
 #include "tlpp-core.th"
 user function f(h, a, o, l)
   local x := 0
-  conout(u_xtpl_jnew({{"n", u_xtpl_hget(h, "k")}}):toJson())
+  conout({"n": u_xtpl_hget(h, "k")}:toJson())
 return x

@@ -265,6 +265,7 @@ namespace xc
     // ---- expressions --------------------------------------------------------
     std::string expr(const Expr* e);
     bool lowers_itself(const Expr* e) const;
+    bool native_json(const Expr* e) const;
     bool contains_lowering(const Expr* e) const;
     std::string interpolated(const Interp* i);
     std::string safe(const Expr* base, const std::string& tail);

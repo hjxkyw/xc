@@ -46,7 +46,7 @@ user function xc_selftest()
   local cTmp := ""
   local lTmp := .F.
   local xTmp := nil
-  local jKeys := u_xtpl_jnew({{"a", "x"}, {"v5", "cinco"}})
+  local jKeys := {"a": "x", "v5": "cinco"}
   local __v := 5            && a name that starts with '__', and a Clipper comment
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
   local bHi := {|x| iif(((fbv_0_0 := same(x)) >= 1 .And. fbv_0_0 <= 5), 10, 20)}
@@ -700,10 +700,16 @@ user function xc_selftest()
   hKeep:Get("none", @xTmp)
   check("a hash read to a name, a key not there: Nil", xTmp == nil, xTmp, @nOk, @nBad)
 
-  // ---- JSON: TL++ has no literal, so xc builds a JsonObject -----------------
+  // ---- JSON: TL++'s own literal; xc makes '{ : }' and a key from a name -----
   check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
-  jTmp := u_xtpl_jnew({{"a", 1}, {"b", u_xtpl_jnew({{"c", "x"}})}, {"d", {1, 2}}})
+  jTmp := {"a": 1, "b": {"c": "x"}, "d": {1, 2}}
   check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
+  cTmp := "b"
+  jTmp := {"a": cTmp, "n": len(aPal), "h": u_xtpl_hget(hMap, "a"), "blk": {|x| x + 1}}
+  check("a JSON literal of a name, a call, a hash read, a block", jTmp["a"] == "b" .and. jTmp["n"] == 3 .and. jTmp["h"] == 1 .and. eval(jTmp["blk"], 1) == 2, valtype(jTmp["blk"]), @nOk, @nBad)
+  check("a method of a JSON literal itself", len({"n": 7, "m": 8}:GetNames()) == 2, len({"n": 7, "m": 8}:GetNames()), @nOk, @nBad)
+  jTmp := u_xtpl_jnew({{cTmp, 1}, {"c", 2}})
+  check("a JSON with a key from a name", jTmp["b"] == 1 .and. jTmp["c"] == 2, jTmp:toJson(), @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12345 + 1000.5
@@ -1142,7 +1148,7 @@ static function inPrologue(aCalls)
   Local et_0_0  // the left side of a '?:', evaluated once
   local cName := If(ValType(et_0_0 := counted(aCalls, Nil)) != "U", et_0_0, "anon")
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
-  local cText := If(ValType(fbv_0_0 := counted(aCalls, u_xtpl_jnew({{"c", "x"}}))) != "U", fbv_0_0:GetJsonText("c"), Nil)
+  local cText := If(ValType(fbv_0_0 := counted(aCalls, {"c": "x"})) != "U", fbv_0_0:GetJsonText("c"), Nil)
   local lIn := ((fbv_0_0 := counted(aCalls, 7)) >= 5 .And. fbv_0_0 <= 10)
 return cName + " " + cText + iif(lIn, "!", "?")
 

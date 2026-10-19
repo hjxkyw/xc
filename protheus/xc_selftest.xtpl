@@ -165,10 +165,16 @@ user function xc_selftest()
   xTmp := hKeep{"none"}
   check("a hash read to a name, a key not there: Nil", xTmp == nil, xTmp, @nOk, @nBad)
 
-  // ---- JSON: TL++ has no literal, so xc builds a JsonObject -----------------
+  // ---- JSON: TL++'s own literal; xc makes '{ : }' and a key from a name -----
   check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
   jTmp := {"a": 1, "b": {"c": "x"}, "d": {1, 2}}
   check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
+  cTmp := "b"
+  jTmp := {"a": cTmp, "n": len(aPal), "h": hMap{"a"}, "blk": {|x| x + 1}}
+  check("a JSON literal of a name, a call, a hash read, a block", jTmp["a"] == "b" .and. jTmp["n"] == 3 .and. jTmp["h"] == 1 .and. eval(jTmp["blk"], 1) == 2, valtype(jTmp["blk"]), @nOk, @nBad)
+  check("a method of a JSON literal itself", len({"n": 7, "m": 8}:GetNames()) == 2, len({"n": 7, "m": 8}:GetNames()), @nOk, @nBad)
+  jTmp := {cTmp: 1, "c": 2}
+  check("a JSON with a key from a name", jTmp["b"] == 1 .and. jTmp["c"] == 2, jTmp:toJson(), @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5

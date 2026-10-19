@@ -1,0 +1,4 @@
+user function f()
+  local jA := { : }
+  local jB := {"a": { : }}
+return {jA, jB}

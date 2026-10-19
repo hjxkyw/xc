@@ -42,7 +42,9 @@ with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
 variable named `as`, a number as a `Decimal`'s value); `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
-`advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++.
+`advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
+`json/`, the JSON literals TL++ takes as written, and those xc makes with
+`u_xtpl_jnew` or `JsonObject():New()`.
 
 A test in `t/` says what it looks for; a case holds the whole of what came
 out, so a change to the output shows in every case it touches. After a change

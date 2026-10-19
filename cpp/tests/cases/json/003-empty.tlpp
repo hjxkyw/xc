@@ -1,0 +1,7 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  local jA := JsonObject():New()
+  local jB := {"a": JsonObject():New()}
+return {jA, jB}
