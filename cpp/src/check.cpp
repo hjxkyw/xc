@@ -19,6 +19,7 @@
 
 #include "chains.h"
 #include "chars.h"
+#include "decimal.h"
 #include "parser.h"
 #include "walk.h"
 
@@ -139,8 +140,8 @@ namespace xc
 
     // What is wrong with a declarator's value for its type, if anything. A
     // Decimal -- a Numeric in the tree, as the Raku xc has it -- is a type of
-    // its own to TL++, 'F', that takes no number the compiler can see
-    // (tried on 24.3.1.9).
+    // its own to TL++, 'F': a number that goes into one is decimal.cpp's to
+    // judge -- xc makes a literal one, and refuses a Numeric.
     std::optional<std::string> type_problem(const Declarator* v, bool advpl)
     {
       if (v->declared == "?" || !v->init) { return std::nullopt; }
@@ -151,12 +152,8 @@ namespace xc
       bool decimal = !advpl && w.size() > 1 && lc(w[1]) == "decimal";
       std::string declared = decimal ? "Decimal" : v->declared;
       if (found == declared) { return std::nullopt; }
-      std::string m = "'" + v->name + "' is declared as " + declared + ", but its initial value is " + found;
-      if (decimal && found == "Numeric")
-      {
-        m += " -- TL++ takes no number into a Decimal (\"Incompatible types between F and N\")";
-      }
-      return m + ".";
+      if (decimal && found == "Numeric") { return std::nullopt; }
+      return "'" + v->name + "' is declared as " + declared + ", but its initial value is " + found + ".";
     }
 
     // ---- small subs ---------------------------------------------------------
@@ -1984,6 +1981,7 @@ namespace xc
   {
     Checker c(lines, dictionary, strict, source, advpl);
     c.program(p);
+    for (Finding& f : decimal_problems(p, source, advpl)) { c.found.push_back(std::move(f)); }
     return Checked{ tidy(c.found), tidy(c.warned) };
   }
 

@@ -8,7 +8,8 @@
 // was reached, the temps xc writes around the source's own code, each value
 // of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
 // whole value, verbs written as calls as loops, Clipper's comments, a name
-// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql,
+// Decimals' arithmetic with the DEC_ functions. Pure
 // computation, as 54 is: no table, no file, no screen, so a right or wrong
 // answer and not an environment.
 //
@@ -48,6 +49,9 @@ user function xc_selftest()
   local __v := 5            && a name that starts with '__', and a Clipper comment
   local bHi := [x] iif(same(x) in 1..5, 10, 20)
   local bOld
+  local fA := 99.9 as Decimal
+  local fB := 0.1 as Decimal
+  local fC as Decimal
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -179,6 +183,22 @@ user function xc_selftest()
   check("a method of a JSON literal itself", len({"n": 7, "m": 8}:GetNames()) == 2, len({"n": 7, "m": 8}:GetNames()), @nOk, @nBad)
   jTry := {cTmp: 1, "c": 2}
   check("a JSON with a key from a name", jTry["b"] == 1 .and. jTry["c"] == 2, jTry:toJson(), @nOk, @nBad)
+
+  // ---- Decimals: TL++'s 'F', written with the DEC_ functions ----------------
+  check("99.9 + 0.1 in Decimals is 100", fA + fB == 100, fA + fB, @nOk, @nBad)
+  fC := 99
+  check("99 * 99 in Decimals", fC * fC == 9801 .and. fC - 100 < 0, fC * fC, @nOk, @nBad)
+  fC := 10
+  check("Round(10 / 3, 2) in Decimals", Round(fC / 3, 2) == 3.33, Round(fC / 3, 2), @nOk, @nBad)
+  check("NoRound(10 / 3, 2) in Decimals", NoRound(fC * 2 / 3, 2) == 6.66, NoRound(fC * 2 / 3, 2), @nOk, @nBad)
+  check("17 % 5 in Decimals", (fC + 7) % 5 == 2, (fC + 7) % 5, @nOk, @nBad)
+  fC := 0
+  check("Empty() of a Decimal zero", Empty(fC) .and. !Empty(fB), fC, @nOk, @nBad)
+  fC += 1.5
+  fC++
+  check("'+=' and '++' on a Decimal", fC == 2.5, fC, @nOk, @nBad)
+  check("'-' before a Decimal, and 1.5 == 1.50", -fC < 0 .and. fB * 15 == 1.50, fB * 15, @nOk, @nBad)
+  check("a Decimal parameter given 5, a function as Decimal", half(5) == 2.5 .and. half(fA) == 49.95, half(fA), @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5
@@ -413,6 +433,11 @@ return nil
 
 static function same(xValue)
 return xValue
+
+// A Decimal parameter and value: the literal it is given made a Decimal, and
+// the division a DEC_DIV.
+static function half(fX as Decimal) as Decimal
+return fX / 2
 
 // A defer in an If: at the function's end, only if the If was taken.
 static function deferIn(lTake, aLog)

@@ -1,0 +1,41 @@
+// Decimals written with the DEC_ functions: a literal that goes into one
+// (a static's, a declaration's, an assignment's, an argument for a Decimal
+// parameter, a return of a function declared so) made one from its text,
+// '-' outside; the operators, 'op=', '++' and '--'; a comparison with a
+// literal; Round(), NoRound(), Empty(); If() and calls as Decimals. A value
+// of no known type stays as it is.
+static fRate := 0.05 as Decimal
+
+user function f(fP as Decimal, nQ as Numeric, xU)
+  local fD := 1.25 as Decimal
+  local fE := -1.5 as Decimal
+  local fF := 12'345.5 as Decimal
+  local fG := .5 as Decimal
+  local fH := 2 * 3 as Decimal
+  local fI := xU as Decimal
+  local fJ as Decimal
+  fJ := 007.50
+  fD += 2
+  fD++
+  --fD
+  xU := fD++
+  xU := (fD -= 1)
+  fD := fP * 3 + 1.5
+  fD := -fD
+  if fD > 0 .and. -fD < 3 .and. 1 <= fD .and. fD == fE
+    fD := Round(fD / 3, 2) + NoRound(fE, 1)
+  endif
+  xU := Empty(fD) .or. fD % 2 == 1
+  xU := If(.T., fD, fE) * 2
+  xU := half(5) + half(fD)
+  xU := fD + xU
+  xU := xU * 2
+  fD := xU * 2
+  xU := {fF, fG, fH, fI, fJ, nQ, two()}
+return fD + fRate
+
+static function half(fX as Decimal) as Decimal
+return fX / 2
+
+static function two() as Decimal
+return 2

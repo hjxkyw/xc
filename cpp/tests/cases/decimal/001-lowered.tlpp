@@ -1,0 +1,44 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Decimals written with the DEC_ functions: a literal that goes into one
+// (a static's, a declaration's, an assignment's, an argument for a Decimal
+// parameter, a return of a function declared so) made one from its text,
+// '-' outside; the operators, 'op=', '++' and '--'; a comparison with a
+// literal; Round(), NoRound(), Empty(); If() and calls as Decimals. A value
+// of no known type stays as it is.
+static fRate := DEC_CREATE("0.05", 3, 2) as Decimal
+
+user function f(fP as Decimal, nQ as Numeric, xU)
+  local fD := DEC_CREATE("1.25", 3, 2) as Decimal
+  local fE := -DEC_CREATE("1.5", 2, 1) as Decimal
+  local fF := DEC_CREATE("12345.5", 6, 1) as Decimal
+  local fG := DEC_CREATE("0.5", 2, 1) as Decimal
+  local fH := DEC_MUL(DEC_CREATE("2", 1, 0), DEC_CREATE("3", 1, 0)) as Decimal
+  local fI := xU as Decimal
+  local fJ as Decimal
+  fJ := DEC_CREATE("7.50", 3, 2)
+  fD := DEC_ADD(fD, DEC_CREATE("2", 1, 0))
+  fD := DEC_ADD(fD, DEC_CREATE("1", 1, 0))
+  fD := DEC_SUB(fD, DEC_CREATE("1", 1, 0))
+  xU := DEC_SUB((fD := DEC_ADD(fD, DEC_CREATE("1", 1, 0))), DEC_CREATE("1", 1, 0))
+  xU := (fD := DEC_SUB(fD, DEC_CREATE("1", 1, 0)))
+  fD := DEC_ADD(DEC_MUL(fP, DEC_CREATE("3", 1, 0)), DEC_CREATE("1.5", 2, 1))
+  fD := -fD
+  if fD > DEC_CREATE("0", 1, 0) .and. -fD < DEC_CREATE("3", 1, 0) .and. DEC_CREATE("1", 1, 0) <= fD .and. fD == fE
+    fD := DEC_ADD(DEC_RESCALE(DEC_DIV(fD, DEC_CREATE("3", 1, 0)), 2, 0), DEC_RESCALE(fE, 1, 2))
+  endif
+  xU := (fD == DEC_CREATE("0", 1, 0)) .or. DEC_MOD(fD, DEC_CREATE("2", 1, 0)) == DEC_CREATE("1", 1, 0)
+  xU := DEC_MUL(If(.T., fD, fE), DEC_CREATE("2", 1, 0))
+  xU := DEC_ADD(half(DEC_CREATE("5", 1, 0)), half(fD))
+  xU := DEC_ADD(fD, xU)
+  xU := xU * 2
+  fD := xU * 2
+  xU := {fF, fG, fH, fI, fJ, nQ, two()}
+return DEC_ADD(fD, fRate)
+
+static function half(fX as Decimal) as Decimal
+return DEC_DIV(fX, DEC_CREATE("2", 1, 0))
+
+static function two() as Decimal
+return DEC_CREATE("2", 1, 0)

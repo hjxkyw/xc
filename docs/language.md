@@ -360,8 +360,8 @@ literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
 or of two strings. A call, a name, a date less a number say nothing -- what
 they hold is not known here. `Integer` and `Double` are numbers, `Variant`
 takes anything, and `Nil` fits every type. `Decimal` is not a number to
-TL++ but a type of its own, whose `ValType()` is `"F"`: it takes no number
-the compiler can see, and xc refuses one as its value.
+TL++ but a type of its own, whose `ValType()` is `"F"`: xc makes a literal
+one, and refuses a number declared so -- see [Decimals](#decimals).
 
 ```xtpl
 User Function Ty(nY)
@@ -373,16 +373,6 @@ Return nX + nOk
 ```text
 ty.xtpl:2: 'nX' is declared as Numeric, but its initial value is Character.
 ```
-
-**Decimal**, in TL++. "Incompatible types between F and N", the AppServer
-says of a number and a `Decimal` that meet where it can see both:
-`nD := 5`, `nD + 1`, `nD == 5`, `If(lOk, nD, 7)`, a `Decimal` parameter
-given `5` (C9902, "expected F found N"); and `nD + u_f()` is "between F
-and U". A value of no type the compiler knows goes in -- `nD := u_f()`,
-where `u_f()` returns 5, gives `nD` the Decimal 5 -- and a `Decimal` goes
-into a `Numeric` or a variable with no type, and stays one there. `Str()`
-and `Int()` take it; `Round()` refuses it when it runs ("expected N->F").
-(All tried on 24.3.1.9.)
 
 **What a variable declared with a type starts at**, in TL++ -- a `.prw`
 does not check its types. Not always Nil: TL++ starts a `Local` or a
@@ -1102,6 +1092,76 @@ runtime's `u_xtpl_jnew`, or `JsonObject():New()`: the empty one, `{ : }`
 and any of them in a `.prw` (C9905, "Invalid use of Json Syntax in ADVPL
 source file") -- there `{"name": cName, "qty": 3}` is
 `u_xtpl_jnew({{"name", cName}, {"qty", 3}})`.
+
+### Decimals
+
+```xtpl
+User Function Total(fPreco as Decimal)
+  Local fTotal := 0 as Decimal
+  Local fTaxa := 0.05 as Decimal
+  fTotal := fPreco * 3 + 1.5
+  fTotal += fTotal * fTaxa
+  If fTotal > 100
+    fTotal := Round(fTotal - 10, 2)
+  EndIf
+Return Empty(fTotal)
+```
+
+```tlpp
+User Function Total(fPreco as Decimal)
+  Local fTotal := DEC_CREATE("0", 1, 0) as Decimal
+  Local fTaxa := DEC_CREATE("0.05", 3, 2) as Decimal
+  fTotal := DEC_ADD(DEC_MUL(fPreco, DEC_CREATE("3", 1, 0)), DEC_CREATE("1.5", 2, 1))
+  fTotal := DEC_ADD(fTotal, DEC_MUL(fTotal, fTaxa))
+  If fTotal > DEC_CREATE("100", 3, 0)
+    fTotal := DEC_RESCALE(DEC_SUB(fTotal, DEC_CREATE("10", 2, 0)), 2, 0)
+  EndIf
+Return (fTotal == DEC_CREATE("0", 1, 0))
+```
+
+A `Decimal` is TL++'s number of fixed point -- its `ValType()` is `"F"`,
+and it holds 63 digits at most. It takes no number the compiler can see,
+and no operator but the comparisons and `-` before it ("Incompatible types
+between F and F", even of `+` between two of them): its arithmetic is the
+`DEC_` functions'. So xc writes it with them wherever one side is a
+Decimal -- a name declared `as Decimal`, a `DEC_` call, a function of the
+file declared `as Decimal`, `Round()` or `NoRound()` of one, `If()` with
+one in a branch:
+
+- A literal that goes into one -- a value, an argument for a parameter
+  declared `as Decimal`, what a function declared so returns -- or that
+  meets one is `DEC_CREATE` of its own text: its digits and its decimals,
+  exactly; `-` stays outside it. A literal of more than 63 digits is
+  refused.
+- `+`, `-`, `*`, `/` and `%` are `DEC_ADD`, `DEC_SUB`, `DEC_MUL`, `DEC_DIV`
+  and `DEC_MOD`; `+=` and the like, `++` and `--`, an assignment of what
+  they make.
+- A comparison stays as it is, a literal on its other side made one. 1.5 and
+  1.50 are equal.
+- `Round(f, n)` is `DEC_RESCALE(f, n, 0)` -- half away from zero --,
+  `NoRound(f, n)` is `DEC_RESCALE(f, n, 2)`, cut; `Empty(f)` is a comparison
+  with 0: `Empty()` of a Decimal stops the thread ("Empty: unknown variable
+  type").
+
+A division keeps every decimal `DEC_DIV` makes -- 10 / 4 is 2.5 and a
+hundred zeros or so --: round it with `Round()`. A value known to be a
+number -- a name declared `as Numeric`, `Integer` or `Double`, arithmetic
+with one -- that meets a Decimal is refused: `DEC_CREATE(n, digits,
+decimals)` makes it one. A value of no type known here goes as it is, and
+has to hold a Decimal when it runs; a number of no type the compiler knows
+goes into a Decimal -- `fD := u_f()` -- with 15 digits at most. A Decimal
+declared with no value starts at Nil. The names here start with `f`, the
+letter of its `ValType()`, as `n` does a Numeric's. (All tried on
+24.3.1.9.)
+
+```xtpl
+User Function Mix(fPreco as Decimal, nQtd as Numeric)
+Return fPreco * nQtd
+```
+
+```text
+mix.xtpl:2: 'nQtd' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQtd, digits, decimals).
+```
 
 ### Interpolation
 

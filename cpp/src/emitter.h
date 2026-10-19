@@ -14,6 +14,7 @@
 
 #include "ast.h"
 #include "check.h"
+#include "decimal.h"
 
 namespace xc
 {
@@ -156,6 +157,13 @@ namespace xc
     // The names the function declares with a type ('as N'), which TL++ will
     // not compare with Nil.
     std::unordered_set<std::string> typed_;
+    // Decimals: what is one in the file and in the function, the values that
+    // go into one -- a declaration's, an assignment's, a return's in a
+    // function declared so, an argument a parameter declared so takes --
+    // and whether the function is declared so.
+    Decimals dec_;
+    std::unordered_set<const Expr*> into_decimal_;
+    bool ret_decimal_ = false;
     // The bodies of 'with object', a level less deep, the lines that made the
     // level gone: the lines from 'from' up to 'to', and how many characters of
     // indentation they lose.
@@ -228,8 +236,11 @@ namespace xc
     bool plain_name(const Expr* e) const;
     std::string temp(const std::string& kind, const std::string& comment);
     void hoist_edit(const Body& body);
+    void decimal_values(const Body& body);
 
     // ---- statements ---------------------------------------------------------
+    bool lowering(const Stmt* s) const { return needs_lowering(s) || decimal_stmt(s); }
+    bool decimal_stmt(const Stmt* s) const;
     void collect(const Body& body, bool top);
     Lines return_exits(const Stmt* s);
     std::string defer_at(const Defer& d, const Stmt* r);
@@ -266,6 +277,9 @@ namespace xc
     std::string expr(const Expr* e);
     bool lowers_itself(const Expr* e) const;
     bool native_json(const Expr* e) const;
+    bool lowered_decimal(const Expr* e) const;
+    std::string decimal_expr(const Expr* e);
+    std::string as_decimal(const Expr* e);
     bool contains_lowering(const Expr* e) const;
     std::string interpolated(const Interp* i);
     std::string safe(const Expr* base, const std::string& tail);

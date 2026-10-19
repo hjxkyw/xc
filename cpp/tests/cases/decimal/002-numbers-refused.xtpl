@@ -1,0 +1,19 @@
+// A name declared as a number, or arithmetic with one, that meets a Decimal
+// is refused -- TL++ would refuse it, "Incompatible types between F and N",
+// and DEC_ADD and the like when it runs; so is a literal of more digits
+// than a Decimal holds. A string as a Decimal's value is refused as before.
+user function f(fP as Decimal, nQ as Numeric, nI as Integer)
+  local fD := nQ as Decimal
+  local fE := 1234567890123456789012345678901234567890123456789012345678901234.5 as Decimal
+  local fF := "a" as Decimal
+  fD := nQ * 2
+  fD := fP + nQ
+  fD := nI - fP
+  fD += nQ
+  if fD > nQ .or. -nI == fD
+    fD := half(nQ)
+  endif
+return {fD, fE, fF}
+
+static function half(fX as Decimal) as Decimal
+return fX / 2

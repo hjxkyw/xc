@@ -2,8 +2,8 @@
 
 // The same source as 001-stays-advpl.prw, but TL++ (.xtpl): TL++'s rules
 // hold -- AdvPL's words for types are refused, and so is a call with more
-// arguments than the function takes, and a Decimal given a number; a typed
-// Local's '?:' is warned of.
+// arguments than the function takes; a typed Local's '?:' is warned of, and
+// a number given to a Decimal is made one.
 Class Pessoa
   Data cNome As String
   Data lAtivo As Logic

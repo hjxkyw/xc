@@ -797,8 +797,36 @@ namespace xc
       }
     }
 
-    for (const FunctionDef* f : p->functions) { function(f->params, f->body); }
-    for (const MethodImpl* m : p->methods) { function(m->params, m->body); }
+    // A file static declared 'as Decimal': its literal value made one. In
+    // TL++: a .prw has no Decimal.
+    if (!advpl_) { dec_.file(p); }
+    dec_.function({}, {});
+    for (const Declaration* d : p->statics)
+    {
+      std::vector<Expr*> values;
+      for (const Declarator* v : d->declarators)
+      {
+        if (v->init && decimal_word(v->typespec_text))
+        {
+          into_decimal_.insert(v->init);
+          values.push_back(v->init);
+        }
+      }
+      no_temps_++;
+      expressions(values);
+      no_temps_--;
+    }
+
+    for (const FunctionDef* f : p->functions)
+    {
+      ret_decimal_ = decimal_word(f->rettype_word);
+      function(f->params, f->body);
+    }
+    for (const MethodImpl* m : p->methods)
+    {
+      ret_decimal_ = decimal_word(m->returns);
+      function(m->params, m->body);
+    }
 
     // Two edits over the same text would garble it without a word.
     std::vector<Edit> sorted = edits_;
@@ -908,6 +936,57 @@ namespace xc
 
   // A parameter's '<const>' or '<contained>' leaves the header, and a comment
   // at the end of the line says it.
+  // The values that go into a Decimal: a literal among them is made one.
+  void Emitter::decimal_values(const Body& body)
+  {
+    into_decimal_.clear();
+    walk(body, [&](Stmt* s)
+    {
+      switch (s->kind)
+      {
+        case SK::Declaration:
+          for (const Declarator* v : static_cast<Declaration*>(s)->declarators)
+          {
+            if (v->init && decimal_word(v->typespec_text)) { into_decimal_.insert(v->init); }
+          }
+          break;
+        case SK::Assignment:
+        {
+          auto a = static_cast<Assignment*>(s);
+          if ((a->op == ":=" || a->op == "=") && dec_.decimal(a->target)) { into_decimal_.insert(a->value); }
+          break;
+        }
+        case SK::ReturnStmt:
+        {
+          Expr* v = static_cast<ReturnStmt*>(s)->value;
+          if (ret_decimal_ && v) { into_decimal_.insert(v); }
+          break;
+        }
+        default:
+          break;
+      }
+      for (Expr* e : exprs_of(s))
+      {
+        walk_expr(e, [&](Expr* x)
+        {
+          if (x->kind == EK::AssignExpr)
+          {
+            auto a = static_cast<AssignExpr*>(x);
+            if ((a->op == ":=" || a->op == "=") && dec_.decimal(a->target)) { into_decimal_.insert(a->value); }
+          }
+          else if (const std::vector<bool>* ps = dec_.params_of(x))
+          {
+            auto c = static_cast<Call*>(x);
+            for (std::size_t i = 0; i < c->args.size() && i < ps->size(); i++)
+            {
+              if ((*ps)[i] && c->args[i]) { into_decimal_.insert(c->args[i]); }
+            }
+          }
+        });
+      }
+    });
+  }
+
   void Emitter::param_attributes(const std::vector<Param*>& params)
   {
     std::vector<const Param*> with;
@@ -962,6 +1041,8 @@ namespace xc
         if (d->typespec_text) { typed_.insert(lc(d->name)); }
       }
     });
+    dec_.function(params, body);
+    decimal_values(body);
     param_attributes(params);
     for (const Param* q : params) { used_.insert(lc(q->name)); }
     walk(body, [&](Stmt* s)

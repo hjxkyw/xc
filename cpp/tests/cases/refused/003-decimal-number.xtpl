@@ -1,6 +1,7 @@
 // A Decimal is a type of its own to TL++, 'F', and takes no number the
 // compiler can see: 'Local nD := 5 as Decimal' is "Incompatible types
-// between F and N" (tried on 24.3.1.9). A value of no known type goes in.
+// between F and N" (tried on 24.3.1.9). xc makes a literal one, from its
+// text; a value of no known type goes in as it is; a string is refused.
 user function dec(cText)
   local nD := 5 as decimal
   local nE as decimal := 1.25

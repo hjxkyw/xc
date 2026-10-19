@@ -3,8 +3,8 @@
 // An AdvPL source (.prw) stays AdvPL: xc writes a .prw, without
 // tlpp-core.th, and TL++'s own rules do not hold -- AdvPL's words for types
 // ('As String'), a call with more arguments than the function takes (the
-// rest are dropped: a warning), a Decimal given a number, a typed Local's
-// starting value. xtpl's own forms are lowered as in a .xtpl.
+// rest are dropped: a warning), a Decimal given a number (a number stays,
+// AdvPL has no Decimal there), a typed Local's starting value. xtpl's own forms are lowered as in a .xtpl.
 Class Pessoa
   Data cNome As String
   Data lAtivo As Logic

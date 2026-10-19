@@ -37,6 +37,11 @@ namespace xc
     // to Nil first, as a key not there reads.
     constexpr bool GET_LEAVES_A_MISS = true;
 
+    // The Decimal 1, for '++' and '--'.
+    const std::string DEC_ONE = "DEC_CREATE(\"1\", 1, 0)";
+
+    bool compound(const std::string& op) { return op == "+=" || op == "-=" || op == "*=" || op == "/=" || op == "%="; }
+
     bool is_nil(const Expr* e)
     {
       return is_expr(e, EK::Literal) && lc(static_cast<const Literal*>(e)->text) == "nil";
@@ -104,7 +109,7 @@ namespace xc
       // it. A 'static' takes its value before any Local is there.
       bool prologue = decl && top && decl->scope == "local";
       Scoped no_temps(no_temps_, decl && decl->scope == "static" ? 1 : 0);
-      if ((k == SK::CallStmt || k == SK::Assignment || prologue) && !fused_value(s) && !needs_lowering(s)
+      if ((k == SK::CallStmt || k == SK::Assignment || prologue) && !fused_value(s) && !lowering(s)
           && !guard_value(s))
       {
         // The most common statements: their expressions, and nothing else.
@@ -259,7 +264,7 @@ namespace xc
         }
         replace(s, true, lines);
       }
-      else if (needs_lowering(s))
+      else if (lowering(s))
       {
         Early early(early_at_, prologue ? s->from : -1);
         Lowered l = lower(s);
@@ -623,7 +628,7 @@ namespace xc
       }
       return st.lines;
     }
-    if (needs_lowering(s)) { return lower(s).lines; }
+    if (lowering(s)) { return lower(s).lines; }
     return lines_of(with_edits(s, exprs_of(s)));
   }
 
@@ -1125,7 +1130,7 @@ namespace xc
   const Guard* Emitter::guard_value(const Stmt* s) const
   {
     const Expr* v = nullptr;
-    if (s->kind == SK::Assignment && static_cast<const Assignment*>(s)->op == ":=" && !needs_lowering(s))
+    if (s->kind == SK::Assignment && static_cast<const Assignment*>(s)->op == ":=" && !lowering(s))
     {
       v = static_cast<const Assignment*>(s)->value;
     }
@@ -1373,6 +1378,12 @@ namespace xc
       case SK::Assignment:
       {
         auto a = static_cast<const Assignment*>(s);
+        if (decimal_stmt(s))
+        {
+          // 'fD += x' -> 'fD := DEC_ADD(fD, x)': a Decimal takes no operator.
+          std::string t = expr(a->target);
+          return Lowered{ false, { t + " := " + dec_function(chop(a->op)) + "(" + t + ", " + as_decimal(a->value) + ")" } };
+        }
         if (is_expr(a->target, EK::HashIndex)) { return hash_set(a); }
         if (hash_read_whole(s))
         {
@@ -1410,16 +1421,40 @@ namespace xc
         }
         return Lowered{ false, { kw + " " + join(ds, ", ") } };
       }
+      case SK::CallStmt:
+      {
+        // 'fD++', 'fD += x' as a statement: the assignment alone.
+        auto a = static_cast<const AssignExpr*>(static_cast<const CallStmt*>(s)->call);
+        std::string t = expr(a->target);
+        std::string v = a->incdec.empty() ? as_decimal(a->value) : DEC_ONE;
+        return Lowered{ false, { t + " := " + dec_function(chop(a->op)) + "(" + t + ", " + v + ")" } };
+      }
       default:
         return Lowered{ false, {} };
     }
+  }
+
+  // An assignment with an operator to a Decimal: 'fD += x', 'fD++'.
+  bool Emitter::decimal_stmt(const Stmt* s) const
+  {
+    if (s->kind == SK::Assignment)
+    {
+      auto a = static_cast<const Assignment*>(s);
+      return compound(a->op) && is_expr(a->target, EK::Name) && dec_.decimal(a->target);
+    }
+    if (s->kind == SK::CallStmt && is_expr(static_cast<const CallStmt*>(s)->call, EK::AssignExpr))
+    {
+      auto a = static_cast<const AssignExpr*>(static_cast<const CallStmt*>(s)->call);
+      return compound(a->op) && is_expr(a->target, EK::Name) && dec_.decimal(a->target);
+    }
+    return false;
   }
 
   // A statement inside a rewrite: lowered if it needs it, else its code as
   // written.
   Lines Emitter::lower_inner(const Stmt* s)
   {
-    if (needs_lowering(s)) { return lower(s).lines; }
+    if (lowering(s)) { return lower(s).lines; }
     if (const Guard* g = guard_value(s)) { return guard_stmt(s, g); }
     if (const Expr* chain = fused_value(s))
     {
@@ -1450,6 +1485,7 @@ namespace xc
   std::string Emitter::expr(const Expr* e)
   {
     if (!e) { return ""; }
+    if (lowered_decimal(e)) { return decimal_expr(e); }
     EK k = e->kind;
     if (k == EK::Lambda)
     {
@@ -1656,6 +1692,7 @@ namespace xc
   // An expression that is rewritten itself, not just for what it holds.
   bool Emitter::lowers_itself(const Expr* e) const
   {
+    if (lowered_decimal(e)) { return true; }
     switch (e->kind)
     {
       case EK::Index: case EK::SelfRef: case EK::SubjectRef: case EK::Interval: case EK::AliasField:
@@ -1709,6 +1746,95 @@ namespace xc
       if (l->type != "Character" || l->text.empty() || l->text[0] != '"') { return false; }
     }
     return true;
+  }
+
+  // ---- Decimals -------------------------------------------------------------
+  // What is rewritten for a Decimal: a literal that goes into one, an
+  // operator with one on a side -- a comparison only when a literal is on
+  // the other --, Round(), NoRound() or Empty() of one, an assignment with
+  // an operator to one.
+  bool Emitter::lowered_decimal(const Expr* e) const
+  {
+    if (!e || advpl_) { return false; }
+    if (into_decimal_.count(e) && dec_.constant(e) && !dec_.decimal(e)) { return true; }
+    switch (e->kind)
+    {
+      case EK::Binary:
+      {
+        auto b = static_cast<const Binary*>(e);
+        if (arithmetic(b->op)) { return dec_.decimal(e); }
+        if (!comparison(b->op)) { return false; }
+        bool l = dec_.decimal(b->left);
+        bool r = dec_.decimal(b->right);
+        return (l && !r && dec_.constant(b->right)) || (r && !l && dec_.constant(b->left));
+      }
+      case EK::Call:
+      {
+        auto c = static_cast<const Call*>(e);
+        std::string n = lc(c->name);
+        if (n == "round" || n == "noround") { return c->args.size() == 2 && dec_.decimal(c->args[0]); }
+        return n == "empty" && c->args.size() == 1 && dec_.decimal(c->args[0]);
+      }
+      case EK::AssignExpr:
+      {
+        auto a = static_cast<const AssignExpr*>(e);
+        return compound(a->op) && is_expr(a->target, EK::Name) && dec_.decimal(a->target);
+      }
+      default:
+        return false;
+    }
+  }
+
+  // What is lowered_decimal(), written with the DEC_ functions: 'fA + 1' ->
+  // 'DEC_ADD(fA, DEC_CREATE("1", 1, 0))', 'fA > 0' -> 'fA >
+  // DEC_CREATE("0", 1, 0)', 'Round(fA, 2)' -> 'DEC_RESCALE(fA, 2, 0)' (half
+  // away from zero), 'NoRound(fA, 2)' -> 'DEC_RESCALE(fA, 2, 2)' (cut),
+  // 'Empty(fA)' -> '(fA == DEC_CREATE("0", 1, 0))' (Empty() of a Decimal
+  // stops the thread: "Empty: unknown variable type"), '(fA += x)' ->
+  // '(fA := DEC_ADD(fA, x))'; 'fA++' gives the value before.
+  std::string Emitter::decimal_expr(const Expr* e)
+  {
+    if (into_decimal_.count(e) && dec_.constant(e) && !dec_.decimal(e)) { return as_decimal(e); }
+    if (e->kind == EK::Binary)
+    {
+      auto b = static_cast<const Binary*>(e);
+      if (arithmetic(b->op))
+      {
+        return dec_function(b->op) + "(" + as_decimal(b->left) + ", " + as_decimal(b->right) + ")";
+      }
+      auto side = [&](const Expr* x) { return dec_.decimal(x) ? expr(x) : as_decimal(x); };
+      return side(b->left) + " " + b->op + " " + side(b->right);
+    }
+    if (e->kind == EK::Call)
+    {
+      auto c = static_cast<const Call*>(e);
+      std::string n = lc(c->name);
+      if (n == "empty") { return "(" + expr(c->args[0]) + " == DEC_CREATE(\"0\", 1, 0))"; }
+      return "DEC_RESCALE(" + expr(c->args[0]) + ", " + expr(c->args[1]) + (n == "round" ? ", 0)" : ", 2)");
+    }
+    auto a = static_cast<const AssignExpr*>(e);
+    std::string t = expr(a->target);
+    std::string v = a->incdec.empty() ? as_decimal(a->value) : DEC_ONE;
+    std::string inner = t + " := " + dec_function(chop(a->op)) + "(" + t + ", " + v + ")";
+    if (a->incdec == "post") { return dec_function(a->op == "+=" ? "-" : "+") + "((" + inner + "), " + DEC_ONE + ")"; }
+    return "(" + inner + ")";
+  }
+
+  // An expression as a Decimal's operand: a Decimal as it is, a literal made
+  // one from its text, arithmetic of literals with the DEC_ functions,
+  // anything else as it is -- it has to hold a Decimal when it runs.
+  std::string Emitter::as_decimal(const Expr* e)
+  {
+    if (!e) { return ""; }
+    if (dec_.decimal(e)) { return expr(e); }
+    if (number_literal(e)) { return dec_create(static_cast<const Literal*>(e)->text); }
+    if (e->kind == EK::Binary && dec_.constant(e))
+    {
+      auto b = static_cast<const Binary*>(e);
+      if (b->op == "neg") { return "-" + as_decimal(b->right); }
+      return dec_function(b->op) + "(" + as_decimal(b->left) + ", " + as_decimal(b->right) + ")";
+    }
+    return expr(e);
   }
 
   bool Emitter::contains_lowering(const Expr* e) const

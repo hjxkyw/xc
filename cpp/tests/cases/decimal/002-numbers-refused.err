@@ -1,0 +1,10 @@
+002-numbers-refused.xtpl:6: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).
+002-numbers-refused.xtpl:7: '1234567890123456789012345678901234567890123456789012345678901234.5' has 65 digits, and a Decimal holds 63 at most.
+002-numbers-refused.xtpl:8: 'fF' is declared as Decimal, but its initial value is Character.
+002-numbers-refused.xtpl:9: 'nQ * 2' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ * 2, digits, decimals).
+002-numbers-refused.xtpl:10: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).
+002-numbers-refused.xtpl:11: 'nI' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nI, digits, decimals).
+002-numbers-refused.xtpl:12: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).
+002-numbers-refused.xtpl:13: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).
+002-numbers-refused.xtpl:13: '-nI' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(-nI, digits, decimals).
+002-numbers-refused.xtpl:14: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).

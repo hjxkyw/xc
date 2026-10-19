@@ -46,7 +46,8 @@ variable named `as`, a number as a `Decimal`'s value); `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with
-`u_xtpl_jnew` or `JsonObject():New()`.
+`u_xtpl_jnew` or `JsonObject():New()`; `decimal/`, Decimals written with
+the `DEC_` functions, and the numbers refused where they meet one.
 
 A case holds the whole of what came out -- not, as a test in `t/` did, what
 it looks for --, so a change to the output shows in every case it touches. After a change

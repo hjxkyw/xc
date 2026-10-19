@@ -11,7 +11,8 @@
 // was reached, the temps xc writes around the source's own code, each value
 // of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
 // whole value, verbs written as calls as loops, Clipper's comments, a name
-// that starts with '__', 'End For' and '%exp:x%' outside BeginSql. Pure
+// that starts with '__', 'End For' and '%exp:x%' outside BeginSql,
+// Decimals' arithmetic with the DEC_ functions. Pure
 // computation, as 54 is: no table, no file, no screen, so a right or wrong
 // answer and not an environment.
 //
@@ -52,6 +53,9 @@ user function xc_selftest()
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
   local bHi := {|x| iif(((fbv_0_0 := same(x)) >= 1 .And. fbv_0_0 <= 5), 10, 20)}
   local bOld
+  local fA := DEC_CREATE("99.9", 3, 1) as Decimal
+  local fB := DEC_CREATE("0.1", 2, 1) as Decimal
+  local fC as Decimal
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
@@ -715,6 +719,22 @@ user function xc_selftest()
   jTry := u_xtpl_jnew({{cTmp, 1}, {"c", 2}})
   check("a JSON with a key from a name", jTry["b"] == 1 .and. jTry["c"] == 2, jTry:toJson(), @nOk, @nBad)
 
+  // ---- Decimals: TL++'s 'F', written with the DEC_ functions ----------------
+  check("99.9 + 0.1 in Decimals is 100", DEC_ADD(fA, fB) == DEC_CREATE("100", 3, 0), DEC_ADD(fA, fB), @nOk, @nBad)
+  fC := DEC_CREATE("99", 2, 0)
+  check("99 * 99 in Decimals", DEC_MUL(fC, fC) == DEC_CREATE("9801", 4, 0) .and. DEC_SUB(fC, DEC_CREATE("100", 3, 0)) < DEC_CREATE("0", 1, 0), DEC_MUL(fC, fC), @nOk, @nBad)
+  fC := DEC_CREATE("10", 2, 0)
+  check("Round(10 / 3, 2) in Decimals", DEC_RESCALE(DEC_DIV(fC, DEC_CREATE("3", 1, 0)), 2, 0) == DEC_CREATE("3.33", 3, 2), DEC_RESCALE(DEC_DIV(fC, DEC_CREATE("3", 1, 0)), 2, 0), @nOk, @nBad)
+  check("NoRound(10 / 3, 2) in Decimals", DEC_RESCALE(DEC_DIV(DEC_MUL(fC, DEC_CREATE("2", 1, 0)), DEC_CREATE("3", 1, 0)), 2, 2) == DEC_CREATE("6.66", 3, 2), DEC_RESCALE(DEC_DIV(DEC_MUL(fC, DEC_CREATE("2", 1, 0)), DEC_CREATE("3", 1, 0)), 2, 2), @nOk, @nBad)
+  check("17 % 5 in Decimals", DEC_MOD(DEC_ADD(fC, DEC_CREATE("7", 1, 0)), DEC_CREATE("5", 1, 0)) == DEC_CREATE("2", 1, 0), DEC_MOD(DEC_ADD(fC, DEC_CREATE("7", 1, 0)), DEC_CREATE("5", 1, 0)), @nOk, @nBad)
+  fC := DEC_CREATE("0", 1, 0)
+  check("Empty() of a Decimal zero", (fC == DEC_CREATE("0", 1, 0)) .and. !(fB == DEC_CREATE("0", 1, 0)), fC, @nOk, @nBad)
+  fC := DEC_ADD(fC, DEC_CREATE("1.5", 2, 1))
+  fC := DEC_ADD(fC, DEC_CREATE("1", 1, 0))
+  check("'+=' and '++' on a Decimal", fC == DEC_CREATE("2.5", 2, 1), fC, @nOk, @nBad)
+  check("'-' before a Decimal, and 1.5 == 1.50", -fC < DEC_CREATE("0", 1, 0) .and. DEC_MUL(fB, DEC_CREATE("15", 2, 0)) == DEC_CREATE("1.50", 3, 2), DEC_MUL(fB, DEC_CREATE("15", 2, 0)), @nOk, @nBad)
+  check("a Decimal parameter given 5, a function as Decimal", half(DEC_CREATE("5", 1, 0)) == DEC_CREATE("2.5", 2, 1) .and. half(fA) == DEC_CREATE("49.95", 4, 2), half(fA), @nOk, @nBad)
+
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12345 + 1000.5
   check("digit separators", nTmp == 13345.5, nTmp, @nOk, @nBad)
@@ -1081,6 +1101,11 @@ return nil
 
 static function same(xValue)
 return xValue
+
+// A Decimal parameter and value: the literal it is given made a Decimal, and
+// the division a DEC_DIV.
+static function half(fX as Decimal) as Decimal
+return DEC_DIV(fX, DEC_CREATE("2", 1, 0))
 
 // A defer in an If: at the function's end, only if the If was taken.
 static function deferIn(lTake, aLog)

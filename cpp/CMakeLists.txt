@@ -23,6 +23,7 @@ add_library(xclib STATIC
   src/chars.cpp
   src/check.cpp
   src/commands.cpp
+  src/decimal.cpp
   src/driver.cpp
   src/emit.cpp
   src/lower.cpp
