@@ -40,7 +40,8 @@ user function testComments(aNums, nX, hCfg, oUser)
     EndIf
   Next
   nT := fo_0_0                            // a chain lands in a temp
-  nT := u_xtpl_hget(hCfg, "taxa")         // a hash read lifts to a Get
+  nT := Nil
+  hCfg:Get("taxa", @nT)                   // a hash read lifts to a Get
   nT := ((nX % 3) == 0)                   // divisible-by
   cOut := If(oUser != Nil .And. ValType(fbv_0_0 := oUser:oAddr) != "U", fbv_0_0:cCity, Nil)  // optional chaining
   xconout("total=", nT)                   // xconout

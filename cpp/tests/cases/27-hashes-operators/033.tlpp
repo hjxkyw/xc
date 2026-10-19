@@ -3,5 +3,6 @@
 
 user function f(h, a)
   local x
-  x := u_xtpl_hget(a[1], "k")
+  x := Nil
+  a[1]:Get("k", @x)
 return x

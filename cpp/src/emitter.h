@@ -27,6 +27,7 @@ namespace xc
   std::string source_kind(const Expr* src);
   std::string call_name(const std::string& name);
   bool needs_lowering(const Stmt* s);
+  bool hash_read_whole(const Stmt* s);
   std::string chop(const std::string& s);
   std::string attrs_text(const std::vector<std::string>& a);
   std::string note_of(const Declarator* d, const std::string& shown);

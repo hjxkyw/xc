@@ -45,6 +45,7 @@ user function xc_selftest()
   local nOld := 0
   local cTmp := ""
   local lTmp := .F.
+  local xTmp := nil
   local jKeys := u_xtpl_jnew({{"a", "x"}, {"v5", "cinco"}})
   local __v := 5            && a name that starts with '__', and a Clipper comment
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
@@ -688,6 +689,16 @@ user function xc_selftest()
   check("a hash from pairs", u_xtpl_hget(hKeep, "y") == 20, u_xtpl_hget(hKeep, "y"), @nOk, @nBad)
   nTmp := same(u_xtpl_hset(hKeep, "z", 42))
   check("a hash write gives the value written", nTmp == 42 .and. u_xtpl_hget(hKeep, "z") == 42, nTmp, @nOk, @nBad)
+  // A read that is a statement's whole value: THashMap's Get, and a key not
+  // there reads as Nil, whatever the name held.
+  xTmp := 1
+  xTmp := Nil
+  hKeep:Get("z", @xTmp)
+  check("a hash read to a name: the value", xTmp == 42, xTmp, @nOk, @nBad)
+  xTmp := 1
+  xTmp := Nil
+  hKeep:Get("none", @xTmp)
+  check("a hash read to a name, a key not there: Nil", xTmp == nil, xTmp, @nOk, @nBad)
 
   // ---- JSON: TL++ has no literal, so xc builds a JsonObject -----------------
   check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)

@@ -18,7 +18,8 @@ user function testHash(nBase, cChave)
   // read: Get leaves the variable alone on a miss, so the temp is cleared
   // first and an absent key reads back as Nil
   nTotal := nBase * u_xtpl_hget(hCfg, "taxa")
-  xValor := u_xtpl_hget(hCfg, cChave)
+  xValor := Nil
+  hCfg:Get(cChave, @xValor)
 
   // write
   hCfg:Set("limite", 2000)

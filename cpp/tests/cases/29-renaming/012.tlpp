@@ -6,7 +6,8 @@ user function f(a, n)
   if n > 0
     b_1_x := THashMap():New()  // x
     conout(("v=" + cValToChar(b_1_x)))
-    n := u_xtpl_hget(b_1_x, "k")
+    n := Nil
+    b_1_x:Get("k", @n)
     aadd(@b_1_x, 1)
   endif
 return n

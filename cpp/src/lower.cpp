@@ -32,6 +32,11 @@ namespace xc
 
     const std::string& name_of(const Expr* e) { return static_cast<const Name*>(e)->name; }
 
+    // THashMap:Get(k, @x) leaves x as it was when k is not there (tried on
+    // 24.3.1.9: it returns .F. and x keeps its value), so 'x := h{k}' sets x
+    // to Nil first, as a key not there reads.
+    constexpr bool GET_LEAVES_A_MISS = true;
+
     bool is_nil(const Expr* e)
     {
       return is_expr(e, EK::Literal) && lc(static_cast<const Literal*>(e)->text) == "nil";
@@ -1369,6 +1374,20 @@ namespace xc
       {
         auto a = static_cast<const Assignment*>(s);
         if (is_expr(a->target, EK::HashIndex)) { return hash_set(a); }
+        if (hash_read_whole(s))
+        {
+          // 'x := h{k}' -> 'h:Get(k, @x)': THashMap's own read, no call to
+          // the runtime.
+          auto h = static_cast<const HashIndex*>(a->value);
+          std::string x = expr(a->target);
+          // A name declared with a type is given no Nil as written: TL++
+          // would not take it.
+          if (GET_LEAVES_A_MISS && !plain_name(a->target)) { return Lowered{ false, { x + " := " + expr(a->value) } }; }
+          Lines out;
+          if (GET_LEAVES_A_MISS) { out.push_back(x + " := Nil"); }
+          out.push_back(expr(h->base) + ":Get(" + expr(h->key) + ", @" + x + ")");
+          return Lowered{ false, out };
+        }
         // '?=': assign only when the target is Nil -- asked of ValType() but
         // for a name declared with no type.
         std::string t = expr(a->target);

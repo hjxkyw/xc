@@ -1078,7 +1078,11 @@ one -- `{}` is the empty array. Braces right after a value -- a name, `)`,
 `GetHash(){"k"}`, `aHashes[1]{"k"}`, `h{"a"}{"b"}`. A key not there reads as
 Nil. Assigned, `h{k} := v` is a `Set`, and `+=` and the like read and write
 back. Inside an expression, a write is `u_xtpl_hset(h, k, v)`, which gives
-back the value, as `:=` does.
+back the value, as `:=` does. A read that is the whole value of an
+assignment to a name, `x := h{k}`, is THashMap's own: `x := Nil` and
+`h:Get(k, @x)` -- `Get` leaves `x` as it was when the key is not there
+(tried on 24.3.1.9), and the read has to give Nil. A name declared with a
+type keeps `u_xtpl_hget`: TL++ would not take the Nil written out.
 
 ### JSON objects
 

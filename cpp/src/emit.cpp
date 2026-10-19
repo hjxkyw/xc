@@ -234,6 +234,14 @@ namespace xc
     return is_runtime_verb(name) ? "u_xtpl_" + lc(name) : name;
   }
 
+  // 'x := h{k}': a hash read that is a statement's whole value, to a name.
+  bool hash_read_whole(const Stmt* s)
+  {
+    if (s->kind != SK::Assignment) { return false; }
+    auto a = static_cast<const Assignment*>(s);
+    return (a->op == ":=" || a->op == "=") && is_expr(a->target, EK::Name) && is_expr(a->value, EK::HashIndex);
+  }
+
   bool needs_lowering(const Stmt* s)
   {
     switch (s->kind)
@@ -243,7 +251,7 @@ namespace xc
       case SK::Assignment:
       {
         auto a = static_cast<const Assignment*>(s);
-        return a->op == "?=" || is_expr(a->target, EK::HashIndex);
+        return a->op == "?=" || is_expr(a->target, EK::HashIndex) || hash_read_whole(s);
       }
       case SK::Declaration:
         for (const Declarator* d : static_cast<const Declaration*>(s)->declarators)

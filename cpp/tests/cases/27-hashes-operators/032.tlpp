@@ -3,5 +3,6 @@
 
 user function f(h, a)
   local x
-  x := u_xtpl_hget(getHash(), "k")
+  x := Nil
+  getHash():Get("k", @x)
 return x
