@@ -33,6 +33,7 @@ user function xc_selftest()
   local hMap := {"a" => 1}
   local hKeep := {=>}
   local jTmp := { : }
+  local jTry := { : }
   local aTmp := {}
   local aBig := {}
   local aSeen := {}
@@ -169,12 +170,15 @@ user function xc_selftest()
   check("an empty JSON, '{ : }'", len(jTmp:GetNames()) == 0, jTmp:toJson(), @nOk, @nBad)
   jTmp := {"a": 1, "b": {"c": "x"}, "d": {1, 2}}
   check("a JSON from pairs, one inside it, an array in it", jTmp["a"] == 1 .and. jTmp["b"]["c"] == "x" .and. len(jTmp["d"]) == 2, jTmp:toJson(), @nOk, @nBad)
+  // jTry, not jTmp: '?.' below reads jTmp's "b".
   cTmp := "b"
-  jTmp := {"a": cTmp, "n": len(aPal), "h": hMap{"a"}, "blk": {|x| x + 1}}
-  check("a JSON literal of a name, a call, a hash read, a block", jTmp["a"] == "b" .and. jTmp["n"] == 3 .and. jTmp["h"] == 1 .and. eval(jTmp["blk"], 1) == 2, valtype(jTmp["blk"]), @nOk, @nBad)
+  jTry := {"a": cTmp, "n": len(aPal), "h": hMap{"a"}}
+  check("a JSON literal of a name, a call, a hash read", jTry["a"] == "b" .and. jTry["n"] == 3 .and. jTry["h"] == hMap{"a"}, jTry:toJson(), @nOk, @nBad)
+  jTry := {"blk": {|x| x + 1}}
+  check("a block in a JSON literal", valtype(jTry["blk"]) == "B" .and. eval(jTry["blk"], 1) == 2, valtype(jTry["blk"]), @nOk, @nBad)
   check("a method of a JSON literal itself", len({"n": 7, "m": 8}:GetNames()) == 2, len({"n": 7, "m": 8}:GetNames()), @nOk, @nBad)
-  jTmp := {cTmp: 1, "c": 2}
-  check("a JSON with a key from a name", jTmp["b"] == 1 .and. jTmp["c"] == 2, jTmp:toJson(), @nOk, @nBad)
+  jTry := {cTmp: 1, "c": 2}
+  check("a JSON with a key from a name", jTry["b"] == 1 .and. jTry["c"] == 2, jTry:toJson(), @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5
