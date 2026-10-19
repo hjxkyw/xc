@@ -425,6 +425,8 @@ namespace xc
       Set defines_;
       Set privates_;
       Set classes_;
+      Set includes_;                 // the include files the file names, their names in lower case
+      bool tcquery_ok_ = true;       // the file says where TCQUERY comes from, or might
       std::unordered_map<std::string, int> retired_;
       std::unordered_map<std::string, std::string> scalar_;
       std::unordered_set<const Expr*> sources_ok_;
@@ -573,6 +575,46 @@ namespace xc
       {
         ends_.push_back(c->line);
         classes_.insert(lc(c->name));
+      }
+      // The include files: the file's, and a function's own '#include'.
+      auto include_of = [&](const std::string& line)
+      {
+        std::string l = lc(trim(line));
+        if (l.compare(0, 1, "#") != 0) { return; }
+        std::size_t i = 1;
+        while (i < l.size() && (l[i] == ' ' || l[i] == '\t')) { i++; }
+        if (l.compare(i, 7, "include") != 0) { return; }
+        std::size_t q = l.find_first_of("\"'<", i + 7);
+        if (q == std::string::npos) { return; }
+        std::size_t e = l.find_first_of("\"'>", q + 1);
+        std::string name = l.substr(q + 1, e == std::string::npos ? std::string::npos : e - q - 1);
+        std::size_t cut = name.find_last_of("/\\");
+        includes_.insert(cut == std::string::npos ? name : name.substr(cut + 1));
+      };
+      for (const std::string& d : p->directives) { include_of(d); }
+      auto body_includes = [&](const Body& b)
+      {
+        walk(b, [&](Stmt* s)
+        {
+          if (s->kind != SK::RawStmt) { return; }
+          for (const std::string& l : static_cast<const RawStmt*>(s)->lines) { include_of(l); }
+        });
+      };
+      for (const FunctionDef* f : p->functions) { body_includes(f->body); }
+      for (const MethodImpl* m : p->methods) { body_includes(m->body); }
+      // TCQUERY is topconn.ch's: a file that includes only totvs.ch has no
+      // TCQUERY, and the AppServer refuses its line (C2003, tried on
+      // 24.3.1.9). Another include file may bring it; so may a command of
+      // the file's own.
+      for (const std::string& i : includes_)
+      {
+        if (i != "totvs.ch" && i != "tlpp-core.th") { tcquery_ok_ = true; break; }
+        tcquery_ok_ = false;
+      }
+      if (includes_.empty()) { tcquery_ok_ = false; }
+      for (const std::string& d : p->directives)
+      {
+        if (lc(d).find("tcquery") != std::string::npos) { tcquery_ok_ = true; }
       }
       // A method of a class this file does not declare: the AppServer takes
       // it for a regular function (tried on 24.3.1.9).
@@ -1347,8 +1389,38 @@ namespace xc
           break;
         }
         case SK::RawStmt:
-          for (const std::string& l : static_cast<RawStmt*>(s)->lines) { raw_reads(l); }
+        {
+          auto r = static_cast<RawStmt*>(s);
+          std::string l = r->lines.empty() ? std::string() : trim(r->lines[0]);
+          auto starts = [&](const char* w)
+          {
+            std::size_t n = std::char_traits<char>::length(w);
+            return l.size() >= n && lc(l.substr(0, n)) == w && (l.size() == n || !is_w(static_cast<unsigned char>(l[n])));
+          };
+          if (starts("tcquery") || starts("beginsql"))
+          {
+            // 'TCQUERY ... ALIAS "QRY"', 'BeginSql Alias "QRY"': the area is
+            // opened here.
+            std::string u = lc(l);
+            std::size_t a = u.find(" alias ");
+            if (a != std::string::npos)
+            {
+              std::size_t q = l.find_first_not_of(" \t", a + 7);
+              if (q != std::string::npos && (l[q] == '"' || l[q] == '\''))
+              {
+                std::size_t e = l.find(l[q], q + 1);
+                if (e != std::string::npos) { opened_.insert(uc(l.substr(q + 1, e - q - 1))); }
+              }
+            }
+          }
+          if (!tcquery_ok_ && starts("tcquery"))
+          {
+            problem("'" + l.substr(0, 7) + "' is a command of topconn.ch, which this file does not include: "
+                    + "without it the AppServer refuses the line (\"C2003 Syntax Error\").");
+          }
+          for (const std::string& x : r->lines) { raw_reads(x); }
           break;
+        }
         default:
           break;
       }
@@ -1484,8 +1556,12 @@ namespace xc
         {
           auto c = static_cast<Call*>(e);
           call(c);
+          // StaticCall(SOURCE, Function, ...): a source's name and a function's,
+          // not variables.
+          std::size_t skip = lc(c->name) == "staticcall" ? 2 : 0;
           for (std::size_t i = 0; i < c->args.size(); i++)
           {
+            if (i < skip && is(c->args[i], EK::Name)) { continue; }
             if (i == 0) { expr(c->args[i]); } else { block_arg(c->name, c->args[i]); }
           }
           break;
@@ -1524,6 +1600,17 @@ namespace xc
     void Checker::call(const Call* c)
     {
       std::string n = lc(c->name);
+      // What the AppServer refused, in a .prw and a .tlpp (tried on 24.3.1.9).
+      if (n == "staticcall")
+      {
+        warning("StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' "
+                "authorization (C9909 \"Staticall has a restrict use\")");
+      }
+      if (n == "freeobj" && !c->args.empty() && is(c->args[0], EK::Name) && lc(name_of(c->args[0])) == "self")
+      {
+        problem("FreeObj(" + name_of(c->args[0]) + "): the AppServer does not free the object a method runs in "
+                + "(C9910 \"Free SELF object is not allowed\").");
+      }
       // An area opened here: DbSelectArea("SA1") and the like, and rows("SA1").
       if (OPENERS.count(n) || n == "rows")
       {

@@ -1,0 +1,2 @@
+011-staticcall-freeobj.prw:20: warning: StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' authorization (C9909 "Staticall has a restrict use")
+011-staticcall-freeobj.prw:16: FreeObj(SELF): the AppServer does not free the object a method runs in (C9910 "Free SELF object is not allowed").

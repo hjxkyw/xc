@@ -1,0 +1,9 @@
+#include "totvs.ch"
+
+// TCQUERY is a command of topconn.ch: a file that includes only totvs.ch has
+// no TCQUERY, and the AppServer refuses the line ("C2003 Syntax Error",
+// tried on 24.3.1.9; thalysjuvenal's FATA001-antes.prw).
+user function ultimo()
+  local cQuery := "SELECT MAX(C5_NUM) ULTIMO FROM SC5010"
+  TcQuery cQuery New Alias "TMP"
+return TMP->ULTIMO

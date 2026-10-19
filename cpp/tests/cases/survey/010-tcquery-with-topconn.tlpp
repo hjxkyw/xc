@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "topconn.ch"
+#include "tlpp-core.th"
+
+// With topconn.ch included -- or any include file but totvs.ch, which may
+// bring it -- TCQUERY is taken as written.
+user function ultimo()
+  local cQuery := "SELECT MAX(C5_NUM) ULTIMO FROM SC5010"
+  TcQuery cQuery New Alias "TMP"
+return TMP->ULTIMO

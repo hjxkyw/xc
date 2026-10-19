@@ -1,0 +1,1 @@
+036.xtpl:9: 'TCQUERY' is a command of topconn.ch, which this file does not include: without it the AppServer refuses the line ("C2003 Syntax Error").

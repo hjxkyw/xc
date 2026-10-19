@@ -1555,6 +1555,8 @@ parses, in xtpl's words.
 | a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
 | in a `.prw`, two functions one in their first 10 characters | `'ProcessOrderUpdated' and 'ProcessOrderCreated' (line 8) are one function in a .prw, which counts a name to 10 characters (PROCESSORD): the AppServer refuses the second.` |
+| `TCQUERY` in a file that includes only `totvs.ch` -- topconn.ch has it | `'TcQuery' is a command of topconn.ch, which this file does not include: without it the AppServer refuses the line ("C2003 Syntax Error").` |
+| `FreeObj(Self)` | `FreeObj(SELF): the AppServer does not free the object a method runs in (C9910 "Free SELF object is not allowed").` |
 | a single value at the head of a chain | `nX is a single value -- it was declared as 5, and a chain walks a collection. Write {nX} for a one-element array, or 'lo..hi' for a range.` |
 | a source anywhere but the head of a chain | `'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '\|>'.` |
 | a chain from a source in the wrong place | `a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', ...` |
@@ -1577,9 +1579,10 @@ with any name allowed, to say which name it was and why.
 | a name nothing declares, assigned | `'nCount' is not declared, so this creates a PRIVATE` |
 | a variable never read, or never used | `'cX' is assigned but never read`, `'cY' is declared but never used` |
 | a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
-| a field of an area nothing in the function opened -- `M->` and `MEMVAR->` are variables, no area | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
+| a field of an area nothing in the function opened -- `M->` and `MEMVAR->` are variables, no area; `TCQUERY ... ALIAS "QRY"` and `BeginSql Alias "QRY"` open one | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
 | a value on one path and none on another | `the function can reach its end without a return, but returns a value on line 3` |
 | a regular function: a bare `Function` whose name has no `u_`, a `Main Function`, a method of a class the file does not declare | `'ESPA003' is a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")` |
+| `StaticCall()` | `StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' authorization (C9909 "Staticall has a restrict use")` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
