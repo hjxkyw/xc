@@ -1,6 +1,6 @@
 // xc-doc -- docs/language.md says every example in it was compiled by xc,
-// and shows what came out; this keeps it so (t/45-language-doc.raku, for the
-// C++ xc).
+// and shows what came out; this keeps it so (ctest's doc), as the Raku xc's
+// t/45-language-doc.raku did.
 //
 //   xc-doc DOC WORK      DOC: docs/language.md; WORK: a folder for the
 //                        sources it compiles, made if it is not there

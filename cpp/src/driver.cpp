@@ -23,8 +23,7 @@ namespace xc
     constexpr bool WINDOWS = false;
 #endif
 
-    // What is said of a source quotes it: windows-1252, said in UTF-8, as
-    // bin/xc says it.
+    // What is said of a source quotes it: windows-1252, said in UTF-8.
     std::string said(std::string_view t) { return cp1252_to_utf8(t); }
 
     // Why a source's bytes are UTF-8, not windows-1252 -- or nothing when

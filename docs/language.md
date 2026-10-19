@@ -7,7 +7,7 @@ language as xc reads it today: what it takes, what it makes of it, and what
 it refuses.
 
 Every example here was compiled by xc, and the output shown is what it
-wrote; `t/45-language-doc.raku` compiles them again with the other tests.
+wrote; `xc-doc` compiles them again with the other tests (ctest's `doc`).
 When an example has no include lines, the two xc adds are left out of its
 output.
 

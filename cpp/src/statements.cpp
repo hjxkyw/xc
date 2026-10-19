@@ -3103,8 +3103,8 @@ namespace xc
   // A quantified group followed by a blank in a rule is one Raku goes back
   // into: when what follows 'local' does not read, the loop is read again
   // without it -- 'for local := 1 to 3' is over a variable named 'local',
-  // refused as a reserved word (which bin/xc then says, reading the file
-  // with any name allowed).
+  // refused as a reserved word (which the driver then says, reading the
+  // file with any name allowed).
   Stmt* Parser::forst()
   {
     bool took = false;

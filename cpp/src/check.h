@@ -2,9 +2,10 @@
 //
 // Between the parse and the emitter: names and their scopes, '<const>' and
 // '<contained>', 'external', the calls to this file's own functions, a
-// declaration's value against its type, and a few shapes of chain. Each rule
-// and each message is the Raku xc's, word for word; lib/XC/Check.rakumod
-// says why each one is what it is.
+// declaration's value against its type, and a few shapes of chain. The
+// rules and messages began as the Raku xc's, word for word; its
+// lib/XC/Check.rakumod (README.md, History) says why each of those is what
+// it is.
 //
 // A name nothing declares is a warning, not an error, as are a variable never
 // read, a function that returns a value on one path and nothing on another,

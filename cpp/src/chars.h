@@ -3,8 +3,7 @@
 // A source is windows-1252: one byte, one character. What Raku's classes say
 // of each one -- \w, \h, \v, \N, \d, '\n' in a character class, \s, and what
 // .trim takes -- worked out by Raku itself for every byte, decoded, so that
-// the parser reads them as the Raku grammar did. (tools/ast-json.raku is the
-// reference: the trees are compared.)
+// the parser reads them as the Raku grammar did (README.md, History).
 //
 // A "\r\n" is one character to Raku and two bytes here: wherever one line
 // end is taken, both are.

@@ -14,6 +14,7 @@ ctest --test-dir cpp/build
 | `cases` | each case: the TL++ xc writes, and what it says | `cases/` |
 | `driver` | each command line: the exit code, what is printed, the files written | `driver/` |
 | `doc` | each example of the language reference comes out as it shows | `docs/language.md` |
+| `style` | each separator line of xc's own files ends at column 80 | `style.cmake` says which files |
 
 ## cases/
 
@@ -24,8 +25,9 @@ parse -- (none when it says nothing), and `NAME.args` when it is compiled with
 options: `--dict FILE`, `--dict-strict`, `--includes=DIRS`, the paths from its
 folder. A case that names include files has a folder of its own, with them.
 
-The sources are the Raku xc's tests': every program a test in `t/` compiled,
-one folder for each test file (`32-check/`, `43-advpl-forms/`, ...), each
+The sources are the Raku xc's tests' (`t/`, in
+[hjxkyw/xc-raku](https://github.com/hjxkyw/xc-raku)): every program a test
+there compiled, one folder for each test file (`32-check/`, `43-advpl-forms/`, ...), each
 source once. xtpl's own are in `outputs`. The dictionary's are compiled with
 `33-dictionary/sx3.csv`, as the test compiles them, and again strict. What is
 expected is what xc made of them when they were taken (October 2026) -- the
@@ -46,8 +48,8 @@ of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with
 `u_xtpl_jnew` or `JsonObject():New()`.
 
-A test in `t/` says what it looks for; a case holds the whole of what came
-out, so a change to the output shows in every case it touches. After a change
+A case holds the whole of what came out -- not, as a test in `t/` did, what
+it looks for --, so a change to the output shows in every case it touches. After a change
 that is meant, write them again and read the diff:
 
 ```
@@ -67,12 +69,12 @@ cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDAT
 
 ## docs/language.md
 
-`xc-doc` (`src/doc.cpp`) reads the reference as `t/45-language-doc.raku`
-does: each ```` ```xtpl ```` example is compiled, and the ```` ```tlpp ````
-right after it is what has to come out, the ```` ```text ```` after those
-what xc has to say; each row of a `| xtpl | TL++ |` table is assigned in a
-function and has to come out as the TL++ beside it. A change to the output
-that an example shows is a change to the document.
+`xc-doc` (`src/doc.cpp`) reads the reference: each ```` ```xtpl ````
+example is compiled, and the ```` ```tlpp ```` right after it is what has to
+come out, the ```` ```text ```` after those what xc has to say; each row of
+a `| xtpl | TL++ |` table is assigned in a function and has to come out as
+the TL++ beside it. A change to the output that an example shows is a
+change to the document.
 
 ## Line ends
 

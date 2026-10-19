@@ -48,8 +48,8 @@ namespace xc
     // took.
     int furthest() const { return furthest_; }
 
-    // 'any name': no declared name is refused (bin/xc reads a source that did
-    // not parse so, to say which name it was); 'generated ok': a name of the
+    // 'any name': no declared name is refused (the driver reads a source that
+    // did not parse so, to say which name it was); 'generated ok': a name of the
     // shape xc generates may be declared (xc's own output, read back).
     bool any_name = false;
     bool generated_ok = false;
@@ -59,7 +59,7 @@ namespace xc
     Expr* read(Form form, int at, bool in_with, int& end);
 
     // The whole source as one declaration ('local a := 1, b'), or null:
-    // what bin/xc reads the line a source stopped at as.
+    // what the driver reads the line a source stopped at as.
     Declaration* read_declaration();
 
   private:

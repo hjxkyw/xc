@@ -5,8 +5,9 @@
 // lines and layout exactly as written. A rewritten statement loses its
 // trailing comment to the rewrite and gets it back, two spaces after the new
 // code: on the header line when the rewrite opens a block, on the last line
-// otherwise. Byte for byte the Raku xc's output; lib/XC/Emit.rakumod says why
-// each rewrite is what it is.
+// otherwise. It began as the Raku xc's output, byte for byte; its
+// lib/XC/Emit.rakumod (README.md, History) says why each rewrite the two
+// share is what it is.
 
 #pragma once
 

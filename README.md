@@ -4,10 +4,8 @@ A compiler from xtpl to TL++, in C++20. The language -- what xc takes,
 what it makes of it, what it refuses -- is described in
 [docs/language.md](docs/language.md).
 
-xc was written in Raku first. That xc, `bin/xc` with `lib/XC/`, is frozen as
-it was on 14 October 2026; the C++ xc is the one that moves on (see
-[The Raku xc](#the-raku-xc)). Raku still runs the scripts around it:
-`run-protheus.raku` and `tools/`.
+xc was written in Raku first (see [History](#history)); Raku still runs
+the script around it, `run-protheus.raku`.
 
 ## Building
 
@@ -80,9 +78,10 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | test | what |
 |---|---|
 | `outputs` | each of xtpl's sources compiles to the `.tlpp` beside it |
-| `cases` | the Raku xc's test sources, each with the TL++ and the messages xc gives for it |
+| `cases` | sources, each with the TL++ and the messages xc gives for it |
 | `driver` | command lines: the exit code, what is printed, the files written |
 | `doc` | the examples of `docs/language.md` come out as it shows them |
+| `style` | every separator line of xc's own files ends at column 80 |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:
@@ -97,16 +96,15 @@ cpp/build/xc-outputs --update xtpl/tests xtpl/examples
 `run-protheus.raku` compiles two self-tests with xc -- xtpl's
 `xtpl/tests/54_selftest.xtpl` and xc's own `protheus/xc_selftest.xtpl` --
 has an AppServer compile them with the runtime, runs each, and reads their
-totals. xc is the C++ xc where CMake built it (`cpp/build/xc`, or
-`cpp\build\Release\xc.exe`); `--xc=PATH` names another -- `--xc=bin/xc`
-the Raku xc:
+totals. xc is the one CMake built (`cpp/build/xc`, or
+`cpp\build\Release\xc.exe`); `--xc=PATH` names another:
 
 ```sh
 rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--authorization=FILE]
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
-rakupp run-protheus.raku ... --xc=bin/xc        # compiled by the Raku xc
+rakupp run-protheus.raku ... --rebuild          # the self-tests compiled again, up to date or not
 ```
 
 Only what matters is shown -- a source that did not compile and why, the
@@ -137,37 +135,12 @@ and aRoll draw with `Random()`.
 
 `editors/vscode/` is an extension for `.xtpl` files: highlighting, xc's
 checks as diagnostics on open and on save, and a command that compiles the
-file -- with the C++ xc. See [its README](editors/vscode/README.md) for
-installing it -- a package, or the folder linked into VS Code's extensions.
+file. See [its README](editors/vscode/README.md) for installing it -- a
+package, or the folder linked into VS Code's extensions.
 
-## The Raku xc
+## Installing rakupp
 
-`bin/xc`, with `lib/XC/` -- the grammar, the tree, the checks, the emitter
--- and its tests in `t/`, frozen as they were on 14 October 2026. It stays
-the reference for what a source means: `tools/compare-cpp.raku` compares
-the two xc's, tree for tree, message for message and byte for byte -- with
-`cpp/build/xc-compare`, against what `tools/ast-json.raku` writes of the
-Raku xc's tree, checks and TL++ -- and runs both drivers on the same files.
-The trees and the drivers agree. The TL++ differs wherever the C++ xc has
-written it better since (`?:`, `?.` and `in lo..hi` hold a value read twice
-in a Local, not in a block; verbs written as calls are loops), and so do the
-checks it has added or reworded (a `?:` on a typed variable with no value,
-`as Block` and a variable named `as`, a `fallback` inside an expression),
-and `t/45`, which holds `docs/language.md` to the Raku xc's TL++.
-
-```sh
-rakupp tools/compare-cpp.raku xtpl protheus        # files or folders
-rakupp tools/compare-cpp.raku --dict=sx3.csv xtpl  # the checks with a dictionary
-rakupp bin/xc file.xtpl                            # the Raku xc itself
-rakupp run-tests.raku                              # its tests
-```
-
-(`compare-cpp.raku` finds the C++ programs where CMake built them, in
-`cpp/build` or `cpp\build\Release`.)
-
-### Installing rakupp
-
-For the scripts, and the Raku xc:
+For `run-protheus.raku`:
 
 ```sh
 curl -sfL -O https://github.com/ash/rakupp/releases/download/v5.3.0/rakupp-linux-x86_64.tar.gz
@@ -177,7 +150,7 @@ tar xzf rakupp-linux-x86_64.tar.gz
 export PATH=$PWD/rakupp/bin:$PATH
 ```
 
-They run under rakupp 5.3.0, and under Rakudo as well.
+It runs under rakupp 5.3.0, and under Rakudo as well.
 
 ## What is where
 
@@ -189,5 +162,19 @@ They run under rakupp 5.3.0, and under Rakudo as well.
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, each with the `.tlpp` xc makes of it, and xc's example `saldo` -- see `xtpl/README.md` |
-| `tools/` | `compare-cpp.raku`, the C++ xc against the Raku one, and `ast-json.raku`, what it reads of the Raku xc |
-| `bin/xc`, `lib/XC/`, `t/` | the Raku xc and its tests, frozen |
+| `run-protheus.raku` | xc's output compiled and run by an AppServer |
+
+## History
+
+xc was written in Raku first: a grammar, the tree its actions make, the
+checks and the emitter, with their tests. That xc was frozen on 14 October
+2026, and it is kept, archived, at
+[hjxkyw/xc-raku](https://github.com/hjxkyw/xc-raku); this repository took
+the C++ xc, with its history, in October 2026.
+
+The C++ xc began as a port of it, and its comments still say so where that
+helps: "the Raku grammar" is `lib/XC/Grammar.rakumod` there, whose rules
+`src/parser.cpp` and `src/statements.cpp` quote; "Raku's `.lines`" is what
+that method does; `lib/XC/Check.rakumod` and `lib/XC/Emit.rakumod` say why
+the rules and rewrites the two share are what they are. The programs of its
+tests, in `t/`, are the cases in `cpp/tests/cases/` named for them.

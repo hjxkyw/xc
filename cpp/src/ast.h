@@ -1,8 +1,7 @@
 // xc -- the tree a source is read into.
 //
 // The classes of the Raku xc's XC::AST, one for one, with the same
-// attributes: the JSON of a tree (json.h) is compared with the Raku one's.
-// What Raku leaves undefined is a null pointer, or an empty optional for a
+// attributes (README.md, History). What Raku leaves undefined is a null pointer, or an empty optional for a
 // string. An offset counts bytes.
 //
 // The nodes of a tree belong to its Tree, made by Tree::make and freed with

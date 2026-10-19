@@ -1,4 +1,4 @@
-// xc -- compiles xtpl sources to TL++ (bin/xc, in C++).
+// xc -- compiles xtpl sources to TL++.
 //
 //   xc file.xtpl                writes file.tlpp next to it
 //   xc file.xtpl out.tlpp       writes out.tlpp
@@ -20,8 +20,7 @@
 // A source is windows-1252 (cp1252), as Protheus' are, and so is its .tlpp;
 // a file in UTF-8 is refused. A file that does not parse, that the checks
 // refuse, or that uses what xc cannot lower yet gets no .tlpp, and the others
-// go on; the exit code is 1 if any failed. What it says, it says as bin/xc
-// does.
+// go on; the exit code is 1 if any failed.
 
 #include <algorithm>
 #include <cstdlib>

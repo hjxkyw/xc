@@ -1,6 +1,6 @@
 // xc -- one source compiled, as the driver compiles it: read, parsed,
-// checked and lowered, with what is said of it in bin/xc's words. xc.cpp
-// writes what comes of it; the tests (cases.cpp) compare it.
+// checked and lowered, with what is said of it. xc.cpp writes what comes
+// of it; the tests (cases.cpp) compare it.
 
 #pragma once
 

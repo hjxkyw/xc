@@ -1,8 +1,9 @@
 // xc -- what xtpl refuses although it parses (see check.h).
 //
-// A port of lib/XC/Check.rakumod and lib/XC/Types.rakumod, routine for
-// routine and in the same order: the comments there say why each rule is
-// what it is, and are not repeated here. What two findings on one line come
+// A port of the Raku xc's lib/XC/Check.rakumod and lib/XC/Types.rakumod
+// (README.md, History), routine for routine and in the same order: the
+// comments there say why each rule they share is what it is, and are not
+// repeated here. What two findings on one line come
 // out in is the order they are found in, so the walk is the Raku one.
 
 #include "check.h"

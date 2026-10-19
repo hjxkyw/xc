@@ -10,11 +10,9 @@
 # 1. xc compiles the two self-tests -- xtpl's xtpl/tests/54_selftest.xtpl
 #    and xc's own protheus/xc_selftest.xtpl -- into build/protheus/: each
 #    only when its .tlpp is missing, or older than its source or than xc;
-#    --rebuild compiles both anyway. xc is the C++ xc where CMake built it
-#    -- cpp/build/xc, or cpp\build\Release\xc.exe with Visual Studio --
-#    or the program --xc=PATH names. Only when there is neither is it
-#    bin/xc, the Raku xc, frozen, run by this Raku (its .tlpp then older
-#    than bin/xc or anything in lib/XC/).
+#    --rebuild compiles both anyway. xc is the program --xc=PATH names, or
+#    the one CMake built: cpp/build/xc, or cpp\build\Release\xc.exe with
+#    Visual Studio.
 # 2. The AppServer compiles them, with runtime/xtpl_runtime.tlpp -- copied in
 #    beside them, so that build/protheus/ holds exactly the three -- into the
 #    environment's RPO, given the folder:
@@ -114,30 +112,18 @@ sub shown($p --> Str)
   $*DISTRO.is-win ?? $r.subst('/', '\\', :g) !! $r
 }
 
-# Which xc: what --xc names, else the C++ xc where CMake built it, else
-# bin/xc.
-%opt<xc> //= ('cpp/build/xc', 'cpp/build/xc.exe', 'cpp/build/Release/xc.exe', 'cpp/build/Debug/xc.exe')
-               .map({ $root.add($_) }).first(*.f).?absolute // $root.add('bin/xc').absolute;
-my $xc-path = %opt<xc>.IO;
+# Which xc: what --xc names, else the one CMake built.
+my $built = ('cpp/build/xc', 'cpp/build/xc.exe', 'cpp/build/Release/xc.exe', 'cpp/build/Debug/xc.exe')
+              .map({ $root.add($_) }).first(*.f);
+%opt<xc> //= $built.absolute if $built;
+usage("no xc in cpp/build: build it (README.md, Building), or name it with --xc=PATH")
+  if $compile && !%opt<xc>;
+my $xc-path = (%opt<xc> // 'xc').IO;
 my $xc-shown = shown($xc-path);
 
-# A program starts with its format's magic -- ELF, PE ('MZ'), Mach-O -- and
-# is run as it is; anything else is a script -- bin/xc, the Raku xc -- run
-# under this Raku.
-sub is-program(IO::Path $p --> Bool)
-{
-  my $fh = $p.open(:bin);
-  my @m = $fh.read(4).list;
-  $fh.close;
-  (@m >= 4 && @m[0] == 0x7F && @m[1] == 0x45 && @m[2] == 0x4C && @m[3] == 0x46)
-    || (@m >= 2 && @m[0] == 0x4D && @m[1] == 0x5A)
-    || (@m >= 4 && (@m[0] == 0xCF || @m[0] == 0xCE) && @m[1] == 0xFA && @m[2] == 0xED && @m[3] == 0xFE)
-}
-my $xc-program = $xc-path.f && is-program($xc-path);
-
-# What a program says of itself, --version: the commit it is built from --
-# shown with its path. One that says nothing of it shows its path alone.
-if $xc-program
+# What xc says of itself, --version: the commit it is built from -- shown
+# with its path. One that says nothing of it shows its path alone.
+if $compile
 {
   my $p = run native($xc-path), '--version', :out, :err;
   my $said = $p.out.slurp(:close).trim;
@@ -148,8 +134,7 @@ if $xc-program
 # xc run with these arguments.
 sub xc(*@args)
 {
-  $xc-program ?? run(native($xc-path), |@args, :cwd($root.Str), :merge)
-              !! run($*EXECUTABLE, native($xc-path), |@args, :cwd($root.Str), :merge)
+  run(native($xc-path), |@args, :cwd($root.Str), :merge)
 }
 
 # The self-tests: the source, the file xc writes, the function to run.
@@ -320,9 +305,8 @@ if $compile
 {
   say "xc ($xc-shown): compiling the self-tests into {shown($out)}";
   mkdir $out;
-  # The newest of what makes the output: the program, or the script and the
-  # Raku xc's modules.
-  my $xc-made = $xc-program ?? $xc-path.modified !! ($xc-path, |$root.add('lib/XC').dir).map(*.modified).max;
+  # A .tlpp older than xc is made again.
+  my $xc-made = $xc-path.modified;
   for @tests -> %t
   {
     my $made = $out.add(%t<file>);
