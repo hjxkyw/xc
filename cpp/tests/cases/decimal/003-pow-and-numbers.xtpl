@@ -1,0 +1,20 @@
+// '**' and '^' with a Decimal are DEC_POW, its exponent made a Decimal; a
+// Decimal that goes into a number -- a Numeric's value, a Numeric
+// parameter's argument, a return of a function declared Numeric -- is
+// DEC_TO_DBL of it. DEC_ROUND and DEC_POW give Decimals, DEC_TO_DBL a number.
+user function f(fA as Decimal, nQ as Numeric)
+  local nX := fA as Numeric
+  local nY as Numeric
+  local fP := 1.5 ** 2 as Decimal
+  nY := fA * 2
+  nY := DEC_TO_DBL(fA) + nQ
+  fP := fA ^ 3 + fP ** 2
+  nY := toNum(fA + 1)
+  fP := DEC_ROUND(fA, 1) + 1
+return {nX, nY, fP, num(fA)}
+
+static function toNum(nV as Numeric) as Numeric
+return nV
+
+static function num(fV as Decimal) as Numeric
+return fV * 2

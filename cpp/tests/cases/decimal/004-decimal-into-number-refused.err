@@ -1,0 +1,3 @@
+004-decimal-into-number-refused.xtpl:5: 'fA' is a Decimal, and meets the number 'nQ': TL++ takes no Decimal with a Numeric -- make it a number with DEC_TO_DBL(fA).
+004-decimal-into-number-refused.xtpl:6: 'DEC_TO_DBL(fA)' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(DEC_TO_DBL(fA), digits, decimals).
+004-decimal-into-number-refused.xtpl:7: 'nQ' is a number, and meets a Decimal: TL++ takes no Numeric with a Decimal ("Incompatible types between F and N") -- make it one with DEC_CREATE(nQ, digits, decimals).

@@ -23,8 +23,11 @@ namespace xc
 
     const std::unordered_set<std::string> DEC_CALLS =
     {
-      "dec_create", "dec_add", "dec_sub", "dec_mul", "dec_div", "dec_mod", "dec_resize", "dec_rescale",
+      "dec_create", "dec_add", "dec_sub", "dec_mul", "dec_div", "dec_mod", "dec_pow", "dec_resize", "dec_rescale",
+      "dec_round",
     };
+
+    bool compound(const std::string& op) { return op == "+=" || op == "-=" || op == "*=" || op == "/=" || op == "%="; }
 
     // How a function of the file is called: a user function with its 'u_'.
     std::string called_as(const FunctionDef* f)
@@ -61,7 +64,10 @@ namespace xc
     return w == "numeric" || w == "integer" || w == "double";
   }
 
-  bool arithmetic(const std::string& op) { return op == "+" || op == "-" || op == "*" || op == "/" || op == "%"; }
+  bool arithmetic(const std::string& op)
+  {
+    return op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "**" || op == "^";
+  }
 
   bool comparison(const std::string& op)
   {
@@ -75,7 +81,8 @@ namespace xc
     if (op == "-") { return "DEC_SUB"; }
     if (op == "*") { return "DEC_MUL"; }
     if (op == "/") { return "DEC_DIV"; }
-    return "DEC_MOD";
+    if (op == "%") { return "DEC_MOD"; }
+    return "DEC_POW";
   }
 
   bool number_literal(const Expr* e)
@@ -106,15 +113,20 @@ namespace xc
       std::string name = called_as(f);
       if (name.empty()) { continue; }
       if (decimal_word(f->rettype_word)) { functions_.insert(name); }
-      std::vector<bool> ps;
+      if (numeric_word(f->rettype_word)) { numeric_functions_.insert(name); }
+      std::vector<bool> ds;
+      std::vector<bool> ns;
       bool any = false;
+      bool any_n = false;
       for (const Param* q : f->params)
       {
-        bool d = q && decimal_word(q->type_word);
-        ps.push_back(d);
-        any = any || d;
+        ds.push_back(q && decimal_word(q->type_word));
+        ns.push_back(q && numeric_word(q->type_word));
+        any = any || ds.back();
+        any_n = any_n || ns.back();
       }
-      if (any) { params_[name] = ps; }
+      if (any) { params_[name] = ds; }
+      if (any_n) { numeric_params_[name] = ns; }
     }
     for (const Declaration* d : p->statics)
     {
@@ -185,6 +197,11 @@ namespace xc
       std::string n = lc(static_cast<const Name*>(e)->name);
       return numerics_.count(n) > 0 && !names_.count(n);
     }
+    if (is(e, EK::Call))
+    {
+      std::string n = lc(static_cast<const Call*>(e)->name);
+      return n == "dec_to_dbl" || numeric_functions_.count(n) > 0;
+    }
     if (is(e, EK::Binary))
     {
       auto b = static_cast<const Binary*>(e);
@@ -208,6 +225,13 @@ namespace xc
     if (!is(call, EK::Call)) { return nullptr; }
     auto it = params_.find(lc(static_cast<const Call*>(call)->name));
     return it == params_.end() ? nullptr : &it->second;
+  }
+
+  const std::vector<bool>* Decimals::numeric_params_of(const Expr* call) const
+  {
+    if (!is(call, EK::Call)) { return nullptr; }
+    auto it = numeric_params_.find(lc(static_cast<const Call*>(call)->name));
+    return it == numeric_params_.end() ? nullptr : &it->second;
   }
 
   // ---- what is refused ------------------------------------------------------
@@ -274,6 +298,12 @@ namespace xc
           {
             auto a = static_cast<Assignment*>(s);
             if (d.decimal(a->target)) { into(a->value, s->line); }
+            if (compound(a->op) && d.numeric(a->target) && d.decimal(a->value))
+            {
+              found.push_back({ s->line, "'" + shown(a->value) + "' is a Decimal, and meets the number '"
+                                         + shown(a->target) + "': TL++ takes no Decimal with a Numeric -- make it "
+                                         + "a number with DEC_TO_DBL(" + shown(a->value) + ")." });
+            }
             break;
           }
           case SK::ReturnStmt:

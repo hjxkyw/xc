@@ -56,6 +56,7 @@ user function xc_selftest()
   local fA := DEC_CREATE("99.9", 3, 1) as Decimal
   local fB := DEC_CREATE("0.1", 2, 1) as Decimal
   local fC as Decimal
+  local nDbl as Numeric
   Local fi_0_0  // the position in the array walked
   Local fv_0_0  // the element walked
   Local fo_0_0  // the result of the chain
@@ -734,6 +735,10 @@ user function xc_selftest()
   check("'+=' and '++' on a Decimal", fC == DEC_CREATE("2.5", 2, 1), fC, @nOk, @nBad)
   check("'-' before a Decimal, and 1.5 == 1.50", -fC < DEC_CREATE("0", 1, 0) .and. DEC_MUL(fB, DEC_CREATE("15", 2, 0)) == DEC_CREATE("1.50", 3, 2), DEC_MUL(fB, DEC_CREATE("15", 2, 0)), @nOk, @nBad)
   check("a Decimal parameter given 5, a function as Decimal", half(DEC_CREATE("5", 1, 0)) == DEC_CREATE("2.5", 2, 1) .and. half(fA) == DEC_CREATE("49.95", 4, 2), half(fA), @nOk, @nBad)
+  fC := DEC_CREATE("1.5", 2, 1)
+  check("1.5 ** 2 and 2 ^ 3 in Decimals", DEC_POW(fC, DEC_CREATE("2", 1, 0)) == DEC_CREATE("2.25", 3, 2) .and. DEC_POW(DEC_ADD(fC, DEC_CREATE("0.5", 2, 1)), DEC_CREATE("3", 1, 0)) == DEC_CREATE("8", 1, 0), DEC_POW(fC, DEC_CREATE("2", 1, 0)), @nOk, @nBad)
+  nDbl := DEC_TO_DBL(DEC_MUL(fB, DEC_CREATE("3", 1, 0)))
+  check("a Decimal into a Numeric: DEC_TO_DBL", valtype(nDbl) == "N" .and. nDbl == 0.3, nDbl, @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12345 + 1000.5

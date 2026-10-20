@@ -52,6 +52,7 @@ user function xc_selftest()
   local fA := 99.9 as Decimal
   local fB := 0.1 as Decimal
   local fC as Decimal
+  local nDbl as Numeric
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -199,6 +200,10 @@ user function xc_selftest()
   check("'+=' and '++' on a Decimal", fC == 2.5, fC, @nOk, @nBad)
   check("'-' before a Decimal, and 1.5 == 1.50", -fC < 0 .and. fB * 15 == 1.50, fB * 15, @nOk, @nBad)
   check("a Decimal parameter given 5, a function as Decimal", half(5) == 2.5 .and. half(fA) == 49.95, half(fA), @nOk, @nBad)
+  fC := 1.5
+  check("1.5 ** 2 and 2 ^ 3 in Decimals", fC ** 2 == 2.25 .and. (fC + 0.5) ^ 3 == 8, fC ** 2, @nOk, @nBad)
+  nDbl := fB * 3
+  check("a Decimal into a Numeric: DEC_TO_DBL", valtype(nDbl) == "N" .and. nDbl == 0.3, nDbl, @nOk, @nBad)
 
   // ---- digit separators, and a range beside another test --------------------
   nTmp := 12'345 + 1'000.5

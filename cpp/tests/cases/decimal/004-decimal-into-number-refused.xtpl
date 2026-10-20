@@ -1,0 +1,8 @@
+// A Decimal added to a number with '+=' is refused (DEC_TO_DBL makes it
+// one); DEC_TO_DBL's value is a number, and so is refused where it meets a
+// Decimal, as is a Numeric exponent of a Decimal.
+user function f(fA as Decimal, nQ as Numeric)
+  nQ += fA
+  fA := fA + DEC_TO_DBL(fA)
+  fA := fA ** nQ
+return nQ

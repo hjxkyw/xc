@@ -820,11 +820,13 @@ namespace xc
     for (const FunctionDef* f : p->functions)
     {
       ret_decimal_ = decimal_word(f->rettype_word);
+      ret_numeric_ = numeric_word(f->rettype_word);
       function(f->params, f->body);
     }
     for (const MethodImpl* m : p->methods)
     {
       ret_decimal_ = decimal_word(m->returns);
+      ret_numeric_ = numeric_word(m->returns);
       function(m->params, m->body);
     }
 
@@ -936,10 +938,31 @@ namespace xc
 
   // A parameter's '<const>' or '<contained>' leaves the header, and a comment
   // at the end of the line says it.
-  // The values that go into a Decimal: a literal among them is made one.
+  // The values that go into a Decimal -- a literal among them is made one --
+  // and those that go into a Numeric -- a Decimal among them is made a
+  // number.
   void Emitter::decimal_values(const Body& body)
   {
     into_decimal_.clear();
+    into_numeric_.clear();
+    auto into = [&](Expr* target, Expr* value)
+    {
+      if (!value) { return; }
+      if (dec_.decimal(target)) { into_decimal_.insert(value); }
+      else if (is_expr(target, EK::Name) && dec_.numeric(target)) { into_numeric_.insert(value); }
+    };
+    auto args = [&](Expr* x)
+    {
+      auto c = static_cast<Call*>(x);
+      const std::vector<bool>* ds = dec_.params_of(x);
+      const std::vector<bool>* ns = dec_.numeric_params_of(x);
+      for (std::size_t i = 0; i < c->args.size(); i++)
+      {
+        if (!c->args[i]) { continue; }
+        if (ds && i < ds->size() && (*ds)[i]) { into_decimal_.insert(c->args[i]); }
+        if (ns && i < ns->size() && (*ns)[i]) { into_numeric_.insert(c->args[i]); }
+      }
+    };
     walk(body, [&](Stmt* s)
     {
       switch (s->kind)
@@ -948,18 +971,20 @@ namespace xc
           for (const Declarator* v : static_cast<Declaration*>(s)->declarators)
           {
             if (v->init && decimal_word(v->typespec_text)) { into_decimal_.insert(v->init); }
+            if (v->init && numeric_word(v->typespec_text)) { into_numeric_.insert(v->init); }
           }
           break;
         case SK::Assignment:
         {
           auto a = static_cast<Assignment*>(s);
-          if ((a->op == ":=" || a->op == "=") && dec_.decimal(a->target)) { into_decimal_.insert(a->value); }
+          if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
           break;
         }
         case SK::ReturnStmt:
         {
           Expr* v = static_cast<ReturnStmt*>(s)->value;
           if (ret_decimal_ && v) { into_decimal_.insert(v); }
+          if (ret_numeric_ && v) { into_numeric_.insert(v); }
           break;
         }
         default:
@@ -972,15 +997,11 @@ namespace xc
           if (x->kind == EK::AssignExpr)
           {
             auto a = static_cast<AssignExpr*>(x);
-            if ((a->op == ":=" || a->op == "=") && dec_.decimal(a->target)) { into_decimal_.insert(a->value); }
+            if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
           }
-          else if (const std::vector<bool>* ps = dec_.params_of(x))
+          else if (x->kind == EK::Call)
           {
-            auto c = static_cast<Call*>(x);
-            for (std::size_t i = 0; i < c->args.size() && i < ps->size(); i++)
-            {
-              if ((*ps)[i] && c->args[i]) { into_decimal_.insert(c->args[i]); }
-            }
+            args(x);
           }
         });
       }

@@ -1749,13 +1749,14 @@ namespace xc
   }
 
   // ---- Decimals -------------------------------------------------------------
-  // What is rewritten for a Decimal: a literal that goes into one, an
-  // operator with one on a side -- a comparison only when a literal is on
-  // the other --, Round(), NoRound() or Empty() of one, an assignment with
-  // an operator to one.
+  // What is rewritten for a Decimal: one that goes into a Numeric, a literal
+  // that goes into one, an operator with one on a side -- a comparison only
+  // when a literal is on the other --, Round(), NoRound() or Empty() of one,
+  // an assignment with an operator to one.
   bool Emitter::lowered_decimal(const Expr* e) const
   {
     if (!e || advpl_) { return false; }
+    if (into_numeric_.count(e) && e != unwrapped_ && dec_.decimal(e)) { return true; }
     if (into_decimal_.count(e) && dec_.constant(e) && !dec_.decimal(e)) { return true; }
     switch (e->kind)
     {
@@ -1785,8 +1786,10 @@ namespace xc
     }
   }
 
-  // What is lowered_decimal(), written with the DEC_ functions: 'fA + 1' ->
-  // 'DEC_ADD(fA, DEC_CREATE("1", 1, 0))', 'fA > 0' -> 'fA >
+  // What is lowered_decimal(), written with the DEC_ functions: 'nX := fA'
+  // -> 'nX := DEC_TO_DBL(fA)' -- a Numeric takes a Decimal, and holds a
+  // Decimal then --, 'fA + 1' -> 'DEC_ADD(fA, DEC_CREATE("1", 1, 0))',
+  // 'fA ** 2' -> 'DEC_POW(fA, DEC_CREATE("2", 1, 0))', 'fA > 0' -> 'fA >
   // DEC_CREATE("0", 1, 0)', 'Round(fA, 2)' -> 'DEC_RESCALE(fA, 2, 0)' (half
   // away from zero), 'NoRound(fA, 2)' -> 'DEC_RESCALE(fA, 2, 2)' (cut),
   // 'Empty(fA)' -> '(fA == DEC_CREATE("0", 1, 0))' (Empty() of a Decimal
@@ -1794,6 +1797,14 @@ namespace xc
   // '(fA := DEC_ADD(fA, x))'; 'fA++' gives the value before.
   std::string Emitter::decimal_expr(const Expr* e)
   {
+    if (into_numeric_.count(e) && e != unwrapped_ && dec_.decimal(e))
+    {
+      const Expr* was = unwrapped_;
+      unwrapped_ = e;
+      std::string inner = expr(e);
+      unwrapped_ = was;
+      return "DEC_TO_DBL(" + inner + ")";
+    }
     if (into_decimal_.count(e) && dec_.constant(e) && !dec_.decimal(e)) { return as_decimal(e); }
     if (e->kind == EK::Binary)
     {

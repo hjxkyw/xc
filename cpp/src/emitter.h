@@ -160,10 +160,15 @@ namespace xc
     // Decimals: what is one in the file and in the function, the values that
     // go into one -- a declaration's, an assignment's, a return's in a
     // function declared so, an argument a parameter declared so takes --
-    // and whether the function is declared so.
+    // and those that go into a Numeric the same ways; whether the function
+    // is declared a Decimal or a Numeric; the value DEC_TO_DBL is being
+    // written around.
     Decimals dec_;
     std::unordered_set<const Expr*> into_decimal_;
+    std::unordered_set<const Expr*> into_numeric_;
     bool ret_decimal_ = false;
+    bool ret_numeric_ = false;
+    const Expr* unwrapped_ = nullptr;
     // The bodies of 'with object', a level less deep, the lines that made the
     // level gone: the lines from 'from' up to 'to', and how many characters of
     // indentation they lose.

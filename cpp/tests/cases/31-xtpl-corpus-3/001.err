@@ -1,4 +1,4 @@
-001.xtpl:489: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
-001.xtpl:494: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?=' never assigns it (with no type it would start at Nil)
-001.xtpl:507: warning: 'cX' is declared as Character with no value: TL++ starts it at "", not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
-001.xtpl:507: warning: 'lX' is declared as Logical with no value: TL++ starts it at .F., not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
+001.xtpl:494: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
+001.xtpl:499: warning: 'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?=' never assigns it (with no type it would start at Nil)
+001.xtpl:512: warning: 'cX' is declared as Character with no value: TL++ starts it at "", not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)
+001.xtpl:512: warning: 'lX' is declared as Logical with no value: TL++ starts it at .F., not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)

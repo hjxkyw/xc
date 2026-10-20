@@ -1134,25 +1134,36 @@ one in a branch:
   exactly; `-` stays outside it. A literal of more than 63 digits is
   refused.
 - `+`, `-`, `*`, `/` and `%` are `DEC_ADD`, `DEC_SUB`, `DEC_MUL`, `DEC_DIV`
-  and `DEC_MOD`; `+=` and the like, `++` and `--`, an assignment of what
-  they make.
+  and `DEC_MOD`, `**` and `^` are `DEC_POW`; `+=` and the like, `++` and
+  `--`, an assignment of what they make.
 - A comparison stays as it is, a literal on its other side made one. 1.5 and
   1.50 are equal.
 - `Round(f, n)` is `DEC_RESCALE(f, n, 0)` -- half away from zero --,
   `NoRound(f, n)` is `DEC_RESCALE(f, n, 2)`, cut; `Empty(f)` is a comparison
   with 0: `Empty()` of a Decimal stops the thread ("Empty: unknown variable
   type").
+- A Decimal that goes into a number -- a name declared `as Numeric`,
+  `Integer` or `Double`, a parameter declared so, what a function declared
+  so returns -- is `DEC_TO_DBL` of it: TL++ takes it there, and the
+  variable holds a Decimal then, which no number meets. A number keeps 16
+  digits or so.
 
 A division keeps every decimal `DEC_DIV` makes -- 10 / 4 is 2.5 and a
-hundred zeros or so --: round it with `Round()`. A value known to be a
-number -- a name declared `as Numeric`, `Integer` or `Double`, arithmetic
+hundred zeros or so --, and so does `DEC_POW`: round them with `Round()`.
+A value known to be a number -- a name declared `as Numeric`, `Integer` or
+`Double`, a function of the file declared so, `DEC_TO_DBL()`, arithmetic
 with one -- that meets a Decimal is refused: `DEC_CREATE(n, digits,
-decimals)` makes it one. A value of no type known here goes as it is, and
+decimals)` makes it one; and `nX += fD`, a Decimal added to a number:
+`DEC_TO_DBL(fD)` makes it one. A value of no type known here goes as it is, and
 has to hold a Decimal when it runs; a number of no type the compiler knows
 goes into a Decimal -- `fD := u_f()` -- with 15 digits at most. A Decimal
 declared with no value starts at Nil. The names here start with `f`, the
-letter of its `ValType()`, as `n` does a Numeric's. (All tried on
-24.3.1.9.)
+letter of its `ValType()`, as `n` does a Numeric's. The `DEC_` functions
+24.3.1.9 has are `DEC_CREATE`, `DEC_ADD`, `DEC_SUB`, `DEC_MUL`, `DEC_DIV`,
+`DEC_MOD`, `DEC_POW` (its exponent a Decimal too), `DEC_RESIZE`,
+`DEC_RESCALE`, `DEC_ROUND` -- which keeps the scale: `DEC_ROUND(1.25, 1)`
+is 1.30 -- and `DEC_TO_DBL`; there is no `DEC_ABS`, `DEC_SQRT` or the
+like. (All tried on 24.3.1.9.)
 
 ```xtpl
 User Function Mix(fPreco as Decimal, nQtd as Numeric)
