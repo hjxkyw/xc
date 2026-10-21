@@ -1,0 +1,75 @@
+exit 0
+--- output
+-- values
+9
+5
+14
+3.5
+1
+49
+-7
+Ana!
+.T.
+.T.
+.F.
+.T.
+.T.
+.T.
+.F.
+0|.F.||U
+2
+3
+U
+25
+hello, Ana
+2
+-- if, case
+medium
+found Ana
+yes
+no
+.F.
+.T.
+-- loops
+up 1
+up 2
+up 3
+down 10
+down 6
+down 2
+step 6
+step 3
+step 0
+odd 1
+odd 3
+odd 5
+odd 7
+-- arrays, assignments
+11
+25
+29
+10
+4
+5
+7
+7
+6
+4
+4
+-- calls
+3628800
+42
+10
+21
+0
+2
+3
+102
+103
+-- privates
+mode outer
+mode inner
+mode outer
+9
+Ana
+--- errors

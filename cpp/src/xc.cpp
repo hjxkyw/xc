@@ -9,6 +9,9 @@
 //
 //   --check             checks, and writes nothing: everything that would stop
 //                       the compile is reported, the warnings too
+//   --bytecode          the instructions of a stack machine, a .xbc, instead
+//                       of the TL++ (docs/bytecode.md) -- 'xc --bytecode
+//                       file.xtpl [out.xbc]'
 //   --outdir=DIR        each .tlpp into DIR, not next to its source
 //   --includes=DIRS     where to look for the include files a source names,
 //                       after its own folder ('a;b', as the AppServer's
@@ -54,6 +57,7 @@ namespace
     "usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]\n"
     "       xc [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.prw out.prw\n"
     "       xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...\n"
+    "       xc --bytecode [--outdir=DIR] [--includes=DIRS] file.xtpl [out.xbc] | file-or-folder ...\n"
     "       xc --version";
 
   [[noreturn]] void usage_error(const std::string& message)
@@ -115,14 +119,14 @@ namespace
   {
     xc::Compiled c = xc::compile(in, in, o.c);
     std::cerr << c.said;
-    if (!c.tlpp) { return false; }
+    if (!c.output) { return false; }
     if (o.check)
     {
       std::cout << in << ": ok\n";
       return true;
     }
     std::ofstream f(fs::path(out), std::ios::binary);
-    f << *c.tlpp;
+    f << *c.output;
     if (!f)
     {
       std::cerr << in << ": " << out << " cannot be written\n";
@@ -184,10 +188,11 @@ namespace
     return dot == std::string::npos ? name : name.substr(0, dot);
   }
 
-  // What a source's output is named with: an AdvPL source keeps its own
-  // extension, as written; any other makes a .tlpp.
-  std::string out_ext(const std::string& in)
+  // What a source's output is named with: bytecode is a .xbc; an AdvPL
+  // source keeps its own extension, as written; any other makes a .tlpp.
+  std::string out_ext(const std::string& in, bool bytecode)
   {
+    if (bytecode) { return ".xbc"; }
     if (!xc::is_advpl(in)) { return ".tlpp"; }
     return in.substr(in.rfind('.'));
   }
@@ -215,6 +220,7 @@ int main(int argc, char** argv)
     }
     else if (a == "--dict-strict") { o.c.strict = true; }
     else if (a == "--check") { o.check = true; }
+    else if (a == "--bytecode") { o.c.bytecode = true; }
     else if (a.rfind("--outdir=", 0) == 0 && a.size() > 9) { outdir = a.substr(9); }
     else if (a.rfind("--includes=", 0) == 0 && a.size() > 11)
     {
@@ -239,8 +245,14 @@ int main(int argc, char** argv)
   // named. Two AdvPL sources are compiled with --outdir, never next to
   // themselves, so a second .prw is an output only without it.
   std::optional<std::string> named_out;
-  bool advpl_out = given.size() == 2 && xc::is_advpl(given[0]) && xc::is_advpl(given[1]) && !outdir && !o.check;
-  if (given.size() == 2 && (ends_with_ci(given[1], ".tlpp") || advpl_out) && !is_dir(given[1]))
+  bool bc = o.c.bytecode;
+  bool advpl_out = given.size() == 2 && xc::is_advpl(given[0]) && xc::is_advpl(given[1]) && !outdir && !o.check && !bc;
+  if (given.size() == 2 && bc && ends_with_ci(given[1], ".xbc") && !is_dir(given[1]))
+  {
+    named_out = given.back();
+    given.pop_back();
+  }
+  else if (given.size() == 2 && !bc && (ends_with_ci(given[1], ".tlpp") || advpl_out) && !is_dir(given[1]))
   {
     named_out = given.back();
     given.pop_back();
@@ -252,7 +264,10 @@ int main(int argc, char** argv)
   }
   if (o.check && named_out) { usage_error("--check writes nothing: no output to name"); }
   if (outdir && named_out) { usage_error("--outdir with an output named: one or the other"); }
-  if (named_out && is_dir(given[0])) { usage_error(*named_out + ": a .tlpp is named only for a single source"); }
+  if (named_out && is_dir(given[0]))
+  {
+    usage_error(*named_out + ": a " + (bc ? ".xbc" : ".tlpp") + " is named only for a single source");
+  }
 
   if (dict_path)
   {
@@ -308,10 +323,10 @@ int main(int argc, char** argv)
     std::unordered_map<std::string, std::string> seen;
     for (const std::string& in : sources)
     {
-      std::string k = xc::lc(stem(in) + out_ext(in));
+      std::string k = xc::lc(stem(in) + out_ext(in, bc));
       if (auto it = seen.find(k); it != seen.end())
       {
-        usage_error(in + " and " + it->second + ": both would be " + stem(in) + out_ext(in) + " in " + *outdir);
+        usage_error(in + " and " + it->second + ": both would be " + stem(in) + out_ext(in, bc) + " in " + *outdir);
       }
       seen[k] = in;
     }
@@ -334,14 +349,14 @@ int main(int argc, char** argv)
     {
       std::string d = *outdir;
       while (!d.empty() && (d.back() == '/' || d.back() == '\\')) { d.pop_back(); }
-      out = d + sep + stem(in) + out_ext(in);
+      out = d + sep + stem(in) + out_ext(in, bc);
     }
     else
     {
       // The extension goes: the last '.' with no '.', '/' or '\' after it.
       std::size_t dot = in.rfind('.');
       bool ext = dot != std::string::npos && in.find_first_of("/\\", dot) == std::string::npos;
-      out = (ext ? in.substr(0, dot) : in) + out_ext(in);
+      out = (ext ? in.substr(0, dot) : in) + out_ext(in, bc);
     }
     // A .prw -- or a .tlpp -- would be written over itself.
     if (!o.check && file_key(out) == file_key(in))

@@ -2,7 +2,9 @@
 
 A compiler from xtpl to TL++, in C++20. The language -- what xc takes,
 what it makes of it, what it refuses -- is described in
-[docs/language.md](docs/language.md).
+[docs/language.md](docs/language.md). It also compiles a program to the
+bytecode of a stack machine, for an interpreter to run:
+[docs/bytecode.md](docs/bytecode.md).
 
 xc was written in Raku first (see [History](#history)); Raku still runs
 the script around it, `run-protheus.raku`.
@@ -40,6 +42,8 @@ cpp/build/xc --dict sx3.csv --dict-strict file.xtpl     # and what it finds stop
 cpp/build/xc --version               # the commit it was built from, and its date
 cpp/build/xc --outdir=out a.prw      # an AdvPL source stays AdvPL: out/a.prw
 cpp/build/xc a.prw b.prw             # writes b.prw -- never over its source
+cpp/build/xc --bytecode file.xtpl    # writes file.xbc, bytecode, instead of the TL++
+cpp/build/xc-vm file.xbc             # runs it
 ```
 
 xtpl is TL++, and so is what xc makes of it: a `.tlpp`. A `.prw` (or
@@ -66,6 +70,13 @@ compressed, and xc knows their commands from a list of its own.
 The generated code calls xtpl's runtime, `runtime/xtpl_runtime.tlpp`, which
 has to be compiled into the RPO alongside it.
 
+`--bytecode` writes the program as instructions for a stack machine
+instead, one to a line, in a `.xbc` -- what an interpreter written in xtpl
+is to run on an AppServer, calling the AppServer's functions by name.
+`docs/bytecode.md` says what each instruction does, and what is not
+compiled so yet. `xc-vm` runs a `.xbc`: the machine as a program, with a
+few of the AppServer's functions, which the tests run their bytecode with.
+
 ## Running the tests
 
 ```sh
@@ -82,6 +93,7 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | `driver` | command lines: the exit code, what is printed, the files written |
 | `doc` | the examples of `docs/language.md` come out as it shows them |
 | `style` | every separator line of xc's own files ends at column 80 |
+| `bytecode` | sources, each with its bytecode, the messages, and what `xc-vm` does running it |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:
@@ -156,8 +168,8 @@ It runs under rakupp 5.3.0, and under Rakudo as well.
 
 | | |
 |---|---|
-| `cpp/` | xc: `src/` the compiler and the programs that test it, `tests/` the tests, as data |
-| `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples |
+| `cpp/` | xc: `src/` the compiler, `xc-vm` and the programs that test them, `tests/` the tests, as data |
+| `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples --, and the bytecode's, `bytecode.md` |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |

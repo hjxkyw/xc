@@ -234,6 +234,74 @@ namespace xc
     return it == numeric_params_.end() ? nullptr : &it->second;
   }
 
+  // ---- where a value goes ---------------------------------------------------
+  DecimalValues decimal_values(const Decimals& dec, const Body& body, Returns returns)
+  {
+    DecimalValues out;
+    auto into = [&](Expr* target, Expr* value)
+    {
+      if (!value) { return; }
+      if (dec.decimal(target)) { out.into_decimal.insert(value); }
+      else if (is(target, EK::Name) && dec.numeric(target)) { out.into_numeric.insert(value); }
+    };
+    auto args = [&](Expr* x)
+    {
+      auto c = static_cast<Call*>(x);
+      const std::vector<bool>* ds = dec.params_of(x);
+      const std::vector<bool>* ns = dec.numeric_params_of(x);
+      for (std::size_t i = 0; i < c->args.size(); i++)
+      {
+        if (!c->args[i]) { continue; }
+        if (ds && i < ds->size() && (*ds)[i]) { out.into_decimal.insert(c->args[i]); }
+        if (ns && i < ns->size() && (*ns)[i]) { out.into_numeric.insert(c->args[i]); }
+      }
+    };
+    walk(body, [&](Stmt* s)
+    {
+      switch (s->kind)
+      {
+        case SK::Declaration:
+          for (const Declarator* v : static_cast<Declaration*>(s)->declarators)
+          {
+            if (v->init && decimal_word(v->typespec_text)) { out.into_decimal.insert(v->init); }
+            if (v->init && numeric_word(v->typespec_text)) { out.into_numeric.insert(v->init); }
+          }
+          break;
+        case SK::Assignment:
+        {
+          auto a = static_cast<Assignment*>(s);
+          if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
+          break;
+        }
+        case SK::ReturnStmt:
+        {
+          Expr* v = static_cast<ReturnStmt*>(s)->value;
+          if (returns.decimal && v) { out.into_decimal.insert(v); }
+          if (returns.numeric && v) { out.into_numeric.insert(v); }
+          break;
+        }
+        default:
+          break;
+      }
+      for (Expr* e : exprs_of(s))
+      {
+        walk_expr(e, [&](Expr* x)
+        {
+          if (x->kind == EK::AssignExpr)
+          {
+            auto a = static_cast<AssignExpr*>(x);
+            if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
+          }
+          else if (x->kind == EK::Call)
+          {
+            args(x);
+          }
+        });
+      }
+    });
+    return out;
+  }
+
   // ---- what is refused ------------------------------------------------------
   std::vector<Finding> decimal_problems(const Program* p, std::optional<std::string_view> source, bool advpl)
   {

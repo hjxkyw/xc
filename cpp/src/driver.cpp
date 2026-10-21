@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "bytecode.h"
 #include "chars.h"
 #include "commands.h"
 #include "emit.h"
@@ -210,13 +211,28 @@ namespace xc
     // What xc cannot lower yet stops the compile, with --check too.
     try
     {
-      c.tlpp = emit(prog, src, advpl);
+      if (o.bytecode)
+      {
+        std::size_t cut = path.find_last_of(WINDOWS ? "\\/:" : "/");
+        c.output = bytecode(prog, src, advpl, cut == std::string::npos ? path : path.substr(cut + 1));
+      }
+      else
+      {
+        c.output = emit(prog, src, advpl);
+      }
     }
     catch (const NotLowered& e)
     {
       for (const Finding& f : e.problems)
       {
         c.said += in + ":" + std::to_string(f.line) + ": " + said(f.message) + " is not lowered yet\n";
+      }
+    }
+    catch (const NotBytecode& e)
+    {
+      for (const Finding& f : e.problems)
+      {
+        c.said += in + ":" + std::to_string(f.line) + ": " + said(f.message) + " cannot become bytecode yet\n";
       }
     }
     catch (const std::exception& e)

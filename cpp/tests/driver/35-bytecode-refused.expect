@@ -1,0 +1,6 @@
+exit 1
+--- output
+--- errors
+extra/usecmd.xtpl:4: a command for the preprocessor ('LOGIT "hello"') cannot become bytecode yet
+--- written
+

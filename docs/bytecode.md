@@ -1,0 +1,339 @@
+# xtpl bytecode
+
+`xc --bytecode file.xtpl` writes `file.xbc`: the same program, checked as
+for TL++, as the instructions of a stack machine instead. An interpreter
+runs it -- one written in xtpl, on an AppServer, is what the format is made
+for: plain text, one instruction a line, nothing to decode but words,
+numbers and a string at the end of a line. `xc-vm`, built with xc, is the
+machine as a program ([xc-vm](#xc-vm)).
+
+```xtpl
+User Function Soma(aNums)
+  Local nTotal := 0
+  Local nI := 0
+  For nI := 1 To Len(aNums)
+    nTotal += aNums[nI]
+  Next
+Return nTotal
+```
+
+```text
+xbc 1
+source soma.xtpl
+statics 0
+
+function U_SOMA user 1 3
+  locals aNums nTotal nI
+  line 2
+  num 0
+  setlocal 2
+  line 3
+  num 0
+  setlocal 3
+  line 4
+  num 1
+  setlocal 3
+  line 4
+  local 3
+  local 1
+  call 1 Len
+  le
+  jumpf 28
+  line 5
+  local 2
+  local 1
+  local 3
+  index
+  add
+  setlocal 2
+  local 3
+  num 1
+  add
+  setlocal 3
+  jump 10
+  line 7
+  local 2
+  ret
+end
+```
+
+`xc --bytecode file.xtpl out.xbc` names the output; `--outdir`,
+`--includes` and `--check` work as for TL++, and a folder stands for the
+`.xtpl` under it. A `.prw` makes a `.xbc` too.
+
+## The file
+
+A file is lines; a line ends at a LF, and a CR before it is not part of it.
+Blanks at the start of a line are not part of it either, and an empty line
+is nothing. The file is windows-1252, as the source was.
+
+- `xbc 1` -- the format and its version, the first line.
+- `source NAME` -- the source it was made from.
+- `statics N` -- how many statics the module has, numbered from 1.
+- `function NAME KIND PARAMS LOCALS` ... `end` -- a function: its name as
+  it is called, in upper case; its kind; how many parameters it takes; how
+  many locals its frame has, the parameters the first of them. Then its
+  instructions, one a line, numbered from 1 -- what a jump names --, and
+  `end`.
+- `locals NAME...` -- right after `function`: the names of its locals, in
+  order, for an interpreter to show; xc's own are `.t1`, `.t2`...
+- `upvals NAME...` -- after `locals`, in a code block's function that
+  shares variables: the names of its cells, in order.
+
+The kinds:
+
+| kind | what | its name |
+|---|---|---|
+| `user` | a `User Function`, or a `Function` whose name starts with `u_` | `U_` and its name: `U_SOMA` |
+| `static` | a `Static Function` | its name: `SOMA` |
+| `function` | any other `Function`: a regular function | its name |
+| `main` | a `Main Function` | its name |
+| `block` | the body of a code block or a lambda | its function's, `#` and a number: `U_SOMA#1` |
+| `init` | the statics' values, run once when the module is loaded, first | `__INIT` |
+
+A `static` function is the module's own; the others are any module's to
+call. The blocks of a function come right after it, in the order their
+numbers say.
+
+A word of an instruction is separated from the next by one blank or more.
+A string is the last thing on its line, between double quotes: from the
+first `"` to the last character of the line, a `"` -- so it may hold
+quotes, and never a line end.
+
+## The machine
+
+Each call has a frame: its locals, the values on its stack, the privates it
+created, the regions it protects, the areas it selected, the defers it
+reached. An instruction takes its operands from the top of the stack and
+pushes its result; below, `[a b]` is the stack before it, `b` on top, and
+`-> [c]` what it leaves.
+
+Values are AdvPL's. A cell -- what a code block shares with the function
+that made it -- and a reference -- a variable passed with `@` -- are the
+machine's own: no program sees one.
+
+### Constants
+
+| instruction | does |
+|---|---|
+| `nil` | `-> [Nil]` |
+| `true`, `false` | `-> [.T.]`, `-> [.F.]` |
+| `num TEXT` | `-> [n]`: the number AdvPL reads `TEXT` as -- `12`, `0.5`, `1250.75` |
+| `str "TEXT"` | `-> [c]` |
+
+### Variables
+
+| instruction | does |
+|---|---|
+| `local N`, `setlocal N` | `-> [x]` the value of local N; `[x] ->` sets it |
+| `box N` | local N becomes a cell holding the value it has -- at a function's start, before anything else, for a local a code block shares |
+| `cell N`, `setcell N` | reads, sets the value in local N's cell |
+| `upval N`, `setupval N` | in a code block's function: reads, sets the value in its cell N |
+| `static N`, `setstatic N` | reads, sets the module's static N |
+| `memvar NAME`, `setmemvar NAME` | reads, sets the variable NAME, in upper case: the innermost private of that name, else the public; with none, reading is an error ("variable does not exist") and setting creates a private in the frame, as AdvPL does |
+| `private NAME` | creates a private NAME in this frame, Nil: it hides one of the same name until the frame ends; one the frame has already is given Nil |
+| `public NAME` | creates a public NAME, Nil, unless there is one |
+| `field ALIAS NAME`, `setfield ALIAS NAME` | `ALIAS->NAME`, both in upper case: `field SA1 A1_NOME`; the alias `FIELD` is the area selected |
+| `fieldx NAME` | `[alias] -> [x]`: `(alias)->NAME` |
+| `setfieldx NAME` | `[alias x] ->` |
+
+`M->X` and `MEMVAR->X` are the memvar `X`. A static is set by `__INIT`
+before anything runs: a file's `Static`s, then each function's, as they are
+written; one declared in a function is that function's to read.
+
+### References
+
+`@x` passes a variable by reference: the call's argument is a reference to
+it, made by `reflocal N`, `refcell N`, `refupval N`, `refstatic N` or
+`refmemvar NAME` -- with no such memvar, `refmemvar` creates a private. The
+parameter is given the variable's value, and when the call returns, the
+parameter's last value is written back to the variable. For a function of
+the AppServer, the interpreter passes a variable of its own by reference,
+and writes it back the same way.
+
+### The stack, arrays and objects
+
+| instruction | does |
+|---|---|
+| `pop`, `dup` | `[x] ->`; `[x] -> [x x]` |
+| `dup2` | `[a b] -> [a b a b]` |
+| `array N` | `[x1 ... xN] -> [{x1, ..., xN}]` |
+| `index` | `[a i] -> [a[i]]` -- of an array, or of a JsonObject by key |
+| `setindex` | `[a i x] ->`: `a[i] := x` |
+| `member NAME` | `[o] -> [o:NAME]` |
+| `setmember NAME` | `[o x] ->`: `o:NAME := x` |
+| `self` | `-> [Self]`; in a code block's function, the Self of the frame that made the block |
+
+### Operators
+
+Each is AdvPL's own, on the values as they are:
+
+| instruction | operator | | instruction | operator |
+|---|---|---|---|---|
+| `add` | `+` | | `eq` | `=` |
+| `sub` | `-` | | `exact` | `==` |
+| `mul` | `*` | | `ne` | `!=` `<>` `#` |
+| `div` | `/` | | `lt` `gt` | `<` `>` |
+| `mod` | `%` | | `le` `ge` | `<=` `>=` |
+| `pow` | `**` `^` | | `contains` | `$` |
+| `neg` | `-x` | | `not` | `!x` |
+
+`isnil` is `[x] -> [x == Nil]`, for a value of any type.
+
+### Jumps
+
+`N` is an instruction of the same function.
+
+| instruction | does |
+|---|---|
+| `jump N` | goes to N |
+| `jumpf N`, `jumpt N` | `[l] ->`, and goes to N if `l` is `.F.`, `.T.` |
+| `andjump N` | `[l]`: if `l` is `.F.`, goes to N and leaves it; else `->` and on |
+| `orjump N` | `[l]`: if `l` is `.T.`, goes to N and leaves it; else `->` and on |
+
+`.And.` and `.Or.` stop at the first side that decides, as AdvPL's do.
+
+### Calls
+
+| instruction | does |
+|---|---|
+| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a function of the module by that name in upper case, else one any module has for others to call, else the AppServer's |
+| `callx ARGC` | `[name x1 ... xARGC] -> [result]`: `&name.(...)` |
+| `method ARGC NAME` | `[o x1 ... xARGC] -> [o:NAME(...)]` |
+| `ret` | `[x] ->`: the frame ends, and the caller gets `x` |
+| `block NAME K` | `[c1 ... cK] -> [b]`: a code block whose body is the function NAME, its cells `c1 ... cK` |
+| `macro` | `[text] -> [&(text)]` |
+| `setmacro` | `[text x] ->`: `&(text) := x` |
+| `line N` | the line of the source the next instructions are on, for errors |
+
+The arguments are pushed in order, an omitted one as `nil`. A function of
+the module gets them as its first locals; a parameter given none is Nil,
+an argument beyond them is dropped -- and `PCount()` is how many it was
+given. A `Return` with no value returns Nil, and so does a function that
+reaches its end.
+
+A code block of the module -- `block` makes one -- is run by `Eval()` and
+by anything given it, an AppServer function included: the interpreter
+hands those one of the AppServer's own code blocks that runs it. Its cells
+are what it shares with the function that made it: `refcell N` pushes local
+N's, `refupval N` the block's own cell N, for one inside another.
+
+### Sequences and errors
+
+| instruction | does |
+|---|---|
+| `seq N` | protects what follows, to the `endseq`: a `Break` there unwinds to here |
+| `try N` | the same, and an error there is caught too |
+| `endseq` | ends the innermost region of the frame |
+
+A `Break(x)` -- a call of `Break`, in this frame or in any it called --
+goes to the innermost region: the frames above go, this one's stack is cut
+back to what it was at the region, the region and those inside it end, `x`
+is pushed and it goes to N. An error goes to the program's `ErrorBlock()`
+first, as AdvPL's do -- `ErrorBlock({|e| Break(e)})` makes it a break --;
+one it does not break goes to the innermost `try`, with the error object. A
+frame's regions end with it.
+
+### Areas
+
+| instruction | does |
+|---|---|
+| `area` | `[alias] ->`: selects the area the alias names -- a name, or a number --, the one selected before kept |
+| `endarea` | selects again the area the innermost `area` of the frame kept |
+
+`SA1->(...)` is `area`, its expression, and `endarea`. A region a break or
+an error goes to forgets the areas kept inside it, and selects none.
+
+### Defers
+
+| instruction | does |
+|---|---|
+| `defer ID N` | the code at instruction N is to run when the function returns, once however many times this is reached |
+| `rundefers` | runs the deferred code reached so far -- the highest ID first -- and forgets it |
+| `enddefer` | ends a piece of deferred code: back to the `rundefers` running it |
+
+The IDs are numbered in the order the `defer`s are written, so the last
+written runs first, as for TL++. The deferred code comes after the
+function's last `ret`.
+
+## What becomes what
+
+A `Local` is a local, numbered in the order the function declares them,
+parameters first; xtpl's block locals and xc's own -- a limit, a subject,
+an area, a value read twice -- get theirs after. A block local declared
+with no value is given Nil each time its declaration runs, whatever its
+type, as TL++'s is. Any other declared with a type and no value starts
+where TL++ starts it -- in a `.prw`, at Nil: a `Numeric` at 0, a
+`Character` at `""`, a `Logical` at `.F.`, a `Date` at 31 December 1899. A `Static` is a static, a `Private` and a
+`Public` memvars, a name nothing declares a `memvar`. A `#define` of the
+file is its value, wherever its name is used; `CRLF`, which `totvs.ch`
+defines, is `Chr(13) + Chr(10)`.
+
+`If`, `Do Case`, `Do While`, `For` and xtpl's `for ... in` and `for N times`
+are jumps. A `For`'s `To` and `Step` are evaluated each time round, as
+AdvPL's are; a `Step` that is no number literal decides which way it
+counts when it runs. `IIf()` and `If()` evaluate only the branch they take.
+`Begin Sequence` is a `seq`, TL++'s `Try` a `try` -- its `Finally` after
+the body, after the `Catch`, and on an `Exit`, a `Loop` or a `Return` out of
+either --, `Begin Transaction` a call of `BeginTran()` before its body and
+`EndTran()` after. An `Exit` or a `Loop` ends the regions it leaves.
+
+xtpl's own forms are what they are for TL++:
+
+- a hash is the runtime's: `{"a" => 1}` is `u_xtpl_hnew({{"a", 1}})`,
+  `h{k}` `u_xtpl_hget(h, k)`, `h{k} := v` `u_xtpl_hset(h, k, v)`, `has`
+  `u_xtpl_hhas()`, `{ => }` `THashMap():New()`; a JSON object
+  `u_xtpl_jnew()`, `{ : }` `JsonObject():New()`;
+- `x in a` is `u_xtpl_in()`, `x in lo..hi` two comparisons, `%%` a `%` and
+  a comparison with 0;
+- `?:`, `?.` and `?=` test with `isnil`;
+- `fallback` is TL++'s: `ErrorBlock({|e| Break(e)})`, a `seq` around the
+  value, the alternative after it, and the error block put back;
+- a string with `${}` is a sum of strings and `cValToChar()`s;
+- a lambda is a code block, and a function's name where a verb takes a
+  block, `{|__it| name(__it)}`;
+- a chain is its stages' calls, the value before each its first argument;
+- `defer` is `defer`; `using alias` the calls that select the area, its
+  record and its order, and put them back on every way out; `with object`
+  a local for the subject;
+- `aTail(a) := x` is `a[Len(a)] := x`, a field a macro names
+  `FieldGet(FieldPos(...))` in the area -- `FieldPut()` assigned;
+- Decimals the `DEC_` functions, as for TL++.
+
+The runtime -- `runtime/xtpl_runtime.tlpp`, compiled into the RPO -- has to
+be there for these, as for TL++.
+
+## Not yet
+
+xc says so, and writes no `.xbc`:
+
+- a chain TL++ runs as a loop: one whose stages fuse, as a statement's
+  whole value -- run as calls, a `tap` before a `take` would see elements
+  the loop never reads --; a chain from `rows()`, `lines()` or a range;
+  `for ... in lines()`;
+- classes and their methods; a namespace;
+- what is the preprocessor's: `raw`, a command -- TOTVS' `@ ... SAY`,
+  `BeginSql`, one of the source's own --, a translation of the source's
+  own, a directive inside a function, `#ifdef` and its kin, a `#define`
+  with parameters;
+- `@` before what is not a variable: `@aCampos[nX][8]`, `@::x`.
+
+A `#define` from an include file is not seen: its name is a memvar.
+
+## xc-vm
+
+`xc-vm [--run=NAME] module.xbc ...` loads the modules, runs each one's
+`__INIT` in the order given, then NAME -- `U_MAIN` when it is not given and
+there is one, else the first user function of the first module -- with no
+arguments. What `ConOut()` is given goes to its output; an error nothing
+catches goes to its errors, with the function and the line, and the exit
+code is 1. ctest's `bytecode` runs it on the cases in `cpp/tests/bytecode`
+(`cpp/tests/bytecode.cmake` says how).
+
+It is the machine this page describes, and of the AppServer only what the
+tests need: some of the strings', numbers', dates' and arrays' functions,
+`Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; `THashMap` and
+`JsonObject`; the runtime's functions for hashes, JSON objects and `in`,
+and some of its verbs. A work area is a name -- it can be selected and put
+back, and has no records --, there are no Decimals, and a macro is a
+variable's name.

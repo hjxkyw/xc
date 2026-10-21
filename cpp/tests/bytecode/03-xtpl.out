@@ -1,0 +1,54 @@
+exit 0
+--- output
+-- block locals
+first pen
+ink at 2
+a cap
+i 1
+i 2
+-- for in, times
+1: pen
+2: ink
+3: cap
+1200
+-- modifiers
+shown
+left 2
+left 1
+-- nil
+filled
+default
+set
+7
+U
+Ana
+U
+-- in, has, %%
+.T.
+.F.
+.T.
+.T.
+.F.
+.T.
+.F.
+.F.
+-- hashes, json
+0.1
+10
+U
+0.4
+one
+O
+Ana
+31
+J
+J
+1
+-- with object
+Ana is 32
+-- chains
+PEN-INK-CAP
+**PEN
+30
+2
+--- errors

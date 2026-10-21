@@ -1,0 +1,15 @@
+// Decimals with the DEC_ functions, as for TL++: a literal that meets one is
+// DEC_CREATE of its text, an operator the DEC_ function, a Decimal that goes
+// into a number DEC_TO_DBL of it. (xc-vm has no Decimals: compiled only.)
+User Function Total(fPreco as Decimal, nQtd as Numeric)
+  Local fTotal := 0 as Decimal
+  Local fTaxa := 0.05 as Decimal
+  Local nAprox as Numeric
+  fTotal := fPreco * 3 + 1.5
+  fTotal += fTotal * fTaxa
+  fTotal++
+  If fTotal > 100
+    fTotal := Round(fTotal - 10, 2)
+  EndIf
+  nAprox := fTotal
+Return Empty(fTotal)

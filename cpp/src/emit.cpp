@@ -438,6 +438,21 @@ namespace xc
           }
         });
       }
+      // A defer's statement is written before the subjects of 'with object'
+      // have their Locals: one that reads ':x' cannot be.
+      walk(body, [&](Stmt* s)
+      {
+        if (s->kind != SK::Deferred) { return; }
+        bool subject = false;
+        walk(Body{ static_cast<Deferred*>(s)->stmt }, [&](Stmt* d)
+        {
+          for (Expr* e : exprs_of(d))
+          {
+            walk_expr(e, [&](Expr* x) { subject = subject || x->kind == EK::SubjectRef; });
+          }
+        });
+        if (subject) { found.push_back({ s->line, "a 'defer' that reads ':x' of 'with object'" }); }
+      });
       for (Finding& f : scope_problems(body)) { found.push_back(std::move(f)); }
     };
     for (const FunctionDef* f : p->functions) { one(f->params, f->body); }
@@ -936,78 +951,17 @@ namespace xc
     return add_includes(out, nl_, advpl_);
   }
 
-  // A parameter's '<const>' or '<contained>' leaves the header, and a comment
-  // at the end of the line says it.
-  // The values that go into a Decimal -- a literal among them is made one --
-  // and those that go into a Numeric -- a Decimal among them is made a
-  // number.
+  // The values that go into a Decimal, and those that go into a Numeric
+  // (decimal.h).
   void Emitter::decimal_values(const Body& body)
   {
-    into_decimal_.clear();
-    into_numeric_.clear();
-    auto into = [&](Expr* target, Expr* value)
-    {
-      if (!value) { return; }
-      if (dec_.decimal(target)) { into_decimal_.insert(value); }
-      else if (is_expr(target, EK::Name) && dec_.numeric(target)) { into_numeric_.insert(value); }
-    };
-    auto args = [&](Expr* x)
-    {
-      auto c = static_cast<Call*>(x);
-      const std::vector<bool>* ds = dec_.params_of(x);
-      const std::vector<bool>* ns = dec_.numeric_params_of(x);
-      for (std::size_t i = 0; i < c->args.size(); i++)
-      {
-        if (!c->args[i]) { continue; }
-        if (ds && i < ds->size() && (*ds)[i]) { into_decimal_.insert(c->args[i]); }
-        if (ns && i < ns->size() && (*ns)[i]) { into_numeric_.insert(c->args[i]); }
-      }
-    };
-    walk(body, [&](Stmt* s)
-    {
-      switch (s->kind)
-      {
-        case SK::Declaration:
-          for (const Declarator* v : static_cast<Declaration*>(s)->declarators)
-          {
-            if (v->init && decimal_word(v->typespec_text)) { into_decimal_.insert(v->init); }
-            if (v->init && numeric_word(v->typespec_text)) { into_numeric_.insert(v->init); }
-          }
-          break;
-        case SK::Assignment:
-        {
-          auto a = static_cast<Assignment*>(s);
-          if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
-          break;
-        }
-        case SK::ReturnStmt:
-        {
-          Expr* v = static_cast<ReturnStmt*>(s)->value;
-          if (ret_decimal_ && v) { into_decimal_.insert(v); }
-          if (ret_numeric_ && v) { into_numeric_.insert(v); }
-          break;
-        }
-        default:
-          break;
-      }
-      for (Expr* e : exprs_of(s))
-      {
-        walk_expr(e, [&](Expr* x)
-        {
-          if (x->kind == EK::AssignExpr)
-          {
-            auto a = static_cast<AssignExpr*>(x);
-            if (a->op == ":=" || a->op == "=") { into(a->target, a->value); }
-          }
-          else if (x->kind == EK::Call)
-          {
-            args(x);
-          }
-        });
-      }
-    });
+    DecimalValues v = xc::decimal_values(dec_, body, Returns{ ret_decimal_, ret_numeric_ });
+    into_decimal_ = std::move(v.into_decimal);
+    into_numeric_ = std::move(v.into_numeric);
   }
 
+  // A parameter's '<const>' or '<contained>' leaves the header, and a comment
+  // at the end of the line says it.
   void Emitter::param_attributes(const std::vector<Param*>& params)
   {
     std::vector<const Param*> with;

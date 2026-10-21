@@ -1,0 +1,82 @@
+// xtpl's own, as what they stand for in TL++: block locals and header
+// locals, 'for ... in', 'for n times', modifiers, '?=', '?:', '?.', 'in',
+// 'has', '%%', hashes, JSON objects, interpolation, 'with object', chains.
+User Function Main()
+  Local aItems := {"pen", "ink", "cap"}
+  Local nTotal := 0
+  Local cMissing
+  Local hRates := {"BR" => 0.1, "US" => 0.2}
+  Local hEmpty := { => }
+  Local jPerson := {"name": "Ana", "age": 31}
+  Local jNone := { : }
+  Local oNil
+  Local cKey := "BR"
+
+  ConOut("-- block locals")
+  If Len(aItems) > 2
+    Local cFirst := aItems[1]
+    ConOut("first " + cFirst)
+  EndIf
+  If local nAt := aScan(aItems, "ink"), nAt > 0
+    ConOut("ink at ${nAt}")
+  EndIf
+  Do Case With local cUp := Upper(aItems[3])
+  Case cUp == "CAP"
+    ConOut("a cap")
+  Otherwise
+    ConOut("no cap")
+  EndCase
+  For local nI := 1 To 2
+    ConOut("i ${nI}")
+  Next
+
+  ConOut("-- for in, times")
+  for cItem, nPos in aItems
+    ConOut("${nPos}: ${cItem}")
+  next
+  for nN in 3..5
+    nTotal += nN
+  next
+  for 2 times
+    nTotal *= 10
+  next
+  ConOut(nTotal)
+
+  ConOut("-- modifiers")
+  ConOut("shown") if nTotal > 0
+  ConOut("hidden") if nTotal < 0
+  nTotal := 3
+  ConOut("left ${nTotal}") while nTotal-- > 1
+
+  ConOut("-- nil")
+  cMissing ?= "filled"
+  cMissing ?= "not again"
+  ConOut(cMissing, oNil ?: "default", "set" ?: "never", Nil ?: 7)
+  ConOut(ValType(oNil?.name), jPerson?.name, ValType(jPerson?.nothing))
+
+  ConOut("-- in, has, %%")
+  ConOut("ink" in aItems, "cup" in aItems, Len(aItems) + 1 in 2..4, 12 %% 4, 13 %% 4)
+  ConOut(hRates has "US", hRates has "AR", hEmpty has "BR")
+
+  ConOut("-- hashes, json")
+  ConOut(hRates{"BR"}, hRates{cKey} * 100, ValType(hRates{"XX"}))
+  hRates{"AR"} := 0.3
+  hRates{"AR"} += 0.1
+  hEmpty{1} := "one"
+  ConOut(hRates{"AR"}, hEmpty{1}, ValType(hEmpty))
+  ConOut(jPerson["name"], jPerson:age, ValType(jPerson), ValType(jNone))
+  jNone["k"] := {cKey: 1}
+  ConOut(jNone["k"]["BR"])
+
+  ConOut("-- with object")
+  with object jPerson
+    :age := :age + 1
+    ConOut(:name + " is ${:age}")
+  end with
+
+  ConOut("-- chains")
+  ConOut(aItems |> map(upper) |> join("-"))
+  ConOut(aItems[1] |> upper |> padl(5, "*"))
+  ConOut(reduce({1, 2, 3, 4}, [acc, x] acc + x * x, 0))
+  ConOut(Len(filter(aItems, [c] "p" $ c)))
+Return Nil

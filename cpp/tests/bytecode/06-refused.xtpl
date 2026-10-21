@@ -1,0 +1,23 @@
+// What cannot become bytecode yet: xc says so, and writes no .xbc.
+#include "totvs.ch"
+
+Class Conta
+  Data nSaldo
+  Method New() Constructor
+EndClass
+
+Method New() Class Conta
+  ::nSaldo := 0
+Return Self
+
+User Function Refused(aNums, cFile)
+  Local nTotal := rows("SA1") |> count
+  Local aOut := {}
+  aOut := aNums |> filter([x] x > 1) |> map([x] x * 2)
+  aOut := map(aNums, [x] x + 1)
+  aOut := Len(aNums |> filter([x] x > 1))
+  raw @ 10, 5 SAY "Total"
+  for cLine in lines(cFile)
+    conout(cLine)
+  next
+Return nTotal

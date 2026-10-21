@@ -180,7 +180,7 @@ namespace
       std::ofstream(p, std::ios::binary) << bytes;
       xc::Compiled c = xc::compile(p.string(), name + ".xtpl", xc::CompileOptions{});
       fs::remove(p);
-      if (c.tlpp) { c.tlpp = xc::cp1252_to_utf8(*c.tlpp); }
+      if (c.output) { c.output = xc::cp1252_to_utf8(*c.output); }
       return c;
     }
 
@@ -194,7 +194,7 @@ namespace
       xc::Compiled c = compile(name, src);
       std::vector<std::string> said;
       for (const std::string& l : xc::lines_of(c.said)) { said.push_back(xc::trim(l)); }
-      if (c.tlpp) { said.push_back(name + ".xtpl: ok"); }
+      if (c.output) { said.push_back(name + ".xtpl: ok"); }
       for (const std::string& m : xc::lines_of(msgs))
       {
         if (blank(m)) { continue; }
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
     }
     xc::Compiled c = d.compile("doc" + std::to_string(line), src);
     std::vector<std::string> notes;
-    bool good = c.tlpp.has_value();
+    bool good = c.output.has_value();
     if (!good)
     {
       notes.push_back("it does not compile:");
@@ -299,7 +299,7 @@ int main(int argc, char** argv)
     }
     else if (expect)
     {
-      std::string s = shown(*c.tlpp, b.text, w);
+      std::string s = shown(*c.output, b.text, w);
       if (!same_text(s, *expect))
       {
         good = false;
@@ -310,7 +310,7 @@ int main(int argc, char** argv)
     d.check("line " + std::to_string(line) + ": " + (expect ? "what comes out" : "compiles")
               + (w ? "" : " (a fragment)"),
             good, notes);
-    if (msgs && c.tlpp) { d.says(line, *msgs, src); }
+    if (msgs && c.output) { d.says(line, *msgs, src); }
   }
 
   // The tables of expressions, '| xtpl | TL++ |': each row's xtpl, assigned in
@@ -355,10 +355,10 @@ int main(int argc, char** argv)
     rows++;
     std::string src = "User Function Doc()\n  xDoc := " + cells[0] + "\nReturn nil\n";
     xc::Compiled c = d.compile("row" + std::to_string(n + 1), src);
-    std::string s = c.tlpp ? shown(*c.tlpp, "", false) : "";
-    bool good = c.tlpp && same_text(s, "  xDoc := " + cells[1]);
+    std::string s = c.output ? shown(*c.output, "", false) : "";
+    bool good = c.output && same_text(s, "  xDoc := " + cells[1]);
     std::vector<std::string> notes;
-    if (!good) { notes.push_back(c.tlpp ? "came out: " + s : "it does not compile: " + c.said); }
+    if (!good) { notes.push_back(c.output ? "came out: " + s : "it does not compile: " + c.said); }
     d.check("line " + std::to_string(n + 1) + ": " + cells[0], good, notes);
   }
   d.check("the tables of expressions were found (" + std::to_string(rows) + " rows)", rows >= 15);

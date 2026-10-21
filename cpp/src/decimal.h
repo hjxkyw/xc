@@ -84,6 +84,23 @@ namespace xc
     std::unordered_map<std::string, std::vector<bool>> numeric_params_;
   };
 
+  // The values of a function that go into a Decimal -- a literal among them
+  // is made one -- and those that go into a Numeric -- a Decimal among them
+  // is made a number: a declaration's, an assignment's, a return's in a
+  // function declared so (returns), an argument a parameter declared so
+  // takes. 'dec' has been given the function.
+  struct DecimalValues
+  {
+    std::unordered_set<const Expr*> into_decimal;
+    std::unordered_set<const Expr*> into_numeric;
+  };
+  struct Returns
+  {
+    bool decimal = false;
+    bool numeric = false;
+  };
+  DecimalValues decimal_values(const Decimals& dec, const Body& body, Returns returns);
+
   // The values known to be Numeric that meet a Decimal, a Decimal added to
   // a Numeric with '+=' and the like, and the literals with more digits than
   // a Decimal holds -- in TL++.

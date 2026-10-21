@@ -163,7 +163,7 @@ int main(int argc, char** argv)
       const char* made = f.extension() == ".prw" ? ".out.prw" : ".tlpp";
       if (update)
       {
-        put(beside(f, made), c.tlpp);
+        put(beside(f, made), c.output);
         put(beside(f, ".err"), c.said);
         ok++;
         continue;
@@ -172,9 +172,9 @@ int main(int argc, char** argv)
       std::string err;
       bool has_tlpp = xc::slurp(beside(f, made).string(), tlpp);
       xc::slurp(beside(f, ".err").string(), err);
-      if (!c.tlpp && has_tlpp) { why = "xc writes no TL++ for it"; }
-      else if (c.tlpp && !has_tlpp) { why = "xc writes TL++ for it, and it has no .tlpp"; }
-      else if (c.tlpp && *c.tlpp != tlpp) { why = "the TL++ differs at " + where(tlpp, *c.tlpp); }
+      if (!c.output && has_tlpp) { why = "xc writes no TL++ for it"; }
+      else if (c.output && !has_tlpp) { why = "xc writes TL++ for it, and it has no .tlpp"; }
+      else if (c.output && *c.output != tlpp) { why = "the TL++ differs at " + where(tlpp, *c.output); }
       if (c.said != err) { why += (why.empty() ? "" : "; ") + std::string("what xc says differs at ") + where(err, c.said); }
       if (why.empty())
       {

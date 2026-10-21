@@ -1,0 +1,627 @@
+xbc 1
+source 01-core.xtpl
+statics 4
+
+function __INIT init 0 0
+  locals
+  line 7
+  num 0
+  setstatic 1
+  line 121
+  num 100
+  setstatic 3
+  line 122
+  static 3
+  num 1
+  add
+  setstatic 4
+  nil
+  ret
+end
+
+function U_MAIN user 0 11
+  locals nA nB cName aList nX nTyped lFlag cText aGrid nZ .t1
+  line 11
+  num 7
+  setlocal 1
+  num 2
+  setlocal 2
+  line 12
+  str "Ana"
+  setlocal 3
+  line 13
+  num 10
+  num 20
+  num 30
+  array 3
+  setlocal 4
+  line 14
+  num 0
+  setlocal 5
+  line 15
+  num 0
+  setlocal 6
+  line 16
+  false
+  setlocal 7
+  line 17
+  str ""
+  setlocal 8
+  line 18
+  num 2
+  num 3
+  call 2 Array
+  setlocal 9
+  line 21
+  str "-- values"
+  call 1 ConOut
+  pop
+  line 22
+  local 1
+  local 2
+  add
+  local 1
+  local 2
+  sub
+  local 1
+  local 2
+  mul
+  local 1
+  local 2
+  div
+  local 1
+  local 2
+  mod
+  local 1
+  local 2
+  pow
+  local 1
+  neg
+  call 7 ConOut
+  pop
+  line 23
+  local 3
+  str "!"
+  add
+  str "abc"
+  str "xabcx"
+  contains
+  str "abc"
+  str "ab"
+  eq
+  str "abc"
+  str "ab"
+  exact
+  str "ab"
+  str "abc"
+  ne
+  call 5 ConOut
+  pop
+  line 24
+  local 1
+  local 2
+  gt
+  andjump 85
+  local 2
+  num 0
+  gt
+  local 1
+  local 2
+  lt
+  orjump 92
+  local 2
+  num 2
+  exact
+  local 1
+  num 7
+  exact
+  not
+  call 3 ConOut
+  pop
+  line 25
+  local 6
+  call 1 cValToChar
+  str "|"
+  add
+  local 7
+  call 1 cValToChar
+  add
+  str "|"
+  add
+  local 8
+  add
+  str "|"
+  add
+  static 2
+  call 1 ValType
+  add
+  call 1 ConOut
+  pop
+  line 26
+  local 9
+  call 1 Len
+  local 9
+  num 1
+  index
+  call 1 Len
+  local 9
+  num 2
+  index
+  num 3
+  index
+  call 1 ValType
+  call 3 ConOut
+  pop
+  line 27
+  num 0.25
+  num 100
+  mul
+  str "hello"
+  str ", "
+  add
+  local 3
+  add
+  num 13
+  call 1 Chr
+  num 10
+  call 1 Chr
+  add
+  call 1 Len
+  call 3 ConOut
+  pop
+  line 29
+  str "-- if, case"
+  call 1 ConOut
+  pop
+  line 30
+  local 1
+  num 10
+  gt
+  jumpf 163
+  line 31
+  str "big"
+  call 1 ConOut
+  pop
+  jump 176
+  local 1
+  num 5
+  gt
+  jumpf 172
+  line 33
+  str "medium"
+  call 1 ConOut
+  pop
+  jump 176
+  line 35
+  str "small"
+  call 1 ConOut
+  pop
+  line 37
+  local 3
+  str "Bia"
+  exact
+  jumpf 186
+  line 39
+  str "Bia"
+  call 1 ConOut
+  pop
+  jump 199
+  local 3
+  str "Ana"
+  exact
+  jumpf 195
+  line 41
+  str "found Ana"
+  call 1 ConOut
+  pop
+  jump 199
+  line 43
+  str "nobody"
+  call 1 ConOut
+  pop
+  line 45
+  local 1
+  num 5
+  gt
+  jumpf 206
+  str "yes"
+  jump 207
+  call 0 Boom
+  local 1
+  num 5
+  lt
+  jumpf 213
+  call 0 Boom
+  jump 214
+  str "no"
+  call 2 ConOut
+  pop
+  line 46
+  local 1
+  num 100
+  gt
+  andjump 222
+  call 0 Boom
+  local 1
+  num 1
+  gt
+  orjump 227
+  call 0 Boom
+  call 2 ConOut
+  pop
+  line 48
+  str "-- loops"
+  call 1 ConOut
+  pop
+  line 49
+  num 1
+  setlocal 5
+  line 49
+  local 5
+  num 3
+  le
+  jumpf 253
+  line 50
+  str "up "
+  local 5
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 236
+  line 52
+  num 10
+  setlocal 5
+  line 52
+  local 5
+  num 1
+  ge
+  jumpf 274
+  line 53
+  str "down "
+  local 5
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  local 5
+  num 4
+  neg
+  add
+  setlocal 5
+  jump 256
+  line 55
+  num 3
+  neg
+  setlocal 2
+  line 56
+  num 6
+  setlocal 5
+  line 56
+  local 2
+  num 0
+  ge
+  jumpf 291
+  local 5
+  num 0
+  le
+  jumpf 307
+  jump 295
+  local 5
+  num 0
+  ge
+  jumpf 307
+  line 57
+  str "step "
+  local 5
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  local 5
+  local 2
+  add
+  setlocal 5
+  jump 281
+  line 59
+  num 0
+  setlocal 5
+  line 60
+  true
+  jumpf 342
+  line 61
+  local 5
+  num 1
+  add
+  setlocal 5
+  line 62
+  local 5
+  num 2
+  mod
+  num 0
+  exact
+  jumpf 327
+  line 63
+  jump 310
+  line 65
+  local 5
+  num 7
+  gt
+  jumpf 334
+  line 66
+  jump 342
+  line 68
+  str "odd "
+  local 5
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  jump 310
+  line 71
+  str "-- arrays, assignments"
+  call 1 ConOut
+  pop
+  line 72
+  local 4
+  num 2
+  dup2
+  index
+  num 5
+  add
+  setindex
+  line 73
+  local 4
+  num 3
+  dup2
+  index
+  num 1
+  sub
+  setindex
+  line 74
+  local 4
+  local 4
+  num 1
+  dup2
+  index
+  dup
+  setlocal 11
+  num 1
+  add
+  setindex
+  local 11
+  call 2 AAdd
+  pop
+  line 75
+  local 4
+  num 1
+  index
+  local 4
+  num 2
+  index
+  local 4
+  num 3
+  index
+  local 4
+  num 4
+  index
+  local 4
+  call 1 Len
+  call 5 ConOut
+  pop
+  line 76
+  num 5
+  setlocal 5
+  line 77
+  local 5
+  dup
+  num 1
+  add
+  setlocal 5
+  local 5
+  num 1
+  add
+  dup
+  setlocal 5
+  local 5
+  dup
+  num 1
+  sub
+  setlocal 5
+  local 5
+  call 4 ConOut
+  pop
+  line 78
+  num 4
+  dup
+  setlocal 2
+  setlocal 1
+  line 79
+  local 1
+  local 2
+  call 2 ConOut
+  pop
+  line 81
+  str "-- calls"
+  call 1 ConOut
+  pop
+  line 82
+  num 10
+  call 1 Fact
+  num 21
+  call 1 Twice
+  static 1
+  call 3 ConOut
+  pop
+  line 83
+  num 1
+  setlocal 5
+  line 84
+  reflocal 5
+  call 1 Bump
+  pop
+  line 85
+  reflocal 5
+  call 1 Bump
+  pop
+  line 86
+  local 5
+  call 0 Given
+  num 1
+  num 2
+  call 2 Given
+  nil
+  nil
+  num 3
+  call 3 Given
+  call 4 ConOut
+  pop
+  line 87
+  call 0 Ticket
+  call 0 Ticket
+  call 2 ConOut
+  pop
+  line 89
+  str "-- privates"
+  call 1 ConOut
+  pop
+  line 90
+  private CMODE
+  str "outer"
+  setmemvar CMODE
+  line 91
+  call 0 ShowMode
+  pop
+  line 92
+  call 0 Inner
+  pop
+  line 93
+  call 0 ShowMode
+  pop
+  line 94
+  local 10
+  isnil
+  jumpf 488
+  num 9
+  setlocal 10
+  local 3
+  isnil
+  jumpf 493
+  str "unused"
+  setlocal 3
+  line 95
+  local 10
+  local 3
+  call 2 ConOut
+  pop
+  line 96
+  nil
+  ret
+end
+
+function BOOM static 0 0
+  locals
+  line 99
+  str "Boom() was called"
+  call 1 ConOut
+  pop
+  line 100
+  false
+  ret
+end
+
+function FACT static 1 1
+  locals nN
+  line 103
+  static 1
+  num 1
+  add
+  setstatic 1
+  line 104
+  local 1
+  num 1
+  le
+  jumpf 14
+  line 105
+  num 1
+  ret
+  line 107
+  local 1
+  local 1
+  num 1
+  sub
+  call 1 Fact
+  mul
+  ret
+end
+
+function TWICE static 1 1
+  locals nN
+  line 110
+  local 1
+  num 2
+  mul
+  ret
+end
+
+function BUMP static 1 1
+  locals nV
+  line 113
+  local 1
+  num 10
+  add
+  setlocal 1
+  line 114
+  nil
+  ret
+end
+
+function GIVEN static 3 3
+  locals xA xB xC
+  line 117
+  call 0 PCount
+  ret
+end
+
+function TICKET static 0 0
+  locals
+  line 123
+  static 4
+  num 1
+  add
+  setstatic 4
+  line 124
+  static 4
+  ret
+end
+
+function INNER static 0 0
+  locals
+  line 127
+  private CMODE
+  str "inner"
+  setmemvar CMODE
+  line 128
+  call 0 ShowMode
+  pop
+  line 129
+  nil
+  ret
+end
+
+function SHOWMODE static 0 0
+  locals
+  line 132
+  str "mode "
+  memvar CMODE
+  add
+  call 1 ConOut
+  pop
+  line 133
+  nil
+  ret
+end

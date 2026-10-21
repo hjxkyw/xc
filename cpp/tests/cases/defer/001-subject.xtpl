@@ -1,0 +1,8 @@
+// A defer that reads ':x' of 'with object' is not lowered: its statement is
+// written before the subject has its Local. (xc used to crash on it.)
+User Function f(jObj)
+  with object jObj
+    defer conout(:cName)
+    :cName := "x"
+  end with
+Return Nil

@@ -1,0 +1,14 @@
+exit 1
+--- output
+src/a.xtpl -> od/a.xbc
+src/sub/b.xtpl -> od/b.xbc
+xc: 4 files, 2 compiled, 2 failed
+--- errors
+src/sub/b.xtpl:3: warning: 'cFilAnt' is not declared
+src/sub/c.xtpl:2: cannot parse this line: local n := := 1
+extra/adv.prw:24: warning: Dobro() takes 1 parameter (line 27), but is given 2 -- the rest are dropped.
+extra/adv.prw:8: a class ('Pessoa') cannot become bytecode yet
+extra/adv.prw:14: a method ('Pessoa:New') cannot become bytecode yet
+--- written
+od/a.xbc
+od/b.xbc

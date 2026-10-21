@@ -1,0 +1,453 @@
+xbc 1
+source 04-flow.xtpl
+statics 0
+
+function U_MAIN user 0 5
+  locals nGot oErr bOld .t1 .t2
+  line 4
+  num 0
+  setlocal 1
+  line 8
+  str "-- defer"
+  call 1 ConOut
+  pop
+  line 9
+  false
+  call 1 Deferred
+  call 1 ConOut
+  pop
+  line 10
+  true
+  call 1 Deferred
+  call 1 ConOut
+  pop
+  line 11
+  call 0 InLoop
+  call 1 ConOut
+  pop
+  line 13
+  str "-- using alias"
+  call 1 ConOut
+  pop
+  line 14
+  str "SB1"
+  call 1 DbSelectArea
+  pop
+  line 15
+  false
+  call 1 Area
+  call 0 Alias
+  call 2 ConOut
+  pop
+  line 16
+  true
+  call 1 Area
+  call 0 Alias
+  call 2 ConOut
+  pop
+  line 18
+  str "-- sequences"
+  call 1 ConOut
+  pop
+  line 19
+  seq 62
+  line 20
+  str "before"
+  call 1 ConOut
+  pop
+  line 21
+  str "a reason"
+  call 1 Break
+  pop
+  line 22
+  str "not shown"
+  call 1 ConOut
+  pop
+  endseq
+  jump 69
+  setlocal 2
+  line 24
+  str "recovered: "
+  local 2
+  add
+  call 1 ConOut
+  pop
+  line 26
+  seq 77
+  line 27
+  num 3
+  call 1 Deep
+  pop
+  endseq
+  jump 85
+  setlocal 2
+  line 29
+  str "from deep: "
+  local 2
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  line 31
+  num 1
+  setlocal 1
+  line 31
+  local 1
+  num 5
+  le
+  jumpf 117
+  line 32
+  seq 111
+  line 33
+  local 1
+  num 3
+  exact
+  jumpf 102
+  endseq
+  jump 117
+  line 34
+  str "round "
+  local 1
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  endseq
+  jump 112
+  pop
+  local 1
+  num 1
+  add
+  setlocal 1
+  jump 88
+  line 37
+  str "after the loop: "
+  local 1
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  line 39
+  str "-- errors"
+  call 1 ConOut
+  pop
+  line 40
+  block U_MAIN#1 0
+  call 1 ErrorBlock
+  setlocal 3
+  line 41
+  seq 141
+  line 42
+  num 1
+  str "x"
+  add
+  setlocal 1
+  endseq
+  jump 149
+  setlocal 2
+  line 44
+  str "caught: "
+  local 2
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 46
+  local 3
+  call 1 ErrorBlock
+  pop
+  line 47
+  try 166
+  line 48
+  array 0
+  num 2
+  index
+  setlocal 1
+  endseq
+  line 52
+  str "finally"
+  call 1 ConOut
+  pop
+  jump 178
+  setlocal 2
+  line 50
+  str "try caught: "
+  local 2
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 52
+  str "finally"
+  call 1 ConOut
+  pop
+  line 54
+  call 0 Guarded
+  block U_MAIN#2 0
+  call 1 ErrorBlock
+  setlocal 4
+  seq 187
+  call 0 Undefined
+  endseq
+  jump 189
+  pop
+  str "fell back"
+  local 4
+  call 1 ErrorBlock
+  pop
+  block U_MAIN#3 0
+  call 1 ErrorBlock
+  setlocal 5
+  seq 200
+  num 4
+  call 1 Twice
+  endseq
+  jump 202
+  pop
+  num 0
+  local 5
+  call 1 ErrorBlock
+  pop
+  call 3 ConOut
+  pop
+  line 55
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals e
+  line 40
+  local 1
+  call 1 Break
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals __it
+  line 54
+  local 1
+  call 1 Break
+  ret
+end
+
+function U_MAIN#3 block 1 1
+  locals __it
+  line 54
+  local 1
+  call 1 Break
+  ret
+end
+
+function DEFERRED static 1 2
+  locals lEarly cLog
+  line 59
+  str "start"
+  setlocal 2
+  line 60
+  defer 1 25
+  line 61
+  local 1
+  jumpf 18
+  line 62
+  defer 2 32
+  line 63
+  str "early"
+  setlocal 2
+  line 64
+  rundefers
+  str "returned early"
+  ret
+  line 66
+  str "late"
+  setlocal 2
+  line 67
+  rundefers
+  str "returned late"
+  ret
+  line 60
+  str "first deferred, log "
+  local 2
+  add
+  call 1 ConOut
+  pop
+  enddefer
+  line 62
+  str "only when early"
+  call 1 ConOut
+  pop
+  enddefer
+end
+
+function INLOOP static 0 1
+  locals nI
+  line 72
+  num 1
+  setlocal 1
+  line 72
+  local 1
+  num 3
+  le
+  jumpf 16
+  line 73
+  defer 1 20
+  local 1
+  num 1
+  add
+  setlocal 1
+  jump 4
+  line 75
+  rundefers
+  str "loop done"
+  ret
+  line 73
+  str "loop defer, nI = "
+  local 1
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  enddefer
+end
+
+function AREA static 1 4
+  locals lLeave .t1 .t2 .t3
+  line 78
+  call 0 Alias
+  setlocal 2
+  str "SA1"
+  call 1 DbSelectArea
+  pop
+  str "SA1"
+  area
+  call 0 RecNo
+  endarea
+  setlocal 3
+  str "SA1"
+  area
+  call 0 IndexOrd
+  endarea
+  setlocal 4
+  str "SA1"
+  area
+  num 2
+  call 1 DbSetOrder
+  endarea
+  pop
+  line 79
+  str "inside "
+  call 0 Alias
+  add
+  call 1 ConOut
+  pop
+  line 80
+  local 1
+  jumpf 52
+  str "SA1"
+  area
+  local 4
+  call 1 DbSetOrder
+  endarea
+  pop
+  str "SA1"
+  area
+  local 3
+  call 1 DbGoto
+  endarea
+  pop
+  local 2
+  call 1 Empty
+  jumpt 50
+  local 2
+  call 1 DbSelectArea
+  pop
+  str "left from inside"
+  ret
+  str "SA1"
+  area
+  local 4
+  call 1 DbSetOrder
+  endarea
+  pop
+  str "SA1"
+  area
+  local 3
+  call 1 DbGoto
+  endarea
+  pop
+  local 2
+  call 1 Empty
+  jumpt 70
+  local 2
+  call 1 DbSelectArea
+  pop
+  line 82
+  str "left after"
+  ret
+end
+
+function DEEP static 1 1
+  locals nN
+  line 85
+  local 1
+  num 0
+  exact
+  jumpf 10
+  line 86
+  str "the bottom"
+  call 1 Break
+  pop
+  line 88
+  local 1
+  num 1
+  sub
+  call 1 Deep
+  pop
+  line 89
+  nil
+  ret
+end
+
+function GUARDED static 0 2
+  locals nX .t1
+  line 92
+  num 0
+  setlocal 1
+  line 93
+  block GUARDED#1 0
+  call 1 ErrorBlock
+  setlocal 2
+  seq 14
+  num 10
+  local 1
+  div
+  endseq
+  jump 17
+  pop
+  num 1
+  neg
+  local 2
+  call 1 ErrorBlock
+  pop
+  setlocal 1
+  line 94
+  local 1
+  ret
+end
+
+function GUARDED#1 block 1 1
+  locals __it
+  line 93
+  local 1
+  call 1 Break
+  ret
+end
+
+function TWICE static 1 1
+  locals nN
+  line 97
+  local 1
+  num 2
+  mul
+  ret
+end

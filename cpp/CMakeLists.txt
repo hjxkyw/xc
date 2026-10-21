@@ -19,6 +19,7 @@ endif()
 # Everything but the programs: the compiler itself.
 add_library(xclib STATIC
   src/ahead.cpp
+  src/bytecode.cpp
   src/chains.cpp
   src/chars.cpp
   src/check.cpp
@@ -35,11 +36,13 @@ add_library(xclib STATIC
 
 # xc, the compiler; xc-outputs, which holds xc to the TL++ kept beside
 # xtpl's sources; xc-cases, xc's tests as data (cpp/tests/cases);
-# xc-doc, which holds docs/language.md to what xc makes of its examples.
+# xc-doc, which holds docs/language.md to what xc makes of its examples;
+# xc-vm, which runs the bytecode 'xc --bytecode' writes (docs/bytecode.md).
 add_executable(xc src/xc.cpp)
 add_executable(xc-outputs src/outputs.cpp)
 add_executable(xc-cases src/cases.cpp)
 add_executable(xc-doc src/doc.cpp)
+add_executable(xc-vm src/vm.cpp)
 target_link_libraries(xc PRIVATE xclib)
 
 # 'xc --version': the commit it is built from, in version.h, written at each
@@ -70,8 +73,12 @@ add_test(NAME doc
          WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 add_test(NAME style
          COMMAND ${CMAKE_COMMAND} -DROOT=${PROJECT_SOURCE_DIR}/.. -P ${PROJECT_SOURCE_DIR}/tests/style.cmake)
+add_test(NAME bytecode
+         COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm>
+                 -DCASES=${PROJECT_SOURCE_DIR}/tests/bytecode -DWORK=${CMAKE_CURRENT_BINARY_DIR}/bytecode
+                 -P ${PROJECT_SOURCE_DIR}/tests/bytecode.cmake)
 
-foreach(t xclib xc xc-outputs xc-cases xc-doc)
+foreach(t xclib xc xc-outputs xc-cases xc-doc xc-vm)
   if(MSVC)
     target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8 /MP)
   else()

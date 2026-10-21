@@ -1,7 +1,7 @@
 # xc's command line, as data (cpp/tests/driver): each NAME.cmd is the
 # arguments of one run, one to a line; NAME.expect what the run did -- its
-# exit code, what it printed on its output and on its errors, and the .tlpp
-# files it wrote. Each runs in a fresh copy of src/ and extra/, the files the
+# exit code, what it printed on its output and on its errors, and the files
+# it wrote. Each runs in a fresh copy of src/ and extra/, the files the
 # arguments name.
 #
 #   cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -P cpp/tests/driver.cmake
@@ -32,8 +32,8 @@ foreach(cmd ${cmds})
                   OUTPUT_VARIABLE out
                   ERROR_VARIABLE err
                   RESULT_VARIABLE code)
-  # What xc wrote: the .tlpp, .prw and .prx that were not copied in.
-  file(GLOB_RECURSE found RELATIVE ${run} ${run}/*.tlpp ${run}/*.prw ${run}/*.prx)
+  # What xc wrote: the .tlpp, .prw, .prx and .xbc that were not copied in.
+  file(GLOB_RECURSE found RELATIVE ${run} ${run}/*.tlpp ${run}/*.prw ${run}/*.prx ${run}/*.xbc)
   set(written "")
   foreach(w ${found})
     if(NOT EXISTS ${CASES}/${w})

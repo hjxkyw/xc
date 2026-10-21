@@ -1,0 +1,97 @@
+// Ways out: 'defer', 'using alias', Begin Sequence and Break, errors, Try,
+// 'fallback' -- and an 'exit' or a 'return' from inside them.
+User Function Main()
+  Local nGot := 0
+  Local oErr
+  Local bOld
+
+  ConOut("-- defer")
+  ConOut(Deferred(.F.))
+  ConOut(Deferred(.T.))
+  ConOut(InLoop())
+
+  ConOut("-- using alias")
+  DbSelectArea("SB1")
+  ConOut(Area(.F.), Alias())
+  ConOut(Area(.T.), Alias())
+
+  ConOut("-- sequences")
+  Begin Sequence
+    ConOut("before")
+    Break "a reason"
+    ConOut("not shown")
+  Recover Using oErr
+    ConOut("recovered: " + oErr)
+  End Sequence
+  Begin Sequence
+    Deep(3)
+  Recover Using oErr
+    ConOut("from deep: ${oErr}")
+  End Sequence
+  For nGot := 1 To 5
+    Begin Sequence
+      Exit if nGot == 3
+      ConOut("round ${nGot}")
+    End Sequence
+  Next
+  ConOut("after the loop: ${nGot}")
+
+  ConOut("-- errors")
+  bOld := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    nGot := 1 + "x"
+  Recover Using oErr
+    ConOut("caught: " + oErr:Description)
+  End Sequence
+  ErrorBlock(bOld)
+  Try
+    nGot := {}[2]
+  Catch oErr
+    ConOut("try caught: " + oErr:Description)
+  Finally
+    ConOut("finally")
+  EndTry
+  ConOut(Guarded(), (Undefined() fallback "fell back"), (Twice(4) fallback 0))
+Return Nil
+
+// A defer runs at every return after it was reached, the last first.
+Static Function Deferred(lEarly)
+  Local cLog := "start"
+  defer ConOut("first deferred, log " + cLog)
+  If lEarly
+    defer ConOut("only when early")
+    cLog := "early"
+    Return "returned early"
+  EndIf
+  cLog := "late"
+Return "returned late"
+
+// Reached many times, it runs once.
+Static Function InLoop()
+  Local nI
+  For nI := 1 To 3
+    defer ConOut("loop defer, nI = ${nI}")
+  Next
+Return "loop done"
+
+Static Function Area(lLeave)
+  using alias SA1 order 2 do
+    ConOut("inside " + Alias())
+    Return "left from inside" if lLeave
+  end using
+Return "left after"
+
+Static Function Deep(nN)
+  If nN == 0
+    Break "the bottom"
+  EndIf
+  Deep(nN - 1)
+Return Nil
+
+Static Function Guarded()
+  Local nX := 0
+  nX := 10 / nX fallback -1
+Return nX
+
+Static Function Twice(nN)
+Return nN * 2

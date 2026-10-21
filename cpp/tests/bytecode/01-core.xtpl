@@ -1,0 +1,133 @@
+// TL++'s own: values, operators, the blocks of statements, calls -- by
+// reference too --, statics, privates, a #define.
+#define TAX 0.25
+#define GREETING "hello"
+external CRLF
+
+Static nCalls := 0
+Static aSeen as Array
+
+User Function Main()
+  Local nA := 7, nB := 2
+  Local cName := "Ana"
+  Local aList := {10, 20, 30}
+  Local nX := 0
+  Local nTyped as Numeric
+  Local lFlag as Logical
+  Local cText as Character
+  Local aGrid[2][3]
+  Local nZ
+
+  ConOut("-- values")
+  ConOut(nA + nB, nA - nB, nA * nB, nA / nB, nA % nB, nA ** nB, -nA)
+  ConOut(cName + "!", "abc" $ "xabcx", "abc" = "ab", "abc" == "ab", "ab" != "abc")
+  ConOut(nA > nB .And. nB > 0, nA < nB .Or. nB == 2, !(nA == 7))
+  ConOut(cValToChar(nTyped) + "|" + cValToChar(lFlag) + "|" + cText + "|" + ValType(aSeen))
+  ConOut(Len(aGrid), Len(aGrid[1]), ValType(aGrid[2][3]))
+  ConOut(TAX * 100, GREETING + ", " + cName, Len(CRLF))
+
+  ConOut("-- if, case")
+  If nA > 10
+    ConOut("big")
+  ElseIf nA > 5
+    ConOut("medium")
+  Else
+    ConOut("small")
+  EndIf
+  Do Case
+  Case cName == "Bia"
+    ConOut("Bia")
+  Case cName == "Ana"
+    ConOut("found Ana")
+  Otherwise
+    ConOut("nobody")
+  EndCase
+  ConOut(IIf(nA > 5, "yes", Boom()), If(nA < 5, Boom(), "no"))
+  ConOut(nA > 100 .And. Boom(), nA > 1 .Or. Boom())
+
+  ConOut("-- loops")
+  For nX := 1 To 3
+    ConOut("up " + cValToChar(nX))
+  Next
+  For nX := 10 To 1 Step -4
+    ConOut("down " + cValToChar(nX))
+  Next
+  nB := -3
+  For nX := 6 To 0 Step nB
+    ConOut("step " + cValToChar(nX))
+  Next
+  nX := 0
+  While .T.
+    nX++
+    If nX % 2 == 0
+      Loop
+    EndIf
+    If nX > 7
+      Exit
+    EndIf
+    ConOut("odd " + cValToChar(nX))
+  EndDo
+
+  ConOut("-- arrays, assignments")
+  aList[2] += 5
+  aList[3]--
+  AAdd(aList, aList[1]++)
+  ConOut(aList[1], aList[2], aList[3], aList[4], Len(aList))
+  nX := 5
+  ConOut(nX++, ++nX, nX--, nX)
+  nA := nB := 4
+  ConOut(nA, nB)
+
+  ConOut("-- calls")
+  ConOut(Fact(10), Twice(21), nCalls)
+  nX := 1
+  Bump(@nX)
+  Bump(@nX)
+  ConOut(nX, Given(), Given(1, 2), Given(, , 3))
+  ConOut(Ticket(), Ticket())
+
+  ConOut("-- privates")
+  Private cMode := "outer"
+  ShowMode()
+  Inner()
+  ShowMode()
+  Default nZ := 9, cName := "unused"
+  ConOut(nZ, cName)
+Return Nil
+
+Static Function Boom()
+  ConOut("Boom() was called")
+Return .F.
+
+Static Function Fact(nN)
+  nCalls++
+  If nN <= 1
+    Return 1
+  EndIf
+Return nN * Fact(nN - 1)
+
+Static Function Twice(nN) as Numeric
+Return nN * 2
+
+Static Function Bump(nV)
+  nV += 10
+Return Nil
+
+Static Function Given(xA, xB, xC)
+Return PCount()
+
+// A function's statics: given their values once, before anything runs.
+Static Function Ticket()
+  Static nBase := 100
+  Static nNext := nBase + 1
+  nNext++
+Return nNext
+
+Static Function Inner()
+  Private cMode := "inner"
+  ShowMode()
+Return Nil
+
+Static Function ShowMode()
+  ConOut("mode " + cMode)
+Return Nil

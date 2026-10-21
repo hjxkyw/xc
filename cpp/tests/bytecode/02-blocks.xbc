@@ -1,0 +1,280 @@
+xbc 1
+source 02-blocks.xtpl
+statics 0
+
+function U_MAIN user 0 8
+  locals nBase aBlocks bAdd bOuter bSet nI aNames nSum
+  box 1
+  box 6
+  box 8
+  line 5
+  num 10
+  setcell 1
+  line 6
+  array 0
+  setlocal 2
+  line 7
+  refcell 1
+  block U_MAIN#1 1
+  setlocal 3
+  line 8
+  refcell 1
+  block U_MAIN#2 1
+  setlocal 4
+  line 9
+  refcell 1
+  block U_MAIN#4 1
+  setlocal 5
+  line 10
+  num 0
+  setcell 6
+  line 11
+  str "Carla"
+  str "ana"
+  str "Bruno"
+  array 3
+  setlocal 7
+  line 12
+  num 0
+  setcell 8
+  line 14
+  local 3
+  num 1
+  call 2 Eval
+  call 1 ConOut
+  pop
+  line 15
+  num 20
+  setcell 1
+  line 16
+  local 3
+  num 1
+  call 2 Eval
+  call 1 ConOut
+  pop
+  line 17
+  local 5
+  num 5
+  call 2 Eval
+  pop
+  line 18
+  cell 1
+  local 4
+  num 1
+  call 2 Eval
+  num 2
+  call 2 Eval
+  call 2 ConOut
+  pop
+  line 21
+  num 1
+  setcell 6
+  line 21
+  cell 6
+  num 3
+  le
+  jumpf 82
+  line 22
+  local 2
+  refcell 6
+  block U_MAIN#5 1
+  call 2 AAdd
+  pop
+  cell 6
+  num 1
+  add
+  setcell 6
+  jump 66
+  line 24
+  local 2
+  num 1
+  index
+  call 1 Eval
+  local 2
+  num 3
+  index
+  call 1 Eval
+  call 2 ConOut
+  pop
+  line 27
+  local 7
+  nil
+  nil
+  block U_MAIN#6 0
+  call 4 aSort
+  pop
+  line 28
+  local 7
+  num 1
+  index
+  str " "
+  add
+  local 7
+  num 2
+  index
+  add
+  str " "
+  add
+  local 7
+  num 3
+  index
+  add
+  call 1 ConOut
+  pop
+  line 29
+  num 1
+  num 2
+  num 3
+  array 3
+  refcell 8
+  block U_MAIN#7 1
+  call 2 aEval
+  pop
+  line 30
+  cell 8
+  call 1 ConOut
+  pop
+  line 31
+  local 7
+  block U_MAIN#8 0
+  call 2 aScan
+  call 1 ConOut
+  pop
+  line 34
+  call 0 Counter
+  call 1 ConOut
+  pop
+  line 35
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals x
+  upvals nBase
+  line 7
+  local 1
+  upval 1
+  add
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals x
+  upvals nBase
+  box 1
+  line 8
+  refcell 1
+  refupval 1
+  block U_MAIN#3 2
+  ret
+end
+
+function U_MAIN#3 block 1 1
+  locals y
+  upvals x nBase
+  line 8
+  upval 1
+  local 1
+  add
+  upval 2
+  add
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals v
+  upvals nBase
+  line 9
+  local 1
+  dup
+  setupval 1
+  ret
+end
+
+function U_MAIN#5 block 0 0
+  locals
+  upvals nI
+  line 22
+  upval 1
+  num 100
+  mul
+  ret
+end
+
+function U_MAIN#6 block 2 2
+  locals a b
+  line 27
+  local 1
+  call 1 Upper
+  local 2
+  call 1 Upper
+  lt
+  ret
+end
+
+function U_MAIN#7 block 1 1
+  locals x
+  upvals nSum
+  line 29
+  upval 1
+  local 1
+  add
+  dup
+  setupval 1
+  ret
+end
+
+function U_MAIN#8 block 1 1
+  locals c
+  line 31
+  local 1
+  num 1
+  call 2 Left
+  str "B"
+  exact
+  ret
+end
+
+function COUNTER static 0 1
+  locals bNext
+  line 38
+  call 0 MakeCounter
+  setlocal 1
+  line 39
+  local 1
+  call 1 Eval
+  pop
+  line 40
+  local 1
+  call 1 Eval
+  pop
+  line 41
+  local 1
+  call 1 Eval
+  ret
+end
+
+function MAKECOUNTER static 0 1
+  locals nCount
+  box 1
+  line 44
+  num 0
+  setcell 1
+  line 45
+  refcell 1
+  block MAKECOUNTER#1 1
+  ret
+end
+
+function MAKECOUNTER#1 block 0 0
+  locals
+  upvals nCount
+  line 45
+  upval 1
+  num 1
+  add
+  dup
+  setupval 1
+  ret
+end

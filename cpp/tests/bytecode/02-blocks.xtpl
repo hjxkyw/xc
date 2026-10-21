@@ -1,0 +1,45 @@
+// Code blocks and lambdas: the locals they share are cells, the same
+// variable as the function's -- a block in a block shares them through the
+// block around it.
+User Function Main()
+  Local nBase := 10
+  Local aBlocks := {}
+  Local bAdd := {|x| x + nBase}
+  Local bOuter := {|x| {|y| x + y + nBase}}
+  Local bSet := {|v| nBase := v}
+  Local nI := 0
+  Local aNames := {"Carla", "ana", "Bruno"}
+  Local nSum := 0
+
+  ConOut(Eval(bAdd, 1))
+  nBase := 20
+  ConOut(Eval(bAdd, 1))
+  Eval(bSet, 5)
+  ConOut(nBase, Eval(Eval(bOuter, 1), 2))
+
+  // One local for the loop, as TL++ has it: every block sees its last value.
+  For nI := 1 To 3
+    AAdd(aBlocks, {|| nI * 100})
+  Next
+  ConOut(Eval(aBlocks[1]), Eval(aBlocks[3]))
+
+  // Lambdas are code blocks.
+  aSort(aNames, , , [a, b] Upper(a) < Upper(b))
+  ConOut(aNames[1] + " " + aNames[2] + " " + aNames[3])
+  aEval({1, 2, 3}, [x] nSum += x)
+  ConOut(nSum)
+  ConOut(aScan(aNames, [c] Left(c, 1) == "B"))
+
+  // A block made in one function, run in another, still shares.
+  ConOut(Counter())
+Return Nil
+
+Static Function Counter()
+  Local bNext := MakeCounter()
+  Eval(bNext)
+  Eval(bNext)
+Return Eval(bNext)
+
+Static Function MakeCounter()
+  Local nCount := 0
+Return {|| ++nCount}

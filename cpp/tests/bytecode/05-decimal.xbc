@@ -1,0 +1,81 @@
+xbc 1
+source 05-decimal.xtpl
+statics 0
+
+function U_TOTAL user 2 5
+  locals fPreco nQtd fTotal fTaxa nAprox
+  line 5
+  str "0"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  setlocal 3
+  line 6
+  str "0.05"
+  num 3
+  num 2
+  call 3 DEC_CREATE
+  setlocal 4
+  line 7
+  num 0
+  setlocal 5
+  line 8
+  local 1
+  str "3"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  call 2 DEC_MUL
+  str "1.5"
+  num 2
+  num 1
+  call 3 DEC_CREATE
+  call 2 DEC_ADD
+  setlocal 3
+  line 9
+  local 3
+  local 3
+  local 4
+  call 2 DEC_MUL
+  call 2 DEC_ADD
+  setlocal 3
+  line 10
+  local 3
+  str "1"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  call 2 DEC_ADD
+  setlocal 3
+  line 11
+  local 3
+  str "100"
+  num 3
+  num 0
+  call 3 DEC_CREATE
+  gt
+  jumpf 63
+  line 12
+  local 3
+  str "10"
+  num 2
+  num 0
+  call 3 DEC_CREATE
+  call 2 DEC_SUB
+  num 2
+  num 0
+  call 3 DEC_RESCALE
+  setlocal 3
+  line 14
+  local 3
+  call 1 DEC_TO_DBL
+  setlocal 5
+  line 15
+  local 3
+  str "0"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  exact
+  ret
+end

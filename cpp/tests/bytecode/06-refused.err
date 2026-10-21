@@ -1,0 +1,8 @@
+06-refused.xtpl:15: warning: 'aOut' is assigned but never read
+06-refused.xtpl:4: a class ('Conta') cannot become bytecode yet
+06-refused.xtpl:9: a method ('Conta:New') cannot become bytecode yet
+06-refused.xtpl:14: a chain from rows(), lines() or a range cannot become bytecode yet
+06-refused.xtpl:16: a chain that runs as a loop -- its stages fuse cannot become bytecode yet
+06-refused.xtpl:17: a chain that runs as a loop -- its stages fuse cannot become bytecode yet
+06-refused.xtpl:19: a command for the preprocessor ('@ 10, 5 SAY "Total"') cannot become bytecode yet
+06-refused.xtpl:20: 'for ... in' over lines() cannot become bytecode yet

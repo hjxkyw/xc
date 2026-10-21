@@ -15,6 +15,7 @@ ctest --test-dir cpp/build
 | `driver` | each command line: the exit code, what is printed, the files written | `driver/` |
 | `doc` | each example of the language reference comes out as it shows | `docs/language.md` |
 | `style` | each separator line of xc's own files ends at column 80 | `style.cmake` says which files |
+| `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
 
 ## cases/
 
@@ -47,7 +48,8 @@ of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with
 `u_xtpl_jnew` or `JsonObject():New()`; `decimal/`, Decimals written with
-the `DEC_` functions, and the numbers refused where they meet one.
+the `DEC_` functions, and the numbers refused where they meet one;
+`defer/`, what a `defer` cannot be written as yet.
 
 A case holds the whole of what came out -- not, as a test in `t/` did, what
 it looks for --, so a change to the output shows in every case it touches. After a change
@@ -67,6 +69,20 @@ git diff cpp/tests/cases
 ```
 cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDATE=1 -P cpp/tests/driver.cmake
 ```
+
+## bytecode/
+
+`NAME.xtpl` (or `NAME.prw`) and beside it `NAME.xbc`, what `xc --bytecode`
+writes (none when it writes none), `NAME.err`, what it says (none when it
+says nothing), and `NAME.out`, what `xc-vm` does running the `.xbc` -- its
+exit code, its output and its errors -- for the cases it can run: there is
+none for one xc-vm cannot, a case of Decimals. After a change that is meant:
+
+```
+cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -DUPDATE=1 -P cpp/tests/bytecode.cmake
+```
+
+A `NAME.out` is written only where there is one; an empty one asks for it.
 
 ## docs/language.md
 

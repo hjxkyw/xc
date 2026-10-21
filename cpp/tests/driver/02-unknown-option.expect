@@ -5,6 +5,7 @@ exit 2
 usage: xc [--check] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.xtpl [out.tlpp]
        xc [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file.prw out.prw
        xc [--check] [--outdir=DIR] [--includes=DIRS] [--dict sx3.csv [--dict-strict]] file-or-folder ...
+       xc --bytecode [--outdir=DIR] [--includes=DIRS] file.xtpl [out.xbc] | file-or-folder ...
        xc --version
 --- written
 

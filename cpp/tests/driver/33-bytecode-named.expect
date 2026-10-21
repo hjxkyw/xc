@@ -1,0 +1,6 @@
+exit 0
+--- output
+src/a.xtpl -> out.xbc
+--- errors
+--- written
+out.xbc

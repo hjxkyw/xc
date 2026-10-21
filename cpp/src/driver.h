@@ -19,16 +19,17 @@ namespace xc
   struct CompileOptions
   {
     bool strict = false;                 // the dictionary's findings are errors
+    bool bytecode = false;               // a .xbc, not TL++ (bytecode.h)
     std::vector<std::string> includes;   // where include files are looked for
     Dictionary dictionary;
   };
 
   // What compiling a source says -- each line with its "\n", in UTF-8 -- and
-  // the TL++ it makes, when it makes one.
+  // what it makes, when it makes something: the TL++, or the bytecode.
   struct Compiled
   {
     std::string said;
-    std::optional<std::string> tlpp;
+    std::optional<std::string> output;
   };
 
   // path: the file; shown: how what is said names it.
