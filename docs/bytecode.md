@@ -464,15 +464,18 @@ It is the machine of this page, and the AppServer is the rest:
 - `PCount()` is the frame's; a field is `FieldGet()` and `FieldPut()` in its
   area.
 
-xc-vm runs it too: there are no macros there, and its `XBC_CALL`,
-`XBC_METHOD`, `XBC_MEMBER`, `XBC_SETMEMBER` and `XBC_NEW` call, read and
-write by name instead -- `FindFunction("XBC_CALL")` tells the interpreter
-where it is. ctest's `interp` has xc-vm run the interpreter on each case of
-`cpp/tests/bytecode` and on xtpl's self-test, the runtime interpreted too,
-and what it writes has to be what xc-vm does running them itself;
-`interp-xc` the same for xc's self-test, slowly -- labelled `slow`
-(`cpp/tests/interp.cmake`). `rakupp run-protheus.raku --interp` does it on
-an AppServer.
+It is written in xtpl -- hashes for the names of the machine, chains, block
+locals, `for ... in`, interpolation, postfix modifiers, `?:` and `?=`,
+`defer` --, so it uses the runtime, which the AppServer has in the RPO.
+xc-vm runs it too, after the runtime's bytecode: there are no macros there,
+and its `XBC_CALL`, `XBC_METHOD`, `XBC_MEMBER`, `XBC_SETMEMBER` and
+`XBC_NEW` call, read and write by name instead --
+`FindFunction("XBC_CALL")` tells the interpreter where it is. ctest's
+`interp` has xc-vm run the interpreter on each case of `cpp/tests/bytecode`
+and on xtpl's self-test, the runtime interpreted too, and what it writes
+has to be what xc-vm does running them itself; `interp-xc` the same for
+xc's self-test, slowly -- labelled `slow` (`cpp/tests/interp.cmake`).
+`rakupp run-protheus.raku --interp` does it on an AppServer.
 
 ## xc-vm
 

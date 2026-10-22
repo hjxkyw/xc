@@ -1,6 +1,7 @@
 # The bytecode's interpreter written in xtpl (interp/xbc.xtpl), run by xc-vm:
-# xc-vm runs the interpreter, and the interpreter runs the program -- xtpl's
-# runtime and the program, both bytecode, both interpreted. What it writes
+# xc-vm runs the interpreter -- after xtpl's runtime, which the interpreter
+# uses, as the AppServer has it in its RPO --, and the interpreter runs the
+# program: xtpl's runtime and the program, both bytecode, both interpreted. What it writes
 # (--out) has to be what xc-vm does running the program itself: each case of
 # cpp/tests/bytecode that has a NAME.out, and xtpl's self-test; with
 # -DMODE=xc, xc's self-test instead (it walks arrays of 40,000 through two
@@ -33,7 +34,7 @@ endfunction()
 # interpret(NAME RESULT ARGS...): the interpreter run on the modules ARGS, its
 # --out in RESULT.
 function(interpret name result)
-  execute_process(COMMAND ${VM} --run=U_XBC ${WORK}/xbc.xbc -- --out=${WORK}/${name}.got ${ARGN}
+  execute_process(COMMAND ${VM} --run=U_XBC ${WORK}/xtpl_runtime.xbc ${WORK}/xbc.xbc -- --out=${WORK}/${name}.got ${ARGN}
                   WORKING_DIRECTORY ${CASES}
                   OUTPUT_VARIABLE out
                   ERROR_VARIABLE err
