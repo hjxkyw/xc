@@ -1297,11 +1297,14 @@ namespace xc
         return nullptr;
       }
       save = p_;
-      bool kw = (ilit("default") && ws()) || (p_ = save, ilit("init") && ws());
+      std::size_t kw = 0;
+      if (ilit("default") && ws()) { kw = 7; }
+      else if (p_ = save, ilit("init") && ws()) { kw = 4; }
       Expr* value = kw && ws() ? guardexpr() : nullptr;
       if (value && ws())
       {
         m->init = value;
+        m->init_word = text(save, save + static_cast<int>(kw));
       }
       else
       {

@@ -1,0 +1,2 @@
+047.xtpl:5: warning: 'lPronto' is given a value with 'INIT', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.
+047.xtpl:6: warning: 'aTrack' is given a value with 'INIT', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.

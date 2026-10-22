@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A Data's 'default' or 'init' value: the AppServer ignores it (tried on
+// 24.3.1.9), so xc warns -- but where it is the value the Data starts at
+// anyway.
+Class Pedido
+  Public Data nTotal as Numeric default 0
+  Public Data cObs as Character default ""
+  Public Data lPago as Logical init .F.
+  Public Data nItens as Numeric default 1
+  Public Data cStatus as Character init "A"
+  Public Data dEmissao as Date default Date()
+  Public Data aItens default {}
+  Public Data oCliente as Object init Nil
+  Public Method New() Constructor
+EndClass
+
+Method New() Class Pedido
+  ::aItens := {}
+Return Self

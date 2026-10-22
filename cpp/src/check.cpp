@@ -576,6 +576,28 @@ namespace xc
       {
         ends_.push_back(c->line);
         classes_.insert(lc(c->name));
+        // A Data's value: the AppServer ignores it, in a .tlpp and a .prw
+        // (tried on 24.3.1.9).
+        for (const DataMember* m : c->members)
+        {
+          if (!m->init) { continue; }
+          auto t = m->type && !advpl_ ? TYPED_START.find(lc(*m->type)) : TYPED_START.end();
+          std::string start = t != TYPED_START.end() ? t->second.second : "Nil";
+          // The value it starts at anyway -- 'as Numeric default 0', 'init
+          // Nil' -- is harmless.
+          if (is(m->init, EK::Literal))
+          {
+            auto l = static_cast<const Literal*>(m->init);
+            std::string same = l->type == "Variant" ? "Nil"
+                               : l->type == "Numeric" && std::strtod(l->text.c_str(), nullptr) == 0 ? "0"
+                               : l->type == "Character" && unquoted(l->text).empty() ? "\"\""
+                               : l->type == "Logical" && lc(l->text) == ".f." ? ".F." : "";
+            if (same == start) { continue; }
+          }
+          warned.push_back({ m->line, "'" + m->name + "' is given a value with '" + m->init_word
+                                      + "', which the AppServer ignores: it starts at " + start
+                                      + ". Give it its value in the constructor." });
+        }
       }
       // The include files: the file's, and a function's own '#include'.
       auto include_of = [&](const std::string& line)

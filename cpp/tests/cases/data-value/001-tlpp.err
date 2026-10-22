@@ -1,0 +1,4 @@
+001-tlpp.xtpl:8: warning: 'nItens' is given a value with 'default', which the AppServer ignores: it starts at 0. Give it its value in the constructor.
+001-tlpp.xtpl:9: warning: 'cStatus' is given a value with 'init', which the AppServer ignores: it starts at "". Give it its value in the constructor.
+001-tlpp.xtpl:10: warning: 'dEmissao' is given a value with 'default', which the AppServer ignores: it starts at the date 1899-12-31. Give it its value in the constructor.
+001-tlpp.xtpl:11: warning: 'aItens' is given a value with 'default', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.

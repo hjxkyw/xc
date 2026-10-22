@@ -1,0 +1,1 @@
+09-classes.xtpl:13: warning: 'cNota' is given a value with 'default', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.

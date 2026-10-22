@@ -472,6 +472,7 @@ namespace xc
     OptStr visibility;
     int line = 0;
     Expr* init = nullptr;            // 'default value', 'init value': the AppServer ignores it
+    std::string init_word;           // 'default' or 'init', as written
   };
 
   struct MethodSig : Node

@@ -1,0 +1,2 @@
+002-advpl.prw:5: warning: 'nTotal' is given a value with 'Init', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.
+002-advpl.prw:6: warning: 'cObs' is given a value with 'Init', which the AppServer ignores: it starts at Nil. Give it its value in the constructor.

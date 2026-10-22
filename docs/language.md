@@ -271,7 +271,8 @@ Return Self
   visibility (`Public`, `Protected`, `Private`, `Exported`, `Hidden`) or
   none. The AppServer ignores the value (tried on 24.3.1.9, in a `.tlpp`
   and a `.prw`): a `Data` with a type starts where a typed `Local` does, one
-  without at Nil -- the constructor gives it any other.
+  without at Nil -- the constructor gives it any other. xc warns of a value
+  that is not the one it starts at anyway.
 - `Name():New(...)` -- `Name` with no arguments -- makes an object of the
   class, and is the object whatever the method returns; TL++ takes nothing
   after it (`Name():New():x` is a syntax error), and a class is no function
