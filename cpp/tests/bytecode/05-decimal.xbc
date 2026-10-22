@@ -2,24 +2,56 @@ xbc 1
 source 05-decimal.xtpl
 statics 0
 
-function U_TOTAL user 2 5
-  locals fPreco nQtd fTotal fTaxa nAprox
+function U_MAIN user 0 1
+  locals fPreco
   line 5
+  str "40.1"
+  num 3
+  num 1
+  call 3 DEC_CREATE
+  setlocal 1
+  line 6
+  local 1
+  call 1 Total
+  local 1
   str "0"
   num 1
   num 0
   call 3 DEC_CREATE
-  setlocal 3
-  line 6
+  exact
+  local 1
+  local 1
+  call 2 DEC_SUB
+  str "0"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  exact
+  call 3 ConOut
+  pop
+  line 7
+  nil
+  ret
+end
+
+function TOTAL static 1 4
+  locals fPreco fTotal fTaxa nAprox
+  line 10
+  str "0"
+  num 1
+  num 0
+  call 3 DEC_CREATE
+  setlocal 2
+  line 11
   str "0.05"
   num 3
   num 2
   call 3 DEC_CREATE
-  setlocal 4
-  line 7
+  setlocal 3
+  line 12
   num 0
-  setlocal 5
-  line 8
+  setlocal 4
+  line 13
   local 1
   str "3"
   num 1
@@ -31,32 +63,32 @@ function U_TOTAL user 2 5
   num 1
   call 3 DEC_CREATE
   call 2 DEC_ADD
-  setlocal 3
-  line 9
+  setlocal 2
+  line 14
+  local 2
+  local 2
   local 3
-  local 3
-  local 4
   call 2 DEC_MUL
   call 2 DEC_ADD
-  setlocal 3
-  line 10
-  local 3
+  setlocal 2
+  line 15
+  local 2
   str "1"
   num 1
   num 0
   call 3 DEC_CREATE
   call 2 DEC_ADD
-  setlocal 3
-  line 11
-  local 3
+  setlocal 2
+  line 16
+  local 2
   str "100"
   num 3
   num 0
   call 3 DEC_CREATE
   gt
   jumpf 63
-  line 12
-  local 3
+  line 17
+  local 2
   str "10"
   num 2
   num 0
@@ -65,17 +97,12 @@ function U_TOTAL user 2 5
   num 2
   num 0
   call 3 DEC_RESCALE
-  setlocal 3
-  line 14
-  local 3
+  setlocal 2
+  line 19
+  local 2
   call 1 DEC_TO_DBL
-  setlocal 5
-  line 15
-  local 3
-  str "0"
-  num 1
-  num 0
-  call 3 DEC_CREATE
-  exact
+  setlocal 4
+  line 20
+  local 4
   ret
 end

@@ -16,6 +16,7 @@ ctest --test-dir cpp/build
 | `doc` | each example of the language reference comes out as it shows | `docs/language.md` |
 | `style` | each separator line of xc's own files ends at column 80 | `style.cmake` says which files |
 | `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
+| `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` | `selftests.cmake` says which |
 
 ## cases/
 
@@ -74,15 +75,22 @@ cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDAT
 
 `NAME.xtpl` (or `NAME.prw`) and beside it `NAME.xbc`, what `xc --bytecode`
 writes (none when it writes none), `NAME.err`, what it says (none when it
-says nothing), and `NAME.out`, what `xc-vm` does running the `.xbc` -- its
-exit code, its output and its errors -- for the cases it can run: there is
-none for one xc-vm cannot, a case of Decimals. After a change that is meant:
+says nothing), and `NAME.out`, what `xc-vm` does running the `.xbc` after
+xtpl's runtime, compiled to bytecode too -- its exit code, its output and
+its errors -- for the cases it can run. After a change that is meant:
 
 ```
-cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -DUPDATE=1 -P cpp/tests/bytecode.cmake
+cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -DUPDATE=1 -P cpp/tests/bytecode.cmake
 ```
 
 A `NAME.out` is written only where there is one; an empty one asks for it.
+
+## selftests
+
+The self-tests an AppServer runs -- xtpl's `xtpl/tests/54_selftest.xtpl`
+and xc's `protheus/xc_selftest.xtpl` -- compiled to bytecode with the
+runtime and run on `xc-vm`: each has to end with its total, and no check
+failed. Nothing to keep: the tests are those programs.
 
 ## docs/language.md
 

@@ -917,6 +917,7 @@ namespace xc
     }
     auto cls = make<ClassDef>();
     cls->line = line(start);
+    cls->iface = iface;
     int e = 0;
     cls->name = name_text(e);
     if (e < 0)
@@ -1296,7 +1297,12 @@ namespace xc
       }
       save = p_;
       bool kw = (ilit("default") && ws()) || (p_ = save, ilit("init") && ws());
-      if (!(kw && ws() && guardexpr() && ws()))
+      Expr* value = kw && ws() ? guardexpr() : nullptr;
+      if (value && ws())
+      {
+        m->init = value;
+      }
+      else
       {
         p_ = save;
       }

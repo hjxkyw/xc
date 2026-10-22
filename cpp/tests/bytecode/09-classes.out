@@ -1,0 +1,20 @@
+exit 0
+--- output
+Ana
+175
+100, 50, 25
+.T.
+3
+0
+0
+O
+.F.
+2
+100
+Bia
+220.5
+200, 20
+0.1
+395.5
+no method Saca of CONTA
+--- errors

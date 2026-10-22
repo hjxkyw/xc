@@ -43,7 +43,8 @@ cpp/build/xc --version               # the commit it was built from, and its dat
 cpp/build/xc --outdir=out a.prw      # an AdvPL source stays AdvPL: out/a.prw
 cpp/build/xc a.prw b.prw             # writes b.prw -- never over its source
 cpp/build/xc --bytecode file.xtpl    # writes file.xbc, bytecode, instead of the TL++
-cpp/build/xc-vm file.xbc             # runs it
+cpp/build/xc --bytecode runtime/xtpl_runtime.tlpp rt.xbc   # xtpl's runtime, as bytecode
+cpp/build/xc-vm rt.xbc file.xbc      # runs it, the runtime first
 ```
 
 xtpl is TL++, and so is what xc makes of it: a `.tlpp`. A `.prw` (or
@@ -74,8 +75,9 @@ has to be compiled into the RPO alongside it.
 instead, one to a line, in a `.xbc` -- what an interpreter written in xtpl
 is to run on an AppServer, calling the AppServer's functions by name.
 `docs/bytecode.md` says what each instruction does, and what is not
-compiled so yet. `xc-vm` runs a `.xbc`: the machine as a program, with a
-few of the AppServer's functions, which the tests run their bytecode with.
+compiled so yet. `xc-vm` runs `.xbc`s: the machine as a program, with a
+few of the AppServer's functions, which the tests run their bytecode with --
+xtpl's runtime compiled to bytecode first, and the self-tests too.
 
 ## Running the tests
 
@@ -94,6 +96,7 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | `doc` | the examples of `docs/language.md` come out as it shows them |
 | `style` | every separator line of xc's own files ends at column 80 |
 | `bytecode` | sources, each with its bytecode, the messages, and what `xc-vm` does running it |
+| `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:

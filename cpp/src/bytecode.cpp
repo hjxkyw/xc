@@ -346,6 +346,8 @@ namespace xc
       void assign_value(const Expr* t, const std::function<void()>& value);
       void dims(const std::vector<Expr*>& ds);
       bool start(const Declarator* v);
+      bool start_of(const OptStr& type);
+      std::string start_word(const OptStr& type) const;
 
       // ---- chains that are loops --------------------------------------------
       using Push = std::function<void()>;
@@ -402,6 +404,8 @@ namespace xc
       void function(const std::string& name, const std::string& kind, const std::vector<Param*>& params,
                     const Body& body, const OptStr& returns);
       void finish();
+      bool class_data(const ClassDef* c);
+      std::string class_text(const ClassDef* c, bool data);
       std::string written(const Fn& f) const;
     };
 
@@ -577,6 +581,12 @@ namespace xc
           literal(static_cast<const Literal*>(e));
           return;
         case EK::Name:
+          // 'Self', the object a method runs on -- but a variable of that name.
+          if (lc(name_of(e)) == "self" && !declared_.count("self"))
+          {
+            op("self");
+            return;
+          }
           load(resolve(name_of(e)));
           return;
         case EK::UserTrans:
@@ -642,10 +652,12 @@ namespace xc
           return;
         case EK::MethodCall:
         {
+          // '_Super:M()': the method of the class above, on Self.
           auto m = static_cast<const MethodCall*>(e);
-          member_base(m->base);
+          bool above = is(m->base, EK::Name) && lc(name_of(m->base)) == "_super";
+          if (!above) { member_base(m->base); }
           for (const Expr* a : m->args) { arg(a); }
-          op("method", std::to_string(m->args.size()) + " " + m->name);
+          op(above ? "super" : "method", std::to_string(m->args.size()) + " " + m->name);
           return;
         }
         case EK::SafeCall:
@@ -2519,12 +2531,23 @@ namespace xc
     }
 
     // What a variable declared with a type and no value starts at, in TL++.
-    bool Compiler::start(const Declarator* v)
+    bool Compiler::start(const Declarator* v) { return start_of(v->typespec_text); }
+
+    // The type of those that start at something else than Nil, in TL++:
+    // 'numeric', 'character', 'logical', 'date' -- or "".
+    std::string Compiler::start_word(const OptStr& type) const
     {
-      if (advpl_ || !v->typespec_text) { return false; }
-      std::vector<std::string> w = words(*v->typespec_text);
+      if (advpl_ || !type) { return ""; }
+      std::vector<std::string> w = words(*type);
       std::string t = w.empty() ? "" : lc(w.back());
-      if (t == "numeric" || t == "integer" || t == "double") { num(0); }
+      if (t == "integer" || t == "double") { return "numeric"; }
+      return t == "numeric" || t == "character" || t == "logical" || t == "date" ? t : "";
+    }
+
+    bool Compiler::start_of(const OptStr& type)
+    {
+      std::string t = start_word(type);
+      if (t == "numeric") { num(0); }
       else if (t == "character") { str(""); }
       else if (t == "logical") { op("false"); }
       else if (t == "date")
@@ -3487,6 +3510,64 @@ namespace xc
       finish();
     }
 
+    // The values a class's data members start at, when one has one -- its
+    // 'default', or its type's in TL++ --: a function, CLASS:__DATA, run on
+    // each new object, Self the object.
+    bool Compiler::class_data(const ClassDef* c)
+    {
+      std::vector<const DataMember*> with;
+      for (const DataMember* m : c->members)
+      {
+        if (m->init || !start_word(m->type).empty()) { with.push_back(m); }
+      }
+      if (with.empty()) { return false; }
+      auto fn = std::make_unique<Fn>();
+      Fn* g = fn.get();
+      g->name = uc(c->name) + ":__DATA";
+      g->kind = "data";
+      fns_.push_back(std::move(fn));
+      order_.push_back(g);
+      f_ = g;
+      top_ = g;
+      g->scopes.emplace_back();
+      declared_.clear();
+      dv_ = DecimalValues{};
+      dec_.function({}, {});
+      for (const DataMember* m : with)
+      {
+        line(m->line);
+        op("self");
+        if (m->init) { expr(m->init); }
+        else { start_of(m->type); }
+        op("setmember", uc(m->name));
+      }
+      finish();
+      return true;
+    }
+
+    // 'class NAME', the classes above it, its data, the function that gives
+    // them their values, its methods.
+    std::string Compiler::class_text(const ClassDef* c, bool data)
+    {
+      std::string name = uc(c->name);
+      std::string out = "class " + name + "\n";
+      if (!c->supers.empty())
+      {
+        out += "  from";
+        for (const std::string& x : c->supers) { out += " " + uc(x); }
+        out += "\n";
+      }
+      if (!c->members.empty())
+      {
+        out += "  data";
+        for (const DataMember* m : c->members) { out += " " + uc(m->name); }
+        out += "\n";
+      }
+      if (data) { out += "  init " + name + ":__DATA\n"; }
+      for (const MethodSig* m : c->methods) { out += "  method " + uc(m->name) + " " + name + ":" + uc(m->name) + "\n"; }
+      return out + "end\n";
+    }
+
     // The function's end, a return of Nil, and after it the code of its
     // defers.
     void Compiler::finish()
@@ -3564,16 +3645,6 @@ namespace xc
         line_ = line_of("namespace");
         problem("a namespace");
       }
-      for (const ClassDef* c : p_->classes)
-      {
-        line_ = c->line;
-        problem("a class ('" + c->name + "')");
-      }
-      for (const MethodImpl* m : p_->methods)
-      {
-        line_ = m->line;
-        problem("a method ('" + m->class_name + ":" + m->name + "')");
-      }
 
       // The statics' values, run first: the file's, then each function's.
       auto init = std::make_unique<Fn>();
@@ -3617,9 +3688,29 @@ namespace xc
         function(name, kind, fd->params, fd->body, fd->rettype_word);
       }
 
+      // A class: what its objects hold, and its methods -- each a function
+      // named for its class and itself, Self the object it runs on.
+      std::string classes;
+      for (const ClassDef* c : p_->classes)
+      {
+        if (c->iface) { continue; }
+        line_ = c->line;
+        classes += "\n" + class_text(c, class_data(c));
+      }
+      for (const MethodImpl* m : p_->methods)
+      {
+        line_ = m->line;
+        if (m->ws)
+        {
+          problem("a web service's method ('" + m->name + "')");
+          continue;
+        }
+        function(uc(m->class_name) + ":" + uc(m->name), "method", m->params, m->body, m->returns);
+      }
+
       if (!problems_.empty()) { throw NotBytecode(problems_); }
 
-      std::string out = "xbc 1\nsource " + source_ + "\nstatics " + std::to_string(statics_.size()) + "\n";
+      std::string out = "xbc 1\nsource " + source_ + "\nstatics " + std::to_string(statics_.size()) + "\n" + classes;
       auto with_blocks = [&](const Fn* g)
       {
         out += "\n" + written(*g);

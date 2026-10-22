@@ -471,6 +471,7 @@ namespace xc
     OptStr type;
     OptStr visibility;
     int line = 0;
+    Expr* init = nullptr;            // 'default value', 'init value'
   };
 
   struct MethodSig : Node
@@ -489,6 +490,7 @@ namespace xc
     std::vector<DataMember*> members;
     std::vector<MethodSig*> methods;
     int line = 0;
+    bool iface = false;              // an Interface: signatures only
   };
 
   struct MethodImpl : Node

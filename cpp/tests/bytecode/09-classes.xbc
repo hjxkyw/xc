@@ -1,0 +1,355 @@
+xbc 1
+source 09-classes.xtpl
+statics 0
+
+class CONTA
+  data CDONO NSALDO AMOVS LATIVA
+  init CONTA:__DATA
+  method NEW CONTA:NEW
+  method DEPOSITA CONTA:DEPOSITA
+  method SALDO CONTA:SALDO
+  method EXTRATO CONTA:EXTRATO
+  method MAIORES CONTA:MAIORES
+end
+
+class POUPANCA
+  from CONTA
+  data NTAXA
+  method NEW POUPANCA:NEW
+  method RENDE POUPANCA:RENDE
+  method SALDO POUPANCA:SALDO
+end
+
+function U_MAIN user 0 5
+  locals oConta oPoup oOutra bSaldo oErr
+  line 62
+  call 0 Conta
+  str "Ana"
+  num 100
+  method 2 New
+  setlocal 1
+  line 63
+  call 0 Poupanca
+  str "Bia"
+  num 200
+  num 0.1
+  method 3 New
+  setlocal 2
+  line 64
+  call 0 Conta
+  str "Caio"
+  method 1 New
+  setlocal 3
+  line 65
+  block U_MAIN#1 0
+  setlocal 4
+  line 68
+  local 1
+  num 50
+  method 1 Deposita
+  num 25
+  method 1 Deposita
+  pop
+  line 69
+  local 1
+  member cDono
+  local 1
+  method 0 Saldo
+  local 1
+  method 0 Extrato
+  local 1
+  member lAtiva
+  local 1
+  member aMovs
+  call 1 Len
+  call 5 ConOut
+  pop
+  line 70
+  local 3
+  member aMovs
+  call 1 Len
+  local 3
+  member nSaldo
+  local 3
+  call 1 ValType
+  local 3
+  local 1
+  exact
+  call 4 ConOut
+  pop
+  line 71
+  local 1
+  num 30
+  method 1 Maiores
+  call 1 Len
+  local 1
+  num 30
+  method 1 Maiores
+  num 2
+  index
+  call 2 ConOut
+  pop
+  line 72
+  local 2
+  method 0 Rende
+  pop
+  line 73
+  local 2
+  member cDono
+  local 2
+  method 0 Saldo
+  local 2
+  method 0 Extrato
+  local 2
+  member nTaxa
+  call 4 ConOut
+  pop
+  line 74
+  local 4
+  local 1
+  call 2 Eval
+  local 4
+  local 2
+  call 2 Eval
+  add
+  call 1 ConOut
+  pop
+  line 75
+  try 102
+  line 76
+  local 1
+  num 10
+  method 1 Saca
+  pop
+  endseq
+  jump 108
+  setlocal 5
+  line 78
+  local 5
+  member Description
+  call 1 ConOut
+  pop
+  line 80
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals o
+  line 65
+  local 1
+  method 0 Saldo
+  ret
+end
+
+function CONTA:__DATA data 0 0
+  locals
+  line 9
+  self
+  num 0
+  setmember NSALDO
+  line 10
+  self
+  array 0
+  setmember AMOVS
+  line 11
+  self
+  true
+  setmember LATIVA
+  nil
+  ret
+end
+
+function CONTA:NEW method 2 2
+  locals cDono nInicial
+  line 20
+  local 2
+  isnil
+  jumpf 7
+  num 0
+  setlocal 2
+  line 21
+  self
+  local 1
+  setmember cDono
+  line 22
+  local 2
+  num 0
+  gt
+  jumpf 20
+  self
+  local 2
+  method 1 Deposita
+  pop
+  line 23
+  self
+  ret
+end
+
+function CONTA:DEPOSITA method 1 1
+  locals nValor
+  line 26
+  self
+  dup
+  member nSaldo
+  local 1
+  add
+  setmember nSaldo
+  line 27
+  self
+  member aMovs
+  local 1
+  call 2 AAdd
+  pop
+  line 28
+  self
+  ret
+end
+
+function CONTA:SALDO method 0 0
+  locals
+  line 31
+  self
+  member nSaldo
+  ret
+end
+
+function CONTA:EXTRATO method 0 5
+  locals .t1 .t2 .t3 .t4 .t5
+  line 34
+  self
+  member aMovs
+  setlocal 2
+  array 0
+  setlocal 5
+  num 1
+  setlocal 3
+  local 3
+  local 2
+  call 1 Len
+  le
+  jumpf 30
+  local 2
+  local 3
+  index
+  setlocal 4
+  local 4
+  call 1 cValToChar
+  setlocal 4
+  local 5
+  local 4
+  call 2 AAdd
+  pop
+  local 3
+  num 1
+  add
+  setlocal 3
+  jump 9
+  local 5
+  str ", "
+  call 2 u_xtpl_join
+  setlocal 5
+  local 5
+  setlocal 1
+  local 1
+  ret
+end
+
+function CONTA:MAIORES method 1 7
+  locals nLimite bMaior .t1 .t2 .t3 .t4 .t5
+  box 1
+  line 38
+  refcell 1
+  block CONTA:MAIORES#1 1
+  setlocal 2
+  line 39
+  self
+  member aMovs
+  local 2
+  call 2 u_xtpl_filter
+  setlocal 4
+  array 0
+  setlocal 7
+  num 1
+  setlocal 5
+  local 5
+  local 4
+  call 1 Len
+  le
+  jumpf 38
+  local 4
+  local 5
+  index
+  setlocal 6
+  local 6
+  num 2
+  mul
+  setlocal 6
+  local 7
+  local 6
+  call 2 AAdd
+  pop
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 16
+  local 7
+  setlocal 3
+  local 3
+  ret
+end
+
+function CONTA:MAIORES#1 block 1 1
+  locals n
+  upvals nLimite
+  line 38
+  local 1
+  upval 1
+  gt
+  andjump 8
+  self
+  member lAtiva
+  ret
+end
+
+function POUPANCA:NEW method 3 3
+  locals cDono nInicial nTaxa
+  line 49
+  local 1
+  local 2
+  super 2 New
+  pop
+  line 50
+  self
+  local 3
+  setmember nTaxa
+  line 51
+  self
+  ret
+end
+
+function POUPANCA:RENDE method 0 0
+  locals
+  line 54
+  self
+  self
+  member nSaldo
+  self
+  member nTaxa
+  mul
+  method 1 Deposita
+  pop
+  line 55
+  self
+  ret
+end
+
+function POUPANCA:SALDO method 0 0
+  locals
+  line 59
+  super 0 Saldo
+  num 0.5
+  add
+  ret
+end

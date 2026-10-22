@@ -1,0 +1,80 @@
+// Classes: their data and the values it starts at, methods, Self and '::',
+// a class above another and '_Super:', an object in a block, a chain in a
+// method.
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+Class Conta
+  Public Data cDono
+  Public Data nSaldo as Numeric
+  Public Data aMovs default {}
+  Public Data lAtiva init .T.
+  Public Method New(cDono, nInicial) Constructor
+  Public Method Deposita(nValor)
+  Public Method Saldo()
+  Public Method Extrato()
+  Public Method Maiores(nLimite)
+EndClass
+
+Method New(cDono, nInicial) Class Conta
+  Default nInicial := 0
+  ::cDono := cDono
+  ::Deposita(nInicial) if nInicial > 0
+Return Self
+
+Method Deposita(nValor) Class Conta
+  ::nSaldo += nValor
+  AAdd(::aMovs, nValor)
+Return Self
+
+Method Saldo() Class Conta
+Return ::nSaldo
+
+Method Extrato() Class Conta
+Return ::aMovs |> map([n] cValToChar(n)) |> join(", ")
+
+// A block made in a method shares Self.
+Method Maiores(nLimite) Class Conta
+  Local bMaior := {|n| n > nLimite .And. ::lAtiva}
+Return ::aMovs |> filter(bMaior) |> map([n] n * 2)
+
+Class Poupanca From Conta
+  Public Data nTaxa
+  Public Method New(cDono, nInicial, nTaxa) Constructor
+  Public Method Rende()
+  Public Method Saldo()
+EndClass
+
+Method New(cDono, nInicial, nTaxa) Class Poupanca
+  _Super:New(cDono, nInicial)
+  ::nTaxa := nTaxa
+Return Self
+
+Method Rende() Class Poupanca
+  ::Deposita(::nSaldo * ::nTaxa)
+Return Self
+
+// Its own Saldo(), on the one above it.
+Method Saldo() Class Poupanca
+Return _Super:Saldo() + 0.5
+
+User Function Main()
+  Local oConta := Conta():New("Ana", 100)
+  Local oPoup := Poupanca():New("Bia", 200, 0.1)
+  Local oOutra := Conta():New("Caio")
+  Local bSaldo := {|o| o:Saldo()}
+  Local oErr
+
+  oConta:Deposita(50):Deposita(25)
+  ConOut(oConta:cDono, oConta:Saldo(), oConta:Extrato(), oConta:lAtiva, Len(oConta:aMovs))
+  ConOut(Len(oOutra:aMovs), oOutra:nSaldo, ValType(oOutra), oOutra == oConta)
+  ConOut(Len(oConta:Maiores(30)), oConta:Maiores(30)[2])
+  oPoup:Rende()
+  ConOut(oPoup:cDono, oPoup:Saldo(), oPoup:Extrato(), oPoup:nTaxa)
+  ConOut(Eval(bSaldo, oConta) + Eval(bSaldo, oPoup))
+  Try
+    oConta:Saca(10)
+  Catch oErr
+    ConOut(oErr:Description)
+  EndTry
+Return Nil

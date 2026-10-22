@@ -1,17 +1,19 @@
 # xc's bytecode, as data (cpp/tests/bytecode): each NAME.xtpl (or NAME.prw)
 # is compiled with 'xc --bytecode'. NAME.xbc is what it writes; NAME.err what
 # it says, warnings or why it writes nothing, when it says anything; NAME.out,
-# when there is one, what xc-vm does running the .xbc, from that folder -- its
-# exit code, what it printed on its output and on its errors.
+# when there is one, what xc-vm does running the .xbc after xtpl's runtime
+# (RUNTIME, compiled the same way), from that folder -- its exit code, what it
+# printed on its output and on its errors.
 #
-#   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -P cpp/tests/bytecode.cmake
+#   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp
+#         -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -P cpp/tests/bytecode.cmake
 #   ... -DUPDATE=1      writes the expected files again, after a change that is meant --
 #                       a NAME.out only where there is one: an empty one asks for it
 #
 # CMake runs it as a test (ctest). "\r\n" is read as "\n".
 
 cmake_policy(SET CMP0012 NEW)
-foreach(v XC VM CASES WORK)
+foreach(v XC VM RUNTIME CASES WORK)
   get_filename_component(${v} "${${v}}" ABSOLUTE)
 endforeach()
 
@@ -19,6 +21,13 @@ file(GLOB sources RELATIVE ${CASES} ${CASES}/*.xtpl ${CASES}/*.prw)
 list(SORT sources)
 file(REMOVE_RECURSE ${WORK})
 file(MAKE_DIRECTORY ${WORK})
+execute_process(COMMAND ${XC} --bytecode ${RUNTIME} ${WORK}/xtpl_runtime.xbc
+                OUTPUT_QUIET
+                ERROR_VARIABLE said
+                RESULT_VARIABLE code)
+if(NOT code EQUAL 0)
+  message(FATAL_ERROR "  the runtime does not become bytecode:\n${said}")
+endif()
 set(failed "")
 set(count 0)
 
@@ -62,7 +71,7 @@ foreach(src ${sources})
   endif()
   check(${name} xbc "${made}" ON)
   if(EXISTS ${CASES}/${name}.out AND EXISTS ${WORK}/${name}.xbc)
-    execute_process(COMMAND ${VM} ${WORK}/${name}.xbc
+    execute_process(COMMAND ${VM} ${WORK}/xtpl_runtime.xbc ${WORK}/${name}.xbc
                     WORKING_DIRECTORY ${CASES}
                     OUTPUT_VARIABLE out
                     ERROR_VARIABLE err

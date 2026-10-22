@@ -4,18 +4,19 @@
 //
 //   xc-vm [--run=NAME] module.xbc ...
 //
-// Each module's __INIT runs, in the order given; then NAME -- when it is not
-// given, U_MAIN if there is one, else the first user function of the first
+// Each module's __INIT runs, in the order given -- what a program needs, xtpl's
+// runtime among them, first, the program last --; then NAME -- when it is not
+// given, U_MAIN if there is one, else the first user function of the last
 // module -- with no arguments. What ConOut() is given goes to the output; an
 // error nothing catches goes to the errors, and the exit code is 1.
 //
 // The AppServer's functions are a few of their namesakes, enough for the
-// tests: the strings', the numbers', the arrays', Eval(), Break(),
-// ErrorBlock(); File() and the FT_ functions, for a text file; THashMap and
-// JsonObject; the functions of xtpl's runtime the output calls for hashes,
-// JSON objects, 'in' and 'distinct', and some of its verbs. A work area is a
-// name: it can be selected and put back, and it has no records. There are no
-// Decimals, and no macro but a variable's name.
+// tests and for xtpl's runtime, compiled to bytecode as any program: the
+// strings', the numbers', the dates', the arrays', Eval(), Break(),
+// ErrorBlock(), Random() -- the same numbers on every run --; File() and the
+// FT_ functions, for a text file; THashMap and JsonObject; Decimals and the
+// DEC_ functions, exact, on digits. A work area is a name: it can be selected
+// and put back, and it has no records. A macro is a variable's name.
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +27,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -58,10 +60,20 @@ namespace
     Cell keep;
   };
 
+  // A Decimal, TL++'s 'F': a sign, its digits -- no leading zeros, "0" for
+  // zero -- and how many of them are decimals. Exact, as DEC_ is: its
+  // arithmetic is on the digits.
+  struct Dec
+  {
+    bool neg = false;
+    std::string digits = "0";
+    int scale = 0;
+  };
+
   struct Value
   {
     std::variant<std::monostate, bool, double, std::string, Date, ArrayP, std::shared_ptr<Closure>,
-                 std::shared_ptr<Object>, Cell, Ref>
+                 std::shared_ptr<Object>, Cell, Ref, Dec>
       v;
   };
 
@@ -102,12 +114,24 @@ namespace
     Value self;
   };
 
-  // THashMap, JsonObject, an error.
+  // A class of a module: the classes above it, its data, the function that
+  // gives them their values, its methods -> their functions.
+  struct Class
+  {
+    std::string name;
+    std::vector<std::string> supers;
+    std::vector<std::string> data;
+    std::string init;
+    std::unordered_map<std::string, std::string> methods;
+  };
+
+  // THashMap, JsonObject, an error, an object of a module's class.
   struct Object
   {
-    enum Kind { Hash, Json, Error } kind;
-    std::vector<std::pair<std::string, Value>> props;      // JSON's and an error's, in order
+    enum Kind { Hash, Json, Error, Instance } kind;
+    std::vector<std::pair<std::string, Value>> props;      // JSON's, an error's, an object's data, in order
     std::map<std::string, std::pair<Value, Value>> hash;   // a key's text -> the key, the value
+    const Class* cls = nullptr;
   };
 
   bool is_nil(const Value& x) { return std::holds_alternative<std::monostate>(x.v); }
@@ -130,6 +154,7 @@ namespace
       case 5: return 'A';
       case 6: return 'B';
       case 7: return std::get<std::shared_ptr<Object>>(x.v)->kind == Object::Json ? 'J' : 'O';
+      case 10: return 'F';
       default: return 'U';
     }
   }
@@ -207,6 +232,215 @@ namespace
     return Date{ days_from_civil(std::stol(s.substr(0, 4)), std::stol(s.substr(4, 2)), std::stol(s.substr(6, 2))) };
   }
 
+  // ---- Decimals: arithmetic on digits ---------------------------------------
+  std::string strip(std::string d)
+  {
+    std::size_t nz = d.find_first_not_of('0');
+    return nz == std::string::npos ? "0" : d.substr(nz);
+  }
+
+  int cmp_mag(const std::string& a, const std::string& b)
+  {
+    if (a.size() != b.size()) { return a.size() < b.size() ? -1 : 1; }
+    int c = a.compare(b);
+    return c < 0 ? -1 : c > 0 ? 1 : 0;
+  }
+
+  std::string add_mag(const std::string& a, const std::string& b)
+  {
+    std::string out;
+    int carry = 0;
+    for (std::size_t i = 0; i < std::max(a.size(), b.size()) || carry; i++)
+    {
+      int d = carry;
+      if (i < a.size()) { d += a[a.size() - 1 - i] - '0'; }
+      if (i < b.size()) { d += b[b.size() - 1 - i] - '0'; }
+      out += static_cast<char>('0' + d % 10);
+      carry = d / 10;
+    }
+    return strip(std::string(out.rbegin(), out.rend()));
+  }
+
+  // a - b, a not smaller than b.
+  std::string sub_mag(const std::string& a, const std::string& b)
+  {
+    std::string out;
+    int borrow = 0;
+    for (std::size_t i = 0; i < a.size(); i++)
+    {
+      int d = (a[a.size() - 1 - i] - '0') - borrow - (i < b.size() ? b[b.size() - 1 - i] - '0' : 0);
+      borrow = d < 0 ? 1 : 0;
+      out += static_cast<char>('0' + (d + 10) % 10);
+    }
+    return strip(std::string(out.rbegin(), out.rend()));
+  }
+
+  std::string mul_mag(const std::string& a, const std::string& b)
+  {
+    std::vector<int> r(a.size() + b.size(), 0);
+    for (std::size_t i = a.size(); i-- > 0;)
+    {
+      for (std::size_t j = b.size(); j-- > 0;)
+      {
+        r[i + j + 1] += (a[i] - '0') * (b[j] - '0');
+      }
+    }
+    for (std::size_t k = r.size(); k-- > 1;)
+    {
+      r[k - 1] += r[k] / 10;
+      r[k] %= 10;
+    }
+    std::string out;
+    for (int d : r) { out += static_cast<char>('0' + d); }
+    return strip(out);
+  }
+
+  // a / b and a % b, b not zero: long division, a digit at a time.
+  std::pair<std::string, std::string> divmod_mag(const std::string& a, const std::string& b)
+  {
+    std::string q;
+    std::string rem = "0";
+    for (char c : a)
+    {
+      rem = strip(rem + c);
+      int d = 0;
+      while (cmp_mag(rem, b) >= 0)
+      {
+        rem = sub_mag(rem, b);
+        d++;
+      }
+      q += static_cast<char>('0' + d);
+    }
+    return { strip(q), rem };
+  }
+
+  Dec dec_norm(Dec d)
+  {
+    d.digits = strip(d.digits);
+    if (d.digits == "0") { d.neg = false; }
+    return d;
+  }
+
+  // The same value with more decimals.
+  Dec dec_align(Dec d, int scale)
+  {
+    if (scale > d.scale)
+    {
+      d.digits = strip(d.digits + std::string(static_cast<std::size_t>(scale - d.scale), '0'));
+      d.scale = scale;
+    }
+    return d;
+  }
+
+  Dec dec_neg(Dec d)
+  {
+    d.neg = !d.neg;
+    return dec_norm(d);
+  }
+
+  Dec dec_add(const Dec& x, const Dec& y)
+  {
+    int s = std::max(x.scale, y.scale);
+    Dec a = dec_align(x, s);
+    Dec b = dec_align(y, s);
+    Dec r;
+    r.scale = s;
+    if (a.neg == b.neg)
+    {
+      r.digits = add_mag(a.digits, b.digits);
+      r.neg = a.neg;
+    }
+    else if (cmp_mag(a.digits, b.digits) >= 0)
+    {
+      r.digits = sub_mag(a.digits, b.digits);
+      r.neg = a.neg;
+    }
+    else
+    {
+      r.digits = sub_mag(b.digits, a.digits);
+      r.neg = b.neg;
+    }
+    return dec_norm(r);
+  }
+
+  Dec dec_mul(const Dec& a, const Dec& b)
+  {
+    return dec_norm(Dec{ a.neg != b.neg, mul_mag(a.digits, b.digits), a.scale + b.scale });
+  }
+
+  // a / b to 'scale' decimals, the rest cut.
+  Dec dec_div(const Dec& a, const Dec& b, int scale)
+  {
+    std::string num = a.digits + std::string(static_cast<std::size_t>(b.scale + scale), '0');
+    std::string den = b.digits + std::string(static_cast<std::size_t>(a.scale), '0');
+    return dec_norm(Dec{ a.neg != b.neg, divmod_mag(strip(num), strip(den)).first, scale });
+  }
+
+  // What is left of a / b, the sign a's, as '%' has it.
+  Dec dec_mod(const Dec& x, const Dec& y)
+  {
+    int s = std::max(x.scale, y.scale);
+    Dec a = dec_align(x, s);
+    Dec b = dec_align(y, s);
+    return dec_norm(Dec{ a.neg, divmod_mag(a.digits, b.digits).second, s });
+  }
+
+  // To 'scale' decimals: mode 0 half away from zero, 2 cut.
+  Dec dec_rescale(const Dec& d, int scale, int mode)
+  {
+    if (scale >= d.scale) { return dec_align(d, scale); }
+    std::size_t cut = static_cast<std::size_t>(d.scale - scale);
+    std::string all = std::string(cut + 1 > d.digits.size() ? cut + 1 - d.digits.size() : 0, '0') + d.digits;
+    std::string kept = all.substr(0, all.size() - cut);
+    bool up = mode != 2 && all[all.size() - cut] >= '5';
+    Dec r{ d.neg, up ? add_mag(kept, "1") : strip(kept), scale };
+    return dec_norm(r);
+  }
+
+  int dec_cmp(const Dec& x, const Dec& y)
+  {
+    if (x.neg != y.neg) { return x.neg ? -1 : 1; }
+    int s = std::max(x.scale, y.scale);
+    int c = cmp_mag(dec_align(x, s).digits, dec_align(y, s).digits);
+    return x.neg ? -c : c;
+  }
+
+  std::string dec_text(const Dec& d)
+  {
+    std::string t = d.digits;
+    if (d.scale > 0)
+    {
+      if (static_cast<int>(t.size()) <= d.scale) { t = std::string(static_cast<std::size_t>(d.scale + 1) - t.size(), '0') + t; }
+      t.insert(t.size() - static_cast<std::size_t>(d.scale), ".");
+    }
+    return (d.neg ? "-" : "") + t;
+  }
+
+  // A number's text as a Decimal: '-' and digits, a '.' and decimals.
+  bool dec_parse(const std::string& t0, Dec& out)
+  {
+    std::string t = t0;
+    std::size_t b = t.find_first_not_of(' ');
+    std::size_t e = t.find_last_not_of(' ');
+    t = b == std::string::npos ? "" : t.substr(b, e - b + 1);
+    Dec d;
+    std::size_t i = 0;
+    if (i < t.size() && (t[i] == '-' || t[i] == '+')) { d.neg = t[i++] == '-'; }
+    std::string whole;
+    std::string decimals;
+    while (i < t.size() && t[i] >= '0' && t[i] <= '9') { whole += t[i++]; }
+    if (i < t.size() && t[i] == '.')
+    {
+      i++;
+      while (i < t.size() && t[i] >= '0' && t[i] <= '9') { decimals += t[i++]; }
+    }
+    if (i != t.size() || (whole.empty() && decimals.empty())) { return false; }
+    d.digits = whole + decimals;
+    d.scale = static_cast<int>(decimals.size());
+    out = dec_norm(d);
+    return true;
+  }
+
   // cValToChar().
   std::string text(const Value& x0)
   {
@@ -216,6 +450,7 @@ namespace
       case 'N': return num_text(std::get<double>(x.v));
       case 'C': return std::get<std::string>(x.v);
       case 'L': return std::get<bool>(x.v) ? ".T." : ".F.";
+      case 'F': return dec_text(std::get<Dec>(x.v));
       case 'D':
       {
         std::string s = dtos(std::get<Date>(x.v));
@@ -235,7 +470,7 @@ namespace
     Pop, Dup, Dup2, ArrayOp, Index, SetIndex, Member, SetMember, Self,
     Add, Sub, Mul, Div, Mod, Pow, Neg, Not, Eq, Exact, Ne, Lt, Gt, Le, Ge, Contains, IsNil,
     Jump, JumpF, JumpT, AndJump, OrJump,
-    Call, CallX, Method, Ret, Block, Macro, SetMacro, Line,
+    Call, CallX, Method, Super, Ret, Block, Macro, SetMacro, Line,
     Seq, Try, EndSeq, Defer, RunDefers, EndDefer, Area, EndArea,
   };
 
@@ -274,7 +509,7 @@ namespace
     { "jump", Op::Jump, Shape::Int }, { "jumpf", Op::JumpF, Shape::Int }, { "jumpt", Op::JumpT, Shape::Int },
     { "andjump", Op::AndJump, Shape::Int }, { "orjump", Op::OrJump, Shape::Int },
     { "call", Op::Call, Shape::IntWord }, { "callx", Op::CallX, Shape::Int },
-    { "method", Op::Method, Shape::IntWord }, { "ret", Op::Ret, Shape::None },
+    { "method", Op::Method, Shape::IntWord }, { "super", Op::Super, Shape::IntWord }, { "ret", Op::Ret, Shape::None },
     { "block", Op::Block, Shape::WordInt }, { "macro", Op::Macro, Shape::None },
     { "setmacro", Op::SetMacro, Shape::None }, { "line", Op::Line, Shape::Int },
     { "seq", Op::Seq, Shape::Int }, { "try", Op::Try, Shape::Int }, { "endseq", Op::EndSeq, Shape::None },
@@ -309,6 +544,7 @@ namespace
     std::vector<Value> statics;
     std::vector<std::unique_ptr<Function>> fns;
     std::unordered_map<std::string, Function*> by_name;
+    std::vector<std::unique_ptr<Class>> classes;
   };
 
   // ---- a call ---------------------------------------------------------------
@@ -358,6 +594,8 @@ namespace
   private:
     std::vector<std::unique_ptr<Module>> modules_;
     std::unordered_map<std::string, const Function*> globals_;
+    std::unordered_map<std::string, const Function*> every_;   // every function of every module, by name
+    std::unordered_map<std::string, const Class*> classes_;
     std::unordered_map<std::string, Native> natives_;
     std::vector<std::unique_ptr<Frame>> frames_;
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, Cell>>> privates_;
@@ -370,6 +608,8 @@ namespace
     // lines, and the one it is on.
     std::vector<std::string> ft_lines_;
     std::size_t ft_at_ = 0;
+    // Random()'s numbers: the same on every run, for the tests.
+    std::mt19937 random_{ 1 };
     std::string where_;
 
     // ---- errors -------------------------------------------------------------
@@ -385,6 +625,8 @@ namespace
     const Function* function_named(const Module* from, const std::string& name) const;
     void invoke(const Module* from, const std::string& name, Args& args);
     Value call_value(const Value& block, Args args);
+    Value instance(const Class* c);
+    const Function* method_of(const Class* c, const std::string& name) const;
     Value method(const Value& o, const std::string& name, Args& args);
 
     // ---- variables ----------------------------------------------------------
@@ -406,8 +648,8 @@ namespace
     double num_arg(const Args& a, std::size_t i, const char* fn);
     std::string str_arg(const Args& a, std::size_t i, const char* fn);
     ArrayP array_arg(const Args& a, std::size_t i, const char* fn);
-    std::shared_ptr<Object> object_arg(const Args& a, std::size_t i, Object::Kind k, const char* fn);
     std::string key_text(const Value& k);
+    std::string json_text(const Value& x);
     bool evals_true(const Value& block, Args args, const char* fn);
   };
 
@@ -468,6 +710,28 @@ namespace
     while (!next().empty())
     {
       w = words_of(lines[i]);
+      if (w.size() == 2 && w[0] == "class")
+      {
+        auto c = std::make_unique<Class>();
+        c->name = w[1];
+        i++;
+        for (;;)
+        {
+          std::string t = next();
+          if (t.empty()) { throw std::runtime_error(path + ": class " + c->name + " has no 'end'"); }
+          std::size_t k = i++;
+          std::vector<std::string> cw = words_of(t);
+          if (cw[0] == "end") { break; }
+          if (cw[0] == "from") { c->supers.assign(cw.begin() + 1, cw.end()); }
+          else if (cw[0] == "data") { c->data.insert(c->data.end(), cw.begin() + 1, cw.end()); }
+          else if (cw[0] == "init" && cw.size() == 2) { c->init = cw[1]; }
+          else if (cw[0] == "method" && cw.size() == 3) { c->methods[cw[1]] = cw[2]; }
+          else { throw std::runtime_error(where(k) + ": no line '" + cw[0] + "' in a class"); }
+        }
+        classes_[c->name] = c.get();
+        mod->classes.push_back(std::move(c));
+        continue;
+      }
       if (w.size() != 5 || w[0] != "function") { throw std::runtime_error(where(i) + ": 'function' expected"); }
       auto fn = std::make_unique<Function>();
       fn->name = w[1];
@@ -553,6 +817,7 @@ namespace
         }
       }
       mod->by_name[upper(fn->name)] = fn.get();
+      every_[upper(fn->name)] = fn.get();
       if (fn->kind == "user" || fn->kind == "function" || fn->kind == "main") { globals_[upper(fn->name)] = fn.get(); }
       mod->fns.push_back(std::move(fn));
     }
@@ -704,17 +969,24 @@ namespace
     if (from)
     {
       auto it = from->by_name.find(u);
-      if (it != from->by_name.end() && it->second->kind != "block" && it->second->kind != "init") { return it->second; }
+      std::string k = it == from->by_name.end() ? "" : it->second->kind;
+      if (k == "user" || k == "static" || k == "function" || k == "main") { return it->second; }
     }
     auto g = globals_.find(u);
     return g == globals_.end() ? nullptr : g->second;
   }
 
-  // A call by name: a function of the module, a user function of any, or the
-  // AppServer's. A function of a module pushes its frame; the AppServer's
-  // leaves its result.
+  // A call by name: a class of any module -- a new object --, a function of
+  // the module, a user function of any, or the AppServer's. A function of a
+  // module pushes its frame; the others leave their result.
   void VM::invoke(const Module* from, const std::string& name, Args& args)
   {
+    if (auto c = classes_.find(upper(name)); c != classes_.end())
+    {
+      Value o = instance(c->second);
+      frames_.back()->stack.push_back(std::move(o));
+      return;
+    }
     if (const Function* fn = function_named(from, name))
     {
       push_frame(fn, args, nullptr, Value());
@@ -724,6 +996,63 @@ namespace
     if (it == natives_.end()) { fail("function " + name + " does not exist"); }
     Value r = it->second(args);
     frames_.back()->stack.push_back(std::move(r));
+  }
+
+  // A new object of a module's class: the data of the classes above it and
+  // its own, Nil, then the values each class gives them, the topmost first.
+  Value VM::instance(const Class* c)
+  {
+    std::vector<const Class*> chain;
+    std::function<void(const Class*)> above = [&](const Class* k)
+    {
+      for (const std::string& s : k->supers)
+      {
+        if (auto it = classes_.find(s); it != classes_.end()) { above(it->second); }
+      }
+      chain.push_back(k);
+    };
+    above(c);
+    auto o = std::make_shared<Object>();
+    o->kind = Object::Instance;
+    o->cls = c;
+    for (const Class* k : chain)
+    {
+      for (const std::string& d : k->data)
+      {
+        bool there = false;
+        for (const auto& p : o->props) { there = there || p.first == d; }
+        if (!there) { o->props.push_back({ d, Value() }); }
+      }
+    }
+    Value self;
+    self.v = o;
+    for (const Class* k : chain)
+    {
+      if (k->init.empty()) { continue; }
+      auto f = every_.find(k->init);
+      if (f == every_.end()) { fail("no function " + k->init + " for the data of " + k->name); }
+      Args none;
+      push_frame(f->second, none, nullptr, self);
+      run(frames_.size() - 1);
+    }
+    return self;
+  }
+
+  // A method, of the class or of one above it.
+  const Function* VM::method_of(const Class* c, const std::string& name) const
+  {
+    if (auto m = c->methods.find(name); m != c->methods.end())
+    {
+      auto f = every_.find(m->second);
+      if (f != every_.end()) { return f->second; }
+    }
+    for (const std::string& s : c->supers)
+    {
+      auto it = classes_.find(s);
+      if (it == classes_.end()) { continue; }
+      if (const Function* f = method_of(it->second, name)) { return f; }
+    }
+    return nullptr;
   }
 
   Value VM::call_value(const Value& block, Args args)
@@ -827,6 +1156,7 @@ namespace
     {
       case 'N': return std::get<double>(a.v) == std::get<double>(b.v);
       case 'L': return std::get<bool>(a.v) == std::get<bool>(b.v);
+      case 'F': return dec_cmp(std::get<Dec>(a.v), std::get<Dec>(b.v)) == 0;
       case 'D': return std::get<Date>(a.v).day == std::get<Date>(b.v).day;
       case 'C':
       {
@@ -870,6 +1200,7 @@ namespace
           return x < y ? -1 : x > y ? 1 : 0;
         }
         case 'L': return static_cast<int>(std::get<bool>(a.v)) - static_cast<int>(std::get<bool>(b.v));
+        case 'F': return dec_cmp(std::get<Dec>(a.v), std::get<Dec>(b.v));
         default: break;
       }
     }
@@ -918,6 +1249,15 @@ namespace
     const Value& o = deref(o0);
     auto obj = std::get_if<std::shared_ptr<Object>>(&o.v);
     if (!obj || (*obj)->kind == Object::Hash) { fail("no member " + name + " of " + std::string(1, type_of(o))); }
+    if ((*obj)->kind == Object::Instance)
+    {
+      std::string u = upper(name);
+      for (auto& [k, v] : (*obj)->props)
+      {
+        if (k == u) { return v; }
+      }
+      fail("no data " + name + " of " + (*obj)->cls->name);
+    }
     for (auto& [k, v] : (*obj)->props)
     {
       if (k == name) { return v; }
@@ -935,6 +1275,19 @@ namespace
     const Value& o = deref(o0);
     auto obj = std::get_if<std::shared_ptr<Object>>(&o.v);
     if (!obj || (*obj)->kind == Object::Hash) { fail("no member " + name + " of " + std::string(1, type_of(o))); }
+    if ((*obj)->kind == Object::Instance)
+    {
+      std::string u = upper(name);
+      for (auto& [k, v] : (*obj)->props)
+      {
+        if (k == u)
+        {
+          v = deref(x);
+          return;
+        }
+      }
+      fail("no data " + name + " of " + (*obj)->cls->name);
+    }
     for (auto& [k, v] : (*obj)->props)
     {
       if (k == name || ((*obj)->kind == Object::Error && upper(k) == upper(name)))
@@ -952,6 +1305,47 @@ namespace
     char t = type_of(k);
     if (t == 'N' || t == 'C' || t == 'L' || t == 'D') { return std::string(1, t) + text(k); }
     fail(std::string("a hash's key is ") + t);
+  }
+
+  // A value as JSON's text, as JsonObject:toJson() writes it.
+  std::string VM::json_text(const Value& x0)
+  {
+    const Value& x = deref(x0);
+    switch (type_of(x))
+    {
+      case 'N': return num_text(std::get<double>(x.v));
+      case 'F': return dec_text(std::get<Dec>(x.v));
+      case 'L': return std::get<bool>(x.v) ? "true" : "false";
+      case 'C':
+      {
+        std::string out = "\"";
+        for (char c : std::get<std::string>(x.v))
+        {
+          if (c == '"' || c == '\\') { out += '\\'; }
+          if (c == '\n') { out += "\\n"; }
+          else if (c == '\r') { out += "\\r"; }
+          else if (c == '\t') { out += "\\t"; }
+          else { out += c; }
+        }
+        return out + "\"";
+      }
+      case 'A':
+      {
+        std::string out = "[";
+        for (const Value& y : *std::get<ArrayP>(x.v)) { out += (out.size() > 1 ? "," : "") + json_text(y); }
+        return out + "]";
+      }
+      case 'J':
+      {
+        std::string out = "{";
+        for (const auto& [k, v] : std::get<std::shared_ptr<Object>>(x.v)->props)
+        {
+          out += (out.size() > 1 ? "," : "") + json_text(S(k)) + ":" + json_text(v);
+        }
+        return out + "}";
+      }
+      default: return "null";
+    }
   }
 
   Value VM::method(const Value& o0, const std::string& name, Args& args)
@@ -1001,6 +1395,18 @@ namespace
         auto list = std::make_shared<Array>();
         for (auto& [k, v] : (*obj)->props) { list->push_back(S(k)); }
         return A(list);
+      }
+      if (m == "TOJSON") { return S(json_text(o)); }
+      if (m == "GETJSONTEXT" || m == "GETJSONOBJECT")
+      {
+        std::string k = text(at(args, 0));
+        for (auto& p : (*obj)->props)
+        {
+          if (p.first != k) { continue; }
+          if (m == "GETJSONOBJECT") { return type_of(p.second) == 'J' ? p.second : Value(); }
+          return S(type_of(p.second) == 'C' ? std::get<std::string>(p.second.v) : json_text(p.second));
+        }
+        return m == "GETJSONOBJECT" ? Value() : S("null");
       }
       if (m == "HASPROPERTY")
       {
@@ -1214,6 +1620,13 @@ namespace
         case Op::Neg:
         {
           Value x = deref(pop());
+          if (auto fd = std::get_if<Dec>(&x.v))
+          {
+            Value r;
+            r.v = dec_neg(*fd);
+            st.push_back(r);
+            break;
+          }
           auto d = std::get_if<double>(&x.v);
           if (!d) { fail(std::string("type mismatch on -: ") + type_of(x)); }
           st.push_back(N(-*d));
@@ -1282,9 +1695,42 @@ namespace
         case Op::Method:
         {
           Args a = take(static_cast<std::size_t>(in.a));
-          Value o = pop();
+          Value o = deref(pop());
+          if (auto obj = std::get_if<std::shared_ptr<Object>>(&o.v); obj && (*obj)->kind == Object::Instance)
+          {
+            const Function* fn = method_of((*obj)->cls, upper(in.s));
+            if (!fn) { fail("no method " + in.s + " of " + (*obj)->cls->name); }
+            push_frame(fn, a, nullptr, o);
+            break;
+          }
           Value r = method(o, in.s, a);
           frames_.back()->stack.push_back(std::move(r));
+          break;
+        }
+        case Op::Super:
+        {
+          // The method of a class above the one the running method is of.
+          Args a = take(static_cast<std::size_t>(in.a));
+          std::string fn = upper(f.fn->name);
+          fn = fn.substr(0, fn.find('#'));
+          std::size_t colon = fn.find(':');
+          auto c = colon == std::string::npos ? classes_.end() : classes_.find(fn.substr(0, colon));
+          if (c == classes_.end()) { fail("_Super outside a method"); }
+          const Function* m = nullptr;
+          for (const std::string& sup : c->second->supers)
+          {
+            auto it = classes_.find(sup);
+            if (!m && it != classes_.end()) { m = method_of(it->second, upper(in.s)); }
+          }
+          if (m)
+          {
+            Value self = f.self;
+            push_frame(m, a, nullptr, self);
+            break;
+          }
+          // A class above that is the AppServer's: its constructor is Self.
+          if (upper(in.s) != "NEW") { fail("no method " + in.s + " above " + c->second->name); }
+          st.push_back(f.self);
           break;
         }
         case Op::Ret:
@@ -1402,13 +1848,6 @@ namespace
     fail(std::string(fn) + ": argument " + std::to_string(i + 1) + " is no array");
   }
 
-  std::shared_ptr<Object> VM::object_arg(const Args& a, std::size_t i, Object::Kind k, const char* fn)
-  {
-    auto o = std::get_if<std::shared_ptr<Object>>(&at(a, i).v);
-    if (o && (*o)->kind == k) { return *o; }
-    fail(std::string(fn) + ": argument " + std::to_string(i + 1) + " is no " + (k == Object::Hash ? "THashMap" : "JsonObject"));
-  }
-
   void VM::natives()
   {
     auto& n = natives_;
@@ -1434,7 +1873,7 @@ namespace
     n["QOUT"] = n["CONOUT"];
     n["CVALTOCHAR"] = [](Args& a) { return S(text(at(a, 0))); };
     n["VALTYPE"] = [](Args& a) { return S(std::string(1, type_of(at(a, 0)))); };
-    n["EMPTY"] = [](Args& a)
+    n["EMPTY"] = [this](Args& a)
     {
       const Value& x = at(a, 0);
       switch (type_of(x))
@@ -1445,6 +1884,7 @@ namespace
         case 'L': return L(!std::get<bool>(x.v));
         case 'D': return L(std::get<Date>(x.v).day == EMPTY_DAY);
         case 'A': return L(std::get<ArrayP>(x.v)->empty());
+        case 'F': fail("Empty: unknown variable type");
         default: return L(false);
       }
     };
@@ -1729,6 +2169,14 @@ namespace
       return N(r != 0 && ((r < 0) != (y < 0)) ? r + y : r);
     };
     n["SQRT"] = [this](Args& a) { return N(std::sqrt(num_arg(a, 0, "Sqrt"))); };
+    n["RANDOM"] = [this](Args& a)
+    {
+      long lo = static_cast<long>(num_arg(a, 0, "Random"));
+      long hi = static_cast<long>(num_arg(a, 1, "Random"));
+      if (hi < lo) { std::swap(lo, hi); }
+      return N(static_cast<double>(std::uniform_int_distribution<long>(lo, hi)(random_)));
+    };
+    n["RANDOMIZE"] = n["RANDOM"];
 
     // Dates.
     n["DTOS"] = [this](Args& a)
@@ -1791,6 +2239,85 @@ namespace
       n[f] = [](Args&) { return Value(); };
     }
 
+    // Decimals: the DEC_ functions TL++ has (probes xdf, xdg, on 24.3.1.9);
+    // DEC_DIV and DEC_POW give 120 decimals, as there.
+    auto dec_arg = [this](const Args& a, std::size_t i, const char* fn) -> Dec
+    {
+      if (auto d = std::get_if<Dec>(&at(a, i).v)) { return *d; }
+      fail(std::string(fn) + ": argument " + std::to_string(i + 1) + " is no Decimal");
+    };
+    auto decimal = [](Dec d)
+    {
+      Value x;
+      x.v = std::move(d);
+      return x;
+    };
+    n["DEC_CREATE"] = [this, decimal](Args& a)
+    {
+      const Value& x = at(a, 0);
+      std::string t = type_of(x) == 'N' ? num_text(std::get<double>(x.v)) : type_of(x) == 'F' ? text(x) : str_arg(a, 0, "DEC_CREATE");
+      int precision = static_cast<int>(num_arg(a, 1, "DEC_CREATE"));
+      int scale = static_cast<int>(num_arg(a, 2, "DEC_CREATE"));
+      if (precision < 1 || precision > 64 || scale < 0 || scale > precision) { fail("DEC_CREATE: precision or scale out of range"); }
+      Dec d;
+      if (!dec_parse(t, d)) { fail("DEC_CREATE: '" + t + "' is no number"); }
+      d = dec_rescale(d, scale, 2);
+      if (static_cast<int>(d.digits.size()) > precision) { fail("Decimal number overflow"); }
+      return decimal(d);
+    };
+    n["DEC_ADD"] = [dec_arg, decimal](Args& a) { return decimal(dec_add(dec_arg(a, 0, "DEC_ADD"), dec_arg(a, 1, "DEC_ADD"))); };
+    n["DEC_SUB"] = [dec_arg, decimal](Args& a)
+    {
+      return decimal(dec_add(dec_arg(a, 0, "DEC_SUB"), dec_neg(dec_arg(a, 1, "DEC_SUB"))));
+    };
+    n["DEC_MUL"] = [dec_arg, decimal](Args& a) { return decimal(dec_mul(dec_arg(a, 0, "DEC_MUL"), dec_arg(a, 1, "DEC_MUL"))); };
+    n["DEC_DIV"] = [this, dec_arg, decimal](Args& a)
+    {
+      Dec b = dec_arg(a, 1, "DEC_DIV");
+      if (b.digits == "0") { fail("zero division"); }
+      return decimal(dec_div(dec_arg(a, 0, "DEC_DIV"), b, 120));
+    };
+    n["DEC_MOD"] = [this, dec_arg, decimal](Args& a)
+    {
+      Dec b = dec_arg(a, 1, "DEC_MOD");
+      if (b.digits == "0") { fail("zero division"); }
+      return decimal(dec_mod(dec_arg(a, 0, "DEC_MOD"), b));
+    };
+    n["DEC_POW"] = [this, dec_arg, decimal](Args& a)
+    {
+      // A whole exponent multiplies; any other goes by the numbers.
+      Dec x = dec_arg(a, 0, "DEC_POW");
+      Dec e = dec_arg(a, 1, "DEC_POW");
+      Dec whole = dec_rescale(e, 0, 2);
+      if (dec_cmp(whole, e) == 0 && whole.digits.size() < 6)
+      {
+        long k = std::stol(whole.digits);
+        Dec r{ false, "1", 0 };
+        for (long i = 0; i < k; i++) { r = dec_mul(r, x); }
+        if (whole.neg)
+        {
+          if (r.digits == "0") { fail("zero division"); }
+          r = dec_div(Dec{ false, "1", 0 }, r, 120);
+        }
+        return decimal(dec_align(r, 120));
+      }
+      Dec r;
+      dec_parse(num_text(std::pow(std::strtod(dec_text(x).c_str(), nullptr), std::strtod(dec_text(e).c_str(), nullptr))), r);
+      return decimal(dec_align(r, 120));
+    };
+    n["DEC_RESCALE"] = [this, dec_arg, decimal](Args& a)
+    {
+      int mode = is_nil(at(a, 2)) ? 0 : static_cast<int>(num_arg(a, 2, "DEC_RESCALE"));
+      return decimal(dec_rescale(dec_arg(a, 0, "DEC_RESCALE"), static_cast<int>(num_arg(a, 1, "DEC_RESCALE")), mode));
+    };
+    n["DEC_ROUND"] = [this, dec_arg, decimal](Args& a)
+    {
+      // Rounded, and as many decimals as it had: DEC_ROUND(1.25, 1) is 1.30.
+      Dec d = dec_arg(a, 0, "DEC_ROUND");
+      return decimal(dec_align(dec_rescale(d, static_cast<int>(num_arg(a, 1, "DEC_ROUND")), 0), d.scale));
+    };
+    n["DEC_TO_DBL"] = [dec_arg](Args& a) { return N(std::strtod(dec_text(dec_arg(a, 0, "DEC_TO_DBL")).c_str(), nullptr)); };
+
     // Files: File(), and the FT_ functions' text file, line by line.
     n["FILE"] = [this](Args& a)
     {
@@ -1825,216 +2352,9 @@ namespace
       return Value();
     };
 
-    // THashMap, JsonObject, and the runtime's functions for them.
+    // THashMap and JsonObject: Class():New().
     n["THASHMAP"] = [new_object](Args&) { return new_object(Object::Hash); };
     n["JSONOBJECT"] = [new_object](Args&) { return new_object(Object::Json); };
-    n["U_XTPL_HNEW"] = [this, new_object](Args& a)
-    {
-      Value h = new_object(Object::Hash);
-      for (const Value& p : *array_arg(a, 0, "u_xtpl_hnew"))
-      {
-        Args kv{ p };
-        ArrayP pair = array_arg(kv, 0, "u_xtpl_hnew");
-        Args set{ pair->size() > 0 ? (*pair)[0] : Value(), pair->size() > 1 ? (*pair)[1] : Value() };
-        method(h, "Set", set);
-      }
-      return h;
-    };
-    n["U_XTPL_JNEW"] = [this, new_object](Args& a)
-    {
-      Value j = new_object(Object::Json);
-      for (const Value& p : *array_arg(a, 0, "u_xtpl_jnew"))
-      {
-        Args kv{ p };
-        ArrayP pair = array_arg(kv, 0, "u_xtpl_jnew");
-        set_index(j, pair->size() > 0 ? (*pair)[0] : Value(), pair->size() > 1 ? (*pair)[1] : Value());
-      }
-      return j;
-    };
-    n["U_XTPL_HGET"] = [this](Args& a)
-    {
-      auto o = object_arg(a, 0, Object::Hash, "u_xtpl_hget");
-      auto it = o->hash.find(key_text(at(a, 1)));
-      return it == o->hash.end() ? Value() : it->second.second;
-    };
-    n["U_XTPL_HSET"] = [this](Args& a)
-    {
-      auto o = object_arg(a, 0, Object::Hash, "u_xtpl_hset");
-      o->hash[key_text(at(a, 1))] = { at(a, 1), at(a, 2) };
-      return at(a, 2);
-    };
-    n["U_XTPL_HHAS"] = [this](Args& a)
-    {
-      auto o = object_arg(a, 0, Object::Hash, "u_xtpl_hhas");
-      return L(o->hash.count(key_text(at(a, 1))) > 0);
-    };
-    n["U_XTPL_SEEN"] = [this](Args& a)
-    {
-      // The runtime's: by type and text, the values of one key compared
-      // with '=='.
-      auto o = object_arg(a, 0, Object::Hash, "u_xtpl_seen");
-      const Value& x = at(a, 1);
-      char t = type_of(x);
-      std::string k = std::string(1, t) + (std::string("CNDL").find(t) != std::string::npos ? text(x) : "");
-      auto it = o->hash.find(k);
-      if (it == o->hash.end())
-      {
-        o->hash[k] = { S(k), A(std::make_shared<Array>(Array{ x })) };
-        return L(false);
-      }
-      ArrayP same = std::get<ArrayP>(it->second.second.v);
-      for (const Value& y : *same)
-      {
-        if (equal(y, x, true, "==")) { return L(true); }
-      }
-      same->push_back(x);
-      return L(false);
-    };
-    n["U_XTPL_IN"] = [this](Args& a)
-    {
-      Args scan{ at(a, 1), at(a, 0) };
-      return L(std::get<double>(natives_["ASCAN"](scan).v) > 0);
-    };
-
-    // Some of the runtime's verbs.
-    n["U_XTPL_MAP"] = [this](Args& a)
-    {
-      auto out = std::make_shared<Array>();
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_map")) { out->push_back(call_value(at(a, 1), { x })); }
-      return A(out);
-    };
-    n["U_XTPL_FILTER"] = [this](Args& a)
-    {
-      auto out = std::make_shared<Array>();
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_filter"))
-      {
-        if (evals_true(at(a, 1), { x }, "u_xtpl_filter")) { out->push_back(x); }
-      }
-      return A(out);
-    };
-    n["U_XTPL_REDUCE"] = [this](Args& a)
-    {
-      Value acc = at(a, 2);
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_reduce")) { acc = call_value(at(a, 1), { acc, x }); }
-      return acc;
-    };
-    n["U_XTPL_ASUM"] = [this](Args& a)
-    {
-      Value acc = N(0);
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_asum")) { acc = arith(Op::Add, acc, x); }
-      return acc;
-    };
-    n["U_XTPL_COUNT"] = [this](Args& a)
-    {
-      ArrayP arr = array_arg(a, 0, "u_xtpl_count");
-      if (is_nil(at(a, 1))) { return N(static_cast<double>(arr->size())); }
-      double k = 0;
-      for (const Value& x : *arr)
-      {
-        if (evals_true(at(a, 1), { x }, "u_xtpl_count")) { k++; }
-      }
-      return N(k);
-    };
-    n["U_XTPL_FIRST"] = [this](Args& a)
-    {
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_first"))
-      {
-        if (evals_true(at(a, 1), { x }, "u_xtpl_first")) { return x; }
-      }
-      return Value();
-    };
-    n["U_XTPL_ANYOF"] = [this](Args& a)
-    {
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_anyof"))
-      {
-        if (evals_true(at(a, 1), { x }, "u_xtpl_anyof")) { return L(true); }
-      }
-      return L(false);
-    };
-    n["U_XTPL_ALLOF"] = [this](Args& a)
-    {
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_allof"))
-      {
-        if (!evals_true(at(a, 1), { x }, "u_xtpl_allof")) { return L(false); }
-      }
-      return L(true);
-    };
-    n["U_XTPL_JOIN"] = [this](Args& a)
-    {
-      std::string sep = is_nil(at(a, 1)) ? "" : str_arg(a, 1, "u_xtpl_join");
-      std::string out;
-      bool first = true;
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_join"))
-      {
-        out += (first ? "" : sep) + text(x);
-        first = false;
-      }
-      return S(out);
-    };
-    n["U_XTPL_SPLIT"] = [this](Args& a)
-    {
-      std::string s = str_arg(a, 0, "u_xtpl_split");
-      std::string sep = is_nil(at(a, 1)) ? "" : str_arg(a, 1, "u_xtpl_split");
-      auto out = std::make_shared<Array>();
-      if (sep.empty())
-      {
-        out->push_back(S(s));
-        return A(out);
-      }
-      std::size_t i = 0;
-      for (std::size_t p; (p = s.find(sep, i)) != std::string::npos; i = p + sep.size()) { out->push_back(S(s.substr(i, p - i))); }
-      out->push_back(S(s.substr(i)));
-      return A(out);
-    };
-    auto listed = [this](Args& a, int which, const char* fn)
-    {
-      auto o = object_arg(a, 0, Object::Hash, fn);
-      auto out = std::make_shared<Array>();
-      for (auto& [k, kv] : o->hash) { out->push_back(which == 0 ? kv.first : kv.second); }
-      return A(out);
-    };
-    n["U_XTPL_KEYS"] = [listed](Args& a) { return listed(a, 0, "u_xtpl_keys"); };
-    n["U_XTPL_VALUES"] = [listed](Args& a) { return listed(a, 1, "u_xtpl_values"); };
-    n["U_XTPL_DISTINCT"] = [this](Args& a)
-    {
-      auto out = std::make_shared<Array>();
-      Value seen;
-      seen.v = std::make_shared<Object>(Object{ Object::Hash, {}, {} });
-      for (const Value& x : *array_arg(a, 0, "u_xtpl_distinct"))
-      {
-        Args q{ seen, x };
-        if (!std::get<bool>(natives_["U_XTPL_SEEN"](q).v)) { out->push_back(x); }
-      }
-      return A(out);
-    };
-    n["U_XTPL_REVERSE"] = [this](Args& a)
-    {
-      ArrayP arr = array_arg(a, 0, "u_xtpl_reverse");
-      return A(std::make_shared<Array>(arr->rbegin(), arr->rend()));
-    };
-    auto slice = [this](Args& a, bool take, const char* fn)
-    {
-      ArrayP arr = array_arg(a, 0, fn);
-      std::size_t k = std::min(arr->size(), static_cast<std::size_t>(std::max(0.0, num_arg(a, 1, fn))));
-      return take ? A(std::make_shared<Array>(arr->begin(), arr->begin() + static_cast<std::ptrdiff_t>(k)))
-                  : A(std::make_shared<Array>(arr->begin() + static_cast<std::ptrdiff_t>(k), arr->end()));
-    };
-    n["U_XTPL_TAKE"] = [slice](Args& a) { return slice(a, true, "u_xtpl_take"); };
-    n["U_XTPL_DROP"] = [slice](Args& a) { return slice(a, false, "u_xtpl_drop"); };
-    n["U_XTPL_SORTBY"] = [this](Args& a)
-    {
-      auto out = std::make_shared<Array>(*array_arg(a, 0, "u_xtpl_sortby"));
-      bool desc = !is_nil(at(a, 2)) && logical(at(a, 2), "u_xtpl_sortby");
-      std::vector<std::pair<Value, Value>> keyed;
-      for (const Value& x : *out) { keyed.push_back({ call_value(at(a, 1), { x }), x }); }
-      std::stable_sort(keyed.begin(), keyed.end(), [&](const auto& p, const auto& q)
-      {
-        int c = order(p.first, q.first, "u_xtpl_sortby");
-        return desc ? c > 0 : c < 0;
-      });
-      for (std::size_t i = 0; i < keyed.size(); i++) { (*out)[i] = keyed[i].second; }
-      return A(out);
-    };
   }
 
   // ---- the program's run ----------------------------------------------------
@@ -2067,7 +2387,7 @@ namespace
       else if (auto g = globals_.find("U_MAIN"); g != globals_.end()) { fn = g->second; }
       else if (!modules_.empty())
       {
-        for (const auto& f : modules_[0]->fns)
+        for (const auto& f : modules_.back()->fns)
         {
           if (!fn && f->kind == "user") { fn = f.get(); }
         }

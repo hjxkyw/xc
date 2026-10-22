@@ -1,0 +1,6 @@
+exit 0
+--- output
+118.89
+.F.
+.T.
+--- errors

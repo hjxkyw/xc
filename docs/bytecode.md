@@ -70,6 +70,12 @@ is nothing. The file is windows-1252, as the source was.
 - `xbc 1` -- the format and its version, the first line.
 - `source NAME` -- the source it was made from.
 - `statics N` -- how many statics the module has, numbered from 1.
+- `class NAME` ... `end` -- a class of the module, in upper case, after
+  `statics` and before the functions. Inside it, `from NAME...` names the
+  classes above it; `data NAME...` its data; `init FUNCTION` the function
+  that gives them the values they start at, when one has one; `method NAME
+  FUNCTION` each of its methods and the function that is its body. Only
+  `class` and `end` must be there.
 - `function NAME KIND PARAMS LOCALS` ... `end` -- a function: its name as
   it is called, in upper case; its kind; how many parameters it takes; how
   many locals its frame has, the parameters the first of them. Then its
@@ -90,10 +96,56 @@ The kinds:
 | `main` | a `Main Function` | its name |
 | `block` | the body of a code block or a lambda | its function's, `#` and a number: `U_SOMA#1` |
 | `init` | the statics' values, run once when the module is loaded, first | `__INIT` |
+| `method` | a `Method` of a class: Self is the object it runs on | its class's, `:` and its own: `CONTA:DEPOSITA` |
+| `data` | the values a class's data start at, run on each new object, Self the object | its class's and `:__DATA`: `CONTA:__DATA` |
 
-A `static` function is the module's own; the others are any module's to
-call. The blocks of a function come right after it, in the order their
-numbers say.
+A `static` function is the module's own; `user`, `function` and `main` are
+any module's to call; a `method` and a `data` are a class's, for a `class`
+to name -- no `call` finds them. The blocks of a function come right after
+it, in the order their numbers say.
+
+```xtpl
+Class Conta
+  Data nSaldo as Numeric
+  Method Deposita(nValor)
+EndClass
+
+Method Deposita(nValor) Class Conta
+  ::nSaldo += nValor
+Return Self
+```
+
+```text
+class CONTA
+  data NSALDO
+  init CONTA:__DATA
+  method DEPOSITA CONTA:DEPOSITA
+end
+
+function CONTA:__DATA data 0 0
+  locals
+  line 2
+  self
+  num 0
+  setmember NSALDO
+  nil
+  ret
+end
+
+function CONTA:DEPOSITA method 1 1
+  locals nValor
+  line 7
+  self
+  dup
+  member nSaldo
+  local 1
+  add
+  setmember nSaldo
+  line 8
+  self
+  ret
+end
+```
 
 A word of an instruction is separated from the next by one blank or more.
 A string is the last thing on its line, between double quotes: from the
@@ -162,7 +214,7 @@ and writes it back the same way.
 | `setindex` | `[a i x] ->`: `a[i] := x` |
 | `member NAME` | `[o] -> [o:NAME]` |
 | `setmember NAME` | `[o x] ->`: `o:NAME := x` |
-| `self` | `-> [Self]`; in a code block's function, the Self of the frame that made the block |
+| `self` | `-> [Self]`: in a method, the object it runs on; in a code block's function, the Self of the frame that made the block |
 
 ### Operators
 
@@ -197,9 +249,10 @@ Each is AdvPL's own, on the values as they are:
 
 | instruction | does |
 |---|---|
-| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a function of the module by that name in upper case, else one any module has for others to call, else the AppServer's |
+| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a class any module has by that name in upper case -- a new object of it --, else a function of the module, else one any module has for others to call, else the AppServer's |
 | `callx ARGC` | `[name x1 ... xARGC] -> [result]`: `&name.(...)` |
 | `method ARGC NAME` | `[o x1 ... xARGC] -> [o:NAME(...)]` |
+| `super ARGC NAME` | `[x1 ... xARGC] -> [result]`: `_Super:NAME(...)` -- the method NAME of the classes above the one the running method is of, on Self |
 | `ret` | `[x] ->`: the frame ends, and the caller gets `x` |
 | `block NAME K` | `[c1 ... cK] -> [b]`: a code block whose body is the function NAME, its cells `c1 ... cK` |
 | `macro` | `[text] -> [&(text)]` |
@@ -217,6 +270,20 @@ by anything given it, an AppServer function included: the interpreter
 hands those one of the AppServer's own code blocks that runs it. Its cells
 are what it shares with the function that made it: `refcell N` pushes local
 N's, `refupval N` the block's own cell N, for one inside another.
+
+### Classes
+
+`Conta()` -- a `call` of a class's name -- makes an object of it: the data
+of the classes above it and its own, each once, Nil; then each class's
+`init` function runs on it, the topmost class's first. The arguments are
+not used: `Conta():New(...)` is what gives it its values. On an object of a
+module's class, `member` and `setmember` read and set its data -- NAME in
+upper case; one it does not have is an error --, and `method` runs the
+function its class names for NAME, else the one a class above it names, in
+the order `from` says: a frame like a call's, Self the object. With none, it is an error
+("no method NAME of CLASS"). A class above that is no module's is the
+AppServer's: `super ARGC NEW` of one leaves Self, and its other methods are
+not there.
 
 ### Sequences and errors
 
@@ -279,6 +346,13 @@ the body, after the `Catch`, and on an `Exit`, a `Loop` or a `Return` out of
 either --, `Begin Transaction` a call of `BeginTran()` before its body and
 `EndTran()` after. An `Exit` or a `Loop` ends the regions it leaves.
 
+A `Class` is a `class`, its `Method`s functions of kind `method`; an
+`Interface` is nothing, being signatures. A `Data`'s `Default` or `Init`
+value is what it starts at; one with none and a type starts where a typed
+`Local` does -- in a `.prw`, at Nil. The machine does not check a member's
+visibility. `Self` is `self`, `::x` Self's `x`, `_Super:New(...)` a
+`super`.
+
 xtpl's own forms are what they are for TL++:
 
 - a hash is the runtime's: `{"a" => 1}` is `u_xtpl_hnew({{"a", 1}})`,
@@ -320,7 +394,7 @@ be there for these, as for TL++.
 
 xc says so, and writes no `.xbc`:
 
-- classes and their methods; a namespace;
+- a namespace; a web service's method (`WsMethod`);
 - what is the preprocessor's: `raw`, a command -- TOTVS' `@ ... SAY`,
   `BeginSql`, one of the source's own --, a translation of the source's
   own, a directive inside a function, `#ifdef` and its kin, a `#define`
@@ -333,16 +407,23 @@ A `#define` from an include file is not seen: its name is a memvar.
 
 `xc-vm [--run=NAME] module.xbc ...` loads the modules, runs each one's
 `__INIT` in the order given, then NAME -- `U_MAIN` when it is not given and
-there is one, else the first user function of the first module -- with no
-arguments. What `ConOut()` is given goes to its output; an error nothing
-catches goes to its errors, with the function and the line, and the exit
-code is 1. ctest's `bytecode` runs it on the cases in `cpp/tests/bytecode`
-(`cpp/tests/bytecode.cmake` says how).
+there is one, else the first user function of the last module -- with no
+arguments. What `ConOut()` is given goes to its output, a line for each
+argument; an error nothing catches goes to its errors, with the function and
+the line, and the exit code is 1.
+
+xtpl's runtime is a module like any other: `xc --bytecode
+runtime/xtpl_runtime.tlpp` makes it, and it goes first, the program last --
+`xc-vm xtpl_runtime.xbc prog.xbc`. ctest's `bytecode` runs the cases in
+`cpp/tests/bytecode` so (`cpp/tests/bytecode.cmake` says how), and
+`selftests` the runtime's own tests and xc's -- `xtpl/tests/54_selftest.xtpl`
+and `protheus/xc_selftest.xtpl`, the programs the AppServer runs.
 
 It is the machine this page describes, and of the AppServer only what the
-tests need: some of the strings', numbers', dates' and arrays' functions,
-`Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; `File()` and the `FT_`
-functions, for a text file; `THashMap` and `JsonObject`; the runtime's
-functions for hashes, JSON objects, `in` and `distinct`, and some of its
-verbs. A work area is a name -- it can be selected and put back, and has
-no records --, there are no Decimals, and a macro is a variable's name.
+runtime and the tests need: some of the strings', numbers', dates' and
+arrays' functions, `Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; the
+`DEC_` functions, on exact decimals; `File()` and the `FT_` functions, for a
+text file; `THashMap` and `JsonObject`, with the methods the runtime calls.
+`Random()` starts from the same seed each run, so a run repeats. A work
+area is a name -- it can be selected and put back, and has no records --,
+and a macro is a variable's name.

@@ -75,8 +75,12 @@ add_test(NAME style
          COMMAND ${CMAKE_COMMAND} -DROOT=${PROJECT_SOURCE_DIR}/.. -P ${PROJECT_SOURCE_DIR}/tests/style.cmake)
 add_test(NAME bytecode
          COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm>
+                 -DRUNTIME=${PROJECT_SOURCE_DIR}/../runtime/xtpl_runtime.tlpp
                  -DCASES=${PROJECT_SOURCE_DIR}/tests/bytecode -DWORK=${CMAKE_CURRENT_BINARY_DIR}/bytecode
                  -P ${PROJECT_SOURCE_DIR}/tests/bytecode.cmake)
+add_test(NAME selftests
+         COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/selftests -P ${PROJECT_SOURCE_DIR}/tests/selftests.cmake)
 
 foreach(t xclib xc xc-outputs xc-cases xc-doc xc-vm)
   if(MSVC)

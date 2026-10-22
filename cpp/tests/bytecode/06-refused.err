@@ -1,4 +1,2 @@
-06-refused.xtpl:4: a class ('Conta') cannot become bytecode yet
-06-refused.xtpl:9: a method ('Conta:New') cannot become bytecode yet
-06-refused.xtpl:15: a command for the preprocessor ('@ 10, 5 SAY "Total"') cannot become bytecode yet
-06-refused.xtpl:16: '@' before what is not a variable -- an element, a member cannot become bytecode yet
+06-refused.xtpl:6: a command for the preprocessor ('@ 10, 5 SAY "Total"') cannot become bytecode yet
+06-refused.xtpl:7: '@' before what is not a variable -- an element, a member cannot become bytecode yet
