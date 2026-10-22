@@ -1,2 +1,3 @@
 06-refused.xtpl:6: a command for the preprocessor ('@ 10, 5 SAY "Total"') cannot become bytecode yet
 06-refused.xtpl:7: '@' before what is not a variable -- an element, a member cannot become bytecode yet
+06-refused.xtpl:10: a static method ('Contador:Zero') cannot become bytecode yet

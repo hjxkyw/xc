@@ -1,0 +1,17 @@
+// A class is no function: 'Ponto()' alone, or 'Ponto(1):New()', fails when
+// it runs ("cannot find function PONTO in AppMap", tried on 24.3.1.9); only
+// 'Ponto():New(...)' makes an object.
+Class Ponto
+  Public Data nX as Numeric
+  Public Method New(nX) Constructor
+EndClass
+
+Method New(nX) Class Ponto
+  ::nX := nX
+Return Self
+
+User Function ClassCall()
+  Local oA := Ponto()
+  Local oB := Ponto(1):New()
+  Local oC := Ponto():New(2)
+Return {oA, oB, oC}

@@ -255,8 +255,7 @@ function U_MAIN user 0 178
   line 27
   true
   setlocal 31
-  call 0 THashMap
-  method 0 New
+  new 0 THashMap New
   setlocal 32
   array 0
   setlocal 33
@@ -266,23 +265,23 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 289
+  jumpf 288
   local 1
   local 29
   index
   setlocal 30
   local 31
-  andjump 273
+  andjump 272
   local 30
   num 5
   ne
-  jumpt 284
+  jumpt 283
   false
   setlocal 31
   local 32
   local 30
   call 2 u_xtpl_seen
-  jumpt 284
+  jumpt 283
   local 33
   local 30
   call 2 AAdd
@@ -291,7 +290,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 29
-  jump 259
+  jump 258
   local 33
   setlocal 3
   line 28
@@ -334,7 +333,7 @@ function U_MAIN user 0 178
   local 34
   call 1 Len
   le
-  jumpf 359
+  jumpf 358
   local 34
   local 35
   index
@@ -342,11 +341,11 @@ function U_MAIN user 0 178
   local 36
   setlocal 39
   local 37
-  andjump 343
+  andjump 342
   local 39
   local 38
   exact
-  jumpt 354
+  jumpt 353
   true
   setlocal 37
   local 39
@@ -361,7 +360,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 35
-  jump 327
+  jump 326
   local 40
   setlocal 3
   line 32
@@ -385,7 +384,7 @@ function U_MAIN user 0 178
   local 2
   call 1 Len
   le
-  jumpf 411
+  jumpf 410
   local 2
   local 41
   index
@@ -396,11 +395,11 @@ function U_MAIN user 0 178
   exact
   setlocal 45
   local 43
-  andjump 397
+  andjump 396
   local 45
   local 44
   exact
-  jumpt 406
+  jumpt 405
   true
   setlocal 43
   local 45
@@ -413,7 +412,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 41
-  jump 378
+  jump 377
   local 46
   setlocal 3
   line 34
@@ -439,7 +438,7 @@ function U_MAIN user 0 178
   local 47
   call 1 Len
   le
-  jumpf 472
+  jumpf 471
   local 47
   local 48
   index
@@ -452,7 +451,7 @@ function U_MAIN user 0 178
   local 50
   call 1 Len
   le
-  jumpf 467
+  jumpf 466
   local 50
   local 51
   index
@@ -469,12 +468,12 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 51
-  jump 445
+  jump 444
   local 48
   num 1
   add
   setlocal 48
-  jump 432
+  jump 431
   local 52
   setlocal 3
   line 36
@@ -496,7 +495,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 522
+  jumpf 521
   local 1
   local 53
   index
@@ -504,8 +503,8 @@ function U_MAIN user 0 178
   local 55
   num 4
   ge
-  jumpf 503
-  jump 522
+  jumpf 502
+  jump 521
   local 55
   num 1
   add
@@ -524,7 +523,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 53
-  jump 489
+  jump 488
   local 57
   setlocal 3
   line 38
@@ -548,7 +547,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 590
+  jumpf 589
   local 1
   local 58
   index
@@ -556,8 +555,8 @@ function U_MAIN user 0 178
   local 60
   num 4
   ge
-  jumpf 555
-  jump 590
+  jumpf 554
+  jump 589
   local 60
   num 1
   add
@@ -571,7 +570,7 @@ function U_MAIN user 0 178
   true
   setlocal 62
   local 64
-  jumpf 585
+  jumpf 584
   local 63
   local 59
   array 2
@@ -592,7 +591,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 58
-  jump 541
+  jump 540
   local 65
   setlocal 3
   line 40
@@ -625,7 +624,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 640
+  jumpf 639
   local 1
   local 66
   index
@@ -633,7 +632,7 @@ function U_MAIN user 0 178
   local 67
   num 1
   exact
-  jumpf 635
+  jumpf 634
   local 68
   num 1
   add
@@ -642,7 +641,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 66
-  jump 618
+  jump 617
   local 68
   setlocal 6
   line 45
@@ -658,7 +657,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 676
+  jumpf 675
   local 1
   local 69
   index
@@ -670,15 +669,15 @@ function U_MAIN user 0 178
   local 70
   num 15
   gt
-  jumpf 671
+  jumpf 670
   true
   setlocal 71
-  jump 676
+  jump 675
   local 69
   num 1
   add
   setlocal 69
-  jump 651
+  jump 650
   local 71
   setlocal 7
   line 47
@@ -694,7 +693,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 712
+  jumpf 711
   local 1
   local 72
   index
@@ -706,15 +705,15 @@ function U_MAIN user 0 178
   local 73
   num 1
   gt
-  jumpt 707
+  jumpt 706
   false
   setlocal 74
-  jump 712
+  jump 711
   local 72
   num 1
   add
   setlocal 72
-  jump 687
+  jump 686
   local 74
   setlocal 7
   line 49
@@ -730,7 +729,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 746
+  jumpf 745
   local 1
   local 75
   index
@@ -740,15 +739,15 @@ function U_MAIN user 0 178
   local 76
   num 9
   gt
-  jumpf 741
+  jumpf 740
   false
   setlocal 77
-  jump 746
+  jump 745
   local 75
   num 1
   add
   setlocal 75
-  jump 723
+  jump 722
   local 77
   setlocal 7
   line 51
@@ -764,7 +763,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 778
+  jumpf 777
   local 1
   local 78
   index
@@ -772,15 +771,15 @@ function U_MAIN user 0 178
   local 79
   num 3
   gt
-  jumpf 773
+  jumpf 772
   local 79
   setlocal 80
-  jump 778
+  jump 777
   local 78
   num 1
   add
   setlocal 78
-  jump 757
+  jump 756
   local 80
   setlocal 7
   line 53
@@ -796,7 +795,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 816
+  jumpf 815
   local 1
   local 81
   index
@@ -810,15 +809,15 @@ function U_MAIN user 0 178
   mod
   num 0
   exact
-  jumpf 811
+  jumpf 810
   local 82
   setlocal 83
-  jump 816
+  jump 815
   local 81
   num 1
   add
   setlocal 81
-  jump 789
+  jump 788
   local 83
   setlocal 7
   line 55
@@ -836,7 +835,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 856
+  jumpf 855
   local 1
   local 84
   index
@@ -844,8 +843,8 @@ function U_MAIN user 0 178
   local 86
   num 4
   ge
-  jumpf 843
-  jump 856
+  jumpf 842
+  jump 855
   local 86
   num 1
   add
@@ -858,7 +857,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 84
-  jump 829
+  jump 828
   local 87
   setlocal 7
   line 57
@@ -874,7 +873,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 894
+  jumpf 893
   local 1
   local 88
   index
@@ -884,10 +883,10 @@ function U_MAIN user 0 178
   setlocal 89
   local 90
   isnil
-  jumpf 885
+  jumpf 884
   local 89
   setlocal 90
-  jump 889
+  jump 888
   local 90
   local 89
   call 2 Max
@@ -896,7 +895,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 88
-  jump 867
+  jump 866
   local 90
   setlocal 7
   line 59
@@ -912,7 +911,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 932
+  jumpf 931
   local 1
   local 91
   index
@@ -922,10 +921,10 @@ function U_MAIN user 0 178
   setlocal 92
   local 93
   isnil
-  jumpf 923
+  jumpf 922
   local 92
   setlocal 93
-  jump 927
+  jump 926
   local 93
   local 92
   call 2 Min
@@ -934,7 +933,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 91
-  jump 905
+  jump 904
   local 93
   setlocal 7
   line 61
@@ -954,7 +953,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 974
+  jumpf 973
   local 1
   local 94
   index
@@ -962,8 +961,8 @@ function U_MAIN user 0 178
   local 96
   num 3
   ge
-  jumpf 961
-  jump 974
+  jumpf 960
+  jump 973
   local 96
   num 1
   add
@@ -976,7 +975,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 94
-  jump 947
+  jump 946
   local 97
   local 98
   call 2 u_xtpl_join
@@ -996,7 +995,7 @@ function U_MAIN user 0 178
   local 2
   call 1 Len
   le
-  jumpf 1010
+  jumpf 1009
   local 2
   local 99
   index
@@ -1012,7 +1011,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 99
-  jump 989
+  jump 988
   local 101
   call 1 u_xtpl_join
   setlocal 101
@@ -1031,7 +1030,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1048
+  jumpf 1047
   local 1
   local 102
   index
@@ -1039,7 +1038,7 @@ function U_MAIN user 0 178
   local 103
   num 2
   gt
-  jumpf 1043
+  jumpf 1042
   local 104
   local 103
   local 103
@@ -1050,7 +1049,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 102
-  jump 1024
+  jump 1023
   local 104
   setlocal 7
   line 67
@@ -1068,7 +1067,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1096
+  jumpf 1095
   local 1
   local 105
   index
@@ -1076,18 +1075,18 @@ function U_MAIN user 0 178
   local 107
   num 5
   ge
-  jumpf 1075
-  jump 1096
+  jumpf 1074
+  jump 1095
   local 107
   num 1
   add
   setlocal 107
   local 108
   isnil
-  jumpf 1085
+  jumpf 1084
   local 106
   setlocal 108
-  jump 1091
+  jump 1090
   local 108
   num 10
   mul
@@ -1098,7 +1097,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 105
-  jump 1061
+  jump 1060
   local 108
   setlocal 7
   line 69
@@ -1120,7 +1119,7 @@ function U_MAIN user 0 178
   local 2
   call 1 Len
   le
-  jumpf 1147
+  jumpf 1146
   local 2
   local 109
   index
@@ -1134,11 +1133,11 @@ function U_MAIN user 0 178
   setlocal 114
   local 113
   not
-  orjump 1135
+  orjump 1134
   local 114
   local 112
   gt
-  jumpf 1142
+  jumpf 1141
   true
   setlocal 113
   local 114
@@ -1149,7 +1148,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 109
-  jump 1113
+  jump 1112
   local 111
   setlocal 7
   line 71
@@ -1171,7 +1170,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1198
+  jumpf 1197
   local 1
   local 115
   index
@@ -1185,11 +1184,11 @@ function U_MAIN user 0 178
   setlocal 120
   local 119
   not
-  orjump 1186
+  orjump 1185
   local 120
   local 118
   lt
-  jumpf 1193
+  jumpf 1192
   true
   setlocal 119
   local 120
@@ -1200,7 +1199,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 115
-  jump 1164
+  jump 1163
   local 117
   setlocal 7
   line 73
@@ -1224,7 +1223,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1260
+  jumpf 1259
   local 1
   local 121
   index
@@ -1236,16 +1235,16 @@ function U_MAIN user 0 178
   mod
   setlocal 127
   local 126
-  jumpt 1239
+  jumpt 1238
   true
   setlocal 126
   local 127
   setlocal 125
-  jump 1251
+  jump 1250
   local 127
   local 125
   exact
-  jumpt 1251
+  jumpt 1250
   local 123
   local 124
   call 2 AAdd
@@ -1262,9 +1261,9 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 121
-  jump 1217
+  jump 1216
   local 126
-  jumpf 1266
+  jumpf 1265
   local 123
   local 124
   call 2 AAdd
@@ -1300,7 +1299,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1315
+  jumpf 1314
   local 1
   local 128
   index
@@ -1308,7 +1307,7 @@ function U_MAIN user 0 178
   local 129
   num 2
   gt
-  jumpf 1310
+  jumpf 1309
   local 130
   local 129
   call 2 AAdd
@@ -1317,7 +1316,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 128
-  jump 1293
+  jump 1292
   local 130
   block U_MAIN#4 0
   call 2 u_xtpl_sortby
@@ -1332,7 +1331,7 @@ function U_MAIN user 0 178
   local 131
   call 1 Len
   le
-  jumpf 1356
+  jumpf 1355
   local 131
   local 132
   index
@@ -1344,8 +1343,8 @@ function U_MAIN user 0 178
   local 134
   num 2
   ge
-  jumpf 1343
-  jump 1356
+  jumpf 1342
+  jump 1355
   local 134
   num 1
   add
@@ -1358,7 +1357,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 132
-  jump 1325
+  jump 1324
   local 135
   setlocal 3
   line 79
@@ -1376,7 +1375,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1395
+  jumpf 1394
   local 1
   local 136
   index
@@ -1388,7 +1387,7 @@ function U_MAIN user 0 178
   local 137
   num 3
   gt
-  jumpf 1390
+  jumpf 1389
   local 138
   local 137
   call 2 AAdd
@@ -1397,7 +1396,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 136
-  jump 1369
+  jump 1368
   local 138
   block U_MAIN#5 0
   call 2 u_xtpl_sortby
@@ -1421,7 +1420,7 @@ function U_MAIN user 0 178
   local 139
   local 10
   le
-  jumpf 1434
+  jumpf 1433
   local 139
   setlocal 140
   local 140
@@ -1436,7 +1435,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 139
-  jump 1415
+  jump 1414
   local 141
   setlocal 3
   line 85
@@ -1458,7 +1457,7 @@ function U_MAIN user 0 178
   local 143
   local 142
   le
-  jumpf 1473
+  jumpf 1472
   local 143
   setlocal 144
   local 144
@@ -1466,7 +1465,7 @@ function U_MAIN user 0 178
   mod
   num 0
   exact
-  jumpf 1468
+  jumpf 1467
   local 145
   local 144
   call 2 AAdd
@@ -1475,7 +1474,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 143
-  jump 1452
+  jump 1451
   local 145
   setlocal 3
   line 87
@@ -1495,7 +1494,7 @@ function U_MAIN user 0 178
   local 146
   num 3
   le
-  jumpf 1506
+  jumpf 1505
   local 146
   setlocal 147
   local 147
@@ -1508,7 +1507,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 146
-  jump 1489
+  jump 1488
   local 148
   block U_MAIN#6 0
   call 2 u_xtpl_sortby
@@ -1519,7 +1518,7 @@ function U_MAIN user 0 178
   local 149
   call 1 Len
   le
-  jumpf 1534
+  jumpf 1533
   local 149
   local 150
   index
@@ -1536,7 +1535,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 150
-  jump 1512
+  jump 1511
   line 90
   local 6
   call 1 ConOut
@@ -1550,7 +1549,7 @@ function U_MAIN user 0 178
   call 1 File
   setlocal 152
   local 152
-  jumpf 1553
+  jumpf 1552
   local 9
   call 1 FT_FUse
   pop
@@ -1559,16 +1558,16 @@ function U_MAIN user 0 178
   array 0
   setlocal 154
   local 152
-  andjump 1559
+  andjump 1558
   call 0 FT_FEof
   not
-  jumpf 1582
+  jumpf 1581
   call 0 FT_FReadLn
   setlocal 153
   str ";"
   local 153
   contains
-  jumpf 1579
+  jumpf 1578
   local 153
   str ";"
   local 153
@@ -1584,9 +1583,9 @@ function U_MAIN user 0 178
   pop
   call 0 FT_FSkip
   pop
-  jump 1555
+  jump 1554
   local 152
-  jumpf 1586
+  jumpf 1585
   call 0 FT_FUse
   pop
   local 154
@@ -1609,7 +1608,7 @@ function U_MAIN user 0 178
   call 1 File
   setlocal 156
   local 156
-  jumpf 1612
+  jumpf 1611
   local 155
   call 1 FT_FUse
   pop
@@ -1619,10 +1618,10 @@ function U_MAIN user 0 178
   setlocal 158
   line 96
   local 156
-  andjump 1619
+  andjump 1618
   call 0 FT_FEof
   not
-  jumpf 1652
+  jumpf 1651
   local 158
   num 1
   add
@@ -1634,16 +1633,16 @@ function U_MAIN user 0 178
   line 97
   local 157
   call 1 Empty
-  jumpf 1633
-  jump 1614
+  jumpf 1632
+  jump 1613
   line 98
   local 157
   num 1
   call 2 Left
   str "#"
   exact
-  jumpf 1641
-  jump 1652
+  jumpf 1640
+  jump 1651
   line 99
   local 158
   call 1 cValToChar
@@ -1654,9 +1653,9 @@ function U_MAIN user 0 178
   add
   call 1 ConOut
   pop
-  jump 1614
+  jump 1613
   local 156
-  jumpf 1656
+  jumpf 1655
   call 0 FT_FUse
   pop
   line 101
@@ -1677,7 +1676,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1694
+  jumpf 1693
   local 1
   local 160
   index
@@ -1685,7 +1684,7 @@ function U_MAIN user 0 178
   local 161
   num 4
   gt
-  jumpf 1689
+  jumpf 1688
   local 161
   setlocal 161
   local 162
@@ -1696,7 +1695,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 160
-  jump 1670
+  jump 1669
   local 162
   setlocal 159
   local 4
@@ -1716,7 +1715,7 @@ function U_MAIN user 0 178
   call 1 Len
   num 0
   gt
-  jumpf 1751
+  jumpf 1750
   line 107
   array 0
   setlocal 165
@@ -1726,7 +1725,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1743
+  jumpf 1742
   local 1
   local 163
   index
@@ -1734,7 +1733,7 @@ function U_MAIN user 0 178
   local 164
   num 5
   gt
-  jumpf 1738
+  jumpf 1737
   local 164
   setlocal 164
   local 165
@@ -1745,7 +1744,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 163
-  jump 1719
+  jump 1718
   local 165
   setlocal 166
   line 108
@@ -1764,7 +1763,7 @@ function U_MAIN user 0 178
   local 2
   call 1 Len
   le
-  jumpf 1783
+  jumpf 1782
   local 2
   local 167
   index
@@ -1776,7 +1775,7 @@ function U_MAIN user 0 178
   local 168
   str "c!"
   ne
-  jumpf 1778
+  jumpf 1777
   local 169
   local 168
   call 2 AAdd
@@ -1785,7 +1784,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 167
-  jump 1757
+  jump 1756
   local 169
   setmemvar APRIV
   line 111
@@ -1798,7 +1797,7 @@ function U_MAIN user 0 178
   block U_MAIN#7 0
   call 1 ErrorBlock
   setlocal 170
-  seq 1832
+  seq 1831
   array 0
   setlocal 173
   num 1
@@ -1807,7 +1806,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1828
+  jumpf 1827
   local 1
   local 171
   index
@@ -1821,7 +1820,7 @@ function U_MAIN user 0 178
   local 172
   num 0
   gt
-  jumpf 1823
+  jumpf 1822
   local 173
   local 172
   call 2 AAdd
@@ -1830,11 +1829,11 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 171
-  jump 1800
+  jump 1799
   local 173
   setlocal 3
   endseq
-  jump 1836
+  jump 1835
   pop
   str "fell back"
   array 1
@@ -1852,7 +1851,7 @@ function U_MAIN user 0 178
   local 6
   num 0
   gt
-  jumpf 1880
+  jumpf 1879
   array 0
   setlocal 176
   num 1
@@ -1861,7 +1860,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1878
+  jumpf 1877
   local 1
   local 174
   index
@@ -1871,7 +1870,7 @@ function U_MAIN user 0 178
   local 175
   num 8
   gt
-  jumpf 1873
+  jumpf 1872
   local 176
   local 175
   call 2 AAdd
@@ -1880,7 +1879,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 174
-  jump 1854
+  jump 1853
   local 176
   setlocal 3
   line 115
@@ -1896,7 +1895,7 @@ function U_MAIN user 0 178
   local 1
   call 1 Len
   le
-  jumpf 1913
+  jumpf 1912
   local 1
   local 177
   index
@@ -1904,7 +1903,7 @@ function U_MAIN user 0 178
   local 178
   num 5
   gt
-  jumpf 1908
+  jumpf 1907
   str "tap "
   local 178
   call 1 cValToChar
@@ -1915,7 +1914,7 @@ function U_MAIN user 0 178
   num 1
   add
   setlocal 177
-  jump 1889
+  jump 1888
   line 117
   call 0 Records
   call 1 ConOut

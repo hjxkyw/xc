@@ -44,7 +44,8 @@ guard as a statement's whole value, and one that stays an expression;
 `typed-start/`, the warning for a `?:` or a `?=` on a `Local` declared
 with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
-variable named `as`, a number as a `Decimal`'s value); `survey/`, forms
+variable named `as`, a number as a `Decimal`'s value, a member after
+`Name():New()`, a class called as a function); `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with

@@ -1,0 +1,2 @@
+005-class-call.xtpl:14: 'Ponto' is a class: only 'Ponto():New(...)' makes an object of it -- a class is no function, and 'Ponto()' fails when it runs ("cannot find function PONTO in AppMap").
+005-class-call.xtpl:15: 'Ponto' is a class: only 'Ponto():New(...)' makes an object of it -- a class is no function, and 'Ponto(...)' fails when it runs ("cannot find function PONTO in AppMap").

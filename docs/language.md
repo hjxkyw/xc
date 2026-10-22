@@ -269,7 +269,13 @@ Return Self
   `EndClass` (or `End Class`); a superclass may carry its namespace.
 - `Data name [as Type] [default|init value]`, several to a line, with a
   visibility (`Public`, `Protected`, `Private`, `Exported`, `Hidden`) or
-  none.
+  none. The AppServer ignores the value (tried on 24.3.1.9, in a `.tlpp`
+  and a `.prw`): a `Data` with a type starts where a typed `Local` does, one
+  without at Nil -- the constructor gives it any other.
+- `Name():New(...)` -- `Name` with no arguments -- makes an object of the
+  class, and is the object whatever the method returns; TL++ takes nothing
+  after it (`Name():New():x` is a syntax error), and a class is no function
+  (`Name()` alone fails when it runs). xc says so of a class of the file.
 - `Method name(...)` and `Operator name(...)`, with a visibility or
   `Static`, `Constructor` and `as Type` in either order.
 - An implementation, at file level: `Method name(...) Class Name`, with

@@ -24,8 +24,7 @@ function U_MAIN user 0 21
   call 1 u_xtpl_hnew
   setlocal 4
   line 9
-  call 0 THashMap
-  method 0 New
+  new 0 THashMap New
   setlocal 5
   line 10
   str "name"
@@ -38,8 +37,7 @@ function U_MAIN user 0 21
   call 1 u_xtpl_jnew
   setlocal 6
   line 11
-  call 0 JsonObject
-  method 0 New
+  new 0 JsonObject New
   setlocal 7
   line 13
   str "BR"
@@ -53,7 +51,7 @@ function U_MAIN user 0 21
   call 1 Len
   num 2
   gt
-  jumpf 62
+  jumpf 60
   line 17
   local 1
   num 1
@@ -73,7 +71,7 @@ function U_MAIN user 0 21
   local 11
   num 0
   gt
-  jumpf 78
+  jumpf 76
   line 21
   str "ink at "
   local 11
@@ -90,12 +88,12 @@ function U_MAIN user 0 21
   local 12
   str "CAP"
   exact
-  jumpf 93
+  jumpf 91
   line 25
   str "a cap"
   call 1 ConOut
   pop
-  jump 97
+  jump 95
   line 27
   str "no cap"
   call 1 ConOut
@@ -107,7 +105,7 @@ function U_MAIN user 0 21
   local 13
   num 2
   le
-  jumpf 117
+  jumpf 115
   line 30
   str "i "
   local 13
@@ -119,7 +117,7 @@ function U_MAIN user 0 21
   num 1
   add
   setlocal 13
-  jump 100
+  jump 98
   line 33
   str "-- for in, times"
   call 1 ConOut
@@ -134,7 +132,7 @@ function U_MAIN user 0 21
   local 14
   call 1 Len
   le
-  jumpf 151
+  jumpf 149
   local 14
   local 16
   index
@@ -153,7 +151,7 @@ function U_MAIN user 0 21
   num 1
   add
   setlocal 16
-  jump 126
+  jump 124
   line 37
   num 3
   setlocal 18
@@ -161,7 +159,7 @@ function U_MAIN user 0 21
   local 18
   num 5
   le
-  jumpf 171
+  jumpf 169
   local 18
   setlocal 17
   line 38
@@ -173,7 +171,7 @@ function U_MAIN user 0 21
   num 1
   add
   setlocal 18
-  jump 154
+  jump 152
   line 40
   num 1
   setlocal 19
@@ -181,7 +179,7 @@ function U_MAIN user 0 21
   local 19
   num 2
   le
-  jumpf 189
+  jumpf 187
   line 41
   local 2
   num 10
@@ -191,7 +189,7 @@ function U_MAIN user 0 21
   num 1
   add
   setlocal 19
-  jump 174
+  jump 172
   line 43
   local 2
   call 1 ConOut
@@ -204,7 +202,7 @@ function U_MAIN user 0 21
   local 2
   num 0
   gt
-  jumpf 205
+  jumpf 203
   str "shown"
   call 1 ConOut
   pop
@@ -212,7 +210,7 @@ function U_MAIN user 0 21
   local 2
   num 0
   lt
-  jumpf 213
+  jumpf 211
   str "hidden"
   call 1 ConOut
   pop
@@ -227,14 +225,14 @@ function U_MAIN user 0 21
   setlocal 2
   num 1
   gt
-  jumpf 232
+  jumpf 230
   str "left "
   local 2
   call 1 cValToChar
   add
   call 1 ConOut
   pop
-  jump 216
+  jump 214
   line 51
   str "-- nil"
   call 1 ConOut
@@ -242,13 +240,13 @@ function U_MAIN user 0 21
   line 52
   local 3
   isnil
-  jumpf 242
+  jumpf 240
   str "filled"
   setlocal 3
   line 53
   local 3
   isnil
-  jumpf 248
+  jumpf 246
   str "not again"
   setlocal 3
   line 54
@@ -256,7 +254,7 @@ function U_MAIN user 0 21
   local 8
   dup
   isnil
-  jumpf 256
+  jumpf 254
   pop
   str "default"
   str "set"
@@ -267,18 +265,18 @@ function U_MAIN user 0 21
   local 8
   dup
   isnil
-  jumpt 266
+  jumpt 264
   member name
   call 1 ValType
   local 6
   dup
   isnil
-  jumpt 272
+  jumpt 270
   member name
   local 6
   dup
   isnil
-  jumpt 277
+  jumpt 275
   member nothing
   call 1 ValType
   call 3 ConOut
@@ -302,7 +300,7 @@ function U_MAIN user 0 21
   local 20
   num 2
   ge
-  andjump 303
+  andjump 301
   local 20
   num 4
   le

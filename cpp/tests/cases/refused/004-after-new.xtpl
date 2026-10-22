@@ -1,0 +1,21 @@
+// 'Name():M(...)' makes an object, and TL++ takes nothing after it: a member
+// or a method there is "C2003 Syntax Error" (tried on 24.3.1.9). One kept in
+// a variable takes them.
+Class Ponto
+  Public Data nX as Numeric
+  Public Method New(nX) Constructor
+  Public Method Dobro()
+EndClass
+
+Method New(nX) Class Ponto
+  ::nX := nX
+Return Self
+
+Method Dobro() Class Ponto
+Return ::nX * 2
+
+User Function AfterNew()
+  Local oP := Ponto():New(3)
+  Local nX := Ponto():New(4):nX
+  Local nD := Ponto():New(5):Dobro()
+Return oP:nX + nX + nD

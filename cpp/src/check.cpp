@@ -423,6 +423,7 @@ namespace xc
       Set defines_;
       Set privates_;
       Set classes_;
+      std::unordered_set<const Expr*> made_;   // the 'Name()' of each 'Name():M(...)'
       Set includes_;                 // the include files the file names, their names in lower case
       bool tcquery_ok_ = true;       // the file says where TCQUERY comes from, or might
       std::unordered_map<std::string, int> retired_;
@@ -487,6 +488,8 @@ namespace xc
       void never_nil(const Expr* e, const std::string& op);
       void expr(Expr* e);
       void call(const Call* c);
+      void constructor(const MethodCall* m);
+      void constructed(const Expr* base, const std::string& after);
       void field(const AliasField* f);
       std::optional<std::string> alias_word(const AliasField* f) const;
       void dict(const std::string& m) { strict_ ? problem(m) : warning(m); }
@@ -1489,6 +1492,16 @@ namespace xc
       }
       if (k == EK::Index || k == EK::Member || k == EK::MethodCall || (k == EK::Binary && !field_compare))
       {
+        if (k == EK::Member)
+        {
+          constructed(static_cast<Member*>(e)->base, ":" + static_cast<Member*>(e)->name);
+        }
+        else if (k == EK::MethodCall)
+        {
+          auto m = static_cast<MethodCall*>(e);
+          constructed(m->base, ":" + m->name + "()");
+          constructor(m);
+        }
         for (Expr* x : subexprs(e)) { expr(x); }
         return;
       }
@@ -1595,6 +1608,25 @@ namespace xc
       }
     }
 
+    // 'Name():M(...)', TL++'s form for an object of the class Name -- 'Name'
+    // with no arguments.
+    void Checker::constructor(const MethodCall* m)
+    {
+      if (is(m->base, EK::Call) && static_cast<const Call*>(m->base)->args.empty()) { made_.insert(m->base); }
+    }
+
+    // A member or a method after 'Name():M(...)': TL++ takes nothing there
+    // (tried on 24.3.1.9).
+    void Checker::constructed(const Expr* base, const std::string& after)
+    {
+      if (advpl_ || !is(base, EK::MethodCall)) { return; }
+      auto m = static_cast<const MethodCall*>(base);
+      if (!is(m->base, EK::Call) || !static_cast<const Call*>(m->base)->args.empty()) { return; }
+      std::string made = static_cast<const Call*>(m->base)->name + "():" + m->name + "()";
+      problem("'" + made + "' makes an object, and TL++ takes nothing after it: '" + after
+              + "' there is a syntax error to the AppServer (C2003). Keep the object in a variable first.");
+    }
+
     void Checker::call(const Call* c)
     {
       std::string n = lc(c->name);
@@ -1634,7 +1666,18 @@ namespace xc
       // A class of the file, called for its instance -- 'TransfArm():New()' --
       // though a User Function has its name: an idiom of Protheus', which a
       // file of a class compiles with a function of the same name.
-      if (!u && classes_.count(n)) { return; }
+      if (!u && classes_.count(n))
+      {
+        // In TL++ only 'Name():M(...)' makes an object: a class is no function
+        // (tried on 24.3.1.9).
+        if (!advpl_ && !made_.count(c))
+        {
+          problem("'" + c->name + "' is a class: only '" + c->name + "():New(...)' makes an object of it -- a "
+                  + "class is no function, and '" + c->name + "(" + (c->args.empty() ? "" : "...")
+                  + ")' fails when it runs (\"cannot find function " + uc(c->name) + " in AppMap\").");
+        }
+        return;
+      }
       // A Web Function is found as 'w_' and its name, an Html Function as
       // 'h_' (tried on 24.3.1.9): called by the plain name, it is not found.
       static const std::unordered_map<std::string, std::pair<std::string, std::string>> PREFIXED =

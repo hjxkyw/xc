@@ -1,0 +1,2 @@
+004-after-new.xtpl:19: 'Ponto():New()' makes an object, and TL++ takes nothing after it: ':nX' there is a syntax error to the AppServer (C2003). Keep the object in a variable first.
+004-after-new.xtpl:20: 'Ponto():New()' makes an object, and TL++ takes nothing after it: ':Dobro()' there is a syntax error to the AppServer (C2003). Keep the object in a variable first.

@@ -471,7 +471,7 @@ namespace xc
     OptStr type;
     OptStr visibility;
     int line = 0;
-    Expr* init = nullptr;            // 'default value', 'init value'
+    Expr* init = nullptr;            // 'default value', 'init value': the AppServer ignores it
   };
 
   struct MethodSig : Node
@@ -480,6 +480,7 @@ namespace xc
     std::vector<Param*> params;
     OptStr visibility;
     bool constructor = false;
+    bool is_static = false;          // 'Static Method'
     OptStr returns;
   };
 

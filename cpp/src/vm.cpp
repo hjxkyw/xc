@@ -470,11 +470,11 @@ namespace
     Pop, Dup, Dup2, ArrayOp, Index, SetIndex, Member, SetMember, Self,
     Add, Sub, Mul, Div, Mod, Pow, Neg, Not, Eq, Exact, Ne, Lt, Gt, Le, Ge, Contains, IsNil,
     Jump, JumpF, JumpT, AndJump, OrJump,
-    Call, CallX, Method, Super, Ret, Block, Macro, SetMacro, Line,
+    Call, CallX, Method, Super, New, Ret, Block, Macro, SetMacro, Line,
     Seq, Try, EndSeq, Defer, RunDefers, EndDefer, Area, EndArea,
   };
 
-  enum class Shape { None, Int, Word, Number, String, IntWord, WordWord, WordInt, IntInt };
+  enum class Shape { None, Int, Word, Number, String, IntWord, WordWord, WordInt, IntInt, IntWordWord };
 
   struct OpInfo
   {
@@ -509,7 +509,8 @@ namespace
     { "jump", Op::Jump, Shape::Int }, { "jumpf", Op::JumpF, Shape::Int }, { "jumpt", Op::JumpT, Shape::Int },
     { "andjump", Op::AndJump, Shape::Int }, { "orjump", Op::OrJump, Shape::Int },
     { "call", Op::Call, Shape::IntWord }, { "callx", Op::CallX, Shape::Int },
-    { "method", Op::Method, Shape::IntWord }, { "super", Op::Super, Shape::IntWord }, { "ret", Op::Ret, Shape::None },
+    { "method", Op::Method, Shape::IntWord }, { "super", Op::Super, Shape::IntWord },
+    { "new", Op::New, Shape::IntWordWord }, { "ret", Op::Ret, Shape::None },
     { "block", Op::Block, Shape::WordInt }, { "macro", Op::Macro, Shape::None },
     { "setmacro", Op::SetMacro, Shape::None }, { "line", Op::Line, Shape::Int },
     { "seq", Op::Seq, Shape::Int }, { "try", Op::Try, Shape::Int }, { "endseq", Op::EndSeq, Shape::None },
@@ -571,6 +572,7 @@ namespace
     std::map<long, std::size_t> defers;   // reached, by their number
     std::size_t defer_back = 0;
     std::vector<std::string> privates;
+    bool constructs = false;              // 'Name():M()': the caller gets Self
   };
 
   // A Break, or an error, on its way to the region that takes it.
@@ -769,7 +771,8 @@ namespace
         {
           std::vector<std::string> a = words_of(t);
           std::size_t want = info->shape == Shape::None ? 1 : (info->shape == Shape::Int || info->shape == Shape::Word
-                                                               || info->shape == Shape::Number) ? 2 : 3;
+                                                               || info->shape == Shape::Number) ? 2
+                             : info->shape == Shape::IntWordWord ? 4 : 3;
           if (a.size() != want) { throw std::runtime_error(where(k) + ": '" + opw + "' takes " + std::to_string(want - 1)); }
           switch (info->shape)
           {
@@ -791,6 +794,11 @@ namespace
             case Shape::IntInt:
               ins.a = to_long(a[1], where(k));
               ins.b = to_long(a[2], where(k));
+              break;
+            case Shape::IntWordWord:
+              ins.a = to_long(a[1], where(k));
+              ins.s = a[2];
+              ins.s2 = a[3];
               break;
             default: break;
           }
@@ -976,17 +984,11 @@ namespace
     return g == globals_.end() ? nullptr : g->second;
   }
 
-  // A call by name: a class of any module -- a new object --, a function of
-  // the module, a user function of any, or the AppServer's. A function of a
-  // module pushes its frame; the others leave their result.
+  // A call by name: a function of the module, a user function of any, or the
+  // AppServer's -- a class is none. A function of a module pushes its frame;
+  // the AppServer's leaves its result.
   void VM::invoke(const Module* from, const std::string& name, Args& args)
   {
-    if (auto c = classes_.find(upper(name)); c != classes_.end())
-    {
-      Value o = instance(c->second);
-      frames_.back()->stack.push_back(std::move(o));
-      return;
-    }
     if (const Function* fn = function_named(from, name))
     {
       push_frame(fn, args, nullptr, Value());
@@ -1733,9 +1735,33 @@ namespace
           st.push_back(f.self);
           break;
         }
+        case Op::New:
+        {
+          // 'Name():M(...)': an object of the class, M run on it; the object
+          // is what the caller gets, whatever M returns.
+          Args a = take(static_cast<std::size_t>(in.a));
+          std::string cls = upper(in.s);
+          if (auto c = classes_.find(cls); c != classes_.end())
+          {
+            Value o = instance(c->second);
+            const Function* m = method_of(c->second, upper(in.s2));
+            if (!m) { fail("Cannot find method " + cls + ":" + upper(in.s2)); }
+            push_frame(m, a, nullptr, o);
+            frames_.back()->constructs = true;
+            break;
+          }
+          // One of the AppServer's: its object, and what the method gives.
+          auto it = natives_.find(cls);
+          if (it == natives_.end()) { fail("invalid class " + cls); }
+          Args none;
+          Value o = it->second(none);
+          st.push_back(method(o, in.s2, a));
+          break;
+        }
         case Op::Ret:
         {
           Value v = deref(pop());
+          if (f.constructs) { v = f.self; }
           end_frame(f);
           bool last = frames_.size() - 1 == base;
           frames_.pop_back();

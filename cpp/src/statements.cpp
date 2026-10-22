@@ -1106,6 +1106,7 @@ namespace xc
       p_ = save;
       if (ilit("static") && word_end() && ws())
       {
+        m->is_static = true;
         continue;
       }
       p_ = save;

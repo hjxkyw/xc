@@ -1,15 +1,18 @@
-// Classes: their data and the values it starts at, methods, Self and '::',
-// a class above another and '_Super:', an object in a block, a chain in a
-// method.
+// Classes: their data and the values it starts at -- a typed one its type's,
+// a 'default' ignored, as the AppServer does --, 'Name():M()' and what it
+// gives, methods, Self and '::', a class above another and '_Super:', an
+// object in a block, a chain in a method.
 #include "totvs.ch"
 #include "tlpp-core.th"
 
 Class Conta
   Public Data cDono
   Public Data nSaldo as Numeric
-  Public Data aMovs default {}
-  Public Data lAtiva init .T.
+  Public Data aMovs
+  Public Data lAtiva
+  Public Data cNota default "ignored"
   Public Method New(cDono, nInicial) Constructor
+  Public Method Zera()
   Public Method Deposita(nValor)
   Public Method Saldo()
   Public Method Extrato()
@@ -19,6 +22,8 @@ EndClass
 Method New(cDono, nInicial) Class Conta
   Default nInicial := 0
   ::cDono := cDono
+  ::aMovs := {}
+  ::lAtiva := .T.
   ::Deposita(nInicial) if nInicial > 0
 Return Self
 
@@ -29,6 +34,11 @@ Return Self
 
 Method Saldo() Class Conta
 Return ::nSaldo
+
+// 'Conta():Zera()' gives the object, not this.
+Method Zera() Class Conta
+  ::nSaldo := 0
+Return .T.
 
 Method Extrato() Class Conta
 Return ::aMovs |> map([n] cValToChar(n)) |> join(", ")
@@ -63,11 +73,13 @@ User Function Main()
   Local oPoup := Poupanca():New("Bia", 200, 0.1)
   Local oOutra := Conta():New("Caio")
   Local bSaldo := {|o| o:Saldo()}
+  Local oZero := Conta():Zera()
   Local oErr
 
   oConta:Deposita(50):Deposita(25)
   ConOut(oConta:cDono, oConta:Saldo(), oConta:Extrato(), oConta:lAtiva, Len(oConta:aMovs))
-  ConOut(Len(oOutra:aMovs), oOutra:nSaldo, ValType(oOutra), oOutra == oConta)
+  ConOut(Len(oOutra:aMovs), oOutra:nSaldo, ValType(oOutra), oOutra == oConta, ValType(oOutra:cNota))
+  ConOut(ValType(oZero), oZero:nSaldo, ValType(oZero:aMovs))
   ConOut(Len(oConta:Maiores(30)), oConta:Maiores(30)[2])
   oPoup:Rende()
   ConOut(oPoup:cDono, oPoup:Saldo(), oPoup:Extrato(), oPoup:nTaxa)

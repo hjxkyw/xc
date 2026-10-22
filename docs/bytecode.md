@@ -97,7 +97,7 @@ The kinds:
 | `block` | the body of a code block or a lambda | its function's, `#` and a number: `U_SOMA#1` |
 | `init` | the statics' values, run once when the module is loaded, first | `__INIT` |
 | `method` | a `Method` of a class: Self is the object it runs on | its class's, `:` and its own: `CONTA:DEPOSITA` |
-| `data` | the values a class's data start at, run on each new object, Self the object | its class's and `:__DATA`: `CONTA:__DATA` |
+| `data` | the values a class's typed data start at, run on each new object, Self the object | its class's and `:__DATA`: `CONTA:__DATA` |
 
 A `static` function is the module's own; `user`, `function` and `main` are
 any module's to call; a `method` and a `data` are a class's, for a `class`
@@ -249,10 +249,11 @@ Each is AdvPL's own, on the values as they are:
 
 | instruction | does |
 |---|---|
-| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a class any module has by that name in upper case -- a new object of it --, else a function of the module, else one any module has for others to call, else the AppServer's |
+| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a function of the module by that name in upper case, else one any module has for others to call, else the AppServer's -- a class is none |
 | `callx ARGC` | `[name x1 ... xARGC] -> [result]`: `&name.(...)` |
 | `method ARGC NAME` | `[o x1 ... xARGC] -> [o:NAME(...)]` |
 | `super ARGC NAME` | `[x1 ... xARGC] -> [result]`: `_Super:NAME(...)` -- the method NAME of the classes above the one the running method is of, on Self |
+| `new ARGC CLASS NAME` | `[x1 ... xARGC] -> [o]`: `CLASS():NAME(...)` -- a new object of CLASS, its method NAME run on it with the arguments; the object is the value, whatever NAME returns |
 | `ret` | `[x] ->`: the frame ends, and the caller gets `x` |
 | `block NAME K` | `[c1 ... cK] -> [b]`: a code block whose body is the function NAME, its cells `c1 ... cK` |
 | `macro` | `[text] -> [&(text)]` |
@@ -273,17 +274,23 @@ N's, `refupval N` the block's own cell N, for one inside another.
 
 ### Classes
 
-`Conta()` -- a `call` of a class's name -- makes an object of it: the data
-of the classes above it and its own, each once, Nil; then each class's
-`init` function runs on it, the topmost class's first. The arguments are
-not used: `Conta():New(...)` is what gives it its values. On an object of a
-module's class, `member` and `setmember` read and set its data -- NAME in
-upper case; one it does not have is an error --, and `method` runs the
-function its class names for NAME, else the one a class above it names, in
-the order `from` says: a frame like a call's, Self the object. With none, it is an error
-("no method NAME of CLASS"). A class above that is no module's is the
-AppServer's: `super ARGC NEW` of one leaves Self, and its other methods are
-not there.
+`new` makes an object of a module's class: the data of the classes above
+it and its own, each once, Nil; then each class's `init` function runs on
+it, the topmost class's first; then the method `new` names, which must be
+there ("Cannot find method CLASS:NAME"). Its frame is a method's, and when
+it returns, the caller gets the object -- `Conta():Zera()` is an object even
+when `Zera()` returns `.T.`, as on the AppServer. A CLASS no module has is
+the AppServer's -- `THashMap`, `JsonObject` --: the interpreter makes the
+object there, and the value is what NAME gives; with none, it is an error
+("invalid class CLASS").
+
+On an object of a module's class, `member` and `setmember` read and set its
+data -- NAME in upper case; one it does not have is an error --, and
+`method` runs the function its class names for NAME, else the one a class
+above it names, in the order `from` says: a frame like a call's, Self the
+object. With none, it is an error ("no method NAME of CLASS"). A class above
+that is no module's is the AppServer's: `super ARGC NEW` of one leaves
+Self, and its other methods are not there.
 
 ### Sequences and errors
 
@@ -347,11 +354,12 @@ either --, `Begin Transaction` a call of `BeginTran()` before its body and
 `EndTran()` after. An `Exit` or a `Loop` ends the regions it leaves.
 
 A `Class` is a `class`, its `Method`s functions of kind `method`; an
-`Interface` is nothing, being signatures. A `Data`'s `Default` or `Init`
-value is what it starts at; one with none and a type starts where a typed
-`Local` does -- in a `.prw`, at Nil. The machine does not check a member's
-visibility. `Self` is `self`, `::x` Self's `x`, `_Super:New(...)` a
-`super`.
+`Interface` is nothing, being signatures. A `Data` with a type starts where
+a typed `Local` does -- in a `.prw`, at Nil --, one without at Nil: its
+`Default` or `Init` value is ignored, as the AppServer ignores it (tried on
+24.3.1.9). The machine does not check a member's visibility. `Name():M(...)`
+-- `Name` with no arguments -- is a `new`, whatever `Name` is, as for TL++;
+`Self` is `self`, `::x` Self's `x`, `_Super:New(...)` a `super`.
 
 xtpl's own forms are what they are for TL++:
 
@@ -394,7 +402,7 @@ be there for these, as for TL++.
 
 xc says so, and writes no `.xbc`:
 
-- a namespace; a web service's method (`WsMethod`);
+- a namespace; a web service's method (`WsMethod`); a static method;
 - what is the preprocessor's: `raw`, a command -- TOTVS' `@ ... SAY`,
   `BeginSql`, one of the source's own --, a translation of the source's
   own, a directive inside a function, `#ifdef` and its kin, a `#define`

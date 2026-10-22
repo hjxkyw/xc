@@ -652,8 +652,16 @@ namespace xc
           return;
         case EK::MethodCall:
         {
-          // '_Super:M()': the method of the class above, on Self.
+          // 'Name():M(...)': an object of the class Name, M run on it -- TL++'s
+          // form, whatever Name is.
           auto m = static_cast<const MethodCall*>(e);
+          if (is(m->base, EK::Call) && static_cast<const Call*>(m->base)->args.empty())
+          {
+            for (const Expr* a : m->args) { arg(a); }
+            op("new", std::to_string(m->args.size()) + " " + static_cast<const Call*>(m->base)->name + " " + m->name);
+            return;
+          }
+          // '_Super:M()': the method of the class above, on Self.
           bool above = is(m->base, EK::Name) && lc(name_of(m->base)) == "_super";
           if (!above) { member_base(m->base); }
           for (const Expr* a : m->args) { arg(a); }
@@ -1104,8 +1112,7 @@ namespace xc
     {
       if (ps.empty())
       {
-        call(0, hash ? "THashMap" : "JsonObject");
-        op("method", "0 New");
+        op("new", hash ? "0 THashMap New" : "0 JsonObject New");
         return;
       }
       for (const KeyValue* kv : ps)
@@ -1739,8 +1746,7 @@ namespace xc
           Push e = el();
           part.ahead = [=, this]
           {
-            call(0, "THashMap");
-            op("method", "0 New");
+            op("new", "0 THashMap New");
             on_local("setlocal", seen);
           };
           part.open = [=, this]
@@ -3511,14 +3517,15 @@ namespace xc
     }
 
     // The values a class's data members start at, when one has one -- its
-    // 'default', or its type's in TL++ --: a function, CLASS:__DATA, run on
-    // each new object, Self the object.
+    // type's, in TL++; a 'default' or an 'init' the AppServer ignores (tried on
+    // 24.3.1.9) --: a function, CLASS:__DATA, run on each new object, Self the
+    // object.
     bool Compiler::class_data(const ClassDef* c)
     {
       std::vector<const DataMember*> with;
       for (const DataMember* m : c->members)
       {
-        if (m->init || !start_word(m->type).empty()) { with.push_back(m); }
+        if (!start_word(m->type).empty()) { with.push_back(m); }
       }
       if (with.empty()) { return false; }
       auto fn = std::make_unique<Fn>();
@@ -3537,8 +3544,7 @@ namespace xc
       {
         line(m->line);
         op("self");
-        if (m->init) { expr(m->init); }
-        else { start_of(m->type); }
+        start_of(m->type);
         op("setmember", uc(m->name));
       }
       finish();
@@ -3695,6 +3701,10 @@ namespace xc
       {
         if (c->iface) { continue; }
         line_ = c->line;
+        for (const MethodSig* m : c->methods)
+        {
+          if (m->is_static) { problem("a static method ('" + c->name + ":" + m->name + "')"); }
+        }
         classes += "\n" + class_text(c, class_data(c));
       }
       for (const MethodImpl* m : p_->methods)
