@@ -78,6 +78,13 @@ add_test(NAME bytecode
                  -DRUNTIME=${PROJECT_SOURCE_DIR}/../runtime/xtpl_runtime.tlpp
                  -DCASES=${PROJECT_SOURCE_DIR}/tests/bytecode -DWORK=${CMAKE_CURRENT_BINARY_DIR}/bytecode
                  -P ${PROJECT_SOURCE_DIR}/tests/bytecode.cmake)
+add_test(NAME interp
+         COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/interp -P ${PROJECT_SOURCE_DIR}/tests/interp.cmake)
+add_test(NAME interp-xc
+         COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/interp-xc -DMODE=xc -P ${PROJECT_SOURCE_DIR}/tests/interp.cmake)
+set_tests_properties(interp-xc PROPERTIES LABELS slow TIMEOUT 1500)
 add_test(NAME selftests
          COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/selftests -P ${PROJECT_SOURCE_DIR}/tests/selftests.cmake)

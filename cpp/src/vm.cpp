@@ -597,7 +597,7 @@ namespace
   public:
     VM() { natives(); }
     void load(const std::string& path);
-    int start(const std::string& entry);
+    int start(const std::string& entry, const std::vector<std::string>& args);
 
   private:
     std::vector<std::unique_ptr<Module>> modules_;
@@ -2418,6 +2418,86 @@ namespace
     n["DEC_TO_DBL"] = [dec_arg](Args& a) { return N(std::strtod(dec_text(dec_arg(a, 0, "DEC_TO_DBL")).c_str(), nullptr)); };
 
     // Files: File(), and the FT_ functions' text file, line by line.
+    // What the bytecode's interpreter (interp/xbc.xtpl) asks of its host,
+    // where the AppServer's macros are not: a function, a method, a member,
+    // an object of a class of the AppServer's, by name. The arguments are an
+    // array, and those whose numbers the last array has are passed by
+    // reference to its elements.
+    auto host_args = [this](const Args& a, std::size_t i, std::size_t refs, const char* fn)
+    {
+      ArrayP arr = array_arg(a, i, fn);
+      Args args = *arr;
+      if (refs < a.size() && std::get_if<ArrayP>(&deref(a[refs]).v))
+      {
+        for (const Value& x : *array_arg(a, refs, fn))
+        {
+          auto k = std::get_if<double>(&deref(x).v);
+          if (!k || *k < 1 || *k > static_cast<double>(arr->size())) { continue; }
+          Value r;
+          r.v = Ref{ &(*arr)[static_cast<std::size_t>(*k) - 1], nullptr };
+          args[static_cast<std::size_t>(*k) - 1] = r;
+        }
+      }
+      return args;
+    };
+    n["FINDFUNCTION"] = [this](Args& a)
+    {
+      std::string u = upper(str_arg(a, 0, "FindFunction"));
+      return L(natives_.count(u) > 0 || function_named(nullptr, u) != nullptr);
+    };
+    n["XBC_CALL"] = [this, host_args](Args& a)
+    {
+      std::string name = str_arg(a, 0, "XBC_CALL");
+      Args args = host_args(a, 1, 2, "XBC_CALL");
+      if (const Function* fn = function_named(nullptr, name))
+      {
+        push_frame(fn, args, nullptr, Value());
+        return run(frames_.size() - 1);
+      }
+      auto it = natives_.find(upper(name));
+      if (it == natives_.end()) { fail("function " + name + " does not exist"); }
+      return it->second(args);
+    };
+    n["XBC_METHOD"] = [this, host_args](Args& a)
+    {
+      Args args = host_args(a, 2, 3, "XBC_METHOD");
+      return method(at(a, 0), str_arg(a, 1, "XBC_METHOD"), args);
+    };
+    n["XBC_MEMBER"] = [this](Args& a) { return member(at(a, 0), str_arg(a, 1, "XBC_MEMBER")); };
+    n["XBC_SETMEMBER"] = [this](Args& a)
+    {
+      set_member(at(a, 0), str_arg(a, 1, "XBC_SETMEMBER"), at(a, 2));
+      return Value();
+    };
+    n["XBC_NEW"] = [this, host_args](Args& a)
+    {
+      std::string cls = upper(str_arg(a, 0, "XBC_NEW"));
+      Args args = host_args(a, 2, 3, "XBC_NEW");
+      auto it = natives_.find(cls);
+      if (it == natives_.end()) { fail("invalid class " + cls); }
+      Args none;
+      Value o = it->second(none);
+      return method(o, str_arg(a, 1, "XBC_NEW"), args);
+    };
+    n["ATTISMEMBEROF"] = [this](Args& a)
+    {
+      const Value& o = deref(at(a, 0));
+      auto obj = std::get_if<std::shared_ptr<Object>>(&o.v);
+      if (!obj || (*obj)->kind != Object::Instance) { return L(false); }
+      std::string u = upper(str_arg(a, 1, "AttIsMemberOf"));
+      for (const auto& p : (*obj)->props)
+      {
+        if (p.first == u) { return L(true); }
+      }
+      return L(false);
+    };
+    n["USEREXCEPTION"] = [this](Args& a) -> Value { fail(str_arg(a, 0, "UserException")); };
+    n["MEMOWRITE"] = [this](Args& a)
+    {
+      std::ofstream f(str_arg(a, 0, "MemoWrite"), std::ios::binary);
+      f << str_arg(a, 1, "MemoWrite");
+      return L(static_cast<bool>(f));
+    };
     n["FILE"] = [this](Args& a)
     {
       std::ifstream f(str_arg(a, 0, "File"), std::ios::binary);
@@ -2457,7 +2537,7 @@ namespace
   }
 
   // ---- the program's run ----------------------------------------------------
-  int VM::start(const std::string& entry)
+  int VM::start(const std::string& entry, const std::vector<std::string>& args)
   {
     auto report = [&](const Unwind& u)
     {
@@ -2496,8 +2576,9 @@ namespace
         std::cerr << "xc-vm: no function " << (entry.empty() ? "to run" : entry) << "\n";
         return 2;
       }
-      Args none;
-      push_frame(fn, none, nullptr, Value());
+      Args given;
+      for (const std::string& a : args) { given.push_back(S(a)); }
+      push_frame(fn, given, nullptr, Value());
       run(frames_.size() - 1);
     }
     catch (const Unwind& u)
@@ -2510,24 +2591,30 @@ namespace
   }
 }
 
+// xc-vm [--run=NAME] module.xbc ... [-- ARG ...]: what follows '--' are
+// the entry's arguments, strings.
 int main(int argc, char** argv)
 {
   std::vector<std::string> files;
+  std::vector<std::string> args;
   std::string entry;
+  bool rest = false;
   for (int i = 1; i < argc; i++)
   {
     std::string a = argv[i];
-    if (a.rfind("--run=", 0) == 0) { entry = a.substr(6); }
+    if (rest) { args.push_back(a); }
+    else if (a == "--") { rest = true; }
+    else if (a.rfind("--run=", 0) == 0) { entry = a.substr(6); }
     else if (a.rfind("--", 0) == 0)
     {
-      std::cerr << "usage: xc-vm [--run=NAME] module.xbc ...\n";
+      std::cerr << "usage: xc-vm [--run=NAME] module.xbc ... [-- ARG ...]\n";
       return 2;
     }
     else { files.push_back(a); }
   }
   if (files.empty())
   {
-    std::cerr << "usage: xc-vm [--run=NAME] module.xbc ...\n";
+    std::cerr << "usage: xc-vm [--run=NAME] module.xbc ... [-- ARG ...]\n";
     return 2;
   }
   VM vm;
@@ -2540,5 +2627,5 @@ int main(int argc, char** argv)
     std::cerr << "xc-vm: " << e.what() << "\n";
     return 2;
   }
-  return vm.start(entry);
+  return vm.start(entry, args);
 }

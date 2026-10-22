@@ -4,8 +4,9 @@
 for TL++, as the instructions of a stack machine instead. An interpreter
 runs it -- one written in xtpl, on an AppServer, is what the format is made
 for: plain text, one instruction a line, nothing to decode but words,
-numbers and a string at the end of a line. `xc-vm`, built with xc, is the
-machine as a program ([xc-vm](#xc-vm)).
+numbers and a string at the end of a line. `interp/xbc.xtpl` is that
+interpreter ([The interpreter](#the-interpreter)); `xc-vm`, built with xc,
+is the machine as a program ([xc-vm](#xc-vm)).
 
 ```xtpl
 User Function Soma(aNums)
@@ -425,12 +426,60 @@ xc says so, and writes no `.xbc`:
 
 A `#define` from an include file is not seen: its name is a memvar.
 
+## The interpreter
+
+`interp/xbc.xtpl` is the machine written in xtpl, for an AppServer: xc
+compiles it to TL++, the AppServer into the RPO, with the runtime. Then
+
+```text
+appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module.xbc ...
+```
+
+loads the modules, runs each one's `__INIT` in the order given, then NAME --
+`U_MAIN` when it is not given and there is one, else the first user
+function of the last module. The runtime's bytecode may go first, as for
+xc-vm, or not: a function no module has is the AppServer's, the runtime's in
+the RPO among them. With `out=FILE`, what `ConOut()` is given and an error
+nothing catches go to FILE instead, as xc-vm writes them -- `exit N`, `---
+output`, its lines, `--- errors`, its lines.
+
+It is the machine of this page, and the AppServer is the rest:
+
+- a function no module has is called by its name, through a code block a
+  macro makes once for that name, number of arguments and references --
+  `{|a, o, p1, p2, r| r := Upper(p1, @p2), a[2] := p2, r}` --; a method or a
+  member of the AppServer's objects, and `Name():M()` of a class no module
+  has, the same way;
+- a code block of the program is one of the AppServer's that runs it there,
+  with as many arguments as its function takes -- so `aEval()`, `aSort()`
+  and the runtime's verbs run it;
+- an object of a module's class is an `XbcObj`, a class of the interpreter's
+  own, whose `ValType()` is `"O"`;
+- `ErrorBlock()` is the program's, kept apart: the interpreter runs under
+  its own, which gives an error to the program's first, then to the
+  innermost `try`; its own errors it raises with `UserException()`;
+- the program's privates and publics are the interpreter's: an AppServer
+  function does not see them, and a macro other than a variable's name --
+  the AppServer's -- does not either;
+- `PCount()` is the frame's; a field is `FieldGet()` and `FieldPut()` in its
+  area.
+
+xc-vm runs it too: there are no macros there, and its `XBC_CALL`,
+`XBC_METHOD`, `XBC_MEMBER`, `XBC_SETMEMBER` and `XBC_NEW` call, read and
+write by name instead -- `FindFunction("XBC_CALL")` tells the interpreter
+where it is. ctest's `interp` has xc-vm run the interpreter on each case of
+`cpp/tests/bytecode` and on xtpl's self-test, the runtime interpreted too,
+and what it writes has to be what xc-vm does running them itself;
+`interp-xc` the same for xc's self-test, slowly -- labelled `slow`
+(`cpp/tests/interp.cmake`). `rakupp run-protheus.raku --interp` does it on
+an AppServer.
+
 ## xc-vm
 
-`xc-vm [--run=NAME] module.xbc ...` loads the modules, runs each one's
-`__INIT` in the order given, then NAME -- `U_MAIN` when it is not given and
-there is one, else the first user function of the last module -- with no
-arguments. What `ConOut()` is given goes to its output, a line for each
+`xc-vm [--run=NAME] module.xbc ... [-- ARG ...]` loads the modules, runs
+each one's `__INIT` in the order given, then NAME -- `U_MAIN` when it is not
+given and there is one, else the first user function of the last module --
+with the ARGs after `--`, strings, as its arguments. What `ConOut()` is given goes to its output, a line for each
 argument; an error nothing catches goes to its errors, with the function and
 the line, and the exit code is 1.
 

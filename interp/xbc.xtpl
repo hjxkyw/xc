@@ -1,0 +1,1604 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// xbc.xtpl -- the interpreter of xc's bytecode (docs/bytecode.md), written
+// in xtpl, to run a .xbc on an AppServer.
+//
+//   appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module.xbc ...
+//
+// It loads the modules, runs each one's __INIT in the order given, then NAME
+// -- U_MAIN when it is not given and there is one, else the first user
+// function of the last module. The machine is the page's: frames, a stack,
+// cells for the locals a code block shares, references copied in and out,
+// regions for Break and errors, defers, areas, classes. A function no module
+// has is the AppServer's, called by its name; the program's code blocks are
+// the AppServer's own, which call back here, so aEval(), aSort() and the
+// runtime's verbs run them.
+//
+// With out=FILE what ConOut() is given and the error nothing catches go to
+// FILE instead, as xc-vm writes them -- 'exit N', '--- output', its lines,
+// '--- errors', its lines --: what ctest's 'interp' compares with xc-vm's.
+//
+// xc-vm runs it too (cpp/tests/interp.cmake): there the AppServer's macros
+// are not, and xc-vm's XBC_ functions call, read and write by name instead.
+// -----------------------------------------------------------------------------
+
+// ---- instructions -----------------------------------------------------------
+#define OP_NIL        1
+#define OP_TRUE       2
+#define OP_FALSE      3
+#define OP_NUM        4
+#define OP_STR        5
+#define OP_LOCAL      6
+#define OP_SETLOCAL   7
+#define OP_BOX        8
+#define OP_CELL       9
+#define OP_SETCELL    10
+#define OP_UPVAL      11
+#define OP_SETUPVAL   12
+#define OP_STATIC     13
+#define OP_SETSTATIC  14
+#define OP_MEMVAR     15
+#define OP_SETMEMVAR  16
+#define OP_PRIVATE    17
+#define OP_PUBLIC     18
+#define OP_FIELD      19
+#define OP_SETFIELD   20
+#define OP_FIELDX     21
+#define OP_SETFIELDX  22
+#define OP_REFLOCAL   23
+#define OP_REFCELL    24
+#define OP_REFUPVAL   25
+#define OP_REFSTATIC  26
+#define OP_REFMEMVAR  27
+#define OP_POP        28
+#define OP_DUP        29
+#define OP_DUP2       30
+#define OP_ARRAY      31
+#define OP_INDEX      32
+#define OP_SETINDEX   33
+#define OP_MEMBER     34
+#define OP_SETMEMBER  35
+#define OP_SELF       36
+#define OP_ADD        37
+#define OP_SUB        38
+#define OP_MUL        39
+#define OP_DIV        40
+#define OP_MOD        41
+#define OP_POW        42
+#define OP_NEG        43
+#define OP_NOT        44
+#define OP_EQ         45
+#define OP_EXACT      46
+#define OP_NE         47
+#define OP_LT         48
+#define OP_GT         49
+#define OP_LE         50
+#define OP_GE         51
+#define OP_CONTAINS   52
+#define OP_ISNIL      53
+#define OP_JUMP       54
+#define OP_JUMPF      55
+#define OP_JUMPT      56
+#define OP_ANDJUMP    57
+#define OP_ORJUMP     58
+#define OP_CALL       59
+#define OP_CALLX      60
+#define OP_METHOD     61
+#define OP_SUPER      62
+#define OP_NEW        63
+#define OP_RET        64
+#define OP_BLOCK      65
+#define OP_MACRO      66
+#define OP_SETMACRO   67
+#define OP_LINE       68
+#define OP_SEQ        69
+#define OP_TRY        70
+#define OP_ENDSEQ     71
+#define OP_DEFER      72
+#define OP_RUNDEFERS  73
+#define OP_ENDDEFER   74
+#define OP_AREA       75
+#define OP_ENDAREA    76
+
+// An instruction: {op, a, b, s, s2, n, what a call found}.
+#define I_OP 1
+#define I_A  2
+#define I_B  3
+#define I_S  4
+#define I_S2 5
+#define I_N  6
+#define I_C  7
+
+// A function: {name, kind, parameters, locals, module, instructions}.
+#define FN_NAME    1
+#define FN_KIND    2
+#define FN_PARAMS  3
+#define FN_NLOCALS 4
+#define FN_MOD     5
+#define FN_CODE    6
+
+// A module: {source, statics, {name, function}..., namespace, usings}.
+#define M_SOURCE  1
+#define M_STATICS 2
+#define M_FNS     3
+#define M_NS      4
+#define M_USINGS  5
+
+// A class: {name, module, classes above, data, init, {NAME, function's name,
+// static, the function}..., the init's function}.
+#define C_NAME    1
+#define C_MOD     2
+#define C_SUPERS  3
+#define C_DATA    4
+#define C_INIT    5
+#define C_METHODS 6
+#define C_INITFN  7
+
+// A frame: what a call has while it runs.
+#define F_FN      1
+#define F_LOCALS  2
+#define F_STACK   3
+#define F_SP      4
+#define F_PC      5
+#define F_LINE    6
+#define F_ARGC    7
+#define F_CELLS   8
+#define F_SELF    9
+#define F_BYREF   10
+#define F_REGIONS 11
+#define F_AREAS   12
+#define F_DEFERS  13
+#define F_BACK    14
+#define F_PRIVS   15
+#define F_CTOR    16
+
+// What a reference and an error on its way are: arrays no program makes,
+// their first element one of these.
+Static scRef
+Static scErr
+
+// ---- the entry --------------------------------------------------------------
+// The arguments of -run are the command line's: the AppServer's own, then
+// ours -- 'out=FILE', 'run=NAME' (or '--out=', '--run='), the modules --;
+// xc-vm gives those after '--'.
+User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16)
+  Local aArgs := {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16}
+  Local oVM := XbcVM():New()
+  Local aFiles := {}
+  Local cOut := ""
+  Local cEntry := ""
+  Local cArg
+  Local nI
+  Local nExit
+  scRef := Chr(1) + "xbc reference"
+  scErr := Chr(1) + "xbc error"
+  For nI := 1 To Len(aArgs)
+    cArg := aArgs[nI]
+    If ValType(cArg) != "C" .Or. Empty(cArg)
+      Loop
+    EndIf
+    If Left(cArg, 2) == "--"
+      cArg := SubStr(cArg, 3)
+    EndIf
+    If Left(cArg, 4) == "out="
+      cOut := SubStr(cArg, 5)
+    ElseIf Left(cArg, 4) == "run="
+      cEntry := SubStr(cArg, 5)
+    ElseIf Left(cArg, 1) != "-" .And. !(".exe" $ Lower(cArg)) .And. !("appsrv" $ Lower(cArg))
+      AAdd(aFiles, cArg)
+    EndIf
+  Next
+  oVM:lCapture := !Empty(cOut)
+  nExit := oVM:Start(aFiles, cEntry)
+  If !Empty(cOut)
+    oVM:Report(cOut, nExit)
+  EndIf
+Return nExit
+
+// ---- the machine ------------------------------------------------------------
+Class XbcVM
+  Public Data aMods
+  Public Data aEvery
+  Public Data aGlobals
+  Public Data aClasses
+  Public Data aFrames
+  Public Data aPrivs
+  Public Data aPubs
+  Public Data aOpNames
+  Public Data aOpShapes
+  Public Data aCache
+  Public Data bProgErr
+  Public Data lInErr
+  Public Data cWhere
+  Public Data aOut
+  Public Data aErr
+  Public Data lCapture
+  Public Data lHost
+  Public Method New() Constructor
+  Public Method Start(aFiles, cEntry)
+  Public Method Report(cFile, nExit)
+  Public Method Load(cPath)
+  Public Method Run(nBase)
+  Public Method Exec(nBase)
+  Public Method Unwind(nBase, xWhat, lError)
+  Public Method Push(aFn, aArgs, aCells, xSelf)
+  Public Method EndFrame(aF)
+  Public Method Resolve(aMod, cName, lMacro)
+  Public Method ClassNamed(aMod, cName)
+  Public Method MethodOf(aCls, cName)
+  Public Method Instance(aCls)
+  Public Method Invoke(aF, cName, aArgs, lMacro, aIns)
+  Public Method CallNative(cName, aArgs)
+  Public Method Native(cWhat, cName, cMethod, xObj, aArgs)
+  Public Method MethodCall(xObj, cName, aArgs)
+  Public Method MemberOf(xObj, cName)
+  Public Method SetMemberOf(xObj, cName, xValue)
+  Public Method NewNative(cClass, cName, aArgs)
+  Public Method MemCell(cName)
+  Public Method PrivCell(cName, lFresh)
+  Public Method Fail(cMessage)
+  Public Method OnError(oErr)
+  Public Method MakeBlock(aClo)
+  Public Method Enter(aClo, aArgs)
+  Public Method Macro(cText)
+  Public Method SetMacro(cText, xValue)
+  Public Method FieldOf(cAlias, cName)
+  Public Method SetFieldOf(cAlias, cName, xValue)
+  Public Method Cached(cKey, cSource)
+EndClass
+
+Method New() Class XbcVM
+  ::aMods := {}
+  ::aEvery := {}
+  ::aGlobals := {}
+  ::aClasses := {}
+  ::aFrames := {}
+  ::aPrivs := {}
+  ::aPubs := {}
+  ::aCache := {}
+  ::bProgErr := Nil
+  ::lInErr := .F.
+  ::cWhere := ""
+  ::aOut := {}
+  ::aErr := {}
+  ::lCapture := .F.
+  ::lHost := FindFunction("XBC_CALL")
+  ::aOpNames := {"nil", "true", "false", "num", "str", "local", "setlocal", "box", "cell", "setcell", "upval", ;
+                 "setupval", "static", "setstatic", "memvar", "setmemvar", "private", "public", "field", ;
+                 "setfield", "fieldx", "setfieldx", "reflocal", "refcell", "refupval", "refstatic", ;
+                 "refmemvar", "pop", "dup", "dup2", "array", "index", "setindex", "member", "setmember", ;
+                 "self", "add", "sub", "mul", "div", "mod", "pow", "neg", "not", "eq", "exact", "ne", "lt", ;
+                 "gt", "le", "ge", "contains", "isnil", "jump", "jumpf", "jumpt", "andjump", "orjump", ;
+                 "call", "callx", "method", "super", "new", "ret", "block", "macro", "setmacro", "line", ;
+                 "seq", "try", "endseq", "defer", "rundefers", "enddefer", "area", "endarea"}
+  // What follows each word: I a number, W a word, N a number as AdvPL reads
+  // it, S a string.
+  ::aOpShapes := {"", "", "", "N", "S", "I", "I", "I", "I", "I", "I", ;
+                  "I", "I", "I", "W", "W", "W", "W", "WW", ;
+                  "WW", "W", "W", "I", "I", "I", "I", ;
+                  "W", "", "", "", "I", "", "", "W", "W", ;
+                  "", "", "", "", "", "", "", "", "", "", "", "", "", ;
+                  "", "", "", "", "", "I", "I", "I", "I", "I", ;
+                  "IW", "I", "IW", "IW", "IWW", "", "WI", "", "", "I", ;
+                  "I", "I", "", "II", "", "", "", ""}
+Return Self
+
+// Loads the modules, runs their __INITs, then the entry: what the process
+// exits with.
+Method Start(aFiles, cEntry) Class XbcVM
+  Local bOld := ErrorBlock({|oErr| ::OnError(oErr)})
+  Local nExit := 0
+  Local xCaught
+  Local aFn := Nil
+  Local aMod
+  Local nI
+  Local nK
+  Begin Sequence
+    For nI := 1 To Len(aFiles)
+      ::Load(aFiles[nI])
+    Next
+    For nI := 1 To Len(::aMods)
+      aMod := ::aMods[nI]
+      nK := AScan(aMod[M_FNS], {|x| x[1] == "__INIT"})
+      If nK > 0
+        ::Push(aMod[M_FNS][nK][2], {}, Nil, Nil)
+        ::Run(Len(::aFrames))
+      EndIf
+    Next
+    If !Empty(cEntry)
+      nK := AScan(::aGlobals, {|x| x[1] == Upper(cEntry)})
+      aFn := If(nK > 0, ::aGlobals[nK][2], Nil)
+    Else
+      nK := AScan(::aGlobals, {|x| x[1] == "U_MAIN"})
+      If nK > 0
+        aFn := ::aGlobals[nK][2]
+      ElseIf Len(::aMods) > 0
+        aMod := ::aMods[Len(::aMods)]
+        nK := AScan(aMod[M_FNS], {|x| x[2][FN_KIND] == "user"})
+        aFn := If(nK > 0, aMod[M_FNS][nK][2], Nil)
+      EndIf
+    EndIf
+    If aFn == Nil
+      AAdd(::aErr, "xc-vm: nothing to run")
+      nExit := 2
+    Else
+      ::Push(aFn, {}, Nil, Nil)
+      ::Run(Len(::aFrames))
+    EndIf
+  Recover Using xCaught
+    nExit := 1
+    If ValType(xCaught) == "A" .And. Len(xCaught) == 2 .And. ValType(xCaught[1]) == "C" .And. xCaught[1] == scErr
+      AAdd(::aErr, "xc-vm: error: " + ::MemberOf(xCaught[2], "Description") + " (" + ::cWhere + ")")
+    ElseIf ValType(xCaught) == "C" .And. Left(xCaught, 7) == "xc-vm: "
+      AAdd(::aErr, xCaught)
+      nExit := 2
+    Else
+      AAdd(::aErr, "xc-vm: a Break with no Begin Sequence to take it")
+    EndIf
+  End Sequence
+  ErrorBlock(bOld)
+  If !::lCapture
+    For nI := 1 To Len(::aErr)
+      ConOut(::aErr[nI])
+    Next
+  EndIf
+Return nExit
+
+// What ran, as xc-vm prints it: its exit code, its output, its errors.
+Method Report(cFile, nExit) Class XbcVM
+  Local cText := "exit " + cValToChar(nExit) + Chr(10) + "--- output" + Chr(10)
+  Local nI
+  For nI := 1 To Len(::aOut)
+    cText += ::aOut[nI] + Chr(10)
+  Next
+  cText += "--- errors" + Chr(10)
+  For nI := 1 To Len(::aErr)
+    cText += ::aErr[nI] + Chr(10)
+  Next
+  MemoWrite(cFile, cText)
+Return Nil
+
+// ---- loading ----------------------------------------------------------------
+// A .xbc: its header, its classes, its functions; each function's
+// instructions parsed once.
+Method Load(cPath) Class XbcVM
+  Local aLines := {}
+  Local aMod := {cPath, {}, {}, "", {}}
+  Local aWords
+  Local aFn
+  Local aCls
+  Local aCode
+  Local aIns
+  Local cLine
+  Local cWord
+  Local cShape
+  Local nI := 1
+  Local nOp
+  Local nQ
+  Local nW
+  Local nK
+  If !File(cPath)
+    Break("xc-vm: " + cPath + ": cannot be read")
+  EndIf
+  for cRead in lines(cPath)
+    cLine := cRead
+    If Right(cLine, 1) == Chr(13)
+      cLine := Left(cLine, Len(cLine) - 1)
+    EndIf
+    cLine := LTrim(StrTran(cLine, Chr(9), " "))
+    If !Empty(cLine)
+      AAdd(aLines, cLine)
+    EndIf
+  next
+  If Len(aLines) < 3 .Or. aLines[1] != "xbc 1"
+    Break("xc-vm: " + cPath + ": not a .xbc of version 1")
+  EndIf
+  aMod[M_SOURCE] := XbcWords(aLines[2])[2]
+  aMod[M_STATICS] := Array(Val(XbcWords(aLines[3])[2]))
+  nI := 4
+  While nI <= Len(aLines)
+    aWords := XbcWords(aLines[nI])
+    nI++
+    If aWords[1] == "namespace"
+      aMod[M_NS] := aWords[2]
+    ElseIf aWords[1] == "using"
+      AAdd(aMod[M_USINGS], aWords[2])
+    ElseIf aWords[1] == "class"
+      aCls := {aWords[2], aMod, {}, {}, "", {}, Nil}
+      While nI <= Len(aLines)
+        aWords := XbcWords(aLines[nI])
+        nI++
+        If aWords[1] == "end"
+          Exit
+        ElseIf aWords[1] == "from"
+          For nK := 2 To Len(aWords)
+            AAdd(aCls[C_SUPERS], aWords[nK])
+          Next
+        ElseIf aWords[1] == "data"
+          For nK := 2 To Len(aWords)
+            AAdd(aCls[C_DATA], aWords[nK])
+          Next
+        ElseIf aWords[1] == "init"
+          aCls[C_INIT] := aWords[2]
+        ElseIf aWords[1] == "method" .Or. aWords[1] == "static"
+          AAdd(aCls[C_METHODS], {aWords[2], aWords[3], aWords[1] == "static", Nil})
+        EndIf
+      EndDo
+      AAdd(::aClasses, {aCls[C_NAME], aCls})
+    ElseIf aWords[1] == "function"
+      aCode := {}
+      aFn := {aWords[2], aWords[3], Val(aWords[4]), Val(aWords[5]), aMod, aCode}
+      While nI <= Len(aLines)
+        cLine := aLines[nI]
+        nI++
+        If cLine == "end"
+          Exit
+        EndIf
+        nQ := At(" ", cLine)
+        cWord := If(nQ > 0, Left(cLine, nQ - 1), cLine)
+        If cWord == "locals" .Or. cWord == "upvals"
+          Loop
+        EndIf
+        nOp := AScan(::aOpNames, {|x| x == cWord})
+        If nOp == 0
+          Break("xc-vm: " + cPath + ": no instruction '" + cWord + "'")
+        EndIf
+        aIns := {nOp, 0, 0, "", "", 0, Nil}
+        cShape := ::aOpShapes[nOp]
+        If cShape == "S"
+          nQ := At('"', cLine)
+          aIns[I_S] := SubStr(cLine, nQ + 1, Len(cLine) - nQ - 1)
+        ElseIf !Empty(cShape)
+          aWords := XbcWords(cLine)
+          For nW := 1 To Len(cShape)
+            cWord := If(nW + 1 <= Len(aWords), aWords[nW + 1], "")
+            Do Case
+              Case SubStr(cShape, nW, 1) == "N"
+                aIns[I_N] := Val(cWord)
+              Case SubStr(cShape, nW, 1) == "I"
+                If nW == 1
+                  aIns[I_A] := Val(cWord)
+                Else
+                  aIns[I_B] := Val(cWord)
+                EndIf
+              Otherwise
+                If Empty(aIns[I_S])
+                  aIns[I_S] := cWord
+                Else
+                  aIns[I_S2] := cWord
+                EndIf
+            EndCase
+          Next
+        EndIf
+        AAdd(aCode, aIns)
+      EndDo
+      AAdd(aMod[M_FNS], {Upper(aFn[FN_NAME]), aFn})
+      AAdd(::aEvery, {Upper(aFn[FN_NAME]), aFn})
+      If aFn[FN_KIND] == "user" .Or. aFn[FN_KIND] == "function" .Or. aFn[FN_KIND] == "main"
+        AAdd(::aGlobals, {Upper(aFn[FN_NAME]), aFn})
+      EndIf
+    EndIf
+  EndDo
+  AAdd(::aMods, aMod)
+Return aMod
+
+// The words of a line, one blank or more between them.
+Static Function XbcWords(cLine)
+  Local aWords := {}
+  Local nAt
+  cLine := AllTrim(cLine)
+  While !Empty(cLine)
+    nAt := At(" ", cLine)
+    If nAt == 0
+      AAdd(aWords, cLine)
+      Exit
+    EndIf
+    AAdd(aWords, Left(cLine, nAt - 1))
+    cLine := LTrim(SubStr(cLine, nAt + 1))
+  EndDo
+  If Empty(aWords)
+    AAdd(aWords, "")
+  EndIf
+Return aWords
+
+// ---- frames -----------------------------------------------------------------
+// A frame for a function of a module: its parameters from the arguments --
+// a reference's value, written back when it ends.
+Method Push(aFn, aArgs, aCells, xSelf) Class XbcVM
+  Local aLocals := Array(aFn[FN_NLOCALS])
+  Local aByRef := {}
+  Local nN := Min(Len(aArgs), aFn[FN_PARAMS])
+  Local nI
+  Local xArg
+  If Len(::aFrames) > 4000
+    ::Fail("stack overflow")
+  EndIf
+  For nI := 1 To nN
+    xArg := aArgs[nI]
+    If ValType(xArg) == "A" .And. Len(xArg) == 3 .And. ValType(xArg[1]) == "C" .And. xArg[1] == scRef
+      aLocals[nI] := xArg[2][xArg[3]]
+      AAdd(aByRef, {nI, xArg})
+    Else
+      aLocals[nI] := xArg
+    EndIf
+  Next
+  AAdd(::aFrames, {aFn, aLocals, Array(16), 0, 1, 0, Len(aArgs), aCells, xSelf, aByRef, {}, {}, {}, 0, {}, .F.})
+Return Nil
+
+// A frame's end: what its parameters passed by reference hold written back,
+// its privates gone.
+Method EndFrame(aF) Class XbcVM
+  Local nI
+  Local nK
+  Local aRef
+  Local xValue
+  For nI := 1 To Len(aF[F_BYREF])
+    aRef := aF[F_BYREF][nI][2]
+    xValue := aF[F_LOCALS][aF[F_BYREF][nI][1]]
+    // A parameter a code block shares is a cell.
+    If ValType(xValue) == "A" .And. Len(xValue) == 1 .And. XbcBoxed(aF, aF[F_BYREF][nI][1])
+      xValue := xValue[1]
+    EndIf
+    aRef[2][aRef[3]] := xValue
+  Next
+  For nI := 1 To Len(aF[F_PRIVS])
+    nK := AScan(::aPrivs, {|x| x[1] == aF[F_PRIVS][nI]})
+    If nK > 0 .And. Len(::aPrivs[nK][2]) > 0
+      ASize(::aPrivs[nK][2], Len(::aPrivs[nK][2]) - 1)
+    EndIf
+  Next
+Return Nil
+
+// Is local N of the frame a cell: its function boxes it at its start.
+Static Function XbcBoxed(aF, nLocal)
+  Local aCode := aF[F_FN][FN_CODE]
+  Local nI
+  For nI := 1 To Len(aCode)
+    If aCode[nI][I_OP] != OP_BOX
+      Exit
+    EndIf
+    If aCode[nI][I_A] == nLocal
+      Return .T.
+    EndIf
+  Next
+Return .F.
+
+// Runs until the frame at nBase returns, and gives what it returned. A Break
+// -- the program's, or an error on its way -- goes to the innermost region
+// that takes it in this run; with none, on to the run that called.
+Method Run(nBase) Class XbcVM
+  Local xResult
+  Local xCaught
+  Local lDone := .F.
+  Local lError
+  While !lDone
+    lError := Nil
+    Begin Sequence
+      xResult := ::Exec(nBase)
+      lDone := .T.
+    Recover Using xCaught
+      ::lInErr := .F.
+      lError := ValType(xCaught) == "A" .And. Len(xCaught) == 2 .And. ValType(xCaught[1]) == "C" .And. ;
+                xCaught[1] == scErr
+    End Sequence
+    If !lDone
+      If ValType(xCaught) == "C" .And. Left(xCaught, 7) == "xc-vm: "
+        Break(xCaught)
+      EndIf
+      If !::Unwind(nBase, If(lError, xCaught[2], xCaught), lError)
+        Break(xCaught)
+      EndIf
+    EndIf
+  EndDo
+Return xResult
+
+// The innermost region that takes it -- a Break any, an error a 'try' --:
+// the frames above it go, its stack is cut back, the value pushed. False
+// when none in this run does: then the run's frames go.
+Method Unwind(nBase, xWhat, lError) Class XbcVM
+  Local nK
+  Local nR
+  Local aF
+  Local aReg
+  For nK := Len(::aFrames) To nBase Step -1
+    aF := ::aFrames[nK]
+    For nR := Len(aF[F_REGIONS]) To 1 Step -1
+      If lError .And. !aF[F_REGIONS][nR][1]
+        Loop
+      EndIf
+      While Len(::aFrames) > nK
+        ::EndFrame(::aFrames[Len(::aFrames)])
+        ASize(::aFrames, Len(::aFrames) - 1)
+      EndDo
+      aReg := aF[F_REGIONS][nR]
+      ASize(aF[F_REGIONS], nR - 1)
+      ASize(aF[F_AREAS], aReg[4])
+      aF[F_SP] := aReg[3] + 1
+      If aF[F_SP] > Len(aF[F_STACK])
+        ASize(aF[F_STACK], aF[F_SP] * 2)
+      EndIf
+      aF[F_STACK][aF[F_SP]] := xWhat
+      aF[F_PC] := aReg[2]
+      Return .T.
+    Next
+  Next
+  While Len(::aFrames) >= nBase
+    ::EndFrame(::aFrames[Len(::aFrames)])
+    ASize(::aFrames, Len(::aFrames) - 1)
+  EndDo
+Return .F.
+
+// ---- the loop ---------------------------------------------------------------
+Method Exec(nBase) Class XbcVM
+  Local aF := ::aFrames[Len(::aFrames)]
+  Local aCode := aF[F_FN][FN_CODE]
+  Local aSt := aF[F_STACK]
+  Local nSp := aF[F_SP]
+  Local nPc := aF[F_PC]
+  Local aIns
+  Local nOp
+  Local aArgs
+  Local xA
+  Local xB
+  Local xC
+  Local nI
+  Local nN
+  Local aCls
+  Local aM
+  Local aFn
+  Local cName
+  Local nAt
+  While .T.
+    aIns := aCode[nPc]
+    nPc++
+    nOp := aIns[I_OP]
+    If nOp <= OP_REFMEMVAR
+      Do Case
+        Case nOp == OP_LOCAL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aF[F_LOCALS][aIns[I_A]]
+        Case nOp == OP_SETLOCAL
+          aF[F_LOCALS][aIns[I_A]] := aSt[nSp]
+          nSp--
+        Case nOp == OP_NUM
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aIns[I_N]
+        Case nOp == OP_STR
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aIns[I_S]
+        Case nOp == OP_NIL .Or. nOp == OP_TRUE .Or. nOp == OP_FALSE
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := If(nOp == OP_NIL, Nil, nOp == OP_TRUE)
+        Case nOp == OP_CELL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aF[F_LOCALS][aIns[I_A]][1]
+        Case nOp == OP_SETCELL
+          aF[F_LOCALS][aIns[I_A]][1] := aSt[nSp]
+          nSp--
+        Case nOp == OP_BOX
+          aF[F_LOCALS][aIns[I_A]] := {aF[F_LOCALS][aIns[I_A]]}
+        Case nOp == OP_UPVAL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aF[F_CELLS][aIns[I_A]][1]
+        Case nOp == OP_SETUPVAL
+          aF[F_CELLS][aIns[I_A]][1] := aSt[nSp]
+          nSp--
+        Case nOp == OP_STATIC
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]]
+        Case nOp == OP_SETSTATIC
+          aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
+          nSp--
+        Case nOp == OP_MEMVAR
+          xA := ::MemCell(aIns[I_S])
+          If xA == Nil
+            ::Fail("variable does not exist: " + aIns[I_S])
+          EndIf
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := xA[1]
+        Case nOp == OP_SETMEMVAR
+          xA := ::MemCell(aIns[I_S])
+          If xA == Nil
+            xA := ::PrivCell(aIns[I_S])
+          EndIf
+          xA[1] := aSt[nSp]
+          nSp--
+        Case nOp == OP_PRIVATE
+          ::PrivCell(aIns[I_S], .T.)
+        Case nOp == OP_PUBLIC
+          If AScan(::aPubs, {|x| x[1] == aIns[I_S]}) == 0
+            AAdd(::aPubs, {aIns[I_S], {Nil}})
+          EndIf
+        Case nOp == OP_FIELD
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
+        Case nOp == OP_SETFIELD
+          ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
+          nSp--
+        Case nOp == OP_FIELDX
+          aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
+        Case nOp == OP_SETFIELDX
+          ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
+          nSp -= 2
+        Case nOp == OP_REFLOCAL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := {scRef, aF[F_LOCALS], aIns[I_A]}
+        Case nOp == OP_REFCELL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := {scRef, aF[F_LOCALS][aIns[I_A]], 1}
+        Case nOp == OP_REFUPVAL
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
+        Case nOp == OP_REFSTATIC
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
+        Case nOp == OP_REFMEMVAR
+          xA := ::MemCell(aIns[I_S])
+          If xA == Nil
+            xA := ::PrivCell(aIns[I_S])
+          EndIf
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := {scRef, xA, 1}
+      EndCase
+    ElseIf nOp <= OP_SELF
+      Do Case
+        Case nOp == OP_POP
+          nSp--
+        Case nOp == OP_INDEX
+          xA := aSt[nSp - 1]
+          xB := aSt[nSp]
+          nSp--
+          aSt[nSp] := xA[xB]
+        Case nOp == OP_MEMBER
+          aSt[nSp] := ::MemberOf(aSt[nSp], aIns[I_S])
+        Case nOp == OP_SETMEMBER
+          ::SetMemberOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
+          nSp -= 2
+        Case nOp == OP_SETINDEX
+          xA := aSt[nSp - 2]
+          xA[aSt[nSp - 1]] := aSt[nSp]
+          nSp -= 3
+        Case nOp == OP_DUP
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aSt[nSp - 1]
+        Case nOp == OP_DUP2
+          nSp += 2
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp - 1] := aSt[nSp - 3]
+          aSt[nSp] := aSt[nSp - 2]
+        Case nOp == OP_ARRAY
+          nN := aIns[I_A]
+          xA := Array(nN)
+          For nI := 1 To nN
+            xA[nI] := aSt[nSp - nN + nI]
+          Next
+          nSp := nSp - nN + 1
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := xA
+        Case nOp == OP_SELF
+          nSp++
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := aF[F_SELF]
+      EndCase
+    ElseIf nOp <= OP_ORJUMP
+      Do Case
+        Case nOp == OP_JUMPF
+          If !aSt[nSp]
+            nPc := aIns[I_A]
+          EndIf
+          nSp--
+        Case nOp == OP_JUMP
+          nPc := aIns[I_A]
+        Case nOp == OP_ADD
+          aSt[nSp - 1] := aSt[nSp - 1] + aSt[nSp]
+          nSp--
+        Case nOp == OP_SUB
+          aSt[nSp - 1] := aSt[nSp - 1] - aSt[nSp]
+          nSp--
+        Case nOp == OP_MUL
+          aSt[nSp - 1] := aSt[nSp - 1] * aSt[nSp]
+          nSp--
+        Case nOp == OP_DIV
+          aSt[nSp - 1] := aSt[nSp - 1] / aSt[nSp]
+          nSp--
+        Case nOp == OP_MOD
+          aSt[nSp - 1] := aSt[nSp - 1] % aSt[nSp]
+          nSp--
+        Case nOp == OP_POW
+          aSt[nSp - 1] := aSt[nSp - 1] ** aSt[nSp]
+          nSp--
+        Case nOp == OP_NEG
+          aSt[nSp] := -aSt[nSp]
+        Case nOp == OP_NOT
+          aSt[nSp] := !aSt[nSp]
+        Case nOp == OP_EQ
+          aSt[nSp - 1] := (aSt[nSp - 1] = aSt[nSp])
+          nSp--
+        Case nOp == OP_EXACT
+          aSt[nSp - 1] := (aSt[nSp - 1] == aSt[nSp])
+          nSp--
+        Case nOp == OP_NE
+          aSt[nSp - 1] := (aSt[nSp - 1] != aSt[nSp])
+          nSp--
+        Case nOp == OP_LT
+          aSt[nSp - 1] := (aSt[nSp - 1] < aSt[nSp])
+          nSp--
+        Case nOp == OP_GT
+          aSt[nSp - 1] := (aSt[nSp - 1] > aSt[nSp])
+          nSp--
+        Case nOp == OP_LE
+          aSt[nSp - 1] := (aSt[nSp - 1] <= aSt[nSp])
+          nSp--
+        Case nOp == OP_GE
+          aSt[nSp - 1] := (aSt[nSp - 1] >= aSt[nSp])
+          nSp--
+        Case nOp == OP_CONTAINS
+          aSt[nSp - 1] := (aSt[nSp - 1] $ aSt[nSp])
+          nSp--
+        Case nOp == OP_ISNIL
+          aSt[nSp] := (ValType(aSt[nSp]) == "U")
+        Case nOp == OP_JUMPT
+          If aSt[nSp]
+            nPc := aIns[I_A]
+          EndIf
+          nSp--
+        Case nOp == OP_ANDJUMP
+          If !aSt[nSp]
+            nPc := aIns[I_A]
+          Else
+            nSp--
+          EndIf
+        Case nOp == OP_ORJUMP
+          If aSt[nSp]
+            nPc := aIns[I_A]
+          Else
+            nSp--
+          EndIf
+      EndCase
+    Else
+      Do Case
+        Case nOp == OP_LINE
+          aF[F_LINE] := aIns[I_A]
+        Case nOp == OP_CALL .Or. nOp == OP_CALLX
+          nN := aIns[I_A]
+          aArgs := Array(nN)
+          For nI := 1 To nN
+            aArgs[nI] := aSt[nSp - nN + nI]
+          Next
+          nSp -= nN
+          If nOp == OP_CALLX
+            cName := aSt[nSp]
+            nSp--
+            If ValType(cName) != "C"
+              ::Fail("&name.(): the name is no string")
+            EndIf
+          Else
+            cName := aIns[I_S]
+          EndIf
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          xA := ::Invoke(aF, cName, aArgs, nOp == OP_CALLX, If(nOp == OP_CALL, aIns, Nil))
+          If xA
+            // A function of a module: its frame runs on.
+            aF := ::aFrames[Len(::aFrames)]
+            aCode := aF[F_FN][FN_CODE]
+            aSt := aF[F_STACK]
+            nSp := aF[F_SP]
+            nPc := aF[F_PC]
+          Else
+            nSp := aF[F_SP]
+          EndIf
+        Case nOp == OP_RET
+          xA := aSt[nSp]
+          If aF[F_CTOR]
+            xA := aF[F_SELF]
+          EndIf
+          ::EndFrame(aF)
+          ASize(::aFrames, Len(::aFrames) - 1)
+          If Len(::aFrames) < nBase
+            Return xA
+          EndIf
+          aF := ::aFrames[Len(::aFrames)]
+          aCode := aF[F_FN][FN_CODE]
+          aSt := aF[F_STACK]
+          nSp := aF[F_SP] + 1
+          nPc := aF[F_PC]
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := xA
+        Case nOp == OP_METHOD .Or. nOp == OP_SUPER .Or. nOp == OP_NEW
+          nN := aIns[I_A]
+          aArgs := Array(nN)
+          For nI := 1 To nN
+            aArgs[nI] := aSt[nSp - nN + nI]
+          Next
+          nSp -= nN
+          aFn := Nil
+          xC := Nil
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          If nOp == OP_METHOD
+            xB := aSt[nSp]
+            nSp--
+            aF[F_SP] := nSp
+            If ValType(xB) == "O" .And. XbcIsObj(xB)
+              aCls := xB:xbcCls
+              If aIns[I_C] != Nil .And. aIns[I_C][1] == aCls
+                aM := aIns[I_C][2]
+              Else
+                aM := ::MethodOf(aCls, Upper(aIns[I_S]))
+                If aM == Nil
+                  ::Fail("no method " + aIns[I_S] + " of " + aCls[C_NAME])
+                EndIf
+                aIns[I_C] := {aCls, aM}
+              EndIf
+              aFn := aM[1]
+              xC := xB
+            Else
+              xA := ::MethodCall(xB, aIns[I_S], aArgs)
+              nSp++
+              If nSp > Len(aSt)
+                ASize(aSt, nSp * 2)
+              EndIf
+              aSt[nSp] := xA
+            EndIf
+          ElseIf nOp == OP_SUPER
+            cName := Upper(aF[F_FN][FN_NAME])
+            nAt := At("#", cName)
+            If nAt > 0
+              cName := Left(cName, nAt - 1)
+            EndIf
+            nAt := At(":", cName)
+            nI := If(nAt > 0, AScan(::aClasses, {|x| x[1] == Left(cName, nAt - 1)}), 0)
+            If nI == 0
+              ::Fail("_Super outside a method")
+            EndIf
+            aCls := ::aClasses[nI][2]
+            For nI := 1 To Len(aCls[C_SUPERS])
+              xA := ::ClassNamed(aCls[C_MOD], aCls[C_SUPERS][nI])
+              If aFn == Nil .And. xA != Nil
+                aM := ::MethodOf(xA, Upper(aIns[I_S]))
+                If aM != Nil
+                  aFn := aM[1]
+                EndIf
+              EndIf
+            Next
+            If aFn == Nil
+              // A class above that is the AppServer's: its constructor is Self.
+              If Upper(aIns[I_S]) != "NEW"
+                ::Fail("no method " + aIns[I_S] + " above " + aCls[C_NAME])
+              EndIf
+              nSp++
+              If nSp > Len(aSt)
+                ASize(aSt, nSp * 2)
+              EndIf
+              aSt[nSp] := aF[F_SELF]
+            Else
+              xC := aF[F_SELF]
+            EndIf
+          Else
+            // 'Name():M(...)': an object of the class, M run on it -- the
+            // object what the caller gets; a static M, what it returns.
+            aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
+            If aCls == Nil
+              xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
+              nSp++
+              If nSp > Len(aSt)
+                ASize(aSt, nSp * 2)
+              EndIf
+              aSt[nSp] := xA
+            Else
+              aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
+              If aM == Nil
+                ::Fail("Cannot find method " + aCls[C_NAME] + ":" + Upper(aIns[I_S2]))
+              EndIf
+              aFn := aM[1]
+              If !aM[2]
+                xC := ::Instance(aCls)
+              EndIf
+            EndIf
+          EndIf
+          If aFn != Nil
+            ::Push(aFn, aArgs, Nil, xC)
+            If nOp == OP_NEW .And. xC != Nil
+              ::aFrames[Len(::aFrames)][F_CTOR] := .T.
+            EndIf
+            aF := ::aFrames[Len(::aFrames)]
+            aCode := aF[F_FN][FN_CODE]
+            aSt := aF[F_STACK]
+            nSp := aF[F_SP]
+            nPc := aF[F_PC]
+          EndIf
+        Case nOp == OP_BLOCK
+          nN := aIns[I_B]
+          aFn := aIns[I_C]
+          If aFn == Nil
+            nI := AScan(aF[F_FN][FN_MOD][M_FNS], {|x| x[1] == Upper(aIns[I_S])})
+            If nI == 0
+              ::Fail("no block function " + aIns[I_S])
+            EndIf
+            aFn := aF[F_FN][FN_MOD][M_FNS][nI][2]
+            aIns[I_C] := aFn
+          EndIf
+          xA := Array(nN)
+          For nI := 1 To nN
+            xA[nI] := aSt[nSp - nN + nI][2]
+          Next
+          nSp := nSp - nN + 1
+          If nSp > Len(aSt)
+            ASize(aSt, nSp * 2)
+          EndIf
+          aSt[nSp] := ::MakeBlock({aFn, xA, aF[F_SELF]})
+        Case nOp == OP_MACRO
+          aSt[nSp] := ::Macro(aSt[nSp])
+        Case nOp == OP_SETMACRO
+          ::SetMacro(aSt[nSp - 1], aSt[nSp])
+          nSp -= 2
+        Case nOp == OP_SEQ .Or. nOp == OP_TRY
+          AAdd(aF[F_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, Len(aF[F_AREAS])})
+        Case nOp == OP_ENDSEQ
+          ASize(aF[F_REGIONS], Len(aF[F_REGIONS]) - 1)
+        Case nOp == OP_DEFER
+          If AScan(aF[F_DEFERS], {|x| x[1] == aIns[I_A]}) == 0
+            AAdd(aF[F_DEFERS], {aIns[I_A], aIns[I_B]})
+          EndIf
+        Case nOp == OP_RUNDEFERS
+          If Len(aF[F_DEFERS]) > 0
+            nN := 1
+            For nI := 2 To Len(aF[F_DEFERS])
+              If aF[F_DEFERS][nI][1] > aF[F_DEFERS][nN][1]
+                nN := nI
+              EndIf
+            Next
+            aF[F_BACK] := nPc - 1
+            nPc := aF[F_DEFERS][nN][2]
+            ADel(aF[F_DEFERS], nN)
+            ASize(aF[F_DEFERS], Len(aF[F_DEFERS]) - 1)
+          EndIf
+        Case nOp == OP_ENDDEFER
+          nPc := aF[F_BACK]
+        Case nOp == OP_AREA
+          AAdd(aF[F_AREAS], ::CallNative("Select", {}))
+          ::CallNative("DbSelectArea", {aSt[nSp]})
+          nSp--
+        Case nOp == OP_ENDAREA
+          ::CallNative("DbSelectArea", {aF[F_AREAS][Len(aF[F_AREAS])]})
+          ASize(aF[F_AREAS], Len(aF[F_AREAS]) - 1)
+      EndCase
+    EndIf
+  EndDo
+Return Nil
+
+// ---- calls ------------------------------------------------------------------
+// A call by name: a function of a module pushes its frame, .T.; any other is
+// the AppServer's, its result on the caller's stack, .F. What a 'call'
+// found is kept in its instruction.
+Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
+  Local aFn := Nil
+  Local cUp
+  Local xResult
+  Local nI
+  Local xArg
+  If aIns != Nil .And. aIns[I_C] != Nil
+    aFn := aIns[I_C]
+  Else
+    aFn := ::Resolve(aF[F_FN][FN_MOD], cName, lMacro)
+    If aIns != Nil
+      aIns[I_C] := aFn
+    EndIf
+  EndIf
+  If ValType(aFn) == "A"
+    ::Push(aFn, aArgs, Nil, Nil)
+    Return .T.
+  EndIf
+  cUp := aFn
+  Do Case
+    Case cUp == "PCOUNT"
+      xResult := aF[F_ARGC]
+    Case cUp == "ERRORBLOCK"
+      xResult := ::bProgErr
+      If Len(aArgs) > 0
+        ::bProgErr := aArgs[1]
+      EndIf
+    Case (cUp == "CONOUT" .Or. cUp == "QOUT") .And. ::lCapture
+      For nI := 1 To Len(aArgs)
+        xArg := aArgs[nI]
+        AAdd(::aOut, If(ValType(xArg) $ "CNLDF", cValToChar(xArg), ""))
+      Next
+      xResult := Nil
+    Otherwise
+      xResult := ::CallNative(cName, aArgs)
+  EndCase
+  aF[F_SP]++
+  If aF[F_SP] > Len(aF[F_STACK])
+    ASize(aF[F_STACK], aF[F_SP] * 2)
+  EndIf
+  aF[F_STACK][aF[F_SP]] := xResult
+Return .F.
+
+// A function by name, from a module: its own, then -- a name with no
+// namespace -- its namespace's, then those it uses, then one of no
+// namespace; a macro's name in no namespace. Else the AppServer's: its name
+// in upper case.
+Method Resolve(aMod, cName, lMacro) Class XbcVM
+  Local cUp := Upper(cName)
+  Local nK
+  Local cKind
+  Local nI
+  nK := AScan(aMod[M_FNS], {|x| x[1] == cUp})
+  If nK > 0
+    cKind := aMod[M_FNS][nK][2][FN_KIND]
+    If cKind == "user" .Or. cKind == "static" .Or. cKind == "function" .Or. cKind == "main"
+      Return aMod[M_FNS][nK][2]
+    EndIf
+  EndIf
+  If !lMacro .And. !("." $ cUp)
+    If !Empty(aMod[M_NS])
+      nK := AScan(::aGlobals, {|x| x[1] == Upper(aMod[M_NS]) + "." + cUp})
+      If nK > 0
+        Return ::aGlobals[nK][2]
+      EndIf
+    EndIf
+    For nI := 1 To Len(aMod[M_USINGS])
+      nK := AScan(::aGlobals, {|x| x[1] == Upper(aMod[M_USINGS][nI]) + "." + cUp})
+      If nK > 0
+        Return ::aGlobals[nK][2]
+      EndIf
+    Next
+  EndIf
+  nK := AScan(::aGlobals, {|x| x[1] == cUp})
+  If nK > 0
+    Return ::aGlobals[nK][2]
+  EndIf
+Return cUp
+
+// A class by name, from a module: as a function is found.
+Method ClassNamed(aMod, cName) Class XbcVM
+  Local cUp := Upper(cName)
+  Local nK
+  Local nI
+  If !("." $ cUp)
+    If !Empty(aMod[M_NS])
+      nK := AScan(::aClasses, {|x| x[1] == Upper(aMod[M_NS]) + "." + cUp})
+      If nK > 0
+        Return ::aClasses[nK][2]
+      EndIf
+    EndIf
+    For nI := 1 To Len(aMod[M_USINGS])
+      nK := AScan(::aClasses, {|x| x[1] == Upper(aMod[M_USINGS][nI]) + "." + cUp})
+      If nK > 0
+        Return ::aClasses[nK][2]
+      EndIf
+    Next
+  EndIf
+  nK := AScan(::aClasses, {|x| x[1] == cUp})
+Return If(nK > 0, ::aClasses[nK][2], Nil)
+
+// A method, of the class or of one above it: {its function, static}.
+Method MethodOf(aCls, cName) Class XbcVM
+  Local nK := AScan(aCls[C_METHODS], {|x| x[1] == cName})
+  Local aUp
+  Local aM
+  Local nI
+  If nK > 0
+    aM := aCls[C_METHODS][nK]
+    If aM[4] == Nil
+      nI := AScan(::aEvery, {|x| x[1] == Upper(aM[2])})
+      If nI > 0
+        aM[4] := {::aEvery[nI][2], aM[3]}
+      EndIf
+    EndIf
+    If aM[4] != Nil
+      Return aM[4]
+    EndIf
+  EndIf
+  For nI := 1 To Len(aCls[C_SUPERS])
+    aUp := ::ClassNamed(aCls[C_MOD], aCls[C_SUPERS][nI])
+    If aUp != Nil
+      aM := ::MethodOf(aUp, cName)
+      If aM != Nil
+        Return aM
+      EndIf
+    EndIf
+  Next
+Return Nil
+
+// A new object of a module's class: the data of the classes above it and
+// its own, Nil, then the values each class gives them, the topmost first.
+Method Instance(aCls) Class XbcVM
+  Local aChain := {}
+  Local oObj
+  Local nI
+  Local nK
+  Local nD
+  Local aK
+  XbcChain(Self, aCls, aChain)
+  oObj := XbcObj():New(aCls)
+  For nI := 1 To Len(aChain)
+    aK := aChain[nI]
+    For nD := 1 To Len(aK[C_DATA])
+      If AScan(oObj:aProps, {|x| x[1] == aK[C_DATA][nD]}) == 0
+        AAdd(oObj:aProps, {aK[C_DATA][nD], Nil})
+      EndIf
+    Next
+  Next
+  For nI := 1 To Len(aChain)
+    aK := aChain[nI]
+    If !Empty(aK[C_INIT])
+      If aK[C_INITFN] == Nil
+        nK := AScan(::aEvery, {|x| x[1] == Upper(aK[C_INIT])})
+        If nK == 0
+          ::Fail("no function " + aK[C_INIT] + " for the data of " + aK[C_NAME])
+        EndIf
+        aK[C_INITFN] := ::aEvery[nK][2]
+      EndIf
+      ::Push(aK[C_INITFN], {}, Nil, oObj)
+      ::Run(Len(::aFrames))
+    EndIf
+  Next
+Return oObj
+
+// The classes above a class, the topmost first, and it.
+Static Function XbcChain(oVM, aCls, aChain)
+  Local nI
+  Local aUp
+  For nI := 1 To Len(aCls[C_SUPERS])
+    aUp := oVM:ClassNamed(aCls[C_MOD], aCls[C_SUPERS][nI])
+    If aUp != Nil
+      XbcChain(oVM, aUp, aChain)
+    EndIf
+  Next
+  AAdd(aChain, aCls)
+Return Nil
+
+// Is it an object of a module's class.
+Static Function XbcIsObj(oObj)
+Return AttIsMemberOf(oObj, "xbcCls")
+
+// ---- the AppServer's --------------------------------------------------------
+// A function of the AppServer's, by name. A reference is passed as one, and
+// written back.
+Method CallNative(cName, aArgs) Class XbcVM
+Return ::Native("f", cName, "", Nil, aArgs)
+
+// A function, a method of an object, or 'Class():Method()' of the
+// AppServer's, by name: aArgs' references passed as such and written back.
+// On the AppServer a block a macro makes once per name, number of arguments
+// and references -- each argument a parameter of its own, by reference where
+// the call had one --; on xc-vm, its XBC_ functions.
+Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
+  Local aVals := Array(Len(aArgs))
+  Local aRefs := {}
+  Local cKey
+  Local cSrc
+  Local cList := ""
+  Local xResult
+  Local nI
+  For nI := 1 To Len(aArgs)
+    If ValType(aArgs[nI]) == "A" .And. Len(aArgs[nI]) == 3 .And. ValType(aArgs[nI][1]) == "C" .And. ;
+       aArgs[nI][1] == scRef
+      aVals[nI] := aArgs[nI][2][aArgs[nI][3]]
+      AAdd(aRefs, nI)
+    Else
+      aVals[nI] := aArgs[nI]
+    EndIf
+  Next
+  If ::lHost
+    Do Case
+      Case cWhat == "f"
+        xResult := XBC_CALL(cName, aVals, aRefs)
+      Case cWhat == "m"
+        xResult := XBC_METHOD(xObj, cMethod, aVals, aRefs)
+      Otherwise
+        xResult := XBC_NEW(cName, cMethod, aVals, aRefs)
+    EndCase
+  Else
+    cKey := cWhat + ":" + cName + ":" + cMethod + ":" + cValToChar(Len(aVals))
+    For nI := 1 To Len(aRefs)
+      cKey += ":" + cValToChar(aRefs[nI])
+    Next
+    cSrc := "{|a, o"
+    For nI := 1 To Len(aVals)
+      cSrc += ", p" + cValToChar(nI)
+      cList += If(nI > 1, ", ", "") + If(AScan(aRefs, nI) > 0, "@", "") + "p" + cValToChar(nI)
+    Next
+    Do Case
+      Case cWhat == "f"
+        cSrc += ", r| r := " + cName + "(" + cList + ")"
+      Case cWhat == "m"
+        cSrc += ", r| r := o:" + cMethod + "(" + cList + ")"
+      Otherwise
+        cSrc += ", r| r := " + cName + "():" + cMethod + "(" + cList + ")"
+    EndCase
+    For nI := 1 To Len(aRefs)
+      cSrc += ", a[" + cValToChar(aRefs[nI]) + "] := p" + cValToChar(aRefs[nI])
+    Next
+    cSrc += ", r}"
+    xResult := XbcEvalN(::Cached(cKey, cSrc), aVals, xObj)
+  EndIf
+  For nI := 1 To Len(aRefs)
+    aArgs[aRefs[nI]][2][aArgs[aRefs[nI]][3]] := aVals[aRefs[nI]]
+  Next
+Return xResult
+
+// Eval of a block made with a parameter for the arguments array, one for
+// the object, one for each argument.
+Static Function XbcEvalN(bBlock, a, o)
+  Local nN := Len(a)
+  Do Case
+    Case nN == 0
+      Return Eval(bBlock, a, o)
+    Case nN == 1
+      Return Eval(bBlock, a, o, a[1])
+    Case nN == 2
+      Return Eval(bBlock, a, o, a[1], a[2])
+    Case nN == 3
+      Return Eval(bBlock, a, o, a[1], a[2], a[3])
+    Case nN == 4
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4])
+    Case nN == 5
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5])
+    Case nN == 6
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6])
+    Case nN == 7
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7])
+    Case nN == 8
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+    Case nN == 9
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9])
+    Case nN == 10
+      Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10])
+  EndCase
+Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], ;
+            a[14], a[15], a[16], a[17], a[18], a[19], a[20])
+
+// A block a macro makes, made once.
+Method Cached(cKey, cSource) Class XbcVM
+  Local nK := AScan(::aCache, {|x| x[1] == cKey})
+  If nK == 0
+    AAdd(::aCache, {cKey, &(cSource)})
+    nK := Len(::aCache)
+  EndIf
+Return ::aCache[nK][2]
+
+// A method of an object of the AppServer's.
+Method MethodCall(xObj, cName, aArgs) Class XbcVM
+Return ::Native("m", "", cName, xObj, aArgs)
+
+// A member of an object: a module's class's data, or the AppServer's.
+Method MemberOf(xObj, cName) Class XbcVM
+  Local nK
+  If ValType(xObj) == "O" .And. XbcIsObj(xObj)
+    nK := AScan(xObj:aProps, {|x| x[1] == Upper(cName)})
+    If nK == 0
+      ::Fail("no data " + cName + " of " + xObj:xbcCls[C_NAME])
+    EndIf
+    Return xObj:aProps[nK][2]
+  EndIf
+  If ::lHost
+    Return XBC_MEMBER(xObj, cName)
+  EndIf
+Return Eval(::Cached("g:" + cName, "{|o| o:" + cName + "}"), xObj)
+
+Method SetMemberOf(xObj, cName, xValue) Class XbcVM
+  Local nK
+  If ValType(xObj) == "O" .And. XbcIsObj(xObj)
+    nK := AScan(xObj:aProps, {|x| x[1] == Upper(cName)})
+    If nK == 0
+      ::Fail("no data " + cName + " of " + xObj:xbcCls[C_NAME])
+    EndIf
+    xObj:aProps[nK][2] := xValue
+    Return Nil
+  EndIf
+  If ::lHost
+    Return XBC_SETMEMBER(xObj, cName, xValue)
+  EndIf
+  Eval(::Cached("s:" + cName, "{|o, v| o:" + cName + " := v}"), xObj, xValue)
+Return Nil
+
+// 'Name():M(...)' of a class no module has: the AppServer's.
+Method NewNative(cClass, cName, aArgs) Class XbcVM
+Return ::Native("n", cClass, cName, Nil, aArgs)
+
+// ALIAS->NAME; the alias FIELD the area selected.
+Method FieldOf(cAlias, cName) Class XbcVM
+  Local nWas
+  Local xValue
+  If ValType(cAlias) == "C" .And. Upper(cAlias) == "FIELD"
+    Return ::CallNative("FieldGet", {::CallNative("FieldPos", {cName})})
+  EndIf
+  nWas := ::CallNative("Select", {})
+  ::CallNative("DbSelectArea", {cAlias})
+  xValue := ::CallNative("FieldGet", {::CallNative("FieldPos", {cName})})
+  ::CallNative("DbSelectArea", {nWas})
+Return xValue
+
+Method SetFieldOf(cAlias, cName, xValue) Class XbcVM
+  Local nWas
+  If ValType(cAlias) == "C" .And. Upper(cAlias) == "FIELD"
+    ::CallNative("FieldPut", {::CallNative("FieldPos", {cName}), xValue})
+    Return Nil
+  EndIf
+  nWas := ::CallNative("Select", {})
+  ::CallNative("DbSelectArea", {cAlias})
+  ::CallNative("FieldPut", {::CallNative("FieldPos", {cName}), xValue})
+  ::CallNative("DbSelectArea", {nWas})
+Return Nil
+
+// ---- memvars ----------------------------------------------------------------
+// The variable NAME: the innermost private, else the public; Nil when there
+// is none.
+Method MemCell(cName) Class XbcVM
+  Local nK := AScan(::aPrivs, {|x| x[1] == cName})
+  If nK > 0 .And. Len(::aPrivs[nK][2]) > 0
+    Return ::aPrivs[nK][2][Len(::aPrivs[nK][2])]
+  EndIf
+  nK := AScan(::aPubs, {|x| x[1] == cName})
+Return If(nK > 0, ::aPubs[nK][2], Nil)
+
+// A private NAME of the running frame: one it has already, Nil again with
+// lFresh.
+Method PrivCell(cName, lFresh) Class XbcVM
+  Local aF := ::aFrames[Len(::aFrames)]
+  Local nK := AScan(::aPrivs, {|x| x[1] == cName})
+  Local aCell := {Nil}
+  If nK == 0
+    AAdd(::aPrivs, {cName, {}})
+    nK := Len(::aPrivs)
+  EndIf
+  If AScan(aF[F_PRIVS], {|x| x == cName}) > 0
+    aCell := ::aPrivs[nK][2][Len(::aPrivs[nK][2])]
+    If ValType(lFresh) == "L" .And. lFresh
+      aCell[1] := Nil
+    EndIf
+    Return aCell
+  EndIf
+  AAdd(::aPrivs[nK][2], aCell)
+  AAdd(aF[F_PRIVS], cName)
+Return aCell
+
+// &(text): a variable's name is the variable; anything else the AppServer's.
+Method Macro(cText) Class XbcVM
+  Local cName := Upper(AllTrim(cText))
+  Local aCell
+  If XbcPlain(cName)
+    aCell := ::MemCell(cName)
+    If aCell == Nil
+      ::Fail("variable does not exist: " + cName)
+    EndIf
+    Return aCell[1]
+  EndIf
+  If ::lHost
+    ::Fail("xc-vm runs no macro but a variable's name: &(" + cText + ")")
+  EndIf
+Return &(cText)
+
+Method SetMacro(cText, xValue) Class XbcVM
+  Local cName := Upper(AllTrim(cText))
+  Local aCell
+  If !XbcPlain(cName)
+    ::Fail("xc-vm runs no macro but a variable's name: &(" + cText + ")")
+  EndIf
+  aCell := ::MemCell(cName)
+  If aCell == Nil
+    aCell := ::PrivCell(cName)
+  EndIf
+  aCell[1] := xValue
+Return Nil
+
+// A name, and nothing else.
+Static Function XbcPlain(cName)
+  Local nI
+  Local cC
+  If Empty(cName) .Or. IsDigit(cName)
+    Return .F.
+  EndIf
+  For nI := 1 To Len(cName)
+    cC := SubStr(cName, nI, 1)
+    If !(IsAlpha(cC) .Or. IsDigit(cC) .Or. cC == "_")
+      Return .F.
+    EndIf
+  Next
+Return .T.
+
+// ---- errors -----------------------------------------------------------------
+// An error of the machine's: an error the AppServer raises, as any other.
+Method Fail(cMessage) Class XbcVM
+  UserException(cMessage)
+Return Nil
+
+// The error block the machine runs under: an error goes to the program's
+// ErrorBlock() first -- a Break there goes to the innermost region --, else
+// on its way to the innermost 'try'.
+Method OnError(oErr) Class XbcVM
+  Local aF
+  If Len(::aFrames) > 0
+    aF := ::aFrames[Len(::aFrames)]
+    ::cWhere := aF[F_FN][FN_NAME] + ", line " + cValToChar(aF[F_LINE])
+  EndIf
+  If ::bProgErr != Nil .And. !::lInErr
+    ::lInErr := .T.
+    Eval(::bProgErr, oErr)
+    ::lInErr := .F.
+  EndIf
+  Break({scErr, oErr})
+Return Nil
+
+// ---- code blocks ------------------------------------------------------------
+// The program's code block: one of the AppServer's that runs it here, with
+// as many arguments as its function takes.
+Method MakeBlock(aClo) Class XbcVM
+Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
+        ::Enter(aClo, {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12})}
+
+Method Enter(aClo, aArgs) Class XbcVM
+  Local aFn := aClo[1]
+  ASize(aArgs, Min(Len(aArgs), aFn[FN_PARAMS]))
+  ::Push(aFn, aArgs, aClo[2], aClo[3])
+Return ::Run(Len(::aFrames))
+
+// ---- objects ----------------------------------------------------------------
+// An object of a module's class: its class, and its data -- {NAME, value}.
+Class XbcObj
+  Public Data xbcCls
+  Public Data aProps
+  Public Method New(aCls) Constructor
+EndClass
+
+Method New(aCls) Class XbcObj
+  ::xbcCls := aCls
+  ::aProps := {}
+Return Self

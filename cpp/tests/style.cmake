@@ -1,8 +1,8 @@
 # The house style that a test can see: a separator line -- a comment that is
 # a run of dashes, with a title in it or not -- ends at column 80, in xc's
-# own files: the C++ sources, the CMake files, the scripts, the self-test and
-# the runtime. xtpl/ is xtpl's, as it came, and the cases are data: neither
-# is looked at.
+# own files: the C++ sources, the CMake files, the scripts, the self-test,
+# the runtime and the interpreter. xtpl/ is xtpl's, as it came, and the cases
+# are data: neither is looked at.
 #
 #   cmake -DROOT=. -P cpp/tests/style.cmake
 #
@@ -13,7 +13,7 @@
 get_filename_component(ROOT "${ROOT}" ABSOLUTE)
 
 file(GLOB_RECURSE files LIST_DIRECTORIES false
-     ${ROOT}/cpp/src/* ${ROOT}/protheus/* ${ROOT}/runtime/*)
+     ${ROOT}/cpp/src/* ${ROOT}/protheus/* ${ROOT}/runtime/* ${ROOT}/interp/*)
 file(GLOB more LIST_DIRECTORIES false
      ${ROOT}/cpp/CMakeLists.txt ${ROOT}/cpp/*.cmake ${ROOT}/cpp/tests/*.cmake ${ROOT}/*.raku)
 list(APPEND files ${more})

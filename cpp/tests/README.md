@@ -17,6 +17,7 @@ ctest --test-dir cpp/build
 | `style` | each separator line of xc's own files ends at column 80 | `style.cmake` says which files |
 | `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` | `selftests.cmake` says which |
+| `interp`, `interp-xc` | the interpreter in xtpl, run by `xc-vm`, does what `xc-vm` does: each bytecode case with a `.out`, xtpl's self-test; xc's (`interp-xc`, labelled `slow`) | `bytecode/`, `interp.cmake` |
 
 ## cases/
 
@@ -89,6 +90,14 @@ cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp
 ```
 
 A `NAME.out` is written only where there is one; an empty one asks for it.
+
+## interp
+
+Nothing to keep either: xc-vm runs `interp/xbc.xtpl`, compiled to bytecode,
+and the interpreter runs xtpl's runtime and each case of `bytecode/` that
+has a `NAME.out` -- what it writes has to be that `NAME.out`, what xc-vm does
+running the case itself --, then the self-tests. `ctest -LE slow` leaves out
+`interp-xc`, which takes tens of seconds.
 
 ## selftests
 

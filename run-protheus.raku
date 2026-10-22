@@ -3,7 +3,8 @@
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
 #                            [--xc=PATH]
-#                            [--compile-only | --run-only | --corpus] [--verbose]
+#                            [--compile-only | --run-only | --corpus | --interp]
+#                            [--verbose]
 #
 # The self-tests (the default):
 #
@@ -26,6 +27,16 @@
 #      appserver -run=u_xc_selftest -env=<name>
 #    Each prints a line per failed check and a total; this shows those and
 #    reads the totals.
+#
+# The bytecode's interpreter (--interp): xc compiles interp/xbc.xtpl into
+# build/interp/, and the AppServer compiles it with the runtime; xc compiles
+# the runtime, each case of cpp/tests/bytecode that has a NAME.out and both
+# self-tests to bytecode, into build/interp-xbc/. Then the AppServer runs the
+# interpreter on each --
+#   appserver -run=u_xbc -env=<name> out=<NAME.got> xtpl_runtime.xbc NAME.xbc
+# -- and what it writes is compared with NAME.out, what xc-vm does; a
+# self-test has to end with its total and no check failed. The AppServer is
+# given the paths whole, as this machine writes them.
 #
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
@@ -57,7 +68,7 @@ my %opt =
   authorization => %*ENV<XC_AUTHORIZATION>,
   xc            => %*ENV<XC_COMPILER>,
   out           => Str;
-my ($compile, $run, $rebuild, $corpus, $verbose) = True, True, False, False, False;
+my ($compile, $run, $rebuild, $corpus, $interp, $verbose) = True, True, False, False, False, False;
 
 sub usage(Str $why)
 {
@@ -65,7 +76,8 @@ sub usage(Str $why)
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
      ~ "                                [--xc=PATH]\n"
-     ~ "                                [--compile-only | --run-only | --corpus] [--verbose]";
+     ~ "                                [--compile-only | --run-only | --corpus | --interp]\n"
+     ~ "                                [--verbose]";
   exit 2;
 }
 
@@ -75,12 +87,14 @@ for @*ARGS -> $a
   elsif $a eq '--run-only'   { $compile = False }
   elsif $a eq '--rebuild'    { $rebuild = True }
   elsif $a eq '--corpus'     { $corpus = True }
+  elsif $a eq '--interp'     { $interp = True }
   elsif $a eq '--verbose'    { $verbose = True }
   elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
 usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
+usage("--corpus and --interp: one at a time") if $corpus && $interp;
 $run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
 usage("no include folder: --includes=PATH, or XC_INCLUDES") if $compile && !%opt<includes>;
@@ -88,7 +102,7 @@ usage("no xc at {%opt<xc>}: --xc=PATH names the program") if $compile && %opt<xc
 
 # Everything from the top of the repository, wherever this is run from.
 my $root = $*PROGRAM.IO.absolute.IO.parent;
-%opt<out> //= $corpus ?? 'build/corpus' !! 'build/protheus';
+%opt<out> //= $corpus ?? 'build/corpus' !! $interp ?? 'build/interp' !! 'build/protheus';
 my $out = %opt<out>.IO.is-absolute ?? %opt<out>.IO !! $root.add(%opt<out>);
 # The logs: beside the compiled folder, not in it -- the AppServer compiles a
 # folder whole, and counted a log there as one more source.
@@ -298,6 +312,106 @@ if $corpus
   }
   say "\n  Protheus took all {$count - 1} programs, and the runtime";
   exit 0;
+}
+
+# ---- the interpreter ---------------------------------------------------------
+if $interp
+{
+  my $xbc = $out.parent.add('interp-xbc');
+  my $cases = $root.add('cpp/tests/bytecode');
+  my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, '')).sort;
+  my @selftests =
+    %(source => 'xtpl/tests/54_selftest.xtpl', name => '54_selftest', run => 'U_SELFTEST',
+      total => / 'selftest: ' \d+ ' ok, 0 falhas' /),
+    %(source => 'protheus/xc_selftest.xtpl', name => 'xc_selftest', run => 'U_XC_SELFTEST',
+      total => / 'xc_selftest: ' \d+ ' ok, 0 failed' /);
+  if $compile
+  {
+    say "xc ($xc-shown): compiling the interpreter into {shown($out)}";
+    mkdir $out;
+    my $p = xc(native($root.add('interp/xbc.xtpl')), native($out.add('xbc.tlpp')));
+    print $p.out.slurp(:close).lines.map({ "  $_\n" }).join;
+    if $p.exitcode
+    {
+      say "\n  xc could not compile interp/xbc.xtpl";
+      exit 1;
+    }
+    say "\nProtheus: compiling it, with the runtime, into '{%opt<env>}'";
+    my $count = prepare-folder($out, ['xbc.tlpp']);
+    with compile-folder($out, $count)
+    {
+      say "\n  $_";
+      exit 1;
+    }
+    say "\nxc: the runtime, {+@cases} cases and the self-tests as bytecode, into {shown($xbc)}";
+    mkdir $xbc;
+    my @sources = ($root.add('runtime/xtpl_runtime.tlpp') => 'xtpl_runtime',
+                   |@cases.map({ ($cases.add("$_.xtpl").e ?? $cases.add("$_.xtpl") !! $cases.add("$_.prw")) => $_ }),
+                   |@selftests.map({ $root.add(.<source>) => .<name> }));
+    for @sources -> $s
+    {
+      my $q = xc('--bytecode', native($s.key), native($xbc.add($s.value ~ '.xbc')));
+      my $said = $q.out.slurp(:close);
+      if $q.exitcode
+      {
+        print $said.lines.map({ "  $_\n" }).join;
+        say "\n  xc could not make {shown($s.key)} bytecode";
+        exit 1;
+      }
+    }
+  }
+  exit 0 unless $run;
+  mkdir $logs;
+  my @bad;
+  # The interpreter run on the modules; what it wrote, '\r\n' read as '\n'.
+  sub interpret(Str $name, *@args --> Str)
+  {
+    my $got = $xbc.add("$name.got");
+    $got.unlink if $got.e;
+    my ($code, $text) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
+                                  "out={native($got)}", |@args);
+    $got.e ?? $got.slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g)
+           !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $code)\n"
+              ~ $text.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join
+  }
+  say "\nProtheus: the interpreter running {+@cases} cases and the self-tests";
+  for @cases -> $c
+  {
+    my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines.grep(*.trim).map({ native($xbc.add("$_.xbc")) })
+                                       !! ();
+    my $got = interpret($c, native($xbc.add('xtpl_runtime.xbc')), |@with, native($xbc.add("$c.xbc")));
+    my $expect = $cases.add("$c.out").slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g);
+    if $got eq $expect
+    {
+      say "    ok    $c";
+      next;
+    }
+    @bad.push($c);
+    say "    DIFF  $c";
+    my @e = $expect.lines;
+    my @g = $got.lines;
+    for ^max(+@e, +@g) -> $i
+    {
+      next if @e[$i].defined && @g[$i].defined && @e[$i] eq @g[$i];
+      say "          {$i + 1}: expected {@e[$i] // '(nothing)'}";
+      say "          {' ' x ($i + 1).chars}  got      {@g[$i] // '(nothing)'}";
+    }
+  }
+  for @selftests -> %t
+  {
+    my $got = interpret(%t<name>, "run={%t<run>}", native($xbc.add('xtpl_runtime.xbc')), native($xbc.add(%t<name> ~ '.xbc')));
+    my $total = $got.lines.first({ $_ ~~ %t<total> });
+    if $total.defined && $got.starts-with("exit 0\n")
+    {
+      say "    ok    {%t<name>}: $total";
+      next;
+    }
+    @bad.push(%t<name>);
+    say "    FAIL  {%t<name>}";
+    say "          $_" for $got.lines;
+  }
+  say "\n  {@bad ?? "{+@bad} of {@cases + @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
+  exit(@bad ?? 1 !! 0);
 }
 
 # ---- the self-tests ----------------------------------------------------------

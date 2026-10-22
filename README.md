@@ -78,6 +78,9 @@ is to run on an AppServer, calling the AppServer's functions by name.
 compiled so yet. `xc-vm` runs `.xbc`s: the machine as a program, with a
 few of the AppServer's functions, which the tests run their bytecode with --
 xtpl's runtime compiled to bytecode first, and the self-tests too.
+`interp/xbc.xtpl` is the interpreter for an AppServer, written in xtpl
+(`appserver -run=u_xbc -env=NAME module.xbc ...`); xc-vm runs it too, and
+`rakupp run-protheus.raku --interp` runs it on an AppServer.
 
 ## Running the tests
 
@@ -97,6 +100,7 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | `style` | every separator line of xc's own files ends at column 80 |
 | `bytecode` | sources, each with its bytecode, the messages, and what `xc-vm` does running it |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` |
+| `interp`, `interp-xc` | the interpreter written in xtpl, run by `xc-vm`, does what `xc-vm` does: the bytecode cases, the self-tests (`interp-xc`: xc's, slowly) |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:
@@ -118,6 +122,7 @@ totals. xc is the one CMake built (`cpp/build/xc`, or
 rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--authorization=FILE]
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
+rakupp run-protheus.raku ... --interp           # the bytecode's interpreter, on the bytecode cases and the self-tests
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
 rakupp run-protheus.raku ... --rebuild          # the self-tests compiled again, up to date or not
 ```
@@ -127,7 +132,10 @@ results line, each failed check and the totals; all the AppServer said goes
 into a log beside what it compiled (`compile.log`, `run-u_selftest.log`,
 ...). With `--corpus`, xc compiles every program of xtpl's corpus into
 `build/corpus/` and the AppServer compiles that folder: nothing runs, the
-point is that Protheus takes all of xc's output.
+point is that Protheus takes all of xc's output. With `--interp`, the
+AppServer compiles the interpreter (`interp/xbc.xtpl`) and runs it on each
+bytecode case and on both self-tests, made bytecode in `build/interp-xbc/`:
+each has to do what xc-vm does.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`
