@@ -1,0 +1,17 @@
+// A static method takes no visibility: 'Public Static Method' is "C2003
+// Syntax Error" (so are 'Static Public Method' and 'Public Method ...
+// Static'); 'Static Method' is taken, and its implementation may say
+// 'Static' too (tried on 24.3.1.9).
+Class Calc
+  Public Static Method Soma(a, b)
+  Static Method Dobro(n)
+EndClass
+
+Method Soma(a, b) Class Calc
+Return a + b
+
+Static Method Dobro(n) Class Calc
+Return n * 2
+
+User Function Calcula()
+Return Calc():Soma(1, 2) + Calc():Dobro(3)

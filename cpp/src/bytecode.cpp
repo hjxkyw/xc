@@ -203,6 +203,7 @@ namespace xc
       std::string_view src_;
       bool advpl_;
       std::string source_;
+      std::string ns_;                 // the namespace and a '.', or ""
       std::vector<std::string> statics_;
       Scope file_;
       struct Define
@@ -3530,7 +3531,7 @@ namespace xc
       if (with.empty()) { return false; }
       auto fn = std::make_unique<Fn>();
       Fn* g = fn.get();
-      g->name = uc(c->name) + ":__DATA";
+      g->name = ns_ + uc(c->name) + ":__DATA";
       g->kind = "data";
       fns_.push_back(std::move(fn));
       order_.push_back(g);
@@ -3552,10 +3553,10 @@ namespace xc
     }
 
     // 'class NAME', the classes above it, its data, the function that gives
-    // them their values, its methods.
+    // them their values, its methods -- 'static' those that are.
     std::string Compiler::class_text(const ClassDef* c, bool data)
     {
-      std::string name = uc(c->name);
+      std::string name = ns_ + uc(c->name);
       std::string out = "class " + name + "\n";
       if (!c->supers.empty())
       {
@@ -3570,7 +3571,10 @@ namespace xc
         out += "\n";
       }
       if (data) { out += "  init " + name + ":__DATA\n"; }
-      for (const MethodSig* m : c->methods) { out += "  method " + uc(m->name) + " " + name + ":" + uc(m->name) + "\n"; }
+      for (const MethodSig* m : c->methods)
+      {
+        out += std::string(m->is_static ? "  static " : "  method ") + uc(m->name) + " " + name + ":" + uc(m->name) + "\n";
+      }
       return out + "end\n";
     }
 
@@ -3646,11 +3650,10 @@ namespace xc
     std::string Compiler::run()
     {
       directives();
-      if (p_->ns)
-      {
-        line_ = line_of("namespace");
-        problem("a namespace");
-      }
+      // A namespace's functions and classes are named with it before them:
+      // XDK.NS.U_SOMA, as the AppServer names them -- a Static Function is
+      // the source's own, and keeps its name.
+      if (p_->ns) { ns_ = uc(*p_->ns) + "."; }
 
       // The statics' values, run first: the file's, then each function's.
       auto init = std::make_unique<Fn>();
@@ -3691,6 +3694,7 @@ namespace xc
           problem("a " + fd->type + " function");
           continue;
         }
+        if (kind != "static") { name = ns_ + name; }
         function(name, kind, fd->params, fd->body, fd->rettype_word);
       }
 
@@ -3701,10 +3705,6 @@ namespace xc
       {
         if (c->iface) { continue; }
         line_ = c->line;
-        for (const MethodSig* m : c->methods)
-        {
-          if (m->is_static) { problem("a static method ('" + c->name + ":" + m->name + "')"); }
-        }
         classes += "\n" + class_text(c, class_data(c));
       }
       for (const MethodImpl* m : p_->methods)
@@ -3715,12 +3715,15 @@ namespace xc
           problem("a web service's method ('" + m->name + "')");
           continue;
         }
-        function(uc(m->class_name) + ":" + uc(m->name), "method", m->params, m->body, m->returns);
+        function(ns_ + uc(m->class_name) + ":" + uc(m->name), "method", m->params, m->body, m->returns);
       }
 
       if (!problems_.empty()) { throw NotBytecode(problems_); }
 
-      std::string out = "xbc 1\nsource " + source_ + "\nstatics " + std::to_string(statics_.size()) + "\n" + classes;
+      std::string out = "xbc 1\nsource " + source_ + "\nstatics " + std::to_string(statics_.size()) + "\n";
+      if (p_->ns) { out += "namespace " + uc(*p_->ns) + "\n"; }
+      for (const std::string& u : p_->usings) { out += "using " + uc(u) + "\n"; }
+      out += classes;
       auto with_blocks = [&](const Fn* g)
       {
         out += "\n" + written(*g);

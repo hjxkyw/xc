@@ -1,0 +1,169 @@
+xbc 1
+source 10-namespace.xtpl
+statics 0
+namespace XC.TESTE
+
+class XC.TESTE.CONTA
+  data NSALDO
+  init XC.TESTE.CONTA:__DATA
+  method NEW XC.TESTE.CONTA:NEW
+  method SALDO XC.TESTE.CONTA:SALDO
+  static TAXA XC.TESTE.CONTA:TAXA
+end
+
+class XC.TESTE.ESPECIAL
+  from CONTA
+  method NEW XC.TESTE.ESPECIAL:NEW
+  method SALDO XC.TESTE.ESPECIAL:SALDO
+end
+
+function XC.TESTE.U_MAIN user 0 4
+  locals oC oE cNome oErr
+  line 9
+  num 10
+  new 1 Conta New
+  setlocal 1
+  line 10
+  num 5
+  new 1 xc.teste.Especial New
+  setlocal 2
+  line 11
+  str "u_Soma"
+  setlocal 3
+  line 13
+  num 1
+  num 2
+  call 2 u_Soma
+  num 3
+  num 4
+  call 2 xc.teste.u_Soma
+  num 5
+  call 1 Dobra
+  call 3 ConOut
+  pop
+  line 14
+  local 1
+  member nSaldo
+  local 2
+  member nSaldo
+  local 2
+  method 0 Saldo
+  call 3 ConOut
+  pop
+  line 15
+  num 100
+  new 1 Conta Taxa
+  local 1
+  num 200
+  method 1 Taxa
+  call 2 ConOut
+  pop
+  line 16
+  try 51
+  line 17
+  local 3
+  num 1
+  num 2
+  callx 2
+  call 1 ConOut
+  pop
+  endseq
+  jump 57
+  setlocal 4
+  line 19
+  local 4
+  member Description
+  call 1 ConOut
+  pop
+  line 21
+  str "xc.teste.u_Soma"
+  setlocal 3
+  line 22
+  local 3
+  num 5
+  num 6
+  callx 2
+  call 1 ConOut
+  pop
+  line 23
+  nil
+  ret
+end
+
+function XC.TESTE.U_SOMA user 2 2
+  locals a b
+  line 26
+  local 1
+  local 2
+  add
+  ret
+end
+
+function DOBRA static 1 1
+  locals n
+  line 29
+  local 1
+  num 2
+  mul
+  ret
+end
+
+function XC.TESTE.CONTA:__DATA data 0 0
+  locals
+  line 32
+  self
+  num 0
+  setmember NSALDO
+  nil
+  ret
+end
+
+function XC.TESTE.CONTA:NEW method 1 1
+  locals nSaldo
+  line 39
+  self
+  local 1
+  setmember nSaldo
+  line 40
+  self
+  ret
+end
+
+function XC.TESTE.CONTA:SALDO method 0 0
+  locals
+  line 43
+  self
+  member nSaldo
+  ret
+end
+
+function XC.TESTE.CONTA:TAXA method 1 1
+  locals nValor
+  line 46
+  local 1
+  num 100
+  div
+  ret
+end
+
+function XC.TESTE.ESPECIAL:NEW method 1 1
+  locals nSaldo
+  line 54
+  local 1
+  num 2
+  mul
+  super 1 New
+  pop
+  line 55
+  self
+  ret
+end
+
+function XC.TESTE.ESPECIAL:SALDO method 0 0
+  locals
+  line 58
+  super 0 Saldo
+  num 1
+  add
+  ret
+end

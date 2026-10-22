@@ -1,0 +1,32 @@
+// A name of 4 letters or more that begins one of the AppServer's keywords
+// is the keyword to it, wherever it is -- a method, a Data, a Local, a
+// function --, and the line is refused ("C2003 Syntax Error"; LOCAL's,
+// "C9907 Invalid use of reserved word LOCAL"; tried on 24.3.1.9). SEQUENCE,
+// MEMVAR, FIELD and REQUEST are not read so; nor a name longer than the
+// keyword (Returns), one that only shares its first letters (Statement), a
+// User Function's (Decl).
+Class Pedido
+  Public Data Stat
+  Public Data Memv
+  Public Method New() Constructor
+  Public Method Other()
+EndClass
+
+Method New() Class Pedido
+  ::Stat := 0
+  ::Memv := 0
+Return Self
+
+Method Other() Class Pedido
+Return 1
+
+Static Function Proc(Param)
+  Local Loca := Param
+  Local Sequ := 1
+  Local Returns := 2
+  Local Statement := 3
+  Private Retu := 3
+Return Loca + Sequ + Returns + Statement + Retu
+
+User Function Decl()
+Return Proc(1)

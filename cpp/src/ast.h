@@ -483,6 +483,7 @@ namespace xc
     bool constructor = false;
     bool is_static = false;          // 'Static Method'
     OptStr returns;
+    int line = 0;
   };
 
   struct ClassDef : Node

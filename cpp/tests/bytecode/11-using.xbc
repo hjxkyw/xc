@@ -1,0 +1,25 @@
+xbc 1
+source 11-using.xtpl
+statics 0
+using XC.TESTE
+
+function U_MAIN user 0 1
+  locals oC
+  line 8
+  num 7
+  new 1 Conta New
+  setlocal 1
+  line 9
+  num 1
+  num 1
+  call 2 u_Soma
+  local 1
+  method 0 Saldo
+  num 300
+  new 1 Conta Taxa
+  call 3 ConOut
+  pop
+  line 10
+  nil
+  ret
+end

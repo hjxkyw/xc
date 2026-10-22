@@ -1,0 +1,13 @@
+exit 0
+--- output
+3
+7
+10
+10
+10
+11
+1
+2
+function u_Soma does not exist
+11
+--- errors

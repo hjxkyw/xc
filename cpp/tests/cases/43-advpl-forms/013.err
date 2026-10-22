@@ -1,0 +1,2 @@
+013.xtpl:8: 'Other' is OTHERWISE written short: the AppServer reads a name of 4 letters or more that begins one of its keywords as the keyword, and refuses the line ("C2003 Syntax Error", tried on 24.3.1.9). Give it another name.
+013.xtpl:8: a static method takes no visibility: the AppServer refuses 'public' with 'Static' ("C2003 Syntax Error", tried on 24.3.1.9). Write 'Static Method Other(...)'.

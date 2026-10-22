@@ -2,8 +2,9 @@
 # is compiled with 'xc --bytecode'. NAME.xbc is what it writes; NAME.err what
 # it says, warnings or why it writes nothing, when it says anything; NAME.out,
 # when there is one, what xc-vm does running the .xbc after xtpl's runtime
-# (RUNTIME, compiled the same way), from that folder -- its exit code, what it
-# printed on its output and on its errors.
+# (RUNTIME, compiled the same way) and the cases NAME.with names, one to a
+# line, from that folder -- its exit code, what it printed on its output and
+# on its errors.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp
 #         -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -P cpp/tests/bytecode.cmake
@@ -71,7 +72,14 @@ foreach(src ${sources})
   endif()
   check(${name} xbc "${made}" ON)
   if(EXISTS ${CASES}/${name}.out AND EXISTS ${WORK}/${name}.xbc)
-    execute_process(COMMAND ${VM} ${WORK}/xtpl_runtime.xbc ${WORK}/${name}.xbc
+    set(with "")
+    if(EXISTS ${CASES}/${name}.with)
+      file(STRINGS ${CASES}/${name}.with names)
+      foreach(w ${names})
+        list(APPEND with ${WORK}/${w}.xbc)
+      endforeach()
+    endif()
+    execute_process(COMMAND ${VM} ${WORK}/xtpl_runtime.xbc ${with} ${WORK}/${name}.xbc
                     WORKING_DIRECTORY ${CASES}
                     OUTPUT_VARIABLE out
                     ERROR_VARIABLE err

@@ -1,0 +1,58 @@
+// A namespace: its functions and classes are named with it, found by their
+// plain names inside it and by their full names anywhere; a macro's name only
+// as it is written. A static method, called on the class and on an object.
+#include "totvs.ch"
+#include "tlpp-core.th"
+namespace xc.teste
+
+User Function Main()
+  Local oC := Conta():New(10)
+  Local oE := xc.teste.Especial():New(5)
+  Local cNome := "u_Soma"
+  Local oErr
+  ConOut(u_Soma(1, 2), xc.teste.u_Soma(3, 4), Dobra(5))
+  ConOut(oC:nSaldo, oE:nSaldo, oE:Saldo())
+  ConOut(Conta():Taxa(100), oC:Taxa(200))
+  Try
+    ConOut(&cNome.(1, 2))
+  Catch oErr
+    ConOut(oErr:Description)
+  EndTry
+  cNome := "xc.teste.u_Soma"
+  ConOut(&cNome.(5, 6))
+Return Nil
+
+User Function Soma(a, b)
+Return a + b
+
+Static Function Dobra(n)
+Return n * 2
+
+Class Conta
+  Public Data nSaldo as Numeric
+  Public Method New(nSaldo) Constructor
+  Public Method Saldo()
+  Static Method Taxa(nValor)
+EndClass
+
+Method New(nSaldo) Class Conta
+  ::nSaldo := nSaldo
+Return Self
+
+Method Saldo() Class Conta
+Return ::nSaldo
+
+Static Method Taxa(nValor) Class Conta
+Return nValor / 100
+
+Class Especial From Conta
+  Public Method New(nSaldo) Constructor
+  Public Method Saldo()
+EndClass
+
+Method New(nSaldo) Class Especial
+  _Super:New(nSaldo * 2)
+Return Self
+
+Method Saldo() Class Especial
+Return _Super:Saldo() + 1

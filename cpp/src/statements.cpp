@@ -1087,6 +1087,7 @@ namespace xc
     }
     p_ = at;
     auto m = make<MethodSig>();
+    m->line = line(at);
     std::vector<std::string> vis;
     for (;;)
     {
@@ -1355,7 +1356,7 @@ namespace xc
   // rule methodimpl
   // {
   //   [ <annotation> <.nl> ]*
-  //   :i [ 'method' || 'operator' ] <mname=name> '(' ~ ')' <params>
+  //   [ :i 'static' ]? :i [ 'method' || 'operator' ] <mname=name> '(' ~ ')' <params>
   //      [ :i 'as' <ret=name> ]?
   //      :i 'class' <cname=name>
   //      [ :i 'as' <retafter=name> ]? <.nl>
@@ -1378,7 +1379,13 @@ namespace xc
     {
       return fail();
     }
+    // A static method's may say so: 'Static Method Soma(a, b) Class X'.
     int save = p_;
+    if (!(ilit("static") && word_end() && ws()))
+    {
+      p_ = save;
+    }
+    save = p_;
     if (!((ilit("method") && ws()) || (p_ = save, ilit("operator") && ws())) || !ws())
     {
       return fail();

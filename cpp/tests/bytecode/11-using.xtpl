@@ -1,0 +1,10 @@
+// 'using namespace': 10-namespace's names by their plain names. (11-using.with
+// names the module xc-vm loads before this one.)
+#include "totvs.ch"
+#include "tlpp-core.th"
+using namespace xc.teste
+
+User Function Main()
+  Local oC := Conta():New(7)
+  ConOut(u_Soma(1, 1), oC:Saldo(), Conta():Taxa(300))
+Return Nil

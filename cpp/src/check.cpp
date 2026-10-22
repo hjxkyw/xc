@@ -359,6 +359,28 @@ namespace xc
       { "date", { "Date", "the date 1899-12-31" } },
     };
 
+    // The keywords the AppServer reads written short: a name of 4 letters or
+    // more that begins one is the keyword to it, wherever it is -- a method,
+    // a Data, a Local, a function (tried on 24.3.1.9). SEQUENCE, MEMVAR,
+    // FIELD and REQUEST it does not read so.
+    const std::vector<std::string> SHORT_KEYWORDS =
+    {
+      "announce", "begin", "declare", "endcase", "enddo", "endif", "external", "function", "local", "otherwise",
+      "parameters", "private", "procedure", "public", "recover", "return", "static", "while",
+    };
+
+    // The keyword NAME begins, written short, or "".
+    std::string short_keyword(const std::string& name)
+    {
+      std::string n = lc(name);
+      if (n.size() < 4) { return ""; }
+      for (const std::string& k : SHORT_KEYWORDS)
+      {
+        if (n.size() <= k.size() && k.compare(0, n.size(), n) == 0) { return k; }
+      }
+      return "";
+    }
+
     // A scope: the names it declares, and the one around it. A closure scope
     // is a lambda's or a code block's: a name found beyond it is captured.
     struct Scope
@@ -449,6 +471,8 @@ namespace xc
 
       void problem(const std::string& m) { found.push_back({ line_, m }); }
       void warning(const std::string& m) { warned.push_back({ line_, m }); }
+      void keyword_name(const std::string& name, int line);
+      std::unordered_set<std::string> keyword_seen_;   // line and name, said once
 
       void agrees(const Declarator* d)
       {
@@ -511,6 +535,11 @@ namespace xc
     {
       for (const FunctionDef* f : p->functions)
       {
+        // A User Function's name is the AppServer's with 'U_' before it (a
+        // Web's 'W_', an Html's 'H_'), no keyword -- not tried: only a
+        // Static, a Main and a bare Function's are checked.
+        std::string type = lc(f->type);
+        if (type.empty() || type == "static" || type == "main") { keyword_name(f->name, f->line); }
         funcs_[lc(f->name)] = Func{ f->name, lc(f->type), f->params.size(), f->line };
         // A bare 'Function' whose name has no 'u_', or a 'Main Function': a
         // regular function, which TOTVS compiles with its authorization --
@@ -564,18 +593,39 @@ namespace xc
       {
         for (Declarator* v : d->declarators) { statics.push_back(v); }
       }
-      for (const Declarator* d : statics) { agrees(d); }
+      for (const Declarator* d : statics)
+      {
+        agrees(d);
+        keyword_name(d->name, d->line);
+      }
       for (const FunctionDef* f : p->functions) { file_statics(f->body, statics); }
       for (const MethodImpl* m : p->methods) { file_statics(m->body, statics); }
       std::stable_sort(statics.begin(), statics.end(),
                        [](const Declarator* a, const Declarator* b) { return a->line < b->line; });
       for (const Declarator* d : statics) { file_static(d); }
       for (const FunctionDef* f : p->functions) { ends_.push_back(f->line); }
-      for (const MethodImpl* m : p->methods) { ends_.push_back(m->line); }
+      for (const MethodImpl* m : p->methods)
+      {
+        ends_.push_back(m->line);
+        keyword_name(m->name, m->line);
+      }
       for (const ClassDef* c : p->classes)
       {
         ends_.push_back(c->line);
         classes_.insert(lc(c->name));
+        for (const DataMember* m : c->members) { keyword_name(m->name, m->line); }
+        for (const MethodSig* m : c->methods)
+        {
+          keyword_name(m->name, m->line);
+          // 'Public Static Method' is C2003: a static method has no
+          // visibility (tried on 24.3.1.9).
+          if (m->is_static && m->visibility)
+          {
+            found.push_back({ m->line, "a static method takes no visibility: the AppServer refuses '"
+                                       + *m->visibility + "' with 'Static' (\"C2003 Syntax Error\", tried on "
+                                       + "24.3.1.9). Write 'Static Method " + m->name + "(...)'." });
+          }
+        }
         // A Data's value: the AppServer ignores it, in a .tlpp and a .prw
         // (tried on 24.3.1.9).
         for (const DataMember* m : c->members)
@@ -849,9 +899,24 @@ namespace xc
     }
 
     // ---- scopes -------------------------------------------------------------
+    // A name the AppServer reads as a keyword written short.
+    void Checker::keyword_name(const std::string& name, int line)
+    {
+      std::string k = short_keyword(name);
+      // A reserved word xc refuses as a name already.
+      if (k.empty() || is_reserved(name) || !keyword_seen_.insert(num(line) + " " + lc(name)).second) { return; }
+      std::string code = k == "local" ? "C9907 Invalid use of reserved word LOCAL" : "C2003 Syntax Error";
+      std::string what = name.size() == k.size() ? "the AppServer's keyword " + uc(k) + ", and it refuses the line"
+                         : uc(k) + " written short: the AppServer reads a name of 4 letters or more that begins one of "
+                           "its keywords as the keyword, and refuses the line";
+      found.push_back({ line, "'" + name + "' is " + what + " (\"" + code + "\", tried on 24.3.1.9). Give it another "
+                              + "name." });
+    }
+
     void Checker::declare(const std::string& name, int line, const std::vector<std::string>& attributes,
                           const std::string& kind, bool written)
     {
+      keyword_name(name, line);
       std::string k = lc(name);
       if (auto it = scope_->names.find(k); it != scope_->names.end())
       {
@@ -1205,7 +1270,11 @@ namespace xc
             for (Expr* x : d->dims) { expr(x); }
             // A Private or a Public is the program's while it runs, not its
             // block's: one declared in an If is there after the EndIf.
-            if (decl->scope == "private" || decl->scope == "public" || static_decls_.count(s)) { continue; }
+            if (decl->scope == "private" || decl->scope == "public" || static_decls_.count(s))
+            {
+              keyword_name(d->name, d->line);
+              continue;
+            }
             declare(d->name, d->line, d->attributes, "local", d->init != nullptr);
             note_scalar(d);
             auto t = w.size() > 1 ? TYPED_START.find(lc(w[1])) : TYPED_START.end();

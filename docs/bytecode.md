@@ -70,12 +70,16 @@ is nothing. The file is windows-1252, as the source was.
 - `xbc 1` -- the format and its version, the first line.
 - `source NAME` -- the source it was made from.
 - `statics N` -- how many statics the module has, numbered from 1.
+- `namespace NAME` -- the namespace of the module, when it has one: its
+  functions but the static ones, and its classes, are named with it
+  before them, `XDK.NS.U_SOMA`, as the AppServer names them.
+- `using NAME` -- a namespace the module uses, one a line.
 - `class NAME` ... `end` -- a class of the module, in upper case, after
   `statics` and before the functions. Inside it, `from NAME...` names the
   classes above it; `data NAME...` its data; `init FUNCTION` the function
   that gives them the values they start at, when one has one; `method NAME
-  FUNCTION` each of its methods and the function that is its body. Only
-  `class` and `end` must be there.
+  FUNCTION` each of its methods and the function that is its body, `static
+  NAME FUNCTION` each static one. Only `class` and `end` must be there.
 - `function NAME KIND PARAMS LOCALS` ... `end` -- a function: its name as
   it is called, in upper case; its kind; how many parameters it takes; how
   many locals its frame has, the parameters the first of them. Then its
@@ -249,11 +253,11 @@ Each is AdvPL's own, on the values as they are:
 
 | instruction | does |
 |---|---|
-| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a function of the module by that name in upper case, else one any module has for others to call, else the AppServer's -- a class is none |
-| `callx ARGC` | `[name x1 ... xARGC] -> [result]`: `&name.(...)` |
+| `call ARGC NAME` | `[x1 ... xARGC] -> [result]`: NAME as written; a function of the module by that name in upper case, else -- a NAME with no `.` -- its namespace's, then those of the namespaces it uses, in their order; else one any module has for others to call by that name, else the AppServer's -- a class is none |
+| `callx ARGC` | `[name x1 ... xARGC] -> [result]`: `&name.(...)` -- the name looked for as `call` does, but in no namespace: as the AppServer's macro |
 | `method ARGC NAME` | `[o x1 ... xARGC] -> [o:NAME(...)]` |
 | `super ARGC NAME` | `[x1 ... xARGC] -> [result]`: `_Super:NAME(...)` -- the method NAME of the classes above the one the running method is of, on Self |
-| `new ARGC CLASS NAME` | `[x1 ... xARGC] -> [o]`: `CLASS():NAME(...)` -- a new object of CLASS, its method NAME run on it with the arguments; the object is the value, whatever NAME returns |
+| `new ARGC CLASS NAME` | `[x1 ... xARGC] -> [o]`: `CLASS():NAME(...)` -- a new object of CLASS, its method NAME run on it with the arguments; the object is the value, whatever NAME returns. For a static NAME, no object: the value is what NAME returns. CLASS is found as `call` finds a function |
 | `ret` | `[x] ->`: the frame ends, and the caller gets `x` |
 | `block NAME K` | `[c1 ... cK] -> [b]`: a code block whose body is the function NAME, its cells `c1 ... cK` |
 | `macro` | `[text] -> [&(text)]` |
@@ -277,7 +281,10 @@ N's, `refupval N` the block's own cell N, for one inside another.
 `new` makes an object of a module's class: the data of the classes above
 it and its own, each once, Nil; then each class's `init` function runs on
 it, the topmost class's first; then the method `new` names, which must be
-there ("Cannot find method CLASS:NAME"). Its frame is a method's, and when
+there ("Cannot find method CLASS:NAME"). A static method is run with no
+object -- Self is Nil -- and its value is what the caller gets. A class
+`from` names is found from the module of the class that names it, as a
+function is. Its frame is a method's, and when
 it returns, the caller gets the object -- `Conta():Zera()` is an object even
 when `Zera()` returns `.T.`, as on the AppServer. A CLASS no module has is
 the AppServer's -- `THashMap`, `JsonObject` --: the interpreter makes the
@@ -359,7 +366,14 @@ a typed `Local` does -- in a `.prw`, at Nil --, one without at Nil: its
 `Default` or `Init` value is ignored, as the AppServer ignores it (tried on
 24.3.1.9). The machine does not check a member's visibility. `Name():M(...)`
 -- `Name` with no arguments -- is a `new`, whatever `Name` is, as for TL++;
-`Self` is `self`, `::x` Self's `x`, `_Super:New(...)` a `super`.
+`Self` is `self`, `::x` Self's `x`, `_Super:New(...)` a `super`. A `Static
+Method` is a `static` of its class.
+
+A `namespace` is the module's `namespace`, its `using`s its `using`s; a
+name in a call is as it is written -- `xdk.ns.u_Soma()` is `call 0
+xdk.ns.u_Soma` --, and the machine finds it, as the AppServer does (tried
+on 24.3.1.9): a plain name first in the module, then in its namespace, then
+in those it uses, then where no namespace is.
 
 xtpl's own forms are what they are for TL++:
 
@@ -402,7 +416,7 @@ be there for these, as for TL++.
 
 xc says so, and writes no `.xbc`:
 
-- a namespace; a web service's method (`WsMethod`); a static method;
+- a web service's method (`WsMethod`);
 - what is the preprocessor's: `raw`, a command -- TOTVS' `@ ... SAY`,
   `BeginSql`, one of the source's own --, a translation of the source's
   own, a directive inside a function, `#ifdef` and its kin, a `#define`

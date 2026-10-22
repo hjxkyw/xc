@@ -278,7 +278,10 @@ Return Self
   after it (`Name():New():x` is a syntax error), and a class is no function
   (`Name()` alone fails when it runs). xc says so of a class of the file.
 - `Method name(...)` and `Operator name(...)`, with a visibility or
-  `Static`, `Constructor` and `as Type` in either order.
+  `Static` -- not both: the AppServer refuses `Public Static Method`
+  ("C2003 Syntax Error"), and xc too --, `Constructor` and `as Type` in
+  either order. A static method's implementation may say `Static Method`;
+  `Name():M(...)` of a static method is what it returns, no object.
 - An implementation, at file level: `Method name(...) Class Name`, with
   `as Type` before or after `Class Name`, and its body.
 - Inside a method, `::x` is `Self:x` -- a value, a call, a target.
@@ -404,6 +407,19 @@ The output keeps them as a comment.
 
 **Default**, from `totvs.ch`: `Default nQtd := 1, cTipo := "A"` gives each
 its value when it is Nil. It is a statement, and passes through.
+
+**Names the AppServer reads as keywords.** It reads a name of 4 letters or
+more that begins one of its keywords -- `ANNOUNCE`, `BEGIN`, `DECLARE`,
+`ENDCASE`, `ENDDO`, `ENDIF`, `EXTERNAL`, `FUNCTION`, `LOCAL`, `OTHERWISE`,
+`PARAMETERS`, `PRIVATE`, `PROCEDURE`, `PUBLIC`, `RECOVER`, `RETURN`,
+`STATIC`, `WHILE` -- as the keyword, wherever the name is: a `Local`, a
+parameter, a `Private`, a `Data`, a method, a function. `Param`, `Proc`,
+`Stat`, `Other` and `Retu` are refused ("C2003 Syntax Error"; `Loca`, "C9907
+Invalid use of reserved word LOCAL"), and so is the whole keyword. A name
+longer than the keyword (`Returns`), one that only shares its first letters
+(`Statement`, `Funcao`), a User Function's (`Decl`, written after `U_`) are
+taken, and so are `SEQUENCE`'s, `MEMVAR`'s, `FIELD`'s and `REQUEST`'s
+(`Sequ`, `Memv`) -- tried on 24.3.1.9. xc refuses what the AppServer would.
 
 ### The prologue
 

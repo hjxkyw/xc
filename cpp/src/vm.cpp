@@ -32,6 +32,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -115,14 +116,17 @@ namespace
   };
 
   // A class of a module: the classes above it, its data, the function that
-  // gives them their values, its methods -> their functions.
+  // gives them their values, its methods -> their functions, those of them
+  // that are static.
   struct Class
   {
     std::string name;
+    const Module* mod = nullptr;
     std::vector<std::string> supers;
     std::vector<std::string> data;
     std::string init;
     std::unordered_map<std::string, std::string> methods;
+    std::unordered_set<std::string> statics;
   };
 
   // THashMap, JsonObject, an error, an object of a module's class.
@@ -542,6 +546,8 @@ namespace
   struct Module
   {
     std::string source;
+    std::string ns;                       // its namespace, or ""
+    std::vector<std::string> usings;
     std::vector<Value> statics;
     std::vector<std::unique_ptr<Function>> fns;
     std::unordered_map<std::string, Function*> by_name;
@@ -624,11 +630,12 @@ namespace
     Value run(std::size_t base);
     bool unwind(std::size_t base, const Unwind& u);
     bool exec(std::size_t base, Value& result);
-    const Function* function_named(const Module* from, const std::string& name) const;
-    void invoke(const Module* from, const std::string& name, Args& args);
+    const Function* function_named(const Module* from, const std::string& name, bool macro = false) const;
+    const Class* class_named(const Module* from, const std::string& name) const;
+    void invoke(const Module* from, const std::string& name, Args& args, bool macro = false);
     Value call_value(const Value& block, Args args);
     Value instance(const Class* c);
-    const Function* method_of(const Class* c, const std::string& name) const;
+    const Function* method_of(const Class* c, const std::string& name, bool* is_static = nullptr) const;
     Value method(const Value& o, const std::string& name, Args& args);
 
     // ---- variables ----------------------------------------------------------
@@ -712,10 +719,18 @@ namespace
     while (!next().empty())
     {
       w = words_of(lines[i]);
+      if (w.size() == 2 && (w[0] == "namespace" || w[0] == "using"))
+      {
+        if (w[0] == "namespace") { mod->ns = w[1]; }
+        else { mod->usings.push_back(w[1]); }
+        i++;
+        continue;
+      }
       if (w.size() == 2 && w[0] == "class")
       {
         auto c = std::make_unique<Class>();
         c->name = w[1];
+        c->mod = mod.get();
         i++;
         for (;;)
         {
@@ -727,7 +742,11 @@ namespace
           if (cw[0] == "from") { c->supers.assign(cw.begin() + 1, cw.end()); }
           else if (cw[0] == "data") { c->data.insert(c->data.end(), cw.begin() + 1, cw.end()); }
           else if (cw[0] == "init" && cw.size() == 2) { c->init = cw[1]; }
-          else if (cw[0] == "method" && cw.size() == 3) { c->methods[cw[1]] = cw[2]; }
+          else if ((cw[0] == "method" || cw[0] == "static") && cw.size() == 3)
+          {
+            c->methods[cw[1]] = cw[2];
+            if (cw[0] == "static") { c->statics.insert(cw[1]); }
+          }
           else { throw std::runtime_error(where(k) + ": no line '" + cw[0] + "' in a class"); }
         }
         classes_[c->name] = c.get();
@@ -971,25 +990,67 @@ namespace
     return false;
   }
 
-  const Function* VM::function_named(const Module* from, const std::string& name) const
+  // A function by name, from a module: its own, then -- a name with no
+  // namespace -- its namespace's, then those it uses, then one of no
+  // namespace, as the AppServer finds them (tried on 24.3.1.9). A macro's
+  // name is not looked for in the namespaces.
+  const Function* VM::function_named(const Module* from, const std::string& name, bool macro) const
   {
     std::string u = upper(name);
+    auto global = [&](const std::string& n) -> const Function*
+    {
+      auto g = globals_.find(n);
+      return g == globals_.end() ? nullptr : g->second;
+    };
     if (from)
     {
       auto it = from->by_name.find(u);
       std::string k = it == from->by_name.end() ? "" : it->second->kind;
       if (k == "user" || k == "static" || k == "function" || k == "main") { return it->second; }
+      if (!macro && u.find('.') == std::string::npos)
+      {
+        if (!from->ns.empty())
+        {
+          if (const Function* f = global(from->ns + "." + u)) { return f; }
+        }
+        for (const std::string& n : from->usings)
+        {
+          if (const Function* f = global(n + "." + u)) { return f; }
+        }
+      }
     }
-    auto g = globals_.find(u);
-    return g == globals_.end() ? nullptr : g->second;
+    return global(u);
+  }
+
+  // A class by name, from a module: as a function is found.
+  const Class* VM::class_named(const Module* from, const std::string& name) const
+  {
+    std::string u = upper(name);
+    auto one = [&](const std::string& n) -> const Class*
+    {
+      auto c = classes_.find(n);
+      return c == classes_.end() ? nullptr : c->second;
+    };
+    if (from && u.find('.') == std::string::npos)
+    {
+      if (!from->ns.empty())
+      {
+        if (const Class* c = one(from->ns + "." + u)) { return c; }
+      }
+      for (const std::string& n : from->usings)
+      {
+        if (const Class* c = one(n + "." + u)) { return c; }
+      }
+    }
+    return one(u);
   }
 
   // A call by name: a function of the module, a user function of any, or the
   // AppServer's -- a class is none. A function of a module pushes its frame;
   // the AppServer's leaves its result.
-  void VM::invoke(const Module* from, const std::string& name, Args& args)
+  void VM::invoke(const Module* from, const std::string& name, Args& args, bool macro)
   {
-    if (const Function* fn = function_named(from, name))
+    if (const Function* fn = function_named(from, name, macro))
     {
       push_frame(fn, args, nullptr, Value());
       return;
@@ -1009,7 +1070,7 @@ namespace
     {
       for (const std::string& s : k->supers)
       {
-        if (auto it = classes_.find(s); it != classes_.end()) { above(it->second); }
+        if (const Class* up = class_named(k->mod, s)) { above(up); }
       }
       chain.push_back(k);
     };
@@ -1041,18 +1102,22 @@ namespace
   }
 
   // A method, of the class or of one above it.
-  const Function* VM::method_of(const Class* c, const std::string& name) const
+  const Function* VM::method_of(const Class* c, const std::string& name, bool* is_static) const
   {
     if (auto m = c->methods.find(name); m != c->methods.end())
     {
       auto f = every_.find(m->second);
-      if (f != every_.end()) { return f->second; }
+      if (f != every_.end())
+      {
+        if (is_static) { *is_static = c->statics.count(name) > 0; }
+        return f->second;
+      }
     }
     for (const std::string& s : c->supers)
     {
-      auto it = classes_.find(s);
-      if (it == classes_.end()) { continue; }
-      if (const Function* f = method_of(it->second, name)) { return f; }
+      const Class* up = class_named(c->mod, s);
+      if (!up) { continue; }
+      if (const Function* f = method_of(up, name, is_static)) { return f; }
     }
     return nullptr;
   }
@@ -1691,7 +1756,7 @@ namespace
           Args a = take(static_cast<std::size_t>(in.a));
           Value name = deref(pop());
           if (type_of(name) != 'C') { fail("&name.(): the name is no string"); }
-          invoke(f.fn->mod, std::get<std::string>(name.v), a);
+          invoke(f.fn->mod, std::get<std::string>(name.v), a, true);
           break;
         }
         case Op::Method:
@@ -1721,8 +1786,8 @@ namespace
           const Function* m = nullptr;
           for (const std::string& sup : c->second->supers)
           {
-            auto it = classes_.find(sup);
-            if (!m && it != classes_.end()) { m = method_of(it->second, upper(in.s)); }
+            const Class* up = class_named(c->second->mod, sup);
+            if (!m && up) { m = method_of(up, upper(in.s)); }
           }
           if (m)
           {
@@ -1741,11 +1806,19 @@ namespace
           // is what the caller gets, whatever M returns.
           Args a = take(static_cast<std::size_t>(in.a));
           std::string cls = upper(in.s);
-          if (auto c = classes_.find(cls); c != classes_.end())
+          if (const Class* c = class_named(f.fn->mod, cls))
           {
-            Value o = instance(c->second);
-            const Function* m = method_of(c->second, upper(in.s2));
-            if (!m) { fail("Cannot find method " + cls + ":" + upper(in.s2)); }
+            // A static method is called, no object made: the caller gets
+            // what it returns (tried on 24.3.1.9).
+            bool is_static = false;
+            const Function* m = method_of(c, upper(in.s2), &is_static);
+            if (!m) { fail("Cannot find method " + c->name + ":" + upper(in.s2)); }
+            if (is_static)
+            {
+              push_frame(m, a, nullptr, Value());
+              break;
+            }
+            Value o = instance(c);
             push_frame(m, a, nullptr, o);
             frames_.back()->constructs = true;
             break;

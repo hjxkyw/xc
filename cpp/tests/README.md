@@ -45,7 +45,8 @@ guard as a statement's whole value, and one that stays an expression;
 with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
 variable named `as`, a number as a `Decimal`'s value, a member after
-`Name():New()`, a class called as a function); `survey/`, forms
+`Name():New()`, a class called as a function, a name the AppServer reads
+as a keyword, `Public Static Method`); `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with
@@ -79,8 +80,9 @@ cmake -DXC=cpp/build/xc -DCASES=cpp/tests/driver -DWORK=cpp/build/driver -DUPDAT
 `NAME.xtpl` (or `NAME.prw`) and beside it `NAME.xbc`, what `xc --bytecode`
 writes (none when it writes none), `NAME.err`, what it says (none when it
 says nothing), and `NAME.out`, what `xc-vm` does running the `.xbc` after
-xtpl's runtime, compiled to bytecode too -- its exit code, its output and
-its errors -- for the cases it can run. After a change that is meant:
+xtpl's runtime, compiled to bytecode too, and the cases `NAME.with` names,
+one to a line -- its exit code, its output and its errors -- for the cases
+it can run. After a change that is meant:
 
 ```
 cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -DUPDATE=1 -P cpp/tests/bytecode.cmake

@@ -6,11 +6,3 @@ User Function Refused(aNums)
   raw @ 10, 5 SAY "Total"
   ConOut(aNums[1], @aNums[2])
 Return nTotal
-
-Class Contador
-  Public Data nTotal as Numeric
-  Public Static Method Zero()
-EndClass
-
-Method Zero() Class Contador
-Return 0
