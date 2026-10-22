@@ -1,0 +1,136 @@
+// Chains that are loops, as TL++ writes them: over an array whose stages
+// fuse, over a range, over the lines of a file (08-chains.txt), over the
+// records of an area -- as a statement's whole value, a block's Local, a
+// Private, a 'return', a statement of its own, under a 'fallback'.
+User Function Main()
+  Local aNums := {3, 1, 4, 1, 5, 9, 2, 6}
+  Local aWords := {"b", "a", "b", "c", "a"}
+  Local aTmp := {}
+  Local aBox := {Nil}
+  Local nSeen := 0
+  Local nTmp := 0
+  Local xOut
+  Local cSep := "+"
+  Local cFile := "08-chains.txt"
+  Local nHi := 4
+
+  ConOut("-- stages")
+  aTmp := aNums |> filter([x] x > 1) |> map([x] x * 10)
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> reject([x] x > 3) |> map(cValToChar)
+  ConOut(join(aTmp, ","))
+  // A take stops the loop: the tap sees only what the loop read.
+  aTmp := aNums |> filter([x] x > 1) |> sortBy([x] -x) |> tap([x] nSeen++) |> take(3)
+  ConOut(nSeen, join(aTmp, ","))
+  aTmp := aNums |> takeWhile([x] x < 5) |> drop(1)
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> dropWhile([x] x != 5) |> distinct
+  ConOut(join(aTmp, ","))
+  aTmp := aWords |> distinct
+  ConOut(join(aTmp, ","))
+  aTmp := {1, 1, 2, 2, 2, 3, 1} |> distinctAdjacent |> map([x] x)
+  ConOut(join(aTmp, ","))
+  aTmp := aWords |> distinctAdjacent([w] Upper(w) == "B")
+  ConOut(join(aTmp, ","))
+  aTmp := {{1, 2}, {}, {3}} |> expand([a] a) |> map([x] x * x)
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> take(4) |> scan([acc, x] acc + x, 100)
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> take(4) |> pairwise |> map([p] p[1] * p[2])
+  ConOut(join(aTmp, ","))
+
+  ConOut("-- terminals")
+  ConOut(aNums |> filter([x] x > 2) |> asum, aNums |> map([x] x) |> count)
+  nTmp := aNums |> count([x] x == 1)
+  ConOut(nTmp)
+  xOut := aNums |> map([x] x * 2) |> anyOf([x] x > 15)
+  ConOut(xOut)
+  xOut := aNums |> map([x] x * 2) |> allOf([x] x > 1)
+  ConOut(xOut)
+  xOut := aNums |> map([x] x) |> noneOf([x] x > 9)
+  ConOut(xOut)
+  xOut := aNums |> filter([x] x > 3) |> first
+  ConOut(xOut)
+  xOut := aNums |> map([x] x + 1) |> first([x] x % 5 == 0)
+  ConOut(xOut)
+  xOut := aNums |> take(4) |> aprod
+  ConOut(xOut)
+  xOut := aNums |> map([x] -x) |> amax
+  ConOut(xOut)
+  xOut := aNums |> map([x] -x) |> amin
+  ConOut(xOut)
+  xOut := aNums |> take(3) |> join(cSep)
+  ConOut(xOut)
+  xOut := aWords |> map([w] Upper(w)) |> join
+  ConOut(xOut)
+  xOut := aNums |> filter([x] x > 2) |> reduce([acc, x] acc + x * x, 0)
+  ConOut(xOut)
+  xOut := aNums |> take(5) |> fold([acc, x] acc * 10 + x)
+  ConOut(xOut)
+  xOut := aWords |> map([w] w + w) |> maxBy([w] Asc(w))
+  ConOut(xOut)
+  xOut := aNums |> map([x] x) |> minBy([x] Abs(x - 5))
+  ConOut(xOut)
+  aTmp := aNums |> map([x] x) |> chunkBy([x] x % 2)
+  ConOut(Len(aTmp), join(aTmp[1], ","), join(aTmp[Len(aTmp)], ","))
+
+  ConOut("-- after a stage that is a call")
+  aTmp := aNums |> filter([x] x > 2) |> sortBy([x] x) |> map([x] x * 100) |> take(2)
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> map([x] x + 1) |> filter([x] x > 3) |> sortBy([x] -x) |> reverse
+  ConOut(join(aTmp, ","))
+
+  ConOut("-- ranges")
+  aTmp := 1..nHi |> map([x] x * x)
+  ConOut(join(aTmp, ","))
+  aTmp := 2..Len(aNums) - 3 |> filter([x] x % 2 == 0)
+  ConOut(join(aTmp, ","))
+  nTmp := 0
+  1..3 |> map([x] x) |> sortBy([x] -x) |> tap([x] nTmp := nTmp * 10 + x)
+  ConOut(nTmp)
+
+  ConOut("-- files")
+  aTmp := lines(cFile) |> filter([l] ";" $ l) |> map([l] Val(SubStr(l, At(";", l) + 1)))
+  ConOut(join(aTmp, ","))
+  ConOut(Longest(cFile))
+  for cLine, nNo in lines("08-chains.txt")
+    Loop if Empty(cLine)
+    Exit if Left(cLine, 1) == "#"
+    ConOut("${nNo}: ${cLine}")
+  next
+  ConOut(FirstWithDigit("08-chains.txt"))
+
+  ConOut("-- where a chain is a value")
+  aBox[1] := aNums |> filter([x] x > 4) |> map([x] x)
+  ConOut(join(aBox[1], ","))
+  If Len(aNums) > 0
+    Local aBig := aNums |> filter([x] x > 5) |> map([x] x)
+    ConOut(join(aBig, ","))
+  EndIf
+  Private aPriv := aWords |> map([w] w + "!") |> filter([w] w != "c!")
+  ConOut(join(aPriv, ","))
+  aTmp := aNums |> map([x] 12 / (x - 1)) |> filter([x] x > 0) fallback {"fell back"}
+  ConOut(join(aTmp, ","))
+  aTmp := aNums |> map([x] x) |> filter([x] x > 8) if nTmp > 0
+  ConOut(join(aTmp, ","))
+  aNums |> filter([x] x > 5) |> tap([x] ConOut("tap ${x}"))
+  ConOut(Records())
+Return Nil
+
+// The longest line: a 'return' of a chain.
+Static Function Longest(cPath)
+Return lines(cPath) |> map([l] Len(l)) |> amax
+
+// A 'return' from inside the walk closes the file first.
+Static Function FirstWithDigit(cPath)
+  for cLine in lines(cPath)
+    If IsDigit(Right(cLine, 1))
+      Return cLine + ", " + cValToChar(FT_FEof())
+    EndIf
+  next
+Return ""
+
+// An area of xc-vm has no records.
+Static Function Records()
+  Local nCount := rows("SA1") |> count([r] r:A1_SALDO > 0)
+Return nCount

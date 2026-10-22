@@ -126,6 +126,14 @@ namespace xc
       std::function<void()> write;
     };
 
+    // A stage's record over rows(), before a map: 'r:X' is a field of the
+    // area walked -- its alias written out, or held in a local.
+    struct Record
+    {
+      std::string alias;
+      int local = -1;
+    };
+
     bool is(const Expr* e, EK k) { return e && e->kind == k; }
 
     const std::string& name_of(const Expr* e) { return static_cast<const Name*>(e)->name; }
@@ -218,6 +226,11 @@ namespace xc
       Fn* top_ = nullptr;
       int line_ = 0;
       std::vector<std::pair<Fn*, int>> subjects_;
+      // The names the function declares (chains.h), the records of the stages
+      // being written, and the verbs written as calls made chains.
+      std::unordered_set<std::string> declared_;
+      std::unordered_map<std::string, Record> records_;
+      std::unordered_map<const Expr*, const Expr*> chains_made_;
 
       // ---- emitting ---------------------------------------------------------
       void op(const std::string& o, const std::string& arg = "")
@@ -305,11 +318,6 @@ namespace xc
       Var local_of(Fn* owner, int index);
       int upval(Fn* f, Fn* owner, int index);
       int declare(const std::string& name);
-      bool variable(const Var& v) const
-      {
-        return v.kind == Var::Local || v.kind == Var::Upval || v.kind == Var::Static
-               || (v.kind == Var::Memvar && v.declared) || v.kind == Var::Define;
-      }
       void load(const Var& v);
       void store(const Var& v);
       void ref(const Var& v);
@@ -335,10 +343,30 @@ namespace xc
       void assign(const Expr* t, const std::string& o, const Expr* value, Want want, const std::string& incdec);
       void operand(const Expr* t, const std::string& o, const Expr* value, const std::string& incdec);
       void nil_assign(const Expr* t, const Expr* value);
-      bool fused(const Expr* v, bool for_effect);
-      bool fused_stmt(const Stmt* s);
+      void assign_value(const Expr* t, const std::function<void()>& value);
       void dims(const std::vector<Expr*>& ds);
       bool start(const Declarator* v);
+
+      // ---- chains that are loops --------------------------------------------
+      using Push = std::function<void()>;
+      Declared declared() const
+      {
+        return [this](const std::string& n) { return declared_.count(n) > 0; };
+      }
+      const Expr* as_chain(const Expr* e);
+      bool fusable_array(const Expr* e, bool for_effect);
+      bool loop_value(const Expr* e);
+      void check_chain(const Expr* chain, bool for_effect);
+      void calls(const Push& value, const std::vector<Call*>& stages);
+      Push stream(const Expr* chain, bool collect);
+      Push walk_chain(const Expr* source, const Push& over, const std::vector<Call*>& stages, bool collect);
+      Push range_end(const Expr* e);
+      void bound(const Lambda* l, std::optional<int> elem, std::optional<Record> record);
+      void bound2(const Lambda* l, int carried, int element);
+      void field(const Record& r, const std::string& name, bool set);
+      void init_into(const Expr* value, const Push& store);
+      void guard_into(const Guard* g, const Push& store);
+      bool whole_value(const Stmt* s);
 
       // ---- Decimals ---------------------------------------------------------
       bool lowered_decimal(const Expr* e) const;
@@ -358,6 +386,7 @@ namespace xc
       void while_stmt(const WhileStmt* s);
       void for_stmt(const ForStmt* s);
       void for_in(const ForInStmt* s);
+      void for_lines(const ForInStmt* s);
       void for_times(const ForTimesStmt* s);
       void modified(const Modified* m);
       void using_alias(const UsingAlias* u);
@@ -580,6 +609,15 @@ namespace xc
         case EK::Member:
         {
           auto m = static_cast<const Member*>(e);
+          if (is(m->base, EK::Name))
+          {
+            auto r = records_.find(lc(name_of(m->base)));
+            if (r != records_.end())
+            {
+              field(r->second, m->name, false);
+              return;
+            }
+          }
           member_base(m->base);
           op("member", m->name);
           return;
@@ -599,7 +637,7 @@ namespace xc
           return;
         }
         case EK::Interval:
-          problem("a range 'lo..hi' -- one is read after 'in', at the head of a chain and as what 'for ... in' walks");
+          problem("a range outside 'in' and the head of a chain");
           op("nil");
           return;
         case EK::MethodCall:
@@ -873,13 +911,13 @@ namespace xc
         op("nil");
         return;
       }
-      bool verb = is_runtime_verb(c->name);
-      if (verb && !c->args.empty() && is_source(c->args[0]))
+      if (is_source(c))
       {
-        problem("a walk over rows(), lines() or a range");
+        problem("'" + n + "()' outside the head of a chain (it is a source)");
         op("nil");
         return;
       }
+      bool verb = is_runtime_verb(c->name);
       for (std::size_t i = 0; i < c->args.size(); i++)
       {
         if (verb && i > 0) { block_arg(n, c->args[i]); }
@@ -912,11 +950,11 @@ namespace xc
       expr(a);
     }
 
-    // An argument of a verb that takes a block: a bare name that is not a
-    // variable is the function of that name.
+    // An argument of a verb that takes a block: a bare name the function does
+    // not declare is the function of that name, as for TL++.
     void Compiler::block_arg(const std::string& verb, const Expr* a)
     {
-      if (takes_block(verb) && is(a, EK::Name) && !variable(resolve(name_of(a))))
+      if (takes_block(verb) && is(a, EK::Name) && !declared_.count(lc(name_of(a))))
       {
         name_block(name_of(a));
         return;
@@ -1068,103 +1106,1166 @@ namespace xc
       call(1, hash ? "u_xtpl_hnew" : "u_xtpl_jnew");
     }
 
-    // A chain: each stage a call, what came before its first argument.
+    // A chain inside an expression: each stage a call, what came before its
+    // first argument -- one from a source cannot be.
     void Compiler::pipeline(const Pipeline* p)
     {
       if (is_source(p->source))
       {
-        problem("a chain from rows(), lines() or a range");
+        std::string what = source_kind(p->source) == "range" ? "a range" : source_kind(p->source) + "()";
+        problem("a chain from " + what + " where it cannot run as a loop first (it goes in 'x := ...', "
+                "'return ...' or a statement of its own)");
         op("nil");
         return;
       }
-      expr(p->source);
-      for (const Call* st : p->stages)
-      {
-        bool verb = is_runtime_verb(st->name);
-        for (const Expr* a : st->args)
-        {
-          if (verb) { block_arg(lc(st->name), a); }
-          else { arg(a); }
-        }
-        call(st->args.size() + 1, verb ? "u_xtpl_" + lc(st->name) : st->name);
-      }
+      calls([this, p] { expr(p->source); }, p->stages);
     }
 
     // ---- chains that are loops ----------------------------------------------
-    // A chain TL++ makes a loop of (emit.cpp's fused_value): a statement's
-    // whole value -- or what a 'fallback' there guards -- over an array, with
-    // stages that fuse; verbs written as calls are the chain they stand for.
-    // Not yet here: run as calls, a 'tap' before a 'take' would see what the
-    // loop never reads.
-    bool Compiler::fused(const Expr* v, bool for_effect)
+    // What TL++ makes a loop of (emit.cpp's fused_value, lower.cpp's
+    // walk_chain), written the same way: a chain that is a statement's whole
+    // value -- 'x := ...', 'return ...', a block's Local, a Private, a Public,
+    // a statement of its own, or what a 'fallback' there guards -- from
+    // rows(), lines() or a range, or over an array with stages that fuse.
+
+    // Verbs written as calls are the chain they stand for: 'filter(map(a,
+    // f), g)' is 'a |> map(f) |> filter(g)'.
+    const Expr* Compiler::as_chain(const Expr* e)
     {
-      if (is(v, EK::Guard) && !for_effect)
+      if (!is(e, EK::Call) || !is_runtime_verb(static_cast<const Call*>(e)->name)) { return e; }
+      if (auto it = chains_made_.find(e); it != chains_made_.end()) { return it->second; }
+      std::vector<const Call*> outer;
+      const Expr* x = e;
+      while (is(x, EK::Call) && is_runtime_verb(static_cast<const Call*>(x)->name)
+             && !static_cast<const Call*>(x)->args.empty())
       {
-        auto g = static_cast<const Guard*>(v);
-        return fused(g->expr, false) || fused(g->fallback, false);
+        outer.push_back(static_cast<const Call*>(x));
+        x = outer.back()->args[0];
       }
-      std::vector<Call*> stages;
-      const Expr* head = nullptr;
-      if (is(v, EK::Pipeline))
+      const Expr* made = e;
+      if (!outer.empty() && x && x->kind != EK::Omitted && !is_source(x) && !is(x, EK::Pipeline))
       {
-        head = static_cast<const Pipeline*>(v)->source;
-        stages = static_cast<const Pipeline*>(v)->stages;
-      }
-      else if (is(v, EK::Call) && is_runtime_verb(static_cast<const Call*>(v)->name))
-      {
-        std::vector<const Call*> outer;
-        const Expr* x = v;
-        while (is(x, EK::Call) && is_runtime_verb(static_cast<const Call*>(x)->name)
-               && !static_cast<const Call*>(x)->args.empty())
-        {
-          outer.push_back(static_cast<const Call*>(x));
-          x = outer.back()->args[0];
-        }
-        if (!x || x->kind == EK::Omitted || is_source(x) || is(x, EK::Pipeline)) { return false; }
-        head = x;
+        Pipeline* p = tree_.make<Pipeline>();
+        p->source = const_cast<Expr*>(x);
         for (auto c = outer.rbegin(); c != outer.rend(); ++c)
         {
           Call* st = tree_.make<Call>();
           st->name = (*c)->name;
           st->args.assign((*c)->args.begin() + 1, (*c)->args.end());
-          stages.push_back(st);
+          p->stages.push_back(st);
         }
+        made = p;
+      }
+      chains_made_[e] = made;
+      return made;
+    }
+
+    bool Compiler::fusable_array(const Expr* e, bool for_effect)
+    {
+      if (!is(e, EK::Pipeline) || is_source(static_cast<const Pipeline*>(e)->source)) { return false; }
+      return fuse_from(static_cast<const Pipeline*>(e)->stages, declared(), for_effect) >= 0;
+    }
+
+    // A value that is statements before it is a value: a guard, a chain that
+    // runs as a loop.
+    bool Compiler::loop_value(const Expr* e)
+    {
+      return is(e, EK::Guard) || (e && (source_call(e) || fusable_array(as_chain(e), false)));
+    }
+
+    // What keeps a chain from a source from being a loop (chains.cpp).
+    void Compiler::check_chain(const Expr* chain, bool for_effect)
+    {
+      if (!source_call(chain)) { return; }
+      for (const std::string& m : chain_problems(chain, for_effect, declared())) { problem(m); }
+    }
+
+    // A value with stages applied to it as calls, each around the one before.
+    void Compiler::calls(const Push& value, const std::vector<Call*>& stages)
+    {
+      value();
+      for (const Call* st : stages)
+      {
+        for (const Expr* a : st->args) { block_arg(lc(st->name), a); }
+        call(st->args.size() + 1, is_runtime_verb(st->name) ? "u_xtpl_" + lc(st->name) : st->name);
+      }
+    }
+
+    // A chain as a loop, and how its result is pushed. Over an array the loop
+    // starts where fuse_from says, the stages before it calls; a name is
+    // walked as it is, anything else bound once.
+    Compiler::Push Compiler::stream(const Expr* chain, bool collect)
+    {
+      check_chain(chain, !collect);
+      std::vector<Call*> stages;
+      if (is(chain, EK::Pipeline)) { stages = static_cast<const Pipeline*>(chain)->stages; }
+      if (const Expr* src = source_call(chain)) { return walk_chain(src, nullptr, stages, collect); }
+      const Expr* src = static_cast<const Pipeline*>(chain)->source;
+      int from = std::max(0, fuse_from(stages, declared(), !collect));
+      if (from == 0 && is(src, EK::Name)) { return walk_chain(nullptr, [this, src] { expr(src); }, stages, collect); }
+      std::vector<Call*> before(stages.begin(), stages.begin() + from);
+      std::vector<Call*> after(stages.begin() + from, stages.end());
+      int fs = temp();
+      calls([this, src] { expr(src); }, before);
+      on_local("setlocal", fs);
+      return walk_chain(nullptr, [this, fs] { on_local("local", fs); }, after, collect);
+    }
+
+    // An end of a range: a number or a name as it is, anything else bound
+    // once, before the loop.
+    Compiler::Push Compiler::range_end(const Expr* e)
+    {
+      if (number_literal(e) || is(e, EK::Name)) { return [this, e] { expr(e); }; }
+      int t = temp();
+      expr(e);
+      on_local("setlocal", t);
+      return [this, t] { on_local("local", t); };
+    }
+
+    // The loop of a chain: over a source, or over the array 'over' pushes.
+    // What it needs is set up first, then each stage's state, then the loop,
+    // its stages inside in order, the terminal -- or an AAdd -- collecting;
+    // the stages after that are a chain over what was collected.
+    Compiler::Push Compiler::walk_chain(const Expr* source, const Push& over, const std::vector<Call*>& stages,
+                                        bool collect)
+    {
+      Split split = split_stages(stages, source == nullptr, declared());
+      int top = label();
+      int end = label();
+      std::optional<int> elem;
+      std::optional<int> fv;
+      std::optional<Record> record;
+      Push head;                     // the counter set, the test that ends the loop
+      Push read;                     // the element
+      Push next;                     // on to the next one, and back to the test
+      Push teardown;
+      auto fresh = [&]
+      {
+        if (!fv) { fv = temp(); }
+        return *fv;
+      };
+
+      if (is(source, EK::Interval))
+      {
+        // A range counts; the element is a copy of the counter.
+        auto r = static_cast<const Interval*>(source);
+        Push lo = range_end(r->lo);
+        Push hi = range_end(r->hi);
+        int fi = temp();
+        int v = fresh();
+        elem = v;
+        head = [=, this]
+        {
+          lo();
+          on_local("setlocal", fi);
+          place(top);
+          on_local("local", fi);
+          hi();
+          op("le");
+          jump("jumpf", end);
+        };
+        read = [=, this]
+        {
+          on_local("local", fi);
+          on_local("setlocal", v);
+        };
+        next = [=, this]
+        {
+          on_local("local", fi);
+          num(1);
+          op("add");
+          on_local("setlocal", fi);
+          jump("jump", top);
+        };
+      }
+      else if (!source)
+      {
+        // An array: a name, or the array walked.
+        int fi = temp();
+        int v = fresh();
+        elem = v;
+        head = [=, this]
+        {
+          num(1);
+          on_local("setlocal", fi);
+          place(top);
+          on_local("local", fi);
+          over();
+          call(1, "Len");
+          op("le");
+          jump("jumpf", end);
+        };
+        read = [=, this]
+        {
+          over();
+          on_local("local", fi);
+          op("index");
+          on_local("setlocal", v);
+        };
+        next = [=, this]
+        {
+          on_local("local", fi);
+          num(1);
+          op("add");
+          on_local("setlocal", fi);
+          jump("jump", top);
+        };
+      }
+      else if (lc(static_cast<const Call*>(source)->name) == "rows")
+      {
+        // The area selected, from its top or from a seek; the element is the
+        // record. A literal alias is written out; anything else bound once.
+        auto c = static_cast<const Call*>(source);
+        const Expr* a = c->args[0];
+        Record rec;
+        Push alias;
+        if (is(a, EK::Literal) && static_cast<const Literal*>(a)->type == "Character")
+        {
+          rec.alias = string_text(static_cast<const Literal*>(a)->text);
+          std::string al = rec.alias;
+          alias = [this, al] { str(al); };
+        }
+        else
+        {
+          rec.local = temp();
+          expr(a);
+          on_local("setlocal", rec.local);
+          int fal = rec.local;
+          alias = [this, fal] { on_local("local", fal); };
+        }
+        record = rec;
+        int far = temp();
+        int frc = temp();
+        call(0, "Alias");
+        on_local("setlocal", far);
+        alias();
+        call(1, "DbSelectArea");
+        op("pop");
+        in_area(alias, [this] { call(0, "RecNo"); });
+        on_local("setlocal", frc);
+        in_area(alias, [this, c]
+        {
+          if (c->args.size() > 1)
+          {
+            expr(c->args[1]);
+            call(1, "DbSeek");
+          }
+          else
+          {
+            call(0, "DbGoTop");
+          }
+        });
+        op("pop");
+        head = [=, this]
+        {
+          place(top);
+          in_area(alias, [this] { call(0, "Eof"); });
+          op("not");
+          jump("jumpf", end);
+        };
+        next = [=, this]
+        {
+          in_area(alias, [this] { call(0, "DbSkip"); });
+          op("pop");
+          jump("jump", top);
+        };
+        teardown = [=, this]
+        {
+          in_area(alias, [this, frc]
+          {
+            on_local("local", frc);
+            call(1, "DbGoto");
+          });
+          op("pop");
+          int skip = label();
+          on_local("local", far);
+          call(1, "Empty");
+          jump("jumpt", skip);
+          on_local("local", far);
+          call(1, "DbSelectArea");
+          op("pop");
+          place(skip);
+        };
       }
       else
       {
-        return false;
+        // A file, line by line, when File() finds it: a path held in a
+        // variable used as it is, anything else bound once.
+        const Expr* path = static_cast<const Call*>(source)->args[0];
+        Push at;
+        if (is(path, EK::Name))
+        {
+          at = [this, path] { expr(path); };
+        }
+        else
+        {
+          int fs = temp();
+          expr(path);
+          on_local("setlocal", fs);
+          at = [this, fs] { on_local("local", fs); };
+        }
+        int fok = temp();
+        int v = fresh();
+        elem = v;
+        at();
+        call(1, "File");
+        on_local("setlocal", fok);
+        int skip = label();
+        on_local("local", fok);
+        jump("jumpf", skip);
+        at();
+        call(1, "FT_FUse");
+        op("pop");
+        call(0, "FT_FGoTop");
+        op("pop");
+        place(skip);
+        head = [=, this]
+        {
+          place(top);
+          int both = label();
+          on_local("local", fok);
+          jump("andjump", both);
+          call(0, "FT_FEof");
+          op("not");
+          place(both);
+          jump("jumpf", end);
+        };
+        read = [=, this]
+        {
+          call(0, "FT_FReadLn");
+          on_local("setlocal", v);
+        };
+        next = [=, this]
+        {
+          call(0, "FT_FSkip");
+          op("pop");
+          jump("jump", top);
+        };
+        teardown = [=, this]
+        {
+          int done = label();
+          on_local("local", fok);
+          jump("jumpf", done);
+          call(0, "FT_FUse");
+          op("pop");
+          place(done);
+        };
       }
-      if (is_source(head)) { return false; }
-      return fuse_from(stages, [this](const std::string& n) { return variable(resolve(n)); }, for_effect) >= 0;
+
+      // Each stage: what it holds, set before the loop; what it does, in it;
+      // and what it closes, after the stages inside it.
+      struct Part
+      {
+        Push ahead;
+        Push open;
+        Push close;
+      };
+      std::vector<Part> parts;
+      // A stage's block as a value: a lambda written in it, its parameter
+      // the element -- or the record --, or a function's name called on it.
+      auto value_of = [&](const Call* st) -> Push
+      {
+        const Expr* a = st->args[0];
+        std::optional<int> e = elem;
+        std::optional<Record> rec = record;
+        if (is(a, EK::Lambda))
+        {
+          auto l = static_cast<const Lambda*>(a);
+          return [this, l, e, rec] { bound(l, e, rec); };
+        }
+        std::string fn = name_of(a);
+        return [this, fn, e]
+        {
+          if (e) { on_local("local", *e); }
+          call(e ? 1 : 0, fn);
+        };
+      };
+      auto el = [&]() -> Push
+      {
+        std::optional<int> e = elem;
+        return [this, e]
+        {
+          if (e) { on_local("local", *e); }
+          else { op("nil"); }
+        };
+      };
+      for (const Call* st : split.fused)
+      {
+        std::string n = lc(st->name);
+        Part part;
+        if (n == "filter" || n == "reject")
+        {
+          int skip = label();
+          Push v = value_of(st);
+          bool keep = n == "filter";
+          part.open = [=, this]
+          {
+            v();
+            jump(keep ? "jumpf" : "jumpt", skip);
+          };
+          part.close = [=, this] { place(skip); };
+        }
+        else if (n == "map")
+        {
+          Push v = value_of(st);
+          int to = fresh();
+          part.open = [=, this]
+          {
+            v();
+            on_local("setlocal", to);
+          };
+          elem = to;
+        }
+        else if (n == "tap")
+        {
+          Push v = value_of(st);
+          part.open = [=, this]
+          {
+            v();
+            op("pop");
+          };
+        }
+        else if (n == "take" || n == "drop")
+        {
+          // A number is the limit as it is; anything else is bound once.
+          const Expr* x = st->args[0];
+          Push limit;
+          int flm = -1;
+          if (number_literal(x)) { limit = [this, x] { expr(x); }; }
+          else
+          {
+            flm = temp();
+            limit = [this, flm] { on_local("local", flm); };
+          }
+          int passed = temp();
+          part.ahead = [=, this]
+          {
+            if (flm >= 0)
+            {
+              expr(x);
+              on_local("setlocal", flm);
+            }
+            num(0);
+            on_local("setlocal", passed);
+          };
+          if (n == "take")
+          {
+            part.open = [=, this]
+            {
+              int go = label();
+              on_local("local", passed);
+              limit();
+              op("ge");
+              jump("jumpf", go);
+              jump("jump", end);
+              place(go);
+              on_local("local", passed);
+              num(1);
+              op("add");
+              on_local("setlocal", passed);
+            };
+          }
+          else
+          {
+            // The rest of the chain only once the first n have passed by.
+            int done = label();
+            part.open = [=, this]
+            {
+              int rest = label();
+              on_local("local", passed);
+              limit();
+              op("lt");
+              jump("jumpf", rest);
+              on_local("local", passed);
+              num(1);
+              op("add");
+              on_local("setlocal", passed);
+              jump("jump", done);
+              place(rest);
+            };
+            part.close = [=, this] { place(done); };
+          }
+        }
+        else if (n == "takewhile")
+        {
+          Push v = value_of(st);
+          part.open = [=, this]
+          {
+            int go = label();
+            v();
+            jump("jumpt", go);
+            jump("jump", end);
+            place(go);
+          };
+        }
+        else if (n == "dropwhile")
+        {
+          // A flag, not a test: once the leading run is over, an element that
+          // would have matched still passes.
+          Push v = value_of(st);
+          int on = temp();
+          int skip = label();
+          part.ahead = [=, this]
+          {
+            op("true");
+            on_local("setlocal", on);
+          };
+          part.open = [=, this]
+          {
+            int both = label();
+            on_local("local", on);
+            jump("andjump", both);
+            v();
+            place(both);
+            jump("jumpt", skip);
+            op("false");
+            on_local("setlocal", on);
+          };
+          part.close = [=, this] { place(skip); };
+        }
+        else if (n == "expand")
+        {
+          // A loop inside the loop: the rest runs once per inner element.
+          Push v = value_of(st);
+          int bag = temp();
+          int j = temp();
+          int to = fresh();
+          int inner = label();
+          int out = label();
+          part.open = [=, this]
+          {
+            v();
+            on_local("setlocal", bag);
+            num(1);
+            on_local("setlocal", j);
+            place(inner);
+            on_local("local", j);
+            on_local("local", bag);
+            call(1, "Len");
+            op("le");
+            jump("jumpf", out);
+            on_local("local", bag);
+            on_local("local", j);
+            op("index");
+            on_local("setlocal", to);
+          };
+          part.close = [=, this]
+          {
+            on_local("local", j);
+            num(1);
+            op("add");
+            on_local("setlocal", j);
+            jump("jump", inner);
+            place(out);
+          };
+          elem = to;
+        }
+        else if (n == "scan")
+        {
+          // A running value, carried from element to element.
+          auto l = static_cast<const Lambda*>(st->args[0]);
+          const Expr* seed = st->args[1];
+          int fa = temp();
+          int from = elem.value_or(-1);
+          int to = fresh();
+          part.ahead = [=, this]
+          {
+            expr(seed);
+            on_local("setlocal", fa);
+          };
+          part.open = [=, this]
+          {
+            bound2(l, fa, from);
+            on_local("setlocal", fa);
+            on_local("local", fa);
+            on_local("setlocal", to);
+          };
+          elem = to;
+        }
+        else if (n == "pairwise")
+        {
+          // Each element with the one before it, from the second on.
+          int last = temp();
+          int seen = temp();
+          int before = temp();
+          int pair = temp();
+          int skip = label();
+          Push e = el();
+          int to = fresh();
+          part.ahead = [=, this]
+          {
+            op("nil");
+            on_local("setlocal", last);
+            op("false");
+            on_local("setlocal", seen);
+          };
+          part.open = [=, this]
+          {
+            on_local("local", last);
+            on_local("setlocal", before);
+            on_local("local", seen);
+            on_local("setlocal", pair);
+            e();
+            on_local("setlocal", last);
+            op("true");
+            on_local("setlocal", seen);
+            on_local("local", pair);
+            jump("jumpf", skip);
+            on_local("local", before);
+            e();
+            op("array", "2");
+            on_local("setlocal", to);
+          };
+          part.close = [=, this] { place(skip); };
+          elem = to;
+        }
+        else if (n == "distinct")
+        {
+          // An element seen before is skipped: the runtime keeps what was.
+          int seen = temp();
+          int skip = label();
+          Push e = el();
+          part.ahead = [=, this]
+          {
+            call(0, "THashMap");
+            op("method", "0 New");
+            on_local("setlocal", seen);
+          };
+          part.open = [=, this]
+          {
+            on_local("local", seen);
+            e();
+            call(2, "u_xtpl_seen");
+            jump("jumpt", skip);
+          };
+          part.close = [=, this] { place(skip); };
+        }
+        else if (n == "distinctadjacent")
+        {
+          // A key equal to the one before is skipped; the first always passes.
+          int seen = temp();
+          int last = temp();
+          int key = temp();
+          int skip = label();
+          Push k = st->args.empty() ? el() : value_of(st);
+          part.ahead = [=, this]
+          {
+            op("false");
+            on_local("setlocal", seen);
+            op("nil");
+            on_local("setlocal", last);
+            op("nil");
+            on_local("setlocal", key);
+          };
+          part.open = [=, this]
+          {
+            int both = label();
+            k();
+            on_local("setlocal", key);
+            on_local("local", seen);
+            jump("andjump", both);
+            on_local("local", key);
+            on_local("local", last);
+            op("exact");
+            place(both);
+            jump("jumpt", skip);
+            op("true");
+            on_local("setlocal", seen);
+            on_local("local", key);
+            on_local("setlocal", last);
+          };
+          part.close = [=, this] { place(skip); };
+        }
+        parts.push_back(std::move(part));
+      }
+
+      // The terminal, or an AAdd, into the result.
+      int fo = -1;
+      Push finish;
+      const Call* terminal = split.terminal;
+      std::string t = terminal ? lc(terminal->name) : "";
+      if (!t.empty() || collect || !split.rest.empty())
+      {
+        fo = temp();
+        Part part;
+        Push c;
+        if (terminal && !terminal->args.empty() && t != "reduce" && t != "fold" && t != "join") { c = value_of(terminal); }
+        Push e = el();
+        auto set = [this, fo](const Push& v)
+        {
+          v();
+          on_local("setlocal", fo);
+        };
+        auto start = [=, this](std::string what) -> Push
+        {
+          return [=, this]
+          {
+            if (what == "0") { num(0); }
+            else if (what == "1") { num(1); }
+            else if (what == "true") { op("true"); }
+            else if (what == "false") { op("false"); }
+            else if (what == "array") { op("array", "0"); }
+            else { op("nil"); }
+            on_local("setlocal", fo);
+          };
+        };
+        // 'If c; fo := x; Exit; EndIf', or with c false.
+        auto stop_if = [=, this](bool when, const Push& x) -> Push
+        {
+          return [=, this]
+          {
+            int go = label();
+            c();
+            jump(when ? "jumpf" : "jumpt", go);
+            x();
+            on_local("setlocal", fo);
+            jump("jump", end);
+            place(go);
+          };
+        };
+        if (t == "asum" || t == "aprod")
+        {
+          part.ahead = start(t == "asum" ? "0" : "1");
+          part.open = [=, this]
+          {
+            on_local("local", fo);
+            e();
+            op(t == "asum" ? "add" : "mul");
+            on_local("setlocal", fo);
+          };
+        }
+        else if (t == "count")
+        {
+          part.ahead = start("0");
+          part.open = [=, this]
+          {
+            int skip = label();
+            if (c)
+            {
+              c();
+              jump("jumpf", skip);
+            }
+            on_local("local", fo);
+            num(1);
+            op("add");
+            on_local("setlocal", fo);
+            place(skip);
+          };
+        }
+        else if (t == "anyof")
+        {
+          part.ahead = start("false");
+          part.open = stop_if(true, [this] { op("true"); });
+        }
+        else if (t == "allof")
+        {
+          part.ahead = start("true");
+          part.open = stop_if(false, [this] { op("false"); });
+        }
+        else if (t == "noneof")
+        {
+          part.ahead = start("true");
+          part.open = stop_if(true, [this] { op("false"); });
+        }
+        else if (t == "first")
+        {
+          part.ahead = start("nil");
+          if (c) { part.open = stop_if(true, e); }
+          else
+          {
+            part.open = [=, this]
+            {
+              set(e);
+              jump("jump", end);
+            };
+          }
+        }
+        else if (t == "amax" || t == "amin" || t == "fold")
+        {
+          // The first element is the start.
+          part.ahead = start("nil");
+          auto l = t == "fold" ? static_cast<const Lambda*>(terminal->args[0]) : nullptr;
+          int from = elem.value_or(-1);
+          part.open = [=, this]
+          {
+            int other = label();
+            int done = label();
+            on_local("local", fo);
+            op("isnil");
+            jump("jumpf", other);
+            set(e);
+            jump("jump", done);
+            place(other);
+            if (l) { bound2(l, fo, from); }
+            else
+            {
+              on_local("local", fo);
+              e();
+              call(2, t == "amax" ? "Max" : "Min");
+            }
+            on_local("setlocal", fo);
+            place(done);
+          };
+        }
+        else if (t == "join")
+        {
+          // The elements collected, and joined once, after the loop, by the
+          // runtime. The separator: a literal as it is, anything else bound
+          // once, before the loop.
+          Push sep;
+          int fsp = -1;
+          const Expr* x = terminal->args.empty() ? nullptr : terminal->args[0];
+          if (x)
+          {
+            if (is(x, EK::Literal) || is(x, EK::ArrayLit) || is(x, EK::JsonLit) || is(x, EK::HashLit)
+                || is(x, EK::CodeBlock) || is(x, EK::Lambda))
+            {
+              sep = [this, x] { expr(x); };
+            }
+            else
+            {
+              fsp = temp();
+              sep = [this, fsp] { on_local("local", fsp); };
+            }
+          }
+          part.ahead = [=, this]
+          {
+            if (fsp >= 0)
+            {
+              expr(x);
+              on_local("setlocal", fsp);
+            }
+            op("array", "0");
+            on_local("setlocal", fo);
+          };
+          part.open = [=, this]
+          {
+            on_local("local", fo);
+            e();
+            call(2, "AAdd");
+            op("pop");
+          };
+          finish = [=, this]
+          {
+            on_local("local", fo);
+            if (sep) { sep(); }
+            call(sep ? 2 : 1, "u_xtpl_join");
+            on_local("setlocal", fo);
+          };
+        }
+        else if (t == "reduce")
+        {
+          // The seed once, before the loop; the step with its parameters the
+          // result so far and the element.
+          auto l = static_cast<const Lambda*>(terminal->args[0]);
+          const Expr* seed = terminal->args[1];
+          int from = elem.value_or(-1);
+          part.ahead = [=, this] { set([this, seed] { expr(seed); }); };
+          part.open = [=, this]
+          {
+            bound2(l, fo, from);
+            on_local("setlocal", fo);
+          };
+        }
+        else if (t == "chunkby")
+        {
+          // The runs of elements whose key is equal, each an array.
+          int chunk = temp();
+          int key = temp();
+          int seen = temp();
+          int now = temp();
+          part.ahead = [=, this]
+          {
+            op("array", "0");
+            on_local("setlocal", chunk);
+            op("nil");
+            on_local("setlocal", key);
+            op("false");
+            on_local("setlocal", seen);
+            op("nil");
+            on_local("setlocal", now);
+            op("array", "0");
+            on_local("setlocal", fo);
+          };
+          part.open = [=, this]
+          {
+            int other = label();
+            int done = label();
+            c();
+            on_local("setlocal", now);
+            on_local("local", seen);
+            jump("jumpt", other);
+            op("true");
+            on_local("setlocal", seen);
+            on_local("local", now);
+            on_local("setlocal", key);
+            jump("jump", done);
+            place(other);
+            on_local("local", now);
+            on_local("local", key);
+            op("exact");
+            jump("jumpt", done);
+            on_local("local", fo);
+            on_local("local", chunk);
+            call(2, "AAdd");
+            op("pop");
+            op("array", "0");
+            on_local("setlocal", chunk);
+            on_local("local", now);
+            on_local("setlocal", key);
+            place(done);
+            on_local("local", chunk);
+            e();
+            call(2, "AAdd");
+            op("pop");
+          };
+          finish = [=, this]
+          {
+            int skip = label();
+            on_local("local", seen);
+            jump("jumpf", skip);
+            on_local("local", fo);
+            on_local("local", chunk);
+            call(2, "AAdd");
+            op("pop");
+            place(skip);
+          };
+        }
+        else if (t == "maxby" || t == "minby")
+        {
+          // The element whose key is the greatest (least): the first of them.
+          int best = temp();
+          int seen = temp();
+          int key = temp();
+          part.ahead = [=, this]
+          {
+            op("nil");
+            on_local("setlocal", best);
+            op("false");
+            on_local("setlocal", seen);
+            op("nil");
+            on_local("setlocal", key);
+            op("nil");
+            on_local("setlocal", fo);
+          };
+          part.open = [=, this]
+          {
+            int either = label();
+            int skip = label();
+            c();
+            on_local("setlocal", key);
+            on_local("local", seen);
+            op("not");
+            jump("orjump", either);
+            on_local("local", key);
+            on_local("local", best);
+            op(t == "maxby" ? "gt" : "lt");
+            place(either);
+            jump("jumpf", skip);
+            op("true");
+            on_local("setlocal", seen);
+            on_local("local", key);
+            on_local("setlocal", best);
+            set(e);
+            place(skip);
+          };
+        }
+        else
+        {
+          part.ahead = start("array");
+          part.open = [=, this]
+          {
+            on_local("local", fo);
+            e();
+            call(2, "AAdd");
+            op("pop");
+          };
+        }
+        parts.push_back(std::move(part));
+      }
+
+      for (const Part& part : parts)
+      {
+        if (part.ahead) { part.ahead(); }
+      }
+      head();
+      if (read) { read(); }
+      for (const Part& part : parts)
+      {
+        if (part.open) { part.open(); }
+      }
+      for (auto part = parts.rbegin(); part != parts.rend(); ++part)
+      {
+        if (part->close) { part->close(); }
+      }
+      next();
+      place(end);
+      if (finish) { finish(); }
+      if (teardown) { teardown(); }
+      if (split.rest.empty())
+      {
+        if (fo < 0) { return [this] { op("nil"); }; }
+        return [this, fo] { on_local("local", fo); };
+      }
+
+      // The stages after the loop, over what it collected.
+      std::vector<Call*> after = split.rest;
+      int from = fuse_from(after, declared(), !collect);
+      Push collected = [this, fo] { on_local("local", fo); };
+      if (from < 0)
+      {
+        Push applied = [=, this] { calls(collected, after); };
+        if (collect) { return applied; }
+        applied();
+        op("pop");
+        return [this] { op("nil"); };
+      }
+      Push arr = collected;
+      if (from > 0)
+      {
+        int fs = temp();
+        calls(collected, std::vector<Call*>(after.begin(), after.begin() + from));
+        on_local("setlocal", fs);
+        arr = [this, fs] { on_local("local", fs); };
+      }
+      return walk_chain(nullptr, arr, std::vector<Call*>(after.begin() + from, after.end()), collect);
     }
 
-    bool Compiler::fused_stmt(const Stmt* s)
+    // A stage's lambda body, its parameter the element -- or, over a record,
+    // before a map, the name its fields are read by.
+    void Compiler::bound(const Lambda* l, std::optional<int> elem, std::optional<Record> record)
     {
-      switch (s->kind)
+      std::string p = lc(l->params.at(0));
+      std::unordered_map<std::string, Record> kept = records_;
+      f_->scopes.emplace_back();
+      if (elem)
       {
-        case SK::Assignment:
-        {
-          auto a = static_cast<const Assignment*>(s);
-          return a->op == ":=" && fused(a->value, false);
-        }
-        case SK::ReturnStmt:
-          return fused(static_cast<const ReturnStmt*>(s)->value, false);
-        case SK::CallStmt:
-          return fused(static_cast<const CallStmt*>(s)->call, true);
-        case SK::Declaration:
-        {
-          auto d = static_cast<const Declaration*>(s);
-          std::string scope = lc(d->scope);
-          if (scope == "static" || (scope == "local" && f_->scopes.size() == 1)) { return false; }
-          for (const Declarator* v : d->declarators)
-          {
-            if (v->init && fused(v->init, false)) { return true; }
-          }
-          return false;
-        }
-        default:
-          return false;
+        f_->scopes.back()[p] = Entry{ Sym::Local, *elem };
+        records_.erase(p);
       }
+      else if (record)
+      {
+        records_[p] = *record;
+      }
+      expr(l->body.empty() ? nullptr : l->body[0]);
+      f_->scopes.pop_back();
+      records_ = kept;
+    }
+
+    // A two-parameter step: the value carried and the element.
+    void Compiler::bound2(const Lambda* l, int carried, int element)
+    {
+      std::string a = lc(l->params.at(0));
+      std::string b = lc(l->params.at(1));
+      std::unordered_map<std::string, Record> kept = records_;
+      f_->scopes.emplace_back();
+      f_->scopes.back()[a] = Entry{ Sym::Local, carried };
+      f_->scopes.back()[b] = Entry{ Sym::Local, element };
+      records_.erase(a);
+      records_.erase(b);
+      expr(l->body.empty() ? nullptr : l->body[0]);
+      f_->scopes.pop_back();
+      records_ = kept;
+    }
+
+    // 'r:X' over rows(): the field, of an alias written out or held.
+    void Compiler::field(const Record& r, const std::string& name, bool set)
+    {
+      if (r.local < 0)
+      {
+        op(set ? "setfield" : "field", uc(r.alias) + " " + uc(name));
+        return;
+      }
+      on_local("local", r.local);
+      op(set ? "setfieldx" : "fieldx", uc(name));
+    }
+
+    // 'x := value' as statements: a chain's loop, then x; a guard's sequence,
+    // x given its value inside. store: [x] ->.
+    void Compiler::init_into(const Expr* value, const Push& store)
+    {
+      if (is(value, EK::Guard))
+      {
+        guard_into(static_cast<const Guard*>(value), store);
+        return;
+      }
+      if (loop_value(value))
+      {
+        Push result = stream(as_chain(value), true);
+        result();
+        store();
+        return;
+      }
+      expr(value);
+      store();
+    }
+
+    // A guard that is a statement's whole value, as TL++ writes it: the error
+    // block one that breaks, the statement in a sequence, the alternative in
+    // its recover, and the error block put back.
+    void Compiler::guard_into(const Guard* g, const Push& store)
+    {
+      int kept = temp();
+      int caught = label();
+      int end = label();
+      name_block("Break");
+      call(1, "ErrorBlock");
+      on_local("setlocal", kept);
+      jump("seq", caught);
+      init_into(g->expr, store);
+      op("endseq");
+      jump("jump", end);
+      place(caught);
+      op("pop");
+      init_into(g->fallback, store);
+      place(end);
+      on_local("local", kept);
+      call(1, "ErrorBlock");
+      op("pop");
+    }
+
+    // An assignment, a return or a chain as a statement whose value is
+    // statements first (loop_value): false for any other.
+    bool Compiler::whole_value(const Stmt* s)
+    {
+      if (s->kind == SK::Assignment)
+      {
+        auto a = static_cast<const Assignment*>(s);
+        if (a->op != ":=" || !loop_value(a->value)) { return false; }
+        if (is(a->value, EK::Guard) && is(a->target, EK::HashIndex)) { return false; }
+        if (is(a->target, EK::Name))
+        {
+          Var v = resolve(name_of(a->target));
+          init_into(a->value, [this, v] { store(v); });
+          return true;
+        }
+        // Anything but a name takes the value after.
+        int held = temp();
+        init_into(a->value, [this, held] { on_local("setlocal", held); });
+        assign_value(a->target, [this, held] { on_local("local", held); });
+        return true;
+      }
+      if (s->kind == SK::ReturnStmt)
+      {
+        const Expr* v = static_cast<const ReturnStmt*>(s)->value;
+        if (!v || !loop_value(v)) { return false; }
+        if (f_->defers) { op("rundefers"); }
+        run_exits(0, false);
+        int held = temp();
+        init_into(v, [this, held] { on_local("setlocal", held); });
+        on_local("local", held);
+        op("ret");
+        return true;
+      }
+      if (s->kind == SK::CallStmt)
+      {
+        const Expr* c = static_cast<const CallStmt*>(s)->call;
+        const Expr* chain = as_chain(c);
+        if (!(is(c, EK::Pipeline) && source_call(c)) && !fusable_array(chain, true)) { return false; }
+        stream(chain, false);
+        return true;
+      }
+      return false;
     }
 
     // ---- assignments --------------------------------------------------------
@@ -1203,6 +2304,17 @@ namespace xc
         case EK::SafeMember:
         {
           auto m = static_cast<const Member*>(t);
+          if (is(m->base, EK::Name))
+          {
+            auto r = records_.find(lc(name_of(m->base)));
+            if (r != records_.end())
+            {
+              Record rec = r->second;
+              std::string f = m->name;
+              return Target{ 0, nullptr, [this, rec, f] { field(rec, f, false); },
+                             [this, rec, f] { field(rec, f, true); } };
+            }
+          }
           return Target{ 1, [this, m] { member_base(m->base); },
                          [this, m]
                          {
@@ -1388,6 +2500,17 @@ namespace xc
       place(end);
     }
 
+    // 'x := value' with the value pushed by value(), after the target's
+    // operands.
+    void Compiler::assign_value(const Expr* t, const std::function<void()>& value)
+    {
+      std::optional<Target> where = target_of(t);
+      if (!where) { return; }
+      if (where->push) { where->push(); }
+      value();
+      where->write();
+    }
+
     // 'Local aX[10][2]': Array(10, 2).
     void Compiler::dims(const std::vector<Expr*>& ds)
     {
@@ -1551,11 +2674,9 @@ namespace xc
     {
       line_ = s->line;
       line(s->line);
-      if (fused_stmt(s))
-      {
-        problem("a chain that runs as a loop -- its stages fuse");
-        return;
-      }
+      // A value that is statements first: a chain's loop, a guard's
+      // sequence.
+      if (whole_value(s)) { return; }
       switch (s->kind)
       {
         case SK::Declaration:
@@ -1678,6 +2799,19 @@ namespace xc
           bool block_local = f_->scopes.size() > 1;
           bool known = !block_local && f_->scopes.back().count(lc(v->name))
                        && f_->scopes.back().at(lc(v->name)).kind == Sym::Local;
+          // A block local's chain is a loop, and its guard a sequence; the
+          // prologue keeps its values where they are written, but a chain
+          // from a source.
+          if (v->init && (block_local ? loop_value(v->init) : source_call(v->init) != nullptr))
+          {
+            int i = -1;
+            init_into(v->init, [this, v, &i]
+            {
+              if (i < 0) { i = declare(v->name); }
+              on_local("setlocal", i);
+            });
+            continue;
+          }
           bool pushed = true;
           if (v->init) { expr(v->init); }
           else if (!v->dims.empty()) { dims(v->dims); }
@@ -1697,6 +2831,12 @@ namespace xc
           if (name.size() > 3 && uc(name.substr(0, 3)) == "M->") { name = name.substr(3); }
           std::string u = uc(name);
           op(scope == "private" ? "private" : "public", u);
+          f_->scopes.front()[lc(name)] = Entry{ Sym::Memvar, -1 };
+          if (v->init && loop_value(v->init))
+          {
+            init_into(v->init, [this, u] { op("setmemvar", u); });
+            continue;
+          }
           bool pushed = true;
           if (v->init) { expr(v->init); }
           else if (!v->dims.empty()) { dims(v->dims); }
@@ -1874,7 +3014,8 @@ namespace xc
     {
       if (is(s->source, EK::Call) && is_source(s->source))
       {
-        problem("'for ... in' over " + lc(static_cast<const Call*>(s->source)->name) + "()");
+        if (lc(static_cast<const Call*>(s->source)->name) == "rows") { problem("'for ... in' over rows()"); }
+        else { for_lines(s); }
         return;
       }
       f_->scopes.emplace_back();
@@ -1960,6 +3101,82 @@ namespace xc
       f_->scopes.pop_back();
     }
 
+    // 'for x [, i] in lines(path)': the file opened only if it is there,
+    // advanced at the top -- so a 'loop' goes on to the next line --, and
+    // closed after the loop and on a 'return' out of it.
+    void Compiler::for_lines(const ForInStmt* s)
+    {
+      const std::vector<Expr*>& args = static_cast<const Call*>(s->source)->args;
+      if (args.size() != 1)
+      {
+        problem("'lines()' with no path, or more than one");
+        return;
+      }
+      f_->scopes.emplace_back();
+      int top = label();
+      int end = label();
+      int fs = temp();
+      int fok = temp();
+      expr(args[0]);
+      on_local("setlocal", fs);
+      on_local("local", fs);
+      call(1, "File");
+      on_local("setlocal", fok);
+      int shut = label();
+      on_local("local", fok);
+      jump("jumpf", shut);
+      on_local("local", fs);
+      call(1, "FT_FUse");
+      op("pop");
+      call(0, "FT_FGoTop");
+      op("pop");
+      place(shut);
+      int el = declare(s->elem);
+      int ix = s->index ? declare(*s->index) : -1;
+      if (ix >= 0)
+      {
+        num(0);
+        on_local("setlocal", ix);
+      }
+      loop_top(top, s->line);
+      int both = label();
+      on_local("local", fok);
+      jump("andjump", both);
+      call(0, "FT_FEof");
+      op("not");
+      place(both);
+      jump("jumpf", end);
+      if (ix >= 0)
+      {
+        on_local("local", ix);
+        num(1);
+        op("add");
+        on_local("setlocal", ix);
+      }
+      call(0, "FT_FReadLn");
+      on_local("setlocal", el);
+      call(0, "FT_FSkip");
+      op("pop");
+      auto close = [this, fok]
+      {
+        int done = label();
+        on_local("local", fok);
+        jump("jumpf", done);
+        call(0, "FT_FUse");
+        op("pop");
+        place(done);
+      };
+      f_->exits.push_back(Exit{ Exit::Restore, close });
+      f_->loops.push_back(Loop{ end, top, f_->exits.size() });
+      block_body(s->body);
+      f_->loops.pop_back();
+      f_->exits.pop_back();
+      jump("jump", top);
+      place(end);
+      close();
+      f_->scopes.pop_back();
+    }
+
     // 'for n times': n read once, unless it is a number already.
     void Compiler::for_times(const ForTimesStmt* s)
     {
@@ -2028,7 +3245,7 @@ namespace xc
     {
       Var v = resolve(u->area);
       std::function<void()> alias;
-      if (v.kind != Var::Define && v.kind != Var::Crlf && variable(v))
+      if (declared_.count(lc(u->area)))
       {
         int fal = temp();
         load(v);
@@ -2261,6 +3478,7 @@ namespace xc
       }
       dec_.function(params, body);
       dv_ = decimal_values(dec_, body, Returns{ decimal_word(returns), numeric_word(returns) });
+      declared_ = declared_names(params, body);
       walk(body, [&](Stmt* s)
       {
         if (s->kind == SK::Deferred) { g->defers = true; }

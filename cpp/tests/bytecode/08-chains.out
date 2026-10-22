@@ -1,0 +1,60 @@
+exit 0
+--- output
+-- stages
+30,40,50,90,20,60
+3,1,1,2
+4
+9,6,5
+1,4,1
+5,9,2,6
+b,a,c
+1,2,3,1
+b,a,b,c
+1,4,9
+103,104,108,109
+3,4,4
+-- terminals
+27
+8
+2
+.T.
+.T.
+.T.
+4
+5
+12
+-1
+-9
+3+1+4
+BABCA
+167
+31415
+cc
+5
+4
+3,1
+2,6
+-- after a stage that is a call
+300,400
+4,5,6,7,10
+-- ranges
+1,4,9,16
+2,4
+321
+-- files
+1,22,333
+11
+1: alfa
+3: beta;1
+4: gama;22
+beta;1, .T.
+-- where a chain is a value
+5,9,6
+9,6
+b!,a!,b!,a!
+fell back
+9
+tap 9
+tap 6
+0
+--- errors

@@ -1,0 +1,2141 @@
+xbc 1
+source 08-chains.xtpl
+statics 0
+
+function U_MAIN user 0 178
+  locals aNums aWords aTmp aBox nSeen nTmp xOut cSep cFile nHi .t1 .t2 .t3 .t4 .t5 .t6 .t7 .t8 .t9 .t10 .t11 .t12 .t13 .t14 .t15 .t16 .t17 .t18 .t19 .t20 .t21 .t22 .t23 .t24 .t25 .t26 .t27 .t28 .t29 .t30 .t31 .t32 .t33 .t34 .t35 .t36 .t37 .t38 .t39 .t40 .t41 .t42 .t43 .t44 .t45 .t46 .t47 .t48 .t49 .t50 .t51 .t52 .t53 .t54 .t55 .t56 .t57 .t58 .t59 .t60 .t61 .t62 .t63 .t64 .t65 .t66 .t67 .t68 .t69 .t70 .t71 .t72 .t73 .t74 .t75 .t76 .t77 .t78 .t79 .t80 .t81 .t82 .t83 .t84 .t85 .t86 .t87 .t88 .t89 .t90 .t91 .t92 .t93 .t94 .t95 .t96 .t97 .t98 .t99 .t100 .t101 .t102 .t103 .t104 .t105 .t106 .t107 .t108 .t109 .t110 .t111 .t112 .t113 .t114 .t115 .t116 .t117 .t118 .t119 .t120 .t121 .t122 .t123 .t124 .t125 .t126 .t127 .t128 .t129 .t130 .t131 .t132 .t133 .t134 .t135 .t136 .t137 .t138 .t139 .t140 .t141 .t142 .t143 .t144 .t145 .t146 cLine nNo .t147 .t148 .t149 .t150 .t151 .t152 .t153 aBig .t154 .t155 .t156 .t157 .t158 .t159 .t160 .t161 .t162 .t163 .t164 .t165
+  line 6
+  num 3
+  num 1
+  num 4
+  num 1
+  num 5
+  num 9
+  num 2
+  num 6
+  array 8
+  setlocal 1
+  line 7
+  str "b"
+  str "a"
+  str "b"
+  str "c"
+  str "a"
+  array 5
+  setlocal 2
+  line 8
+  array 0
+  setlocal 3
+  line 9
+  nil
+  array 1
+  setlocal 4
+  line 10
+  num 0
+  setlocal 5
+  line 11
+  num 0
+  setlocal 6
+  line 13
+  str "+"
+  setlocal 8
+  line 14
+  str "08-chains.txt"
+  setlocal 9
+  line 15
+  num 4
+  setlocal 10
+  line 17
+  str "-- stages"
+  call 1 ConOut
+  pop
+  line 18
+  array 0
+  setlocal 13
+  num 1
+  setlocal 11
+  local 11
+  local 1
+  call 1 Len
+  le
+  jumpf 77
+  local 1
+  local 11
+  index
+  setlocal 12
+  local 12
+  num 1
+  gt
+  jumpf 72
+  local 12
+  num 10
+  mul
+  setlocal 12
+  local 13
+  local 12
+  call 2 AAdd
+  pop
+  local 11
+  num 1
+  add
+  setlocal 11
+  jump 51
+  local 13
+  setlocal 3
+  line 19
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 20
+  array 0
+  setlocal 16
+  num 1
+  setlocal 14
+  local 14
+  local 1
+  call 1 Len
+  le
+  jumpf 115
+  local 1
+  local 14
+  index
+  setlocal 15
+  local 15
+  num 3
+  gt
+  jumpt 110
+  local 15
+  call 1 cValToChar
+  setlocal 15
+  local 16
+  local 15
+  call 2 AAdd
+  pop
+  local 14
+  num 1
+  add
+  setlocal 14
+  jump 90
+  local 16
+  setlocal 3
+  line 21
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 23
+  array 0
+  setlocal 19
+  num 1
+  setlocal 17
+  local 17
+  local 1
+  call 1 Len
+  le
+  jumpf 150
+  local 1
+  local 17
+  index
+  setlocal 18
+  local 18
+  num 1
+  gt
+  jumpf 145
+  local 19
+  local 18
+  call 2 AAdd
+  pop
+  local 17
+  num 1
+  add
+  setlocal 17
+  jump 128
+  local 19
+  block U_MAIN#1 0
+  call 2 u_xtpl_sortby
+  setlocal 20
+  num 0
+  setlocal 23
+  array 0
+  setlocal 24
+  num 1
+  setlocal 21
+  local 21
+  local 20
+  call 1 Len
+  le
+  jumpf 193
+  local 20
+  local 21
+  index
+  setlocal 22
+  local 5
+  dup
+  num 1
+  add
+  setlocal 5
+  pop
+  local 23
+  num 3
+  ge
+  jumpf 180
+  jump 193
+  local 23
+  num 1
+  add
+  setlocal 23
+  local 24
+  local 22
+  call 2 AAdd
+  pop
+  local 21
+  num 1
+  add
+  setlocal 21
+  jump 160
+  local 24
+  setlocal 3
+  line 24
+  local 5
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 2 ConOut
+  pop
+  line 25
+  num 0
+  setlocal 27
+  array 0
+  setlocal 28
+  num 1
+  setlocal 25
+  local 25
+  local 1
+  call 1 Len
+  le
+  jumpf 241
+  local 1
+  local 25
+  index
+  setlocal 26
+  local 26
+  num 5
+  lt
+  jumpt 223
+  jump 241
+  local 27
+  num 1
+  lt
+  jumpf 232
+  local 27
+  num 1
+  add
+  setlocal 27
+  jump 236
+  local 28
+  local 26
+  call 2 AAdd
+  pop
+  local 25
+  num 1
+  add
+  setlocal 25
+  jump 209
+  local 28
+  setlocal 3
+  line 26
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 27
+  true
+  setlocal 31
+  call 0 THashMap
+  method 0 New
+  setlocal 32
+  array 0
+  setlocal 33
+  num 1
+  setlocal 29
+  local 29
+  local 1
+  call 1 Len
+  le
+  jumpf 289
+  local 1
+  local 29
+  index
+  setlocal 30
+  local 31
+  andjump 273
+  local 30
+  num 5
+  ne
+  jumpt 284
+  false
+  setlocal 31
+  local 32
+  local 30
+  call 2 u_xtpl_seen
+  jumpt 284
+  local 33
+  local 30
+  call 2 AAdd
+  pop
+  local 29
+  num 1
+  add
+  setlocal 29
+  jump 259
+  local 33
+  setlocal 3
+  line 28
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 29
+  local 2
+  call 1 u_xtpl_distinct
+  setlocal 3
+  line 30
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 31
+  num 1
+  num 1
+  num 2
+  num 2
+  num 2
+  num 3
+  num 1
+  array 7
+  setlocal 34
+  false
+  setlocal 37
+  nil
+  setlocal 38
+  nil
+  setlocal 39
+  array 0
+  setlocal 40
+  num 1
+  setlocal 35
+  local 35
+  local 34
+  call 1 Len
+  le
+  jumpf 359
+  local 34
+  local 35
+  index
+  setlocal 36
+  local 36
+  setlocal 39
+  local 37
+  andjump 343
+  local 39
+  local 38
+  exact
+  jumpt 354
+  true
+  setlocal 37
+  local 39
+  setlocal 38
+  local 36
+  setlocal 36
+  local 40
+  local 36
+  call 2 AAdd
+  pop
+  local 35
+  num 1
+  add
+  setlocal 35
+  jump 327
+  local 40
+  setlocal 3
+  line 32
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 33
+  false
+  setlocal 43
+  nil
+  setlocal 44
+  nil
+  setlocal 45
+  array 0
+  setlocal 46
+  num 1
+  setlocal 41
+  local 41
+  local 2
+  call 1 Len
+  le
+  jumpf 411
+  local 2
+  local 41
+  index
+  setlocal 42
+  local 42
+  call 1 Upper
+  str "B"
+  exact
+  setlocal 45
+  local 43
+  andjump 397
+  local 45
+  local 44
+  exact
+  jumpt 406
+  true
+  setlocal 43
+  local 45
+  setlocal 44
+  local 46
+  local 42
+  call 2 AAdd
+  pop
+  local 41
+  num 1
+  add
+  setlocal 41
+  jump 378
+  local 46
+  setlocal 3
+  line 34
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 35
+  num 1
+  num 2
+  array 2
+  array 0
+  num 3
+  array 1
+  array 3
+  setlocal 47
+  array 0
+  setlocal 52
+  num 1
+  setlocal 48
+  local 48
+  local 47
+  call 1 Len
+  le
+  jumpf 472
+  local 47
+  local 48
+  index
+  setlocal 49
+  local 49
+  setlocal 50
+  num 1
+  setlocal 51
+  local 51
+  local 50
+  call 1 Len
+  le
+  jumpf 467
+  local 50
+  local 51
+  index
+  setlocal 49
+  local 49
+  local 49
+  mul
+  setlocal 49
+  local 52
+  local 49
+  call 2 AAdd
+  pop
+  local 51
+  num 1
+  add
+  setlocal 51
+  jump 445
+  local 48
+  num 1
+  add
+  setlocal 48
+  jump 432
+  local 52
+  setlocal 3
+  line 36
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 37
+  num 0
+  setlocal 55
+  num 100
+  setlocal 56
+  array 0
+  setlocal 57
+  num 1
+  setlocal 53
+  local 53
+  local 1
+  call 1 Len
+  le
+  jumpf 522
+  local 1
+  local 53
+  index
+  setlocal 54
+  local 55
+  num 4
+  ge
+  jumpf 503
+  jump 522
+  local 55
+  num 1
+  add
+  setlocal 55
+  local 56
+  local 54
+  add
+  setlocal 56
+  local 56
+  setlocal 54
+  local 57
+  local 54
+  call 2 AAdd
+  pop
+  local 53
+  num 1
+  add
+  setlocal 53
+  jump 489
+  local 57
+  setlocal 3
+  line 38
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 39
+  num 0
+  setlocal 60
+  nil
+  setlocal 61
+  false
+  setlocal 62
+  array 0
+  setlocal 65
+  num 1
+  setlocal 58
+  local 58
+  local 1
+  call 1 Len
+  le
+  jumpf 590
+  local 1
+  local 58
+  index
+  setlocal 59
+  local 60
+  num 4
+  ge
+  jumpf 555
+  jump 590
+  local 60
+  num 1
+  add
+  setlocal 60
+  local 61
+  setlocal 63
+  local 62
+  setlocal 64
+  local 59
+  setlocal 61
+  true
+  setlocal 62
+  local 64
+  jumpf 585
+  local 63
+  local 59
+  array 2
+  setlocal 59
+  local 59
+  num 1
+  index
+  local 59
+  num 2
+  index
+  mul
+  setlocal 59
+  local 65
+  local 59
+  call 2 AAdd
+  pop
+  local 58
+  num 1
+  add
+  setlocal 58
+  jump 541
+  local 65
+  setlocal 3
+  line 40
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 42
+  str "-- terminals"
+  call 1 ConOut
+  pop
+  line 43
+  local 1
+  block U_MAIN#2 0
+  call 2 u_xtpl_filter
+  call 1 u_xtpl_asum
+  local 1
+  block U_MAIN#3 0
+  call 2 u_xtpl_map
+  call 1 u_xtpl_count
+  call 2 ConOut
+  pop
+  line 44
+  num 0
+  setlocal 68
+  num 1
+  setlocal 66
+  local 66
+  local 1
+  call 1 Len
+  le
+  jumpf 640
+  local 1
+  local 66
+  index
+  setlocal 67
+  local 67
+  num 1
+  exact
+  jumpf 635
+  local 68
+  num 1
+  add
+  setlocal 68
+  local 66
+  num 1
+  add
+  setlocal 66
+  jump 618
+  local 68
+  setlocal 6
+  line 45
+  local 6
+  call 1 ConOut
+  pop
+  line 46
+  false
+  setlocal 71
+  num 1
+  setlocal 69
+  local 69
+  local 1
+  call 1 Len
+  le
+  jumpf 676
+  local 1
+  local 69
+  index
+  setlocal 70
+  local 70
+  num 2
+  mul
+  setlocal 70
+  local 70
+  num 15
+  gt
+  jumpf 671
+  true
+  setlocal 71
+  jump 676
+  local 69
+  num 1
+  add
+  setlocal 69
+  jump 651
+  local 71
+  setlocal 7
+  line 47
+  local 7
+  call 1 ConOut
+  pop
+  line 48
+  true
+  setlocal 74
+  num 1
+  setlocal 72
+  local 72
+  local 1
+  call 1 Len
+  le
+  jumpf 712
+  local 1
+  local 72
+  index
+  setlocal 73
+  local 73
+  num 2
+  mul
+  setlocal 73
+  local 73
+  num 1
+  gt
+  jumpt 707
+  false
+  setlocal 74
+  jump 712
+  local 72
+  num 1
+  add
+  setlocal 72
+  jump 687
+  local 74
+  setlocal 7
+  line 49
+  local 7
+  call 1 ConOut
+  pop
+  line 50
+  true
+  setlocal 77
+  num 1
+  setlocal 75
+  local 75
+  local 1
+  call 1 Len
+  le
+  jumpf 746
+  local 1
+  local 75
+  index
+  setlocal 76
+  local 76
+  setlocal 76
+  local 76
+  num 9
+  gt
+  jumpf 741
+  false
+  setlocal 77
+  jump 746
+  local 75
+  num 1
+  add
+  setlocal 75
+  jump 723
+  local 77
+  setlocal 7
+  line 51
+  local 7
+  call 1 ConOut
+  pop
+  line 52
+  nil
+  setlocal 80
+  num 1
+  setlocal 78
+  local 78
+  local 1
+  call 1 Len
+  le
+  jumpf 778
+  local 1
+  local 78
+  index
+  setlocal 79
+  local 79
+  num 3
+  gt
+  jumpf 773
+  local 79
+  setlocal 80
+  jump 778
+  local 78
+  num 1
+  add
+  setlocal 78
+  jump 757
+  local 80
+  setlocal 7
+  line 53
+  local 7
+  call 1 ConOut
+  pop
+  line 54
+  nil
+  setlocal 83
+  num 1
+  setlocal 81
+  local 81
+  local 1
+  call 1 Len
+  le
+  jumpf 816
+  local 1
+  local 81
+  index
+  setlocal 82
+  local 82
+  num 1
+  add
+  setlocal 82
+  local 82
+  num 5
+  mod
+  num 0
+  exact
+  jumpf 811
+  local 82
+  setlocal 83
+  jump 816
+  local 81
+  num 1
+  add
+  setlocal 81
+  jump 789
+  local 83
+  setlocal 7
+  line 55
+  local 7
+  call 1 ConOut
+  pop
+  line 56
+  num 0
+  setlocal 86
+  num 1
+  setlocal 87
+  num 1
+  setlocal 84
+  local 84
+  local 1
+  call 1 Len
+  le
+  jumpf 856
+  local 1
+  local 84
+  index
+  setlocal 85
+  local 86
+  num 4
+  ge
+  jumpf 843
+  jump 856
+  local 86
+  num 1
+  add
+  setlocal 86
+  local 87
+  local 85
+  mul
+  setlocal 87
+  local 84
+  num 1
+  add
+  setlocal 84
+  jump 829
+  local 87
+  setlocal 7
+  line 57
+  local 7
+  call 1 ConOut
+  pop
+  line 58
+  nil
+  setlocal 90
+  num 1
+  setlocal 88
+  local 88
+  local 1
+  call 1 Len
+  le
+  jumpf 894
+  local 1
+  local 88
+  index
+  setlocal 89
+  local 89
+  neg
+  setlocal 89
+  local 90
+  isnil
+  jumpf 885
+  local 89
+  setlocal 90
+  jump 889
+  local 90
+  local 89
+  call 2 Max
+  setlocal 90
+  local 88
+  num 1
+  add
+  setlocal 88
+  jump 867
+  local 90
+  setlocal 7
+  line 59
+  local 7
+  call 1 ConOut
+  pop
+  line 60
+  nil
+  setlocal 93
+  num 1
+  setlocal 91
+  local 91
+  local 1
+  call 1 Len
+  le
+  jumpf 932
+  local 1
+  local 91
+  index
+  setlocal 92
+  local 92
+  neg
+  setlocal 92
+  local 93
+  isnil
+  jumpf 923
+  local 92
+  setlocal 93
+  jump 927
+  local 93
+  local 92
+  call 2 Min
+  setlocal 93
+  local 91
+  num 1
+  add
+  setlocal 91
+  jump 905
+  local 93
+  setlocal 7
+  line 61
+  local 7
+  call 1 ConOut
+  pop
+  line 62
+  num 0
+  setlocal 96
+  local 8
+  setlocal 98
+  array 0
+  setlocal 97
+  num 1
+  setlocal 94
+  local 94
+  local 1
+  call 1 Len
+  le
+  jumpf 974
+  local 1
+  local 94
+  index
+  setlocal 95
+  local 96
+  num 3
+  ge
+  jumpf 961
+  jump 974
+  local 96
+  num 1
+  add
+  setlocal 96
+  local 97
+  local 95
+  call 2 AAdd
+  pop
+  local 94
+  num 1
+  add
+  setlocal 94
+  jump 947
+  local 97
+  local 98
+  call 2 u_xtpl_join
+  setlocal 97
+  local 97
+  setlocal 7
+  line 63
+  local 7
+  call 1 ConOut
+  pop
+  line 64
+  array 0
+  setlocal 101
+  num 1
+  setlocal 99
+  local 99
+  local 2
+  call 1 Len
+  le
+  jumpf 1010
+  local 2
+  local 99
+  index
+  setlocal 100
+  local 100
+  call 1 Upper
+  setlocal 100
+  local 101
+  local 100
+  call 2 AAdd
+  pop
+  local 99
+  num 1
+  add
+  setlocal 99
+  jump 989
+  local 101
+  call 1 u_xtpl_join
+  setlocal 101
+  local 101
+  setlocal 7
+  line 65
+  local 7
+  call 1 ConOut
+  pop
+  line 66
+  num 0
+  setlocal 104
+  num 1
+  setlocal 102
+  local 102
+  local 1
+  call 1 Len
+  le
+  jumpf 1048
+  local 1
+  local 102
+  index
+  setlocal 103
+  local 103
+  num 2
+  gt
+  jumpf 1043
+  local 104
+  local 103
+  local 103
+  mul
+  add
+  setlocal 104
+  local 102
+  num 1
+  add
+  setlocal 102
+  jump 1024
+  local 104
+  setlocal 7
+  line 67
+  local 7
+  call 1 ConOut
+  pop
+  line 68
+  num 0
+  setlocal 107
+  nil
+  setlocal 108
+  num 1
+  setlocal 105
+  local 105
+  local 1
+  call 1 Len
+  le
+  jumpf 1096
+  local 1
+  local 105
+  index
+  setlocal 106
+  local 107
+  num 5
+  ge
+  jumpf 1075
+  jump 1096
+  local 107
+  num 1
+  add
+  setlocal 107
+  local 108
+  isnil
+  jumpf 1085
+  local 106
+  setlocal 108
+  jump 1091
+  local 108
+  num 10
+  mul
+  local 106
+  add
+  setlocal 108
+  local 105
+  num 1
+  add
+  setlocal 105
+  jump 1061
+  local 108
+  setlocal 7
+  line 69
+  local 7
+  call 1 ConOut
+  pop
+  line 70
+  nil
+  setlocal 112
+  false
+  setlocal 113
+  nil
+  setlocal 114
+  nil
+  setlocal 111
+  num 1
+  setlocal 109
+  local 109
+  local 2
+  call 1 Len
+  le
+  jumpf 1147
+  local 2
+  local 109
+  index
+  setlocal 110
+  local 110
+  local 110
+  add
+  setlocal 110
+  local 110
+  call 1 Asc
+  setlocal 114
+  local 113
+  not
+  orjump 1135
+  local 114
+  local 112
+  gt
+  jumpf 1142
+  true
+  setlocal 113
+  local 114
+  setlocal 112
+  local 110
+  setlocal 111
+  local 109
+  num 1
+  add
+  setlocal 109
+  jump 1113
+  local 111
+  setlocal 7
+  line 71
+  local 7
+  call 1 ConOut
+  pop
+  line 72
+  nil
+  setlocal 118
+  false
+  setlocal 119
+  nil
+  setlocal 120
+  nil
+  setlocal 117
+  num 1
+  setlocal 115
+  local 115
+  local 1
+  call 1 Len
+  le
+  jumpf 1198
+  local 1
+  local 115
+  index
+  setlocal 116
+  local 116
+  setlocal 116
+  local 116
+  num 5
+  sub
+  call 1 Abs
+  setlocal 120
+  local 119
+  not
+  orjump 1186
+  local 120
+  local 118
+  lt
+  jumpf 1193
+  true
+  setlocal 119
+  local 120
+  setlocal 118
+  local 116
+  setlocal 117
+  local 115
+  num 1
+  add
+  setlocal 115
+  jump 1164
+  local 117
+  setlocal 7
+  line 73
+  local 7
+  call 1 ConOut
+  pop
+  line 74
+  array 0
+  setlocal 124
+  nil
+  setlocal 125
+  false
+  setlocal 126
+  nil
+  setlocal 127
+  array 0
+  setlocal 123
+  num 1
+  setlocal 121
+  local 121
+  local 1
+  call 1 Len
+  le
+  jumpf 1260
+  local 1
+  local 121
+  index
+  setlocal 122
+  local 122
+  setlocal 122
+  local 122
+  num 2
+  mod
+  setlocal 127
+  local 126
+  jumpt 1239
+  true
+  setlocal 126
+  local 127
+  setlocal 125
+  jump 1251
+  local 127
+  local 125
+  exact
+  jumpt 1251
+  local 123
+  local 124
+  call 2 AAdd
+  pop
+  array 0
+  setlocal 124
+  local 127
+  setlocal 125
+  local 124
+  local 122
+  call 2 AAdd
+  pop
+  local 121
+  num 1
+  add
+  setlocal 121
+  jump 1217
+  local 126
+  jumpf 1266
+  local 123
+  local 124
+  call 2 AAdd
+  pop
+  local 123
+  setlocal 3
+  line 75
+  local 3
+  call 1 Len
+  local 3
+  num 1
+  index
+  str ","
+  call 2 u_xtpl_join
+  local 3
+  local 3
+  call 1 Len
+  index
+  str ","
+  call 2 u_xtpl_join
+  call 3 ConOut
+  pop
+  line 77
+  str "-- after a stage that is a call"
+  call 1 ConOut
+  pop
+  line 78
+  array 0
+  setlocal 130
+  num 1
+  setlocal 128
+  local 128
+  local 1
+  call 1 Len
+  le
+  jumpf 1315
+  local 1
+  local 128
+  index
+  setlocal 129
+  local 129
+  num 2
+  gt
+  jumpf 1310
+  local 130
+  local 129
+  call 2 AAdd
+  pop
+  local 128
+  num 1
+  add
+  setlocal 128
+  jump 1293
+  local 130
+  block U_MAIN#4 0
+  call 2 u_xtpl_sortby
+  setlocal 131
+  num 0
+  setlocal 134
+  array 0
+  setlocal 135
+  num 1
+  setlocal 132
+  local 132
+  local 131
+  call 1 Len
+  le
+  jumpf 1356
+  local 131
+  local 132
+  index
+  setlocal 133
+  local 133
+  num 100
+  mul
+  setlocal 133
+  local 134
+  num 2
+  ge
+  jumpf 1343
+  jump 1356
+  local 134
+  num 1
+  add
+  setlocal 134
+  local 135
+  local 133
+  call 2 AAdd
+  pop
+  local 132
+  num 1
+  add
+  setlocal 132
+  jump 1325
+  local 135
+  setlocal 3
+  line 79
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 80
+  array 0
+  setlocal 138
+  num 1
+  setlocal 136
+  local 136
+  local 1
+  call 1 Len
+  le
+  jumpf 1395
+  local 1
+  local 136
+  index
+  setlocal 137
+  local 137
+  num 1
+  add
+  setlocal 137
+  local 137
+  num 3
+  gt
+  jumpf 1390
+  local 138
+  local 137
+  call 2 AAdd
+  pop
+  local 136
+  num 1
+  add
+  setlocal 136
+  jump 1369
+  local 138
+  block U_MAIN#5 0
+  call 2 u_xtpl_sortby
+  call 1 u_xtpl_reverse
+  setlocal 3
+  line 81
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 83
+  str "-- ranges"
+  call 1 ConOut
+  pop
+  line 84
+  array 0
+  setlocal 141
+  num 1
+  setlocal 139
+  local 139
+  local 10
+  le
+  jumpf 1434
+  local 139
+  setlocal 140
+  local 140
+  local 140
+  mul
+  setlocal 140
+  local 141
+  local 140
+  call 2 AAdd
+  pop
+  local 139
+  num 1
+  add
+  setlocal 139
+  jump 1415
+  local 141
+  setlocal 3
+  line 85
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 86
+  local 1
+  call 1 Len
+  num 3
+  sub
+  setlocal 142
+  array 0
+  setlocal 145
+  num 2
+  setlocal 143
+  local 143
+  local 142
+  le
+  jumpf 1473
+  local 143
+  setlocal 144
+  local 144
+  num 2
+  mod
+  num 0
+  exact
+  jumpf 1468
+  local 145
+  local 144
+  call 2 AAdd
+  pop
+  local 143
+  num 1
+  add
+  setlocal 143
+  jump 1452
+  local 145
+  setlocal 3
+  line 87
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 88
+  num 0
+  setlocal 6
+  line 89
+  array 0
+  setlocal 148
+  num 1
+  setlocal 146
+  local 146
+  num 3
+  le
+  jumpf 1506
+  local 146
+  setlocal 147
+  local 147
+  setlocal 147
+  local 148
+  local 147
+  call 2 AAdd
+  pop
+  local 146
+  num 1
+  add
+  setlocal 146
+  jump 1489
+  local 148
+  block U_MAIN#6 0
+  call 2 u_xtpl_sortby
+  setlocal 149
+  num 1
+  setlocal 150
+  local 150
+  local 149
+  call 1 Len
+  le
+  jumpf 1534
+  local 149
+  local 150
+  index
+  setlocal 151
+  local 6
+  num 10
+  mul
+  local 151
+  add
+  dup
+  setlocal 6
+  pop
+  local 150
+  num 1
+  add
+  setlocal 150
+  jump 1512
+  line 90
+  local 6
+  call 1 ConOut
+  pop
+  line 92
+  str "-- files"
+  call 1 ConOut
+  pop
+  line 93
+  local 9
+  call 1 File
+  setlocal 152
+  local 152
+  jumpf 1553
+  local 9
+  call 1 FT_FUse
+  pop
+  call 0 FT_FGoTop
+  pop
+  array 0
+  setlocal 154
+  local 152
+  andjump 1559
+  call 0 FT_FEof
+  not
+  jumpf 1582
+  call 0 FT_FReadLn
+  setlocal 153
+  str ";"
+  local 153
+  contains
+  jumpf 1579
+  local 153
+  str ";"
+  local 153
+  call 2 At
+  num 1
+  add
+  call 2 SubStr
+  call 1 Val
+  setlocal 153
+  local 154
+  local 153
+  call 2 AAdd
+  pop
+  call 0 FT_FSkip
+  pop
+  jump 1555
+  local 152
+  jumpf 1586
+  call 0 FT_FUse
+  pop
+  local 154
+  setlocal 3
+  line 94
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 95
+  local 9
+  call 1 Longest
+  call 1 ConOut
+  pop
+  line 96
+  str "08-chains.txt"
+  setlocal 155
+  local 155
+  call 1 File
+  setlocal 156
+  local 156
+  jumpf 1612
+  local 155
+  call 1 FT_FUse
+  pop
+  call 0 FT_FGoTop
+  pop
+  num 0
+  setlocal 158
+  line 96
+  local 156
+  andjump 1619
+  call 0 FT_FEof
+  not
+  jumpf 1652
+  local 158
+  num 1
+  add
+  setlocal 158
+  call 0 FT_FReadLn
+  setlocal 157
+  call 0 FT_FSkip
+  pop
+  line 97
+  local 157
+  call 1 Empty
+  jumpf 1633
+  jump 1614
+  line 98
+  local 157
+  num 1
+  call 2 Left
+  str "#"
+  exact
+  jumpf 1641
+  jump 1652
+  line 99
+  local 158
+  call 1 cValToChar
+  str ": "
+  add
+  local 157
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  jump 1614
+  local 156
+  jumpf 1656
+  call 0 FT_FUse
+  pop
+  line 101
+  str "08-chains.txt"
+  call 1 FirstWithDigit
+  call 1 ConOut
+  pop
+  line 103
+  str "-- where a chain is a value"
+  call 1 ConOut
+  pop
+  line 104
+  array 0
+  setlocal 162
+  num 1
+  setlocal 160
+  local 160
+  local 1
+  call 1 Len
+  le
+  jumpf 1694
+  local 1
+  local 160
+  index
+  setlocal 161
+  local 161
+  num 4
+  gt
+  jumpf 1689
+  local 161
+  setlocal 161
+  local 162
+  local 161
+  call 2 AAdd
+  pop
+  local 160
+  num 1
+  add
+  setlocal 160
+  jump 1670
+  local 162
+  setlocal 159
+  local 4
+  num 1
+  local 159
+  setindex
+  line 105
+  local 4
+  num 1
+  index
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 106
+  local 1
+  call 1 Len
+  num 0
+  gt
+  jumpf 1751
+  line 107
+  array 0
+  setlocal 165
+  num 1
+  setlocal 163
+  local 163
+  local 1
+  call 1 Len
+  le
+  jumpf 1743
+  local 1
+  local 163
+  index
+  setlocal 164
+  local 164
+  num 5
+  gt
+  jumpf 1738
+  local 164
+  setlocal 164
+  local 165
+  local 164
+  call 2 AAdd
+  pop
+  local 163
+  num 1
+  add
+  setlocal 163
+  jump 1719
+  local 165
+  setlocal 166
+  line 108
+  local 166
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 110
+  private APRIV
+  array 0
+  setlocal 169
+  num 1
+  setlocal 167
+  local 167
+  local 2
+  call 1 Len
+  le
+  jumpf 1783
+  local 2
+  local 167
+  index
+  setlocal 168
+  local 168
+  str "!"
+  add
+  setlocal 168
+  local 168
+  str "c!"
+  ne
+  jumpf 1778
+  local 169
+  local 168
+  call 2 AAdd
+  pop
+  local 167
+  num 1
+  add
+  setlocal 167
+  jump 1757
+  local 169
+  setmemvar APRIV
+  line 111
+  memvar APRIV
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 112
+  block U_MAIN#7 0
+  call 1 ErrorBlock
+  setlocal 170
+  seq 1832
+  array 0
+  setlocal 173
+  num 1
+  setlocal 171
+  local 171
+  local 1
+  call 1 Len
+  le
+  jumpf 1828
+  local 1
+  local 171
+  index
+  setlocal 172
+  num 12
+  local 172
+  num 1
+  sub
+  div
+  setlocal 172
+  local 172
+  num 0
+  gt
+  jumpf 1823
+  local 173
+  local 172
+  call 2 AAdd
+  pop
+  local 171
+  num 1
+  add
+  setlocal 171
+  jump 1800
+  local 173
+  setlocal 3
+  endseq
+  jump 1836
+  pop
+  str "fell back"
+  array 1
+  setlocal 3
+  local 170
+  call 1 ErrorBlock
+  pop
+  line 113
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 114
+  local 6
+  num 0
+  gt
+  jumpf 1880
+  array 0
+  setlocal 176
+  num 1
+  setlocal 174
+  local 174
+  local 1
+  call 1 Len
+  le
+  jumpf 1878
+  local 1
+  local 174
+  index
+  setlocal 175
+  local 175
+  setlocal 175
+  local 175
+  num 8
+  gt
+  jumpf 1873
+  local 176
+  local 175
+  call 2 AAdd
+  pop
+  local 174
+  num 1
+  add
+  setlocal 174
+  jump 1854
+  local 176
+  setlocal 3
+  line 115
+  local 3
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 116
+  num 1
+  setlocal 177
+  local 177
+  local 1
+  call 1 Len
+  le
+  jumpf 1913
+  local 1
+  local 177
+  index
+  setlocal 178
+  local 178
+  num 5
+  gt
+  jumpf 1908
+  str "tap "
+  local 178
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  pop
+  local 177
+  num 1
+  add
+  setlocal 177
+  jump 1889
+  line 117
+  call 0 Records
+  call 1 ConOut
+  pop
+  line 118
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals x
+  line 23
+  local 1
+  neg
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals x
+  line 43
+  local 1
+  num 2
+  gt
+  ret
+end
+
+function U_MAIN#3 block 1 1
+  locals x
+  line 43
+  local 1
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals x
+  line 78
+  local 1
+  ret
+end
+
+function U_MAIN#5 block 1 1
+  locals x
+  line 80
+  local 1
+  neg
+  ret
+end
+
+function U_MAIN#6 block 1 1
+  locals x
+  line 89
+  local 1
+  neg
+  ret
+end
+
+function U_MAIN#7 block 1 1
+  locals __it
+  line 112
+  local 1
+  call 1 Break
+  ret
+end
+
+function LONGEST static 1 5
+  locals cPath .t1 .t2 .t3 .t4
+  line 122
+  local 1
+  call 1 File
+  setlocal 3
+  local 3
+  jumpf 12
+  local 1
+  call 1 FT_FUse
+  pop
+  call 0 FT_FGoTop
+  pop
+  nil
+  setlocal 5
+  local 3
+  andjump 18
+  call 0 FT_FEof
+  not
+  jumpf 37
+  call 0 FT_FReadLn
+  setlocal 4
+  local 4
+  call 1 Len
+  setlocal 4
+  local 5
+  isnil
+  jumpf 30
+  local 4
+  setlocal 5
+  jump 34
+  local 5
+  local 4
+  call 2 Max
+  setlocal 5
+  call 0 FT_FSkip
+  pop
+  jump 14
+  local 3
+  jumpf 41
+  call 0 FT_FUse
+  pop
+  local 5
+  setlocal 2
+  local 2
+  ret
+end
+
+function FIRSTWITHDIGIT static 1 4
+  locals cPath .t1 .t2 cLine
+  line 126
+  local 1
+  setlocal 2
+  local 2
+  call 1 File
+  setlocal 3
+  local 3
+  jumpf 14
+  local 2
+  call 1 FT_FUse
+  pop
+  call 0 FT_FGoTop
+  pop
+  line 126
+  local 3
+  andjump 19
+  call 0 FT_FEof
+  not
+  jumpf 43
+  call 0 FT_FReadLn
+  setlocal 4
+  call 0 FT_FSkip
+  pop
+  line 127
+  local 4
+  num 1
+  call 2 Right
+  call 1 IsDigit
+  jumpf 42
+  line 128
+  local 3
+  jumpf 35
+  call 0 FT_FUse
+  pop
+  local 4
+  str ", "
+  add
+  call 0 FT_FEof
+  call 1 cValToChar
+  add
+  ret
+  jump 14
+  local 3
+  jumpf 47
+  call 0 FT_FUse
+  pop
+  line 131
+  str ""
+  ret
+end
+
+function RECORDS static 0 4
+  locals .t1 .t2 .t3 nCount
+  line 135
+  call 0 Alias
+  setlocal 1
+  str "SA1"
+  call 1 DbSelectArea
+  pop
+  str "SA1"
+  area
+  call 0 RecNo
+  endarea
+  setlocal 2
+  str "SA1"
+  area
+  call 0 DbGoTop
+  endarea
+  pop
+  num 0
+  setlocal 3
+  str "SA1"
+  area
+  call 0 Eof
+  endarea
+  not
+  jumpf 39
+  field SA1 A1_SALDO
+  num 0
+  gt
+  jumpf 33
+  local 3
+  num 1
+  add
+  setlocal 3
+  str "SA1"
+  area
+  call 0 DbSkip
+  endarea
+  pop
+  jump 19
+  str "SA1"
+  area
+  local 2
+  call 1 DbGoto
+  endarea
+  pop
+  local 1
+  call 1 Empty
+  jumpt 51
+  local 1
+  call 1 DbSelectArea
+  pop
+  local 3
+  setlocal 4
+  line 136
+  local 4
+  ret
+end

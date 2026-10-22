@@ -264,8 +264,9 @@ an area, a value read twice -- get theirs after. A block local declared
 with no value is given Nil each time its declaration runs, whatever its
 type, as TL++'s is. Any other declared with a type and no value starts
 where TL++ starts it -- in a `.prw`, at Nil: a `Numeric` at 0, a
-`Character` at `""`, a `Logical` at `.F.`, a `Date` at 31 December 1899. A `Static` is a static, a `Private` and a
-`Public` memvars, a name nothing declares a `memvar`. A `#define` of the
+`Character` at `""`, a `Logical` at `.F.`, a `Date` at 31 December 1899.
+A `Static` is a static, a `Private` and a `Public` memvars, a name nothing
+declares a `memvar`. A `#define` of the
 file is its value, wherever its name is used; `CRLF`, which `totvs.ch`
 defines, is `Chr(13) + Chr(10)`.
 
@@ -288,11 +289,23 @@ xtpl's own forms are what they are for TL++:
   a comparison with 0;
 - `?:`, `?.` and `?=` test with `isnil`;
 - `fallback` is TL++'s: `ErrorBlock({|e| Break(e)})`, a `seq` around the
-  value, the alternative after it, and the error block put back;
+  value, the alternative after it, and the error block put back -- as a
+  statement's whole value, the statement inside the `seq`, the target
+  given the value there, as TL++ writes it;
 - a string with `${}` is a sum of strings and `cValToChar()`s;
 - a lambda is a code block, and a function's name where a verb takes a
   block, `{|__it| name(__it)}`;
-- a chain is its stages' calls, the value before each its first argument;
+- a chain is a loop where TL++ makes one -- a statement's whole value, a
+  block's `Local`, a `Private`, a `Public`, a `Return`, a statement of its
+  own, what a `fallback` there guards: a chain from `rows()`, `lines()` or
+  a range, or over an array where its stages fuse (`docs/language.md`,
+  When a chain is a loop) --, the same loop, its stages inside it, each
+  lambda's parameter the element: so a `tap` before a `take` sees only what
+  the loop reads, as in TL++. Anywhere else a chain is its stages' calls,
+  the value before each its first argument;
+- `for x in lines(path)` reads the file as TL++'s does -- the line taken at
+  the top of each round, the file closed after the loop and on a `Return`
+  out of it;
 - `defer` is `defer`; `using alias` the calls that select the area, its
   record and its order, and put them back on every way out; `with object`
   a local for the subject;
@@ -307,10 +320,6 @@ be there for these, as for TL++.
 
 xc says so, and writes no `.xbc`:
 
-- a chain TL++ runs as a loop: one whose stages fuse, as a statement's
-  whole value -- run as calls, a `tap` before a `take` would see elements
-  the loop never reads --; a chain from `rows()`, `lines()` or a range;
-  `for ... in lines()`;
 - classes and their methods; a namespace;
 - what is the preprocessor's: `raw`, a command -- TOTVS' `@ ... SAY`,
   `BeginSql`, one of the source's own --, a translation of the source's
@@ -332,8 +341,8 @@ code is 1. ctest's `bytecode` runs it on the cases in `cpp/tests/bytecode`
 
 It is the machine this page describes, and of the AppServer only what the
 tests need: some of the strings', numbers', dates' and arrays' functions,
-`Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; `THashMap` and
-`JsonObject`; the runtime's functions for hashes, JSON objects and `in`,
-and some of its verbs. A work area is a name -- it can be selected and put
-back, and has no records --, there are no Decimals, and a macro is a
-variable's name.
+`Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; `File()` and the `FT_`
+functions, for a text file; `THashMap` and `JsonObject`; the runtime's
+functions for hashes, JSON objects, `in` and `distinct`, and some of its
+verbs. A work area is a name -- it can be selected and put back, and has
+no records --, there are no Decimals, and a macro is a variable's name.

@@ -11,10 +11,11 @@
 //
 // The AppServer's functions are a few of their namesakes, enough for the
 // tests: the strings', the numbers', the arrays', Eval(), Break(),
-// ErrorBlock(); THashMap and JsonObject; the functions of xtpl's runtime the
-// output calls for hashes, JSON objects and 'in', and some of its verbs. A
-// work area is a name: it can be selected and put back, and it has no
-// records. There are no Decimals, and no macro but a variable's name.
+// ErrorBlock(); File() and the FT_ functions, for a text file; THashMap and
+// JsonObject; the functions of xtpl's runtime the output calls for hashes,
+// JSON objects, 'in' and 'distinct', and some of its verbs. A work area is a
+// name: it can be selected and put back, and it has no records. There are no
+// Decimals, and no macro but a variable's name.
 
 #include <algorithm>
 #include <cmath>
@@ -365,6 +366,10 @@ namespace
     bool in_error_block_ = false;
     std::vector<std::string> areas_{ "" };
     std::size_t area_ = 0;
+    // The text file FT_FUse() opened -- one at a time, as AdvPL's --: its
+    // lines, and the one it is on.
+    std::vector<std::string> ft_lines_;
+    std::size_t ft_at_ = 0;
     std::string where_;
 
     // ---- errors -------------------------------------------------------------
@@ -1691,6 +1696,19 @@ namespace
       return N(s.empty() ? 0 : static_cast<double>(static_cast<unsigned char>(s[0])));
     };
 
+    auto first_is = [this](Args& a, int (*test)(int), const char* fn)
+    {
+      std::string t = str_arg(a, 0, fn);
+      return L(!t.empty() && test(static_cast<unsigned char>(t[0])) != 0);
+    };
+    n["ISDIGIT"] = [first_is](Args& a) { return first_is(a, [](int c) { return c >= '0' && c <= '9' ? 1 : 0; }, "IsDigit"); };
+    n["ISALPHA"] = [first_is](Args& a)
+    {
+      return first_is(a, [](int c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ? 1 : 0; }, "IsAlpha");
+    };
+    n["ISUPPER"] = [first_is](Args& a) { return first_is(a, [](int c) { return c >= 'A' && c <= 'Z' ? 1 : 0; }, "IsUpper"); };
+    n["ISLOWER"] = [first_is](Args& a) { return first_is(a, [](int c) { return c >= 'a' && c <= 'z' ? 1 : 0; }, "IsLower"); };
+
     // Numbers.
     n["INT"] = [this](Args& a) { return N(std::trunc(num_arg(a, 0, "Int"))); };
     n["ROUND"] = [this](Args& a)
@@ -1773,6 +1791,40 @@ namespace
       n[f] = [](Args&) { return Value(); };
     }
 
+    // Files: File(), and the FT_ functions' text file, line by line.
+    n["FILE"] = [this](Args& a)
+    {
+      std::ifstream f(str_arg(a, 0, "File"), std::ios::binary);
+      return L(static_cast<bool>(f));
+    };
+    n["FT_FUSE"] = [this](Args& a)
+    {
+      ft_lines_.clear();
+      ft_at_ = 0;
+      if (is_nil(at(a, 0))) { return N(0); }
+      std::ifstream f(str_arg(a, 0, "FT_FUse"), std::ios::binary);
+      if (!f) { return N(-1); }
+      std::string l;
+      while (std::getline(f, l))
+      {
+        if (!l.empty() && l.back() == '\r') { l.pop_back(); }
+        ft_lines_.push_back(l);
+      }
+      return N(1);
+    };
+    n["FT_FGOTOP"] = [this](Args&)
+    {
+      ft_at_ = 0;
+      return Value();
+    };
+    n["FT_FEOF"] = [this](Args&) { return L(ft_at_ >= ft_lines_.size()); };
+    n["FT_FREADLN"] = [this](Args&) { return S(ft_at_ < ft_lines_.size() ? ft_lines_[ft_at_] : ""); };
+    n["FT_FSKIP"] = [this](Args& a)
+    {
+      ft_at_ += static_cast<std::size_t>(is_nil(at(a, 0)) ? 1 : num_arg(a, 0, "FT_FSkip"));
+      return Value();
+    };
+
     // THashMap, JsonObject, and the runtime's functions for them.
     n["THASHMAP"] = [new_object](Args&) { return new_object(Object::Hash); };
     n["JSONOBJECT"] = [new_object](Args&) { return new_object(Object::Json); };
@@ -1815,6 +1867,28 @@ namespace
     {
       auto o = object_arg(a, 0, Object::Hash, "u_xtpl_hhas");
       return L(o->hash.count(key_text(at(a, 1))) > 0);
+    };
+    n["U_XTPL_SEEN"] = [this](Args& a)
+    {
+      // The runtime's: by type and text, the values of one key compared
+      // with '=='.
+      auto o = object_arg(a, 0, Object::Hash, "u_xtpl_seen");
+      const Value& x = at(a, 1);
+      char t = type_of(x);
+      std::string k = std::string(1, t) + (std::string("CNDL").find(t) != std::string::npos ? text(x) : "");
+      auto it = o->hash.find(k);
+      if (it == o->hash.end())
+      {
+        o->hash[k] = { S(k), A(std::make_shared<Array>(Array{ x })) };
+        return L(false);
+      }
+      ArrayP same = std::get<ArrayP>(it->second.second.v);
+      for (const Value& y : *same)
+      {
+        if (equal(y, x, true, "==")) { return L(true); }
+      }
+      same->push_back(x);
+      return L(false);
     };
     n["U_XTPL_IN"] = [this](Args& a)
     {
@@ -1921,6 +1995,32 @@ namespace
     };
     n["U_XTPL_KEYS"] = [listed](Args& a) { return listed(a, 0, "u_xtpl_keys"); };
     n["U_XTPL_VALUES"] = [listed](Args& a) { return listed(a, 1, "u_xtpl_values"); };
+    n["U_XTPL_DISTINCT"] = [this](Args& a)
+    {
+      auto out = std::make_shared<Array>();
+      Value seen;
+      seen.v = std::make_shared<Object>(Object{ Object::Hash, {}, {} });
+      for (const Value& x : *array_arg(a, 0, "u_xtpl_distinct"))
+      {
+        Args q{ seen, x };
+        if (!std::get<bool>(natives_["U_XTPL_SEEN"](q).v)) { out->push_back(x); }
+      }
+      return A(out);
+    };
+    n["U_XTPL_REVERSE"] = [this](Args& a)
+    {
+      ArrayP arr = array_arg(a, 0, "u_xtpl_reverse");
+      return A(std::make_shared<Array>(arr->rbegin(), arr->rend()));
+    };
+    auto slice = [this](Args& a, bool take, const char* fn)
+    {
+      ArrayP arr = array_arg(a, 0, fn);
+      std::size_t k = std::min(arr->size(), static_cast<std::size_t>(std::max(0.0, num_arg(a, 1, fn))));
+      return take ? A(std::make_shared<Array>(arr->begin(), arr->begin() + static_cast<std::ptrdiff_t>(k)))
+                  : A(std::make_shared<Array>(arr->begin() + static_cast<std::ptrdiff_t>(k), arr->end()));
+    };
+    n["U_XTPL_TAKE"] = [slice](Args& a) { return slice(a, true, "u_xtpl_take"); };
+    n["U_XTPL_DROP"] = [slice](Args& a) { return slice(a, false, "u_xtpl_drop"); };
     n["U_XTPL_SORTBY"] = [this](Args& a)
     {
       auto out = std::make_shared<Array>(*array_arg(a, 0, "u_xtpl_sortby"));

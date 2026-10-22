@@ -1,0 +1,6 @@
+alfa
+
+beta;1
+gama;22
+# a comment
+delta;333

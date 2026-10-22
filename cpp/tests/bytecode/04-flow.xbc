@@ -417,19 +417,20 @@ function GUARDED static 0 2
   block GUARDED#1 0
   call 1 ErrorBlock
   setlocal 2
-  seq 14
+  seq 15
   num 10
   local 1
   div
+  setlocal 1
   endseq
-  jump 17
+  jump 19
   pop
   num 1
   neg
+  setlocal 1
   local 2
   call 1 ErrorBlock
   pop
-  setlocal 1
   line 94
   local 1
   ret

@@ -10,14 +10,8 @@ Method New() Class Conta
   ::nSaldo := 0
 Return Self
 
-User Function Refused(aNums, cFile)
-  Local nTotal := rows("SA1") |> count
-  Local aOut := {}
-  aOut := aNums |> filter([x] x > 1) |> map([x] x * 2)
-  aOut := map(aNums, [x] x + 1)
-  aOut := Len(aNums |> filter([x] x > 1))
+User Function Refused(aNums)
+  Local nTotal := 0
   raw @ 10, 5 SAY "Total"
-  for cLine in lines(cFile)
-    conout(cLine)
-  next
+  ConOut(aNums[1], @aNums[2])
 Return nTotal

@@ -1,8 +1,8 @@
 # xc's bytecode, as data (cpp/tests/bytecode): each NAME.xtpl (or NAME.prw)
 # is compiled with 'xc --bytecode'. NAME.xbc is what it writes; NAME.err what
 # it says, warnings or why it writes nothing, when it says anything; NAME.out,
-# when there is one, what xc-vm does running the .xbc -- its exit code, what
-# it printed on its output and on its errors.
+# when there is one, what xc-vm does running the .xbc, from that folder -- its
+# exit code, what it printed on its output and on its errors.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DCASES=cpp/tests/bytecode -DWORK=cpp/build/bytecode -P cpp/tests/bytecode.cmake
 #   ... -DUPDATE=1      writes the expected files again, after a change that is meant --
@@ -63,6 +63,7 @@ foreach(src ${sources})
   check(${name} xbc "${made}" ON)
   if(EXISTS ${CASES}/${name}.out AND EXISTS ${WORK}/${name}.xbc)
     execute_process(COMMAND ${VM} ${WORK}/${name}.xbc
+                    WORKING_DIRECTORY ${CASES}
                     OUTPUT_VARIABLE out
                     ERROR_VARIABLE err
                     RESULT_VARIABLE code)

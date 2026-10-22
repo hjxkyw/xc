@@ -136,6 +136,21 @@ namespace xc
 
   bool takes_block(const std::string& lc_name) { return TAKES_BLOCK.count(lc_name) > 0; }
 
+  const Expr* source_call(const Expr* e)
+  {
+    if (e && e->kind == EK::Pipeline && is_source(static_cast<const Pipeline*>(e)->source))
+    {
+      return static_cast<const Pipeline*>(e)->source;
+    }
+    if (is_source(e)) { return e; }
+    return nullptr;
+  }
+
+  std::string source_kind(const Expr* src)
+  {
+    return src->kind == EK::Interval ? "range" : lc(static_cast<const Call*>(src)->name);
+  }
+
   bool is_source(const Expr* e)
   {
     if (!e) { return false; }
@@ -179,5 +194,148 @@ namespace xc
       if (array_chain_fuses(split, for_effect && split.rest.empty())) { return static_cast<int>(i); }
     }
     return -1;
+  }
+
+  std::unordered_set<std::string> declared_names(const std::vector<Param*>& params, const Body& body)
+  {
+    std::unordered_set<std::string> out;
+    for (const Param* q : params) { out.insert(lc(q->name)); }
+    walk(body, [&](Stmt* s)
+    {
+      switch (s->kind)
+      {
+        case SK::Declaration:
+          for (const Declarator* d : static_cast<Declaration*>(s)->declarators) { out.insert(lc(d->name)); }
+          break;
+        case SK::ForStmt:
+        {
+          auto f = static_cast<ForStmt*>(s);
+          if (f->var_local) { out.insert(lc(f->var)); }
+          break;
+        }
+        case SK::ForInStmt:
+        {
+          auto f = static_cast<ForInStmt*>(s);
+          out.insert(lc(f->elem));
+          if (f->index) { out.insert(lc(*f->index)); }
+          break;
+        }
+        case SK::IfStmt:
+          if (auto d = static_cast<IfStmt*>(s)->header_decl) { out.insert(lc(d->name)); }
+          break;
+        case SK::WhileStmt:
+          if (auto d = static_cast<WhileStmt*>(s)->header_decl) { out.insert(lc(d->name)); }
+          break;
+        case SK::CaseStmt:
+          if (auto d = static_cast<CaseStmt*>(s)->subject_decl) { out.insert(lc(d->name)); }
+          break;
+        default:
+          break;
+      }
+    });
+    return out;
+  }
+
+  bool record_misused(const Lambda* l)
+  {
+    std::string p = lc(l->params[0]);
+    std::unordered_set<const Expr*> field_base;
+    for (Expr* b : l->body)
+    {
+      walk_expr(b, [&](Expr* x)
+      {
+        if (x->kind != EK::Member && x->kind != EK::SafeMember) { return; }
+        const Expr* base = static_cast<Member*>(x)->base;
+        if (is_name(base) && lc(static_cast<const Name*>(base)->name) == p) { field_base.insert(base); }
+      });
+    }
+    bool misused = false;
+    for (Expr* b : l->body)
+    {
+      walk_expr(b, [&](Expr* x)
+      {
+        if (x->kind == EK::Name && lc(static_cast<Name*>(x)->name) == p && !field_base.count(x)) { misused = true; }
+      });
+    }
+    return misused;
+  }
+
+  std::vector<std::string> chain_problems(const Expr* chain, bool for_effect, const Declared& declared)
+  {
+    std::vector<std::string> p;
+    const Expr* call = source_call(chain);
+    std::string kind = source_kind(call);
+    std::vector<Call*> stages;
+    if (chain->kind == EK::Pipeline) { stages = static_cast<const Pipeline*>(chain)->stages; }
+    bool array = chain->kind == EK::Pipeline && !is_source(static_cast<const Pipeline*>(chain)->source);
+    Split split = split_stages(stages, array, declared);
+    // A Name that is not a variable, where the verb takes a block: a function.
+    auto function_name = [&](const std::string& verb, const Expr* e)
+    {
+      return takes_block(verb) && is_name(e) && !declared(lc(static_cast<const Name*>(e)->name));
+    };
+    if (kind == "rows")
+    {
+      std::size_t n = static_cast<const Call*>(call)->args.size();
+      if (!(1 <= n && n <= 2)) { p.push_back("'rows()' with no alias, or more than an alias and a key"); }
+    }
+    if (kind == "lines" && static_cast<const Call*>(call)->args.size() != 1)
+    {
+      p.push_back("'lines()' with no path, or more than one");
+    }
+    std::string what = kind == "range" ? "a range" : kind + "()";
+    std::vector<const Call*> run(split.fused.begin(), split.fused.end());
+    if (split.terminal) { run.push_back(split.terminal); }
+    static const Set needs_lambda =
+    {
+      "filter", "reject", "map", "tap", "takewhile", "dropwhile", "expand", "anyof", "allof", "noneof",
+    };
+    for (const Call* st : run)
+    {
+      std::string n = lc(st->name);
+      bool needs = needs_lambda.count(n)
+                   || ((n == "count" || n == "first" || n == "distinctadjacent") && !st->args.empty());
+      bool one = st->args.size() == 1
+                 && ((is_lambda(st->args[0]) && static_cast<const Lambda*>(st->args[0])->params.size() == 1)
+                     || function_name(n, st->args[0]));
+      if (needs && !one) { p.push_back("'" + n + "' over " + what + " without its lambda written in the stage"); }
+      if ((n == "take" || n == "drop") && st->args.size() != 1)
+      {
+        p.push_back("'" + n + "' over " + what + " without a count");
+      }
+    }
+    if (kind == "rows")
+    {
+      bool mapped = false;
+      for (const Call* st : run)
+      {
+        if (mapped) { break; }
+        const Expr* l = st->args.empty() ? nullptr : st->args[0];
+        std::string n = lc(st->name);
+        if ((is_lambda(l) && static_cast<const Lambda*>(l)->params.size() == 1
+             && record_misused(static_cast<const Lambda*>(l)))
+            || function_name(n, l))
+        {
+          p.push_back("over rows() the element is the current record, so it can only name a field");
+        }
+        if (n == "distinctadjacent" && st->args.empty())
+        {
+          p.push_back("over rows() 'distinctAdjacent' needs a key: the record is not a value to compare");
+        }
+        if (n == "scan" || n == "pairwise")
+        {
+          p.push_back("over rows() '" + n + "' needs a value -- map the record to one first");
+        }
+        if (n == "map" || n == "expand") { mapped = true; }
+      }
+      std::string t = split.terminal ? lc(split.terminal->name) : "";
+      bool needs_value = (!t.empty() && t != "anyof" && t != "allof" && t != "noneof" && t != "count")
+                         || (t.empty() && (!split.rest.empty() || !for_effect));
+      if (needs_value && !mapped)
+      {
+        p.push_back("over rows() nothing to collect before a 'map' makes the record a value");
+      }
+    }
+    return p;
   }
 }

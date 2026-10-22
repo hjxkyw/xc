@@ -214,21 +214,6 @@ namespace xc
     }
   }
 
-  const Expr* source_call(const Expr* e)
-  {
-    if (is_expr(e, EK::Pipeline) && is_source(static_cast<const Pipeline*>(e)->source))
-    {
-      return static_cast<const Pipeline*>(e)->source;
-    }
-    if (is_source(e)) { return e; }
-    return nullptr;
-  }
-
-  std::string source_kind(const Expr* src)
-  {
-    return src->kind == EK::Interval ? "range" : lc(static_cast<const Call*>(src)->name);
-  }
-
   std::string call_name(const std::string& name)
   {
     return is_runtime_verb(name) ? "u_xtpl_" + lc(name) : name;
@@ -658,80 +643,14 @@ namespace xc
     return out;
   }
 
-  // What stops a chain from a source from being lowered.
+  // What stops a chain from a source from being lowered (chains.cpp).
   std::vector<Finding> Emitter::chain_problems(const Expr* chain, const Stmt* s)
   {
-    Lines p;
-    const Expr* call = source_call(chain);
-    std::string kind = source_kind(call);
-    std::vector<Call*> stages;
-    if (is_expr(chain, EK::Pipeline)) { stages = static_cast<const Pipeline*>(chain)->stages; }
-    bool array = is_expr(chain, EK::Pipeline) && !is_source(static_cast<const Pipeline*>(chain)->source);
-    Split split = split_stages(stages, array, declared_fn());
-    if (kind == "rows")
-    {
-      std::size_t n = static_cast<const Call*>(call)->args.size();
-      if (!(1 <= n && n <= 2)) { p.push_back("'rows()' with no alias, or more than an alias and a key"); }
-    }
-    if (kind == "lines" && static_cast<const Call*>(call)->args.size() != 1)
-    {
-      p.push_back("'lines()' with no path, or more than one");
-    }
-    std::string what = kind == "range" ? "a range" : kind + "()";
-    std::vector<const Call*> run(split.fused.begin(), split.fused.end());
-    if (split.terminal) { run.push_back(split.terminal); }
-    static const std::unordered_set<std::string> needs_lambda =
-    {
-      "filter", "reject", "map", "tap", "takewhile", "dropwhile", "expand", "anyof", "allof", "noneof",
-    };
-    for (const Call* st : run)
-    {
-      std::string n = lc(st->name);
-      bool needs = needs_lambda.count(n)
-                   || ((n == "count" || n == "first" || n == "distinctadjacent") && !st->args.empty());
-      if (needs && !(st->args.size() == 1 && (is_lambda(st->args[0]) || is_function_name(n, st->args[0]))))
-      {
-        p.push_back("'" + n + "' over " + what + " without its lambda written in the stage");
-      }
-      if ((n == "take" || n == "drop") && st->args.size() != 1)
-      {
-        p.push_back("'" + n + "' over " + what + " without a count");
-      }
-    }
-    if (kind == "rows")
-    {
-      bool mapped = false;
-      for (const Call* st : run)
-      {
-        if (mapped) { break; }
-        const Expr* l = st->args.empty() ? nullptr : st->args[0];
-        std::string n = lc(st->name);
-        if ((is_expr(l, EK::Lambda) && static_cast<const Lambda*>(l)->params.size() == 1
-             && record_misused(static_cast<const Lambda*>(l)))
-            || is_function_name(n, l))
-        {
-          p.push_back("over rows() the element is the current record, so it can only name a field");
-        }
-        if (n == "distinctadjacent" && st->args.empty())
-        {
-          p.push_back("over rows() 'distinctAdjacent' needs a key: the record is not a value to compare");
-        }
-        if (n == "scan" || n == "pairwise")
-        {
-          p.push_back("over rows() '" + n + "' needs a value -- map the record to one first");
-        }
-        if (n == "map" || n == "expand") { mapped = true; }
-      }
-      std::string t = split.terminal ? lc(split.terminal->name) : "";
-      bool needs_value = (!t.empty() && t != "anyof" && t != "allof" && t != "noneof" && t != "count")
-                         || (t.empty() && (!split.rest.empty() || s->kind != SK::CallStmt));
-      if (needs_value && !mapped)
-      {
-        p.push_back("over rows() nothing to collect before a 'map' makes the record a value");
-      }
-    }
     std::vector<Finding> out;
-    for (std::string& m : p) { out.push_back({ s->line, std::move(m) }); }
+    for (std::string& m : xc::chain_problems(chain, s->kind == SK::CallStmt, declared_fn()))
+    {
+      out.push_back({ s->line, std::move(m) });
+    }
     return out;
   }
 
@@ -743,30 +662,6 @@ namespace xc
   bool Emitter::is_function_name(const std::string& verb, const Expr* e) const
   {
     return takes_block(verb) && is_expr(e, EK::Name) && !declared(lc(static_cast<const Name*>(e)->name));
-  }
-
-  bool Emitter::record_misused(const Lambda* l) const
-  {
-    std::string p = lc(l->params[0]);
-    std::unordered_set<const Expr*> field_base;
-    for (Expr* b : l->body)
-    {
-      walk_expr(b, [&](Expr* x)
-      {
-        if (x->kind != EK::Member && x->kind != EK::SafeMember) { return; }
-        const Expr* base = static_cast<Member*>(x)->base;
-        if (is_expr(base, EK::Name) && lc(static_cast<const Name*>(base)->name) == p) { field_base.insert(base); }
-      });
-    }
-    bool misused = false;
-    for (Expr* b : l->body)
-    {
-      walk_expr(b, [&](Expr* x)
-      {
-        if (x->kind == EK::Name && lc(static_cast<Name*>(x)->name) == p && !field_base.count(x)) { misused = true; }
-      });
-    }
-    return misused;
   }
 
   // ---- the whole file -------------------------------------------------------
@@ -1168,42 +1063,9 @@ namespace xc
   // The names the function declares, anywhere in it.
   void Emitter::declare_names(const std::vector<Param*>& params, const Body& body)
   {
-    declared_.clear();
-    for (const Param* q : params) { declared_.insert(lc(q->name)); }
-    walk(body, [&](Stmt* s)
-    {
-      switch (s->kind)
-      {
-        case SK::Declaration:
-          for (const Declarator* d : static_cast<Declaration*>(s)->declarators) { declared_.insert(lc(d->name)); }
-          break;
-        case SK::ForStmt:
-        {
-          auto f = static_cast<ForStmt*>(s);
-          if (f->var_local) { declared_.insert(lc(f->var)); }
-          break;
-        }
-        case SK::ForInStmt:
-        {
-          auto f = static_cast<ForInStmt*>(s);
-          declared_.insert(lc(f->elem));
-          if (f->index) { declared_.insert(lc(*f->index)); }
-          break;
-        }
-        case SK::IfStmt:
-          if (auto d = static_cast<IfStmt*>(s)->header_decl) { declared_.insert(lc(d->name)); }
-          break;
-        case SK::WhileStmt:
-          if (auto d = static_cast<WhileStmt*>(s)->header_decl) { declared_.insert(lc(d->name)); }
-          break;
-        case SK::CaseStmt:
-          if (auto d = static_cast<CaseStmt*>(s)->subject_decl) { declared_.insert(lc(d->name)); }
-          break;
-        default:
-          break;
-      }
-    });
+    declared_ = declared_names(params, body);
   }
+
 
   // Block locals: slots, recycled -- each the lowest no local of an enclosing
   // block holds. One that can still be reached after its block keeps a

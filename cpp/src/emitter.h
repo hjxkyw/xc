@@ -24,8 +24,6 @@ namespace xc
   // ---- what is shared by both halves ----------------------------------------
   bool is_expr(const Expr* e, EK k);
   bool is_literal_kind(const Expr* e);
-  const Expr* source_call(const Expr* e);
-  std::string source_kind(const Expr* src);
   std::string call_name(const std::string& name);
   bool needs_lowering(const Stmt* s);
   bool hash_read_whole(const Stmt* s);
@@ -225,7 +223,6 @@ namespace xc
     std::vector<const Expr*> stream_values(const Stmt* s) const;
     bool is_lambda(const Expr* e) const;
     bool is_function_name(const std::string& verb, const Expr* e) const;
-    bool record_misused(const Lambda* l) const;
 
     // ---- the functions ------------------------------------------------------
     void param_attributes(const std::vector<Param*>& params);
