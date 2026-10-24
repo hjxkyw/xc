@@ -50,6 +50,16 @@ function(interpret name result)
   set(${result} "${got}" PARENT_SCOPE)
 endfunction()
 
+# As TL++, for the AppServer, it has to say nothing: a warning there -- a
+# 'Recover Using', which the AppServer gets wrong -- is one the bytecode
+# does not show.
+execute_process(COMMAND ${XC} --check ${ROOT}/interp/xbc.xtpl
+                OUTPUT_VARIABLE said
+                ERROR_VARIABLE said
+                RESULT_VARIABLE code)
+if(NOT code EQUAL 0 OR said MATCHES "warning")
+  message(FATAL_ERROR "  interp/xbc.xtpl, as TL++:\n${said}")
+endif()
 compile(${ROOT}/interp/xbc.xtpl xbc)
 compile(${ROOT}/runtime/xtpl_runtime.tlpp xtpl_runtime)
 set(failed "")

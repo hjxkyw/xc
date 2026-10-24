@@ -136,14 +136,15 @@ function U_MAIN user 0 5
   call 1 ErrorBlock
   setlocal 3
   line 41
-  seq 141
+  seq 142
   line 42
   num 1
-  str "x"
+  num 1
+  call 1 Space
   add
   setlocal 1
   endseq
-  jump 149
+  jump 150
   setlocal 2
   line 44
   str "caught: "
@@ -157,7 +158,7 @@ function U_MAIN user 0 5
   call 1 ErrorBlock
   pop
   line 47
-  try 166
+  try 167
   line 48
   array 0
   num 2
@@ -168,7 +169,7 @@ function U_MAIN user 0 5
   str "finally"
   call 1 ConOut
   pop
-  jump 178
+  jump 179
   setlocal 2
   line 50
   str "try caught: "
@@ -186,10 +187,10 @@ function U_MAIN user 0 5
   block U_MAIN#2 0
   call 1 ErrorBlock
   setlocal 4
-  seq 187
+  seq 188
   call 0 Undefined
   endseq
-  jump 189
+  jump 190
   pop
   str "fell back"
   local 4
@@ -198,11 +199,11 @@ function U_MAIN user 0 5
   block U_MAIN#3 0
   call 1 ErrorBlock
   setlocal 5
-  seq 200
+  seq 201
   num 4
   call 1 Twice
   endseq
-  jump 202
+  jump 203
   pop
   num 0
   local 5

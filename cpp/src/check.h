@@ -51,9 +51,11 @@ namespace xc
   // lines, a message said once per line. lines: the file's length (where the
   // last function ends); source: the text, for what a warning quotes of it.
   // 'advpl': the source is AdvPL's (.prw), and what it makes stays AdvPL --
-  // TL++'s own rules do not hold.
+  // TL++'s own rules do not hold. 'bytecode': it becomes bytecode, which xc's
+  // machines run, not the AppServer -- what the AppServer gets wrong at run
+  // time is not said.
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source, bool advpl = false);
+                    std::optional<std::string_view> source, bool advpl = false, bool bytecode = false);
 
   // The names a program declares that xc keeps for itself -- for a file
   // read again with any name allowed.

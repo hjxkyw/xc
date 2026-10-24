@@ -631,8 +631,16 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 
 `If( c, a, b )` alone on its line is AdvPL's `If()` function, `IIf`'s twin,
 not a block. `Exit` and `Loop` leave and repeat the loop; `Break [value]`
-goes to the `Recover` of a `Begin Sequence`; `Return()` returns nothing, as
-`Return` does.
+goes to the `Recover` of a `Begin Sequence`, and `Break()` is `Break` with
+no value; `Return()` returns nothing, as `Return` does.
+
+**A `Recover` under `Using`.** The AppServer runs `Recover Using e` with
+Locals that are not the function's -- an array of the function's is Nil
+there -- and keeps nothing it assigns past `End Sequence`, `e` included;
+a plain `Recover` has the function's Locals, and what it assigns stays
+(tried on 24.3.1.9, in TL++ and AdvPL alike). xc warns about every `Using`,
+but in bytecode, which xc's machines run. To have the Break's value, put
+it in a Static before the `Break`, and read it in a plain `Recover`.
 
 `Default` alone on its line, where `Otherwise` should be, is no label: the
 AppServer takes it as a name on its own (W0001) and the lines after it
@@ -1669,6 +1677,7 @@ parses, in xtpl's words.
 | in a `.prw`, two functions one in their first 10 characters | `'ProcessOrderUpdated' and 'ProcessOrderCreated' (line 8) are one function in a .prw, which counts a name to 10 characters (PROCESSORD): the AppServer refuses the second.` |
 | `TCQUERY` in a file that includes only `totvs.ch` -- topconn.ch has it | `'TcQuery' is a command of topconn.ch, which this file does not include: without it the AppServer refuses the line ("C2003 Syntax Error").` |
 | `FreeObj(Self)` | `FreeObj(SELF): the AppServer does not free the object a method runs in (C9910 "Free SELF object is not allowed").` |
+| in TL++, a number and a string, written as such, under arithmetic | `'+' between a number and a string: TL++ refuses it -- "Incompatible types between N and C"` |
 | a single value at the head of a chain | `nX is a single value -- it was declared as 5, and a chain walks a collection. Write {nX} for a one-element array, or 'lo..hi' for a range.` |
 | a source anywhere but the head of a chain | `'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '\|>'.` |
 | a chain from a source in the wrong place | `a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', ...` |
@@ -1697,6 +1706,7 @@ with any name allowed, to say which name it was and why.
 | `StaticCall()` | `StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' authorization (C9909 "Staticall has a restrict use")` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
+| `Recover Using`, but in bytecode | `'Recover Using oErr': the AppServer runs this Recover with Locals that are not the function's -- an array of the function's is Nil there -- and keeps nothing it assigns past End Sequence, not even oErr. ...` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | in a `.prw`, more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |

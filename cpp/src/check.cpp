@@ -417,8 +417,9 @@ namespace xc
     class Checker
     {
     public:
-      Checker(int lines, const Dictionary& dictionary, bool strict, std::optional<std::string_view> source, bool advpl)
-        : lines_(lines), dictionary_(dictionary), strict_(strict), source_(source), advpl_(advpl)
+      Checker(int lines, const Dictionary& dictionary, bool strict, std::optional<std::string_view> source, bool advpl,
+              bool bytecode)
+        : lines_(lines), dictionary_(dictionary), strict_(strict), source_(source), advpl_(advpl), bytecode_(bytecode)
       {
       }
 
@@ -433,6 +434,7 @@ namespace xc
       bool strict_;
       std::optional<std::string_view> source_;
       bool advpl_;                   // an AdvPL source (.prw): TL++'s own rules do not hold
+      bool bytecode_;                // it becomes bytecode: xc's machines run it, not the AppServer
 
       Set warned_names_;
       Set implicit_;
@@ -1411,6 +1413,15 @@ namespace xc
         {
           auto q = static_cast<SequenceStmt*>(s);
           in_block([&] { body(q->body); });
+          if (q->error_var && !bytecode_)
+          {
+            // Probes xdp to xdr, on 24.3.1.9, in TL++ and AdvPL alike.
+            warned.push_back({ q->recover_line ? q->recover_line : line_,
+                               "'Recover Using " + *q->error_var + "': the AppServer runs this Recover with Locals "
+                               "that are not the function's -- an array of the function's is Nil there -- and keeps "
+                               "nothing it assigns past End Sequence, not even " + *q->error_var + ". A plain "
+                               "Recover has the function's Locals; the Break's value can go in a Static first" });
+          }
           if (q->error_var) { write(*q->error_var); }
           in_block([&] { body(q->recover); });
           break;
@@ -1580,6 +1591,25 @@ namespace xc
         auto b = static_cast<Binary*>(e);
         field_compare = COMPARE.count(b->op) && (is(b->left, EK::AliasField) || is(b->right, EK::AliasField));
         if (b->op == "?:") { never_nil(b->left, b->op); }
+        // A number and a string, written as such, under arithmetic: TL++'s
+        // compiler refuses it (probe xdp: 1 + "a"); AdvPL's takes it.
+        if (!advpl_ && b->left && b->right && is(b->left, EK::Literal) && is(b->right, EK::Literal)
+            && (b->op == "+" || b->op == "-" || b->op == "*" || b->op == "/" || b->op == "%" || b->op == "^"
+                || b->op == "**"))
+        {
+          auto letter = [](const Expr* x) -> std::string
+          {
+            const std::string& t = static_cast<const Literal*>(x)->type;
+            return t == "Numeric" ? "N" : t == "Character" ? "C" : "";
+          };
+          std::string l = letter(b->left);
+          std::string r = letter(b->right);
+          if (!l.empty() && !r.empty() && l != r)
+          {
+            problem("'" + b->op + "' between a number and a string: TL++ refuses it -- \"Incompatible types between "
+                    + l + " and " + r + "\"");
+          }
+        }
       }
       if (k == EK::Index || k == EK::Member || k == EK::MethodCall || (k == EK::Binary && !field_compare))
       {
@@ -2111,9 +2141,9 @@ namespace xc
   }
 
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source, bool advpl)
+                    std::optional<std::string_view> source, bool advpl, bool bytecode)
   {
-    Checker c(lines, dictionary, strict, source, advpl);
+    Checker c(lines, dictionary, strict, source, advpl, bytecode);
     c.program(p);
     for (Finding& f : decimal_problems(p, source, advpl)) { c.found.push_back(std::move(f)); }
     return Checked{ tidy(c.found), tidy(c.warned) };

@@ -440,6 +440,7 @@ namespace xc
     Body body;
     bool has_recover = false;
     OptStr error_var;
+    int recover_line = 0;
     Body recover;
   };
 

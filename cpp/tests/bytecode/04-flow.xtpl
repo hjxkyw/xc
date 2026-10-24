@@ -39,7 +39,7 @@ User Function Main()
   ConOut("-- errors")
   bOld := ErrorBlock({|e| Break(e)})
   Begin Sequence
-    nGot := 1 + "x"
+    nGot := 1 + Space(1)
   Recover Using oErr
     ConOut("caught: " + oErr:Description)
   End Sequence

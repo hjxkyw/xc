@@ -197,7 +197,7 @@ namespace xc
 
     // What xtpl refuses although it parses, and what it warns about.
     int nlines = static_cast<int>(lines_of(src).size());
-    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl);
+    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl, o.bytecode);
     for (const Finding& f : checked.warnings)
     {
       c.said += in + ":" + std::to_string(f.line) + ": warning: " + said(f.message) + "\n";

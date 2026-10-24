@@ -47,7 +47,8 @@ with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
 variable named `as`, a number as a `Decimal`'s value, a member after
 `Name():New()`, a class called as a function, a name the AppServer reads
-as a keyword, `Public Static Method`); `survey/`, forms
+as a keyword, `Public Static Method`, a number and a string under `+`);
+`break/`, `Break()` with no value; `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
 `json/`, the JSON literals TL++ takes as written, and those xc makes with

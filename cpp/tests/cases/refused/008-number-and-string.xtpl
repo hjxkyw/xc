@@ -1,0 +1,10 @@
+// A number and a string, written as such, under arithmetic: TL++'s
+// compiler refuses it, "Incompatible types between N and C" (probe xdp, on
+// 24.3.1.9); AdvPL's takes it, and so does xc in a .prw.
+User Function Mixed()
+  Local n := 0
+  n := 1 + "a"
+  n := "a" * 2
+  n := 1 + 2
+  n := "a" + "b"
+Return n

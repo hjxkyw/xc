@@ -166,6 +166,12 @@
 // their first element one of these.
 Static scRef
 Static scErr
+// What the last Break was given, kept by XbcBreak() for the plain Recover
+// that takes it -- scNone once taken. A Recover under USING the AppServer
+// runs with Locals that are not the function's, and keeps nothing it
+// assigns (probes xdp, xdq).
+Static sxBroke
+Static scNone
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
@@ -179,6 +185,8 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   Local nExit
   scRef := Chr(1) + "xbc reference"
   scErr := Chr(1) + "xbc error"
+  scNone := Chr(1) + "xbc none"
+  sxBroke := scNone
   for xArg in {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16}
     Local cArg := If(ValType(xArg) == "C", xArg, "")
     Local cOpt := If(Left(cArg, 2) == "--", SubStr(cArg, 3), cArg)
@@ -204,6 +212,22 @@ Return ValType(xValue) == "A" .And. Len(xValue) == 3 .And. ValType(xValue[1]) ==
 
 Static Function XbcIsErr(xValue)
 Return ValType(xValue) == "A" .And. Len(xValue) == 2 .And. ValType(xValue[1]) == "C" .And. xValue[1] == scErr
+
+// A Break, its value kept for the Recover that takes it: every Break the
+// machine can take comes through here -- the program's Break(), its own,
+// an error on its way.
+Static Function XbcBreak(xValue)
+  sxBroke := xValue
+  Break(xValue)
+Return Nil
+
+// What the Break a plain Recover took was given, and forgotten: Nil for one
+// that did not come through XbcBreak() -- a Break in a block a macro of the
+// program's made, which the AppServer runs.
+Static Function XbcCaught()
+  Local xValue := sxBroke
+  sxBroke := scNone
+Return If(ValType(xValue) == "C" .And. xValue == scNone, Nil, xValue)
 
 // ---- the machine ------------------------------------------------------------
 Class XbcVM
@@ -326,7 +350,8 @@ Method Start(aFiles, cEntry) Class XbcVM
       ::Push(aFn, {}, Nil, Nil)
       ::Run(Len(::aFrames))
     EndIf
-  Recover Using xCaught
+  Recover
+    xCaught := XbcCaught()
     Do Case
     Case XbcIsErr(xCaught)
       AAdd(::aErr, "xc-vm: error: ${::MemberOf(xCaught[2], 'Description')} (${::cWhere})")
@@ -364,7 +389,7 @@ Method Load(cPath) Class XbcVM
     Local cLine := LTrim(StrTran(StrTran(cRead, Chr(13), ""), Chr(9), " "))
     AAdd(aLines, cLine) if !Empty(cLine)
   next
-  Break("xc-vm: ${cPath}: not a .xbc of version 1") if Len(aLines) < 3 .Or. !(aLines[1] == "xbc 1")
+  XbcBreak("xc-vm: ${cPath}: not a .xbc of version 1") if Len(aLines) < 3 .Or. !(aLines[1] == "xbc 1")
   aMod[M_SOURCE] := XbcWords(aLines[2])[2]
   aMod[M_STATICS] := Array(Val(XbcWords(aLines[3])[2]))
   While nI <= Len(aLines)
@@ -424,7 +449,7 @@ Method Parsed(cLine, cPath) Class XbcVM
   Local aOp := ::hOps{cWord}
   Local aIns
   Local aWords
-  Break("xc-vm: ${cPath}: no instruction '${cWord}'") if aOp == Nil
+  XbcBreak("xc-vm: ${cPath}: no instruction '${cWord}'") if aOp == Nil
   aIns := {aOp[1], 0, 0, "", "", 0, Nil}
   Do Case
   Case aOp[2] == "S"
@@ -461,7 +486,7 @@ Static Function XbcLines(cPath)
   Local cText := ""
   Local cBlock
   Local nRead
-  Break("xc-vm: ${cPath}: cannot be read") if nFile < 0
+  XbcBreak("xc-vm: ${cPath}: cannot be read") if nFile < 0
   defer FClose(nFile)
   While .T.
     cBlock := Space(65536)
@@ -510,23 +535,26 @@ Return aF[F_FN][FN_CODE] |> takewhile([i] i[I_OP] == OP_BOX) |> anyof([i] i[I_A]
 
 // Runs until the frame at nBase returns, and gives what it returned. A Break
 // -- the program's, or an error on its way -- goes to the innermost region
-// that takes it in this run; with none, on to the run that called.
+// that takes it in this run; with none, on to the run that called. Its
+// value is XbcBreak()'s: a plain Recover, not one under USING.
 Method Run(nBase) Class XbcVM
   Local xResult
   Local xCaught
   Local lDone := .F.
   While !lDone
+    sxBroke := scNone
     Begin Sequence
       xResult := ::Exec(nBase)
       lDone := .T.
-    Recover Using xCaught
+    Recover
+      xCaught := XbcCaught()
       ::lInErr := .F.
     End Sequence
     If !lDone
       // The machine's own trouble -- a file it cannot read -- goes all the
       // way out.
-      Break(xCaught) if ValType(xCaught) == "C" .And. Left(xCaught, 7) == "xc-vm: "
-      Break(xCaught) if !::Unwind(nBase, If(XbcIsErr(xCaught), xCaught[2], xCaught), XbcIsErr(xCaught))
+      XbcBreak(xCaught) if ValType(xCaught) == "C" .And. Left(xCaught, 7) == "xc-vm: "
+      XbcBreak(xCaught) if !::Unwind(nBase, If(XbcIsErr(xCaught), xCaught[2], xCaught), XbcIsErr(xCaught))
     EndIf
   EndDo
 Return xResult
@@ -1025,10 +1053,13 @@ Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
     ::Push(xFound, aArgs, Nil, Nil)
     Return .T.
   EndIf
-  // The AppServer's -- but what is the frame's, or the program's.
+  // The AppServer's -- but what is the frame's, or the program's, or a
+  // Break, whose value a plain Recover is to find.
   Do Case
   Case xFound == "PCOUNT"
     xResult := aF[F_ARGC]
+  Case xFound == "BREAK"
+    XbcBreak(If(Empty(aArgs), Nil, aArgs[1]))
   Case xFound == "ERRORBLOCK"
     xResult := ::bProgErr
     ::bProgErr := aArgs[1] if !Empty(aArgs)
@@ -1309,7 +1340,7 @@ Method OnError(oErr) Class XbcVM
     Eval(::bProgErr, oErr)
     ::lInErr := .F.
   EndIf
-  Break({scErr, oErr})
+  XbcBreak({scErr, oErr})
 Return Nil
 
 // ---- code blocks ------------------------------------------------------------

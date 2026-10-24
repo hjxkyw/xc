@@ -1,0 +1,2 @@
+008-number-and-string.xtpl:6: '+' between a number and a string: TL++ refuses it -- "Incompatible types between N and C"
+008-number-and-string.xtpl:7: '*' between a number and a string: TL++ refuses it -- "Incompatible types between C and N"

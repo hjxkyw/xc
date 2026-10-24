@@ -3561,6 +3561,7 @@ namespace xc
           {
             s->recover = std::move(rec);
             s->error_var = var;
+            s->recover_line = line(save);
             s->has_recover = true;
             ok = true;
           }
@@ -4292,7 +4293,7 @@ namespace xc
     return r;
   }
 
-  // rule breakst { :i 'break'>> <guardexpr>? }
+  // rule breakst { :i 'break'>> [ [ '(' ')' ] || <guardexpr> ]? }
   Stmt* Parser::breakst()
   {
     int start = p_;
@@ -4304,6 +4305,20 @@ namespace xc
     auto b = make<BreakStmt>();
     b->line = line(start);
     int save = p_;
+    // Break(), the function with no value: Break with none.
+    if (c(p_) == '(')
+    {
+      p_++;
+      if (ws() && c(p_) == ')')
+      {
+        p_++;
+        if (ws())
+        {
+          return b;
+        }
+      }
+      p_ = save;
+    }
     b->value = guardexpr();
     if (!b->value)
     {

@@ -458,6 +458,11 @@ It is the machine of this page, and the AppServer is the rest:
 - `ErrorBlock()` is the program's, kept apart: the interpreter runs under
   its own, which gives an error to the program's first, then to the
   innermost `try`; its own errors it raises with `UserException()`;
+- a Break is taken by a plain `Recover`, its value kept in a Static on its
+  way -- the AppServer runs a `Recover Using` with Locals that are not the
+  function's, and keeps nothing it assigns --: the program's `Break()` is
+  the interpreter's own, for that, and a Break in a block that a macro of
+  the program's made, which the AppServer runs, arrives with no value;
 - the program's privates and publics are the interpreter's: an AppServer
   function does not see them, and a macro other than a variable's name --
   the AppServer's -- does not either;
