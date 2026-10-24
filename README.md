@@ -139,7 +139,9 @@ each has to do what xc-vm does. The AppServer reads files under the
 environment's RootPath only, so the bytecode goes to `xbc/` there, and the
 files the cases read to its StartPath; both come from the environment's
 section of the `appserver.ini`, or `--rootpath=PATH` (`XC_ROOTPATH`) names
-the RootPath.
+the RootPath. A case that needs xc-vm's own tables (`NAME.vmonly`) is left
+out, and `--trace` keeps what the interpreter did in each run, in
+`build/logs/interp/NAME.trace`.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`

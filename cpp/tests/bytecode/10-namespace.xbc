@@ -68,11 +68,13 @@ function XC.TESTE.U_MAIN user 0 4
   call 1 ConOut
   pop
   endseq
-  jump 57
+  jump 59
   setlocal 4
   line 19
+  str "a macro does not find u_Soma: "
   local 4
-  member Description
+  call 1 ValType
+  add
   call 1 ConOut
   pop
   line 21

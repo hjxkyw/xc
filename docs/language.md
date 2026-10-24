@@ -631,16 +631,19 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 
 `If( c, a, b )` alone on its line is AdvPL's `If()` function, `IIf`'s twin,
 not a block. `Exit` and `Loop` leave and repeat the loop; `Break [value]`
-goes to the `Recover` of a `Begin Sequence`, and `Break()` is `Break` with
-no value; `Return()` returns nothing, as `Return` does.
+goes to the `Recover` of a `Begin Sequence` -- `Break()` with no value the
+AppServer refuses, as a statement and in a block: write `Break`, or
+`Break(Nil)` --; `Return()` returns nothing, as `Return` does.
 
 **A `Recover` under `Using`.** The AppServer runs `Recover Using e` with
-Locals that are not the function's -- an array of the function's is Nil
-there -- and keeps nothing it assigns past `End Sequence`, `e` included;
-a plain `Recover` has the function's Locals, and what it assigns stays
-(tried on 24.3.1.9, in TL++ and AdvPL alike). xc warns about every `Using`,
-but in bytecode, which xc's machines run. To have the Break's value, put
-it in a Static before the `Break`, and read it in a plain `Recover`.
+every Local Nil but `e`, and gives the function's Locals back as they were
+at `End Sequence`: nothing assigned there stays, `e` included. A plain
+`Recover` has the function's Locals, and what it assigns stays (tried on
+24.3.1.9, in TL++ and AdvPL alike). xc warns about every `Using`, but in
+bytecode, which xc's machines run. To have the Break's value, put it in a
+Static before the `Break`, and read it in a plain `Recover`. TL++'s `Try`
+... `Catch e` takes an error, with the function's Locals, but not a Break:
+that goes on to a `Begin Sequence` around it.
 
 `Default` alone on its line, where `Otherwise` should be, is no label: the
 AppServer takes it as a name on its own (W0001) and the lines after it
@@ -1123,6 +1126,12 @@ runtime's `u_xtpl_jnew`, or `JsonObject():New()`: the empty one, `{ : }`
 and any of them in a `.prw` (C9905, "Invalid use of Json Syntax in ADVPL
 source file") -- there `{"name": cName, "qty": 3}` is
 `u_xtpl_jnew({{"name", cName}, {"qty", 3}})`.
+
+A `JsonObject` has no member by name: `j:name`, to read it or to write it,
+is "invalid property NAME", compiled or through a macro; `j["name"]` is the
+key, exactly as written -- `j["NAME"]` is another, and a key it does not
+have is Nil (tried on 24.3.1.9). xc warns about `j:name` and `j?.name` on a
+name declared as one -- a JSON literal, `JsonObject():New()`, `as JSON`.
 
 ### Decimals
 
@@ -1678,6 +1687,7 @@ parses, in xtpl's words.
 | `TCQUERY` in a file that includes only `totvs.ch` -- topconn.ch has it | `'TcQuery' is a command of topconn.ch, which this file does not include: without it the AppServer refuses the line ("C2003 Syntax Error").` |
 | `FreeObj(Self)` | `FreeObj(SELF): the AppServer does not free the object a method runs in (C9910 "Free SELF object is not allowed").` |
 | in TL++, a number and a string, written as such, under arithmetic | `'+' between a number and a string: TL++ refuses it -- "Incompatible types between N and C"` |
+| `Break()`, a statement or in a block | `Break(): the AppServer refuses it with no value -- "C2003 Syntax Error" in TL++, "Use of reserved language word (BREAK)" in AdvPL. Write Break, or Break(Nil)` |
 | a single value at the head of a chain | `nX is a single value -- it was declared as 5, and a chain walks a collection. Write {nX} for a one-element array, or 'lo..hi' for a range.` |
 | a source anywhere but the head of a chain | `'lines()' is a source, and only reads at the head of a chain. Assign it, or feed it into stages with '\|>'.` |
 | a chain from a source in the wrong place | `a chain from lines() runs as a loop, before its statement, so it is only the whole value of 'x := ...', ...` |
@@ -1706,7 +1716,8 @@ with any name allowed, to say which name it was and why.
 | `StaticCall()` | `StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' authorization (C9909 "Staticall has a restrict use")` |
 | a function ending without `Return` | `the function ends without a 'return': Protheus warns about it (W0019), and will refuse it` |
 | a string the line ends | `this string is not closed: TL++ ends it at the end of the line -- "SELECT X` |
-| `Recover Using`, but in bytecode | `'Recover Using oErr': the AppServer runs this Recover with Locals that are not the function's -- an array of the function's is Nil there -- and keeps nothing it assigns past End Sequence, not even oErr. ...` |
+| `j:name` on a name declared as a JsonObject | `'jA:name': the AppServer has no member by name in a JsonObject -- "invalid property NAME" -- its key is jA["name"]` |
+| `Recover Using`, but in bytecode | `'Recover Using oErr': the AppServer runs this Recover with every Local Nil but oErr, and gives the function's back as they were at End Sequence -- nothing assigned there stays, oErr included. ...` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
 | in a `.prw`, more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |

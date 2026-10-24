@@ -1,3 +1,3 @@
 007.xtpl:3: warning: 'oErr' is not declared, so this creates a PRIVATE
-007.xtpl:4: warning: 'Recover Using oErr': the AppServer runs this Recover with Locals that are not the function's -- an array of the function's is Nil there -- and keeps nothing it assigns past End Sequence, not even oErr. A plain Recover has the function's Locals; the Break's value can go in a Static first
+007.xtpl:4: warning: 'Recover Using oErr': the AppServer runs this Recover with every Local Nil but oErr, and gives the function's back as they were at End Sequence -- nothing assigned there stays, oErr included. A plain Recover has the function's Locals; the Break's value can go in a Static first
 007.xtpl:6: warning: the function ends without a 'return': Protheus warns about it (W0019), and will refuse it

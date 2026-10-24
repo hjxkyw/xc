@@ -459,8 +459,8 @@ It is the machine of this page, and the AppServer is the rest:
   its own, which gives an error to the program's first, then to the
   innermost `try`; its own errors it raises with `UserException()`;
 - a Break is taken by a plain `Recover`, its value kept in a Static on its
-  way -- the AppServer runs a `Recover Using` with Locals that are not the
-  function's, and keeps nothing it assigns --: the program's `Break()` is
+  way -- the AppServer runs a `Recover Using` with every Local Nil but its
+  variable, and keeps nothing it assigns --: the program's `Break()` is
   the interpreter's own, for that, and a Break in a block that a macro of
   the program's made, which the AppServer runs, arrives with no value;
 - the program's privates and publics are the interpreter's: an AppServer
@@ -487,6 +487,14 @@ has to be what xc-vm does running them itself; `interp-xc` the same for
 xc's self-test, slowly -- labelled `slow` (`cpp/tests/interp.cmake`).
 `rakupp run-protheus.raku --interp` does it on an AppServer.
 
+With `trace=FILE`, the interpreter writes there each instruction it runs
+-- the frames' depth, the function, where in it, the instruction, the
+stack's height and its top --, each call of the AppServer's with what it
+was given and what it gave, and each Break a run took: the first 20,000
+lines. It is how a difference on the AppServer is looked into:
+`rakupp run-protheus.raku --interp --trace` keeps one for each case, in
+`build/logs/interp/`.
+
 ## xc-vm
 
 `xc-vm [--run=NAME] module.xbc ... [-- ARG ...]` loads the modules, runs
@@ -507,9 +515,12 @@ It is the machine this page describes, and of the AppServer only what the
 runtime and the tests need: some of the strings', numbers', dates' and
 arrays' functions, `Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; the
 `DEC_` functions, on exact decimals; `File()`, `MemoWrite()`, the `FT_`
-functions -- a line longer than 1023 characters in pieces of 1023, as the
-AppServer's -- and `FOpen()`, `FRead()` and `FClose()`, for reading;
-`THashMap` and `JsonObject`, with the methods the runtime calls.
+functions -- a line longer than 1023 characters in pieces of 1023, and
+`FT_FEof()` false with no file open, as the AppServer's -- and `FOpen()`,
+`FRead()` and `FClose()`, for reading;
+`THashMap` and `JsonObject`, with the methods the runtime calls -- a
+`JsonObject`'s keys by `j["name"]` only, as the AppServer's. As the
+AppServer's too, `x / 0` is 0 and `x % 0` an error.
 `Random()` starts from the same seed each run, so a run repeats. A work
 area is a name -- it can be selected and put back, and has no records --,
 and a macro is a variable's name.

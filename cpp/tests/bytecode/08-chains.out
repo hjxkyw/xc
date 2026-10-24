@@ -47,7 +47,7 @@ cc
 1: alfa
 3: beta;1
 4: gama;22
-beta;1, .T.
+beta;1, .F.
 -- where a chain is a value
 5,9,6
 9,6
@@ -56,5 +56,4 @@ fell back
 9
 tap 9
 tap 6
-0
 --- errors

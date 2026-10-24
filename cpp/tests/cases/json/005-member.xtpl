@@ -1,0 +1,14 @@
+// A JsonObject's keys by name -- j:name, to read or to write, j?.name --:
+// the AppServer has none, "invalid property NAME" (probes xds and xdt, on
+// 24.3.1.9); j["name"] is the key. A warning, for a name declared as one.
+User Function JsonKeys()
+  Local jA := {"name": "Ana"}
+  Local jB := JsonObject():New()
+  Local jC as JSON
+  ConOut(jA:name, jA["name"], jA:toJson())
+  ConOut(jA?.name)
+  jB:age := 3
+  jB["age"] := 3
+  jC := jA
+  ConOut(jC:name)
+Return Nil

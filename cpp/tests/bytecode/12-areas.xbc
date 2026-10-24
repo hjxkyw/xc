@@ -1,0 +1,173 @@
+xbc 1
+source 12-areas.xtpl
+statics 0
+
+function U_MAIN user 0 0
+  locals
+  line 6
+  str "-- using alias"
+  call 1 ConOut
+  pop
+  line 7
+  str "SB1"
+  call 1 DbSelectArea
+  pop
+  line 8
+  false
+  call 1 Area
+  call 0 Alias
+  call 2 ConOut
+  pop
+  line 9
+  true
+  call 1 Area
+  call 0 Alias
+  call 2 ConOut
+  pop
+  line 10
+  str "-- rows"
+  call 1 ConOut
+  pop
+  line 11
+  call 0 Records
+  call 1 ConOut
+  pop
+  line 12
+  nil
+  ret
+end
+
+function AREA static 1 4
+  locals lLeave .t1 .t2 .t3
+  line 15
+  call 0 Alias
+  setlocal 2
+  str "SA1"
+  call 1 DbSelectArea
+  pop
+  str "SA1"
+  area
+  call 0 RecNo
+  endarea
+  setlocal 3
+  str "SA1"
+  area
+  call 0 IndexOrd
+  endarea
+  setlocal 4
+  str "SA1"
+  area
+  num 2
+  call 1 DbSetOrder
+  endarea
+  pop
+  line 16
+  str "inside "
+  call 0 Alias
+  add
+  call 1 ConOut
+  pop
+  line 17
+  local 1
+  jumpf 52
+  str "SA1"
+  area
+  local 4
+  call 1 DbSetOrder
+  endarea
+  pop
+  str "SA1"
+  area
+  local 3
+  call 1 DbGoto
+  endarea
+  pop
+  local 2
+  call 1 Empty
+  jumpt 50
+  local 2
+  call 1 DbSelectArea
+  pop
+  str "left from inside"
+  ret
+  str "SA1"
+  area
+  local 4
+  call 1 DbSetOrder
+  endarea
+  pop
+  str "SA1"
+  area
+  local 3
+  call 1 DbGoto
+  endarea
+  pop
+  local 2
+  call 1 Empty
+  jumpt 70
+  local 2
+  call 1 DbSelectArea
+  pop
+  line 19
+  str "left after"
+  ret
+end
+
+function RECORDS static 0 4
+  locals .t1 .t2 .t3 nCount
+  line 23
+  call 0 Alias
+  setlocal 1
+  str "SA1"
+  call 1 DbSelectArea
+  pop
+  str "SA1"
+  area
+  call 0 RecNo
+  endarea
+  setlocal 2
+  str "SA1"
+  area
+  call 0 DbGoTop
+  endarea
+  pop
+  num 0
+  setlocal 3
+  str "SA1"
+  area
+  call 0 Eof
+  endarea
+  not
+  jumpf 39
+  field SA1 A1_SALDO
+  num 0
+  gt
+  jumpf 33
+  local 3
+  num 1
+  add
+  setlocal 3
+  str "SA1"
+  area
+  call 0 DbSkip
+  endarea
+  pop
+  jump 19
+  str "SA1"
+  area
+  local 2
+  call 1 DbGoto
+  endarea
+  pop
+  local 1
+  call 1 Empty
+  jumpt 51
+  local 1
+  call 1 DbSelectArea
+  pop
+  local 3
+  setlocal 4
+  line 24
+  local 4
+  ret
+end

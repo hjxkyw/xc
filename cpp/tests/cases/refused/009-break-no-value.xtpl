@@ -1,0 +1,21 @@
+// Break() with no value: the AppServer refuses it as a statement and in a
+// block, "C2003 Syntax Error" in TL++, "Use of reserved language word
+// (BREAK)" in AdvPL; Break alone, and Break(Nil), it takes (probe xdr, on
+// 24.3.1.9).
+User Function Taken()
+  Begin Sequence
+    Break()
+  Recover
+    ConOut("taken")
+  End Sequence
+  Begin Sequence
+    Eval({|| Break()})
+  Recover
+    ConOut("taken")
+  End Sequence
+  Begin Sequence
+    Break
+  Recover
+    ConOut("taken")
+  End Sequence
+Return Nil

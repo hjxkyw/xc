@@ -1,0 +1,24 @@
+// The areas xc-vm has of its own: 'using alias' -- and a 'return' from
+// inside it --, a chain over an area's records. An AppServer run with -run
+// has no tables, so 'run-protheus.raku --interp' leaves this case out
+// (12-areas.vmonly).
+User Function Main()
+  ConOut("-- using alias")
+  DbSelectArea("SB1")
+  ConOut(Area(.F.), Alias())
+  ConOut(Area(.T.), Alias())
+  ConOut("-- rows")
+  ConOut(Records())
+Return Nil
+
+Static Function Area(lLeave)
+  using alias SA1 order 2 do
+    ConOut("inside " + Alias())
+    Return "left from inside" if lLeave
+  end using
+Return "left after"
+
+// An area of xc-vm has no records.
+Static Function Records()
+  Local nCount := rows("SA1") |> count([r] r:A1_SALDO > 0)
+Return nCount

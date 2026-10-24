@@ -1,8 +1,0 @@
-// Break(), the function with no value: Break with none.
-User Function Taken()
-  Begin Sequence
-    Break()
-  Recover
-    ConOut("taken")
-  End Sequence
-Return Nil

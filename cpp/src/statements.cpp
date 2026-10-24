@@ -4305,7 +4305,7 @@ namespace xc
     auto b = make<BreakStmt>();
     b->line = line(start);
     int save = p_;
-    // Break(), the function with no value: Break with none.
+    // Break(): read, for the checks to say that the AppServer refuses it.
     if (c(p_) == '(')
     {
       p_++;
@@ -4314,6 +4314,7 @@ namespace xc
         p_++;
         if (ws())
         {
+          b->empty_call = true;
           return b;
         }
       }

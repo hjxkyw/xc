@@ -1,5 +1,5 @@
-// Ways out: 'defer', 'using alias', Begin Sequence and Break, errors, Try,
-// 'fallback' -- and an 'exit' or a 'return' from inside them.
+// Ways out: 'defer', Begin Sequence and Break, errors, Try, 'fallback' --
+// and an 'exit' or a 'return' from inside them. ('using alias' is 12-areas'.)
 User Function Main()
   Local nGot := 0
   Local oErr
@@ -9,11 +9,6 @@ User Function Main()
   ConOut(Deferred(.F.))
   ConOut(Deferred(.T.))
   ConOut(InLoop())
-
-  ConOut("-- using alias")
-  DbSelectArea("SB1")
-  ConOut(Area(.F.), Alias())
-  ConOut(Area(.T.), Alias())
 
   ConOut("-- sequences")
   Begin Sequence
@@ -74,13 +69,6 @@ Static Function InLoop()
   Next
 Return "loop done"
 
-Static Function Area(lLeave)
-  using alias SA1 order 2 do
-    ConOut("inside " + Alias())
-    Return "left from inside" if lLeave
-  end using
-Return "left after"
-
 Static Function Deep(nN)
   If nN == 0
     Break "the bottom"
@@ -88,9 +76,11 @@ Static Function Deep(nN)
   Deep(nN - 1)
 Return Nil
 
+// An error the AppServer raises too: 10 / 0 is 0 there.
 Static Function Guarded()
   Local nX := 0
-  nX := 10 / nX fallback -1
+  Local aNone := {}
+  nX := aNone[nX + 1] fallback -1
 Return nX
 
 Static Function Twice(nN)

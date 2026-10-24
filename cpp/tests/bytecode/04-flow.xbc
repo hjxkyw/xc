@@ -26,86 +26,66 @@ function U_MAIN user 0 5
   call 1 ConOut
   pop
   line 13
-  str "-- using alias"
-  call 1 ConOut
-  pop
-  line 14
-  str "SB1"
-  call 1 DbSelectArea
-  pop
-  line 15
-  false
-  call 1 Area
-  call 0 Alias
-  call 2 ConOut
-  pop
-  line 16
-  true
-  call 1 Area
-  call 0 Alias
-  call 2 ConOut
-  pop
-  line 18
   str "-- sequences"
   call 1 ConOut
   pop
-  line 19
-  seq 62
-  line 20
+  line 14
+  seq 42
+  line 15
   str "before"
   call 1 ConOut
   pop
-  line 21
+  line 16
   str "a reason"
   call 1 Break
   pop
-  line 22
+  line 17
   str "not shown"
   call 1 ConOut
   pop
   endseq
-  jump 69
+  jump 49
   setlocal 2
-  line 24
+  line 19
   str "recovered: "
   local 2
   add
   call 1 ConOut
   pop
-  line 26
-  seq 77
-  line 27
+  line 21
+  seq 57
+  line 22
   num 3
   call 1 Deep
   pop
   endseq
-  jump 85
+  jump 65
   setlocal 2
-  line 29
+  line 24
   str "from deep: "
   local 2
   call 1 cValToChar
   add
   call 1 ConOut
   pop
-  line 31
+  line 26
   num 1
   setlocal 1
-  line 31
+  line 26
   local 1
   num 5
   le
-  jumpf 117
-  line 32
-  seq 111
-  line 33
+  jumpf 97
+  line 27
+  seq 91
+  line 28
   local 1
   num 3
   exact
-  jumpf 102
+  jumpf 82
   endseq
-  jump 117
-  line 34
+  jump 97
+  line 29
   str "round "
   local 1
   call 1 cValToChar
@@ -113,84 +93,84 @@ function U_MAIN user 0 5
   call 1 ConOut
   pop
   endseq
-  jump 112
+  jump 92
   pop
   local 1
   num 1
   add
   setlocal 1
-  jump 88
-  line 37
+  jump 68
+  line 32
   str "after the loop: "
   local 1
   call 1 cValToChar
   add
   call 1 ConOut
   pop
-  line 39
+  line 34
   str "-- errors"
   call 1 ConOut
   pop
-  line 40
+  line 35
   block U_MAIN#1 0
   call 1 ErrorBlock
   setlocal 3
-  line 41
-  seq 142
-  line 42
+  line 36
+  seq 122
+  line 37
   num 1
   num 1
   call 1 Space
   add
   setlocal 1
   endseq
-  jump 150
+  jump 130
   setlocal 2
-  line 44
+  line 39
   str "caught: "
   local 2
   member Description
   add
   call 1 ConOut
   pop
-  line 46
+  line 41
   local 3
   call 1 ErrorBlock
   pop
-  line 47
-  try 167
-  line 48
+  line 42
+  try 147
+  line 43
   array 0
   num 2
   index
   setlocal 1
   endseq
-  line 52
+  line 47
   str "finally"
   call 1 ConOut
   pop
-  jump 179
+  jump 159
   setlocal 2
-  line 50
+  line 45
   str "try caught: "
   local 2
   member Description
   add
   call 1 ConOut
   pop
-  line 52
+  line 47
   str "finally"
   call 1 ConOut
   pop
-  line 54
+  line 49
   call 0 Guarded
   block U_MAIN#2 0
   call 1 ErrorBlock
   setlocal 4
-  seq 188
+  seq 168
   call 0 Undefined
   endseq
-  jump 190
+  jump 170
   pop
   str "fell back"
   local 4
@@ -199,11 +179,11 @@ function U_MAIN user 0 5
   block U_MAIN#3 0
   call 1 ErrorBlock
   setlocal 5
-  seq 201
+  seq 181
   num 4
   call 1 Twice
   endseq
-  jump 203
+  jump 183
   pop
   num 0
   local 5
@@ -211,14 +191,14 @@ function U_MAIN user 0 5
   pop
   call 3 ConOut
   pop
-  line 55
+  line 50
   nil
   ret
 end
 
 function U_MAIN#1 block 1 1
   locals e
-  line 40
+  line 35
   local 1
   call 1 Break
   ret
@@ -226,7 +206,7 @@ end
 
 function U_MAIN#2 block 1 1
   locals __it
-  line 54
+  line 49
   local 1
   call 1 Break
   ret
@@ -234,7 +214,7 @@ end
 
 function U_MAIN#3 block 1 1
   locals __it
-  line 54
+  line 49
   local 1
   call 1 Break
   ret
@@ -242,38 +222,38 @@ end
 
 function DEFERRED static 1 2
   locals lEarly cLog
-  line 59
+  line 54
   str "start"
   setlocal 2
-  line 60
+  line 55
   defer 1 25
-  line 61
+  line 56
   local 1
   jumpf 18
-  line 62
+  line 57
   defer 2 32
-  line 63
+  line 58
   str "early"
   setlocal 2
-  line 64
+  line 59
   rundefers
   str "returned early"
   ret
-  line 66
+  line 61
   str "late"
   setlocal 2
-  line 67
+  line 62
   rundefers
   str "returned late"
   ret
-  line 60
+  line 55
   str "first deferred, log "
   local 2
   add
   call 1 ConOut
   pop
   enddefer
-  line 62
+  line 57
   str "only when early"
   call 1 ConOut
   pop
@@ -282,26 +262,26 @@ end
 
 function INLOOP static 0 1
   locals nI
-  line 72
+  line 67
   num 1
   setlocal 1
-  line 72
+  line 67
   local 1
   num 3
   le
   jumpf 16
-  line 73
+  line 68
   defer 1 20
   local 1
   num 1
   add
   setlocal 1
   jump 4
-  line 75
+  line 70
   rundefers
   str "loop done"
   ret
-  line 73
+  line 68
   str "loop defer, nI = "
   local 1
   call 1 cValToChar
@@ -311,135 +291,64 @@ function INLOOP static 0 1
   enddefer
 end
 
-function AREA static 1 4
-  locals lLeave .t1 .t2 .t3
-  line 78
-  call 0 Alias
-  setlocal 2
-  str "SA1"
-  call 1 DbSelectArea
-  pop
-  str "SA1"
-  area
-  call 0 RecNo
-  endarea
-  setlocal 3
-  str "SA1"
-  area
-  call 0 IndexOrd
-  endarea
-  setlocal 4
-  str "SA1"
-  area
-  num 2
-  call 1 DbSetOrder
-  endarea
-  pop
-  line 79
-  str "inside "
-  call 0 Alias
-  add
-  call 1 ConOut
-  pop
-  line 80
-  local 1
-  jumpf 52
-  str "SA1"
-  area
-  local 4
-  call 1 DbSetOrder
-  endarea
-  pop
-  str "SA1"
-  area
-  local 3
-  call 1 DbGoto
-  endarea
-  pop
-  local 2
-  call 1 Empty
-  jumpt 50
-  local 2
-  call 1 DbSelectArea
-  pop
-  str "left from inside"
-  ret
-  str "SA1"
-  area
-  local 4
-  call 1 DbSetOrder
-  endarea
-  pop
-  str "SA1"
-  area
-  local 3
-  call 1 DbGoto
-  endarea
-  pop
-  local 2
-  call 1 Empty
-  jumpt 70
-  local 2
-  call 1 DbSelectArea
-  pop
-  line 82
-  str "left after"
-  ret
-end
-
 function DEEP static 1 1
   locals nN
-  line 85
+  line 73
   local 1
   num 0
   exact
   jumpf 10
-  line 86
+  line 74
   str "the bottom"
   call 1 Break
   pop
-  line 88
+  line 76
   local 1
   num 1
   sub
   call 1 Deep
   pop
-  line 89
+  line 77
   nil
   ret
 end
 
-function GUARDED static 0 2
-  locals nX .t1
-  line 92
+function GUARDED static 0 3
+  locals nX aNone .t1
+  line 81
   num 0
   setlocal 1
-  line 93
+  line 82
+  array 0
+  setlocal 2
+  line 83
   block GUARDED#1 0
   call 1 ErrorBlock
-  setlocal 2
-  seq 15
-  num 10
+  setlocal 3
+  seq 20
+  local 2
   local 1
-  div
+  num 1
+  add
+  index
   setlocal 1
   endseq
-  jump 19
+  jump 24
   pop
   num 1
   neg
   setlocal 1
-  local 2
+  local 3
   call 1 ErrorBlock
   pop
-  line 94
+  line 84
   local 1
   ret
 end
 
 function GUARDED#1 block 1 1
   locals __it
-  line 93
+  line 83
   local 1
   call 1 Break
   ret
@@ -447,7 +356,7 @@ end
 
 function TWICE static 1 1
   locals nN
-  line 97
+  line 87
   local 1
   num 2
   mul

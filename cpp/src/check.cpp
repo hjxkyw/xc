@@ -452,6 +452,7 @@ namespace xc
       bool tcquery_ok_ = true;       // the file says where TCQUERY comes from, or might
       std::unordered_map<std::string, int> retired_;
       std::unordered_map<std::string, std::string> scalar_;
+      Set json_;                     // the function's names declared as a JsonObject
       std::unordered_set<const Expr*> sources_ok_;
       std::unordered_set<const Expr*> chains_ok_;
       Scope* scope_ = nullptr;
@@ -511,6 +512,7 @@ namespace xc
       void stmt(Stmt* s);
       void target(Expr* t, const std::string& op = ":=");
       void note_scalar(const Declarator* d);
+      void json_member(const Member* m);
       void never_nil(const Expr* e, const std::string& op);
       void expr(Expr* e);
       void call(const Call* c);
@@ -527,6 +529,11 @@ namespace xc
       void chain(const Pipeline* p);
       void scalar_source(const std::string& shown, const std::string& why);
     };
+
+    // Break() with no value, a statement or in a block: probe xdr, on
+    // 24.3.1.9.
+    const std::string BREAK_EMPTY = "Break(): the AppServer refuses it with no value -- \"C2003 Syntax Error\" in TL++, "
+                                    "\"Use of reserved language word (BREAK)\" in AdvPL. Write Break, or Break(Nil)";
 
     // ---- the file -----------------------------------------------------------
     // What the AppServer says of a regular function.
@@ -817,6 +824,7 @@ namespace xc
     {
       retired_.clear();
       scalar_.clear();
+      json_.clear();
       records_.clear();
       opened_.clear();
       warned_alias_.clear();
@@ -1415,12 +1423,13 @@ namespace xc
           in_block([&] { body(q->body); });
           if (q->error_var && !bytecode_)
           {
-            // Probes xdp to xdr, on 24.3.1.9, in TL++ and AdvPL alike.
+            // Probes xdp to xdr, on 24.3.1.9, in TL++ and AdvPL alike: inside,
+            // the function's Locals are Nil, and they come back untouched.
             warned.push_back({ q->recover_line ? q->recover_line : line_,
-                               "'Recover Using " + *q->error_var + "': the AppServer runs this Recover with Locals "
-                               "that are not the function's -- an array of the function's is Nil there -- and keeps "
-                               "nothing it assigns past End Sequence, not even " + *q->error_var + ". A plain "
-                               "Recover has the function's Locals; the Break's value can go in a Static first" });
+                               "'Recover Using " + *q->error_var + "': the AppServer runs this Recover with every "
+                               "Local Nil but " + *q->error_var + ", and gives the function's back as they were at "
+                               "End Sequence -- nothing assigned there stays, " + *q->error_var + " included. A "
+                               "plain Recover has the function's Locals; the Break's value can go in a Static first" });
           }
           if (q->error_var) { write(*q->error_var); }
           in_block([&] { body(q->recover); });
@@ -1442,6 +1451,7 @@ namespace xc
           break;
         }
         case SK::BreakStmt:
+          if (static_cast<BreakStmt*>(s)->empty_call) { problem(BREAK_EMPTY); }
           if (auto v = static_cast<BreakStmt*>(s)->value) { expr(v); }
           break;
         case SK::NoOpStmt:
@@ -1548,6 +1558,17 @@ namespace xc
               + " (with no type it would start at Nil)");
     }
 
+    // 'j:name' on a name declared as a JsonObject: the AppServer has no
+    // member by name in one, to read or to write (probes xds and xdt, on
+    // 24.3.1.9).
+    void Checker::json_member(const Member* m)
+    {
+      if (!is(m->base, EK::Name) || !json_.count(lc(name_of(m->base)))) { return; }
+      const std::string& n = name_of(m->base);
+      warning("'" + n + ":" + m->name + "': the AppServer has no member by name in a JsonObject -- \"invalid property "
+              + uc(m->name) + "\" -- its key is " + n + "[\"" + m->name + "\"]");
+    }
+
     void Checker::note_scalar(const Declarator* d)
     {
       std::string k = lc(d->name);
@@ -1560,6 +1581,17 @@ namespace xc
         type = type.substr(i);
       }
       type = lc(type);
+      // A JsonObject: a JSON literal, JsonObject():New(), 'as JSON'.
+      auto m = is(d->init, EK::MethodCall) ? static_cast<const MethodCall*>(d->init) : nullptr;
+      if (type == "json" || is(d->init, EK::JsonLit)
+          || (m && lc(m->name) == "new" && is(m->base, EK::Call) && lc(static_cast<const Call*>(m->base)->name) == "jsonobject"))
+      {
+        json_.insert(k);
+      }
+      else
+      {
+        json_.erase(k);
+      }
       if (SCALAR_TYPES.count(type))
       {
         scalar_[k] = " -- it is declared 'as " + type + "'";
@@ -1586,6 +1618,7 @@ namespace xc
         return;
       }
       bool field_compare = false;
+      if (k == EK::SafeMember) { json_member(static_cast<Member*>(e)); }
       if (k == EK::Binary)
       {
         auto b = static_cast<Binary*>(e);
@@ -1616,6 +1649,7 @@ namespace xc
         if (k == EK::Member)
         {
           constructed(static_cast<Member*>(e)->base, ":" + static_cast<Member*>(e)->name);
+          json_member(static_cast<Member*>(e));
         }
         else if (k == EK::MethodCall)
         {
@@ -1757,6 +1791,7 @@ namespace xc
         warning("StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' "
                 "authorization (C9909 \"Staticall has a restrict use\")");
       }
+      if (n == "break" && c->args.empty()) { problem(BREAK_EMPTY); }
       if (n == "freeobj" && !c->args.empty() && is(c->args[0], EK::Name) && lc(name_of(c->args[0])) == "self")
       {
         problem("FreeObj(" + name_of(c->args[0]) + "): the AppServer does not free the object a method runs in "

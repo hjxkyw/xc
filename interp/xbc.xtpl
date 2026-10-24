@@ -175,13 +175,14 @@ Static scNone
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
-// ours -- 'out=FILE', 'run=NAME' (or '--out=', '--run='), the modules --;
-// xc-vm gives those after '--'.
+// ours -- 'out=FILE', 'run=NAME', 'trace=FILE' (or '--out=', ...), the
+// modules --; xc-vm gives those after '--'.
 User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16)
   Local oVM := XbcVM():New()
   Local aFiles := {}
   Local cOut := ""
   Local cEntry := ""
+  Local cTrace := ""
   Local nExit
   scRef := Chr(1) + "xbc reference"
   scErr := Chr(1) + "xbc error"
@@ -197,13 +198,17 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
       cOut := SubStr(cOpt, 5)
     Case Left(cOpt, 4) == "run="
       cEntry := SubStr(cOpt, 5)
+    Case Left(cOpt, 6) == "trace="
+      cTrace := SubStr(cOpt, 7)
     Case !(Left(cArg, 1) == "-" .Or. ".exe" $ Lower(cArg) .Or. "appsrv" $ Lower(cArg))
       AAdd(aFiles, cArg)
     EndCase
   next
   oVM:lCapture := !Empty(cOut)
+  oVM:aTrace := {} if !Empty(cTrace)
   nExit := oVM:Start(aFiles, cEntry)
   oVM:Report(cOut, nExit) if !Empty(cOut)
+  MemoWrite(cTrace, oVM:aTrace |> map([l] l + Chr(10)) |> join) if !Empty(cTrace)
 Return nExit
 
 // Is it a reference, an error on its way.
@@ -247,6 +252,8 @@ Class XbcVM
   Public Data aErr
   Public Data lCapture
   Public Data lHost
+  Public Data aTrace
+  Public Data aOpNames
   Public Method New() Constructor
   Public Method Start(aFiles, cEntry)
   Public Method Report(cFile, nExit)
@@ -273,6 +280,8 @@ Class XbcVM
   Public Method PrivCell(cName, lFresh)
   Public Method Fail(cMessage)
   Public Method OnError(oErr)
+  Public Method Trace(aF, nPc, aIns, nSp, aSt)
+  Public Method Note(cLine)
   Public Method MakeBlock(aClo)
   Public Method Enter(aClo, aArgs)
   Public Method Macro(cText)
@@ -303,6 +312,8 @@ Method New() Class XbcVM
   for aOp, nOp in aOps
     ::hOps{aOp[1]} := {nOp, aOp[2]}
   next
+  ::aOpNames := aOps
+  ::aTrace := Nil
   ::aMods := {}
   ::hEvery := { => }
   ::hGlobals := { => }
@@ -549,6 +560,10 @@ Method Run(nBase) Class XbcVM
     Recover
       xCaught := XbcCaught()
       ::lInErr := .F.
+      If ::aTrace != Nil
+        ::Note("  caught by the run from frame ${nBase}: " + ;
+                       If(XbcIsErr(xCaught), "error " + ::MemberOf(xCaught[2], "Description"), XbcShown(xCaught)))
+      EndIf
     End Sequence
     If !lDone
       // The machine's own trouble -- a file it cannot read -- goes all the
@@ -609,6 +624,7 @@ Method Exec(nBase) Class XbcVM
   Local nAt
   While .T.
     aIns := aCode[nPc]
+    ::Trace(aF, nPc, aIns, nSp, aSt) if ::aTrace != Nil
     nPc++
     nOp := aIns[I_OP]
     If nOp <= OP_REFMEMVAR
@@ -1060,6 +1076,8 @@ Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
     xResult := aF[F_ARGC]
   Case xFound == "BREAK"
     XbcBreak(If(Empty(aArgs), Nil, aArgs[1]))
+  Case xFound == "EVAL" .And. !Empty(aArgs) .And. ValType(aArgs[1]) == "B" .And. !(aArgs |> anyof([x] XbcIsRef(x)))
+    xResult := XbcEvalArgs(aArgs[1], aArgs |> drop(1))
   Case xFound == "ERRORBLOCK"
     xResult := ::bProgErr
     ::bProgErr := aArgs[1] if !Empty(aArgs)
@@ -1188,6 +1206,10 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
     EndIf
     xResult := XbcEvalN(::hCache{cKey}, aVals, xObj)
   EndIf
+  If ::aTrace != Nil
+    ::Note("  the AppServer's ${cWhat}:${cName}:${cMethod}(" + (aVals |> map([x] XbcShown(x)) |> join(", ")) + ;
+                   ") -> " + XbcShown(xResult))
+  EndIf
   aRefs |> tap([k] aArgs[k][2][aArgs[k][3]] := aVals[k])
 Return xResult
 
@@ -1221,6 +1243,30 @@ Static Function XbcEvalN(bBlock, a, o)
   EndCase
 Return Eval(bBlock, a, o, a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], ;
             a[14], a[15], a[16], a[17], a[18], a[19], a[20])
+
+// The program's Eval(block, ...), run here, compiled: through a macro's
+// block -- {|a, o, p1, p2, r| r := Eval(p1, p2), r} -- the AppServer gave
+// back the argument of a block of the program's, not its value (02-blocks,
+// on 24.3.1.9).
+Static Function XbcEvalArgs(bBlock, a)
+  Local nN := Len(a)
+  Local aAll
+  Do Case
+  Case nN == 0
+    Return Eval(bBlock)
+  Case nN == 1
+    Return Eval(bBlock, a[1])
+  Case nN == 2
+    Return Eval(bBlock, a[1], a[2])
+  Case nN == 3
+    Return Eval(bBlock, a[1], a[2], a[3])
+  Case nN == 4
+    Return Eval(bBlock, a[1], a[2], a[3], a[4])
+  EndCase
+  aAll := AClone(a)
+  ASize(aAll, Max(nN, 12))
+Return Eval(bBlock, aAll[1], aAll[2], aAll[3], aAll[4], aAll[5], aAll[6], aAll[7], aAll[8], aAll[9], aAll[10], ;
+            aAll[11], aAll[12])
 
 // A method of an object of the AppServer's.
 Method MethodCall(xObj, cName, aArgs) Class XbcVM
@@ -1335,6 +1381,7 @@ Method OnError(oErr) Class XbcVM
   If local aF := ATail(::aFrames), aF != Nil
     ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aF[F_LINE]}"
   EndIf
+  ::Note("  error: " + ::MemberOf(oErr, "Description")) if ::aTrace != Nil
   If ::bProgErr != Nil .And. !::lInErr
     ::lInErr := .T.
     Eval(::bProgErr, oErr)
@@ -1342,6 +1389,38 @@ Method OnError(oErr) Class XbcVM
   EndIf
   XbcBreak({scErr, oErr})
 Return Nil
+
+// ---- the trace --------------------------------------------------------------
+// An instruction about to run, with trace=FILE: the frames' depth, the
+// function, where in it, the instruction, the stack's height and its top.
+Method Trace(aF, nPc, aIns, nSp, aSt) Class XbcVM
+  Local aOp := ::aOpNames[aIns[I_OP]]
+  Local cLine := "${Len(::aFrames)} ${aF[F_FN][FN_NAME]}:${nPc} ${aOp[1]}"
+  cLine += " ${aIns[I_A]}" if "I" $ aOp[2]
+  cLine += " ${aIns[I_B]}" if aOp[2] == "IWW" .Or. aOp[2] == "II" .Or. aOp[2] == "WI"
+  cLine += " " + cValToChar(aIns[I_N]) if aOp[2] == "N"
+  cLine += " " + aIns[I_S] if "W" $ aOp[2] .Or. aOp[2] == "S"
+  cLine += " " + aIns[I_S2] if aOp[2] == "WW" .Or. aOp[2] == "IWW"
+  ::Note(cLine + " | sp ${nSp}" + If(nSp > 0, ", top " + XbcShown(aSt[nSp]), ""))
+Return Nil
+
+// A line of the trace, while there are fewer than 20,000.
+Method Note(cLine) Class XbcVM
+  AAdd(::aTrace, cLine) if Len(::aTrace) < 20000
+Return Nil
+
+// A value, short, for the trace.
+Static Function XbcShown(xValue)
+  Local cType := ValType(xValue)
+  Do Case
+  Case cType == "C"
+    Return 'C "' + Left(xValue, 30) + If(Len(xValue) > 30, '..."', '"')
+  Case cType $ "NLD"
+    Return cType + " " + cValToChar(xValue)
+  Case cType == "A"
+    Return "A[${Len(xValue)}]"
+  EndCase
+Return cType
 
 // ---- code blocks ------------------------------------------------------------
 // The program's code block: one of the AppServer's that runs it here, with
@@ -1351,8 +1430,11 @@ Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
         ::Enter(aClo, {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12})}
 
 Method Enter(aClo, aArgs) Class XbcVM
+  Local xResult
   ::Push(aClo[1], aArgs |> take(aClo[1][FN_PARAMS]), aClo[2], aClo[3])
-Return ::Run(Len(::aFrames))
+  xResult := ::Run(Len(::aFrames))
+  ::Note("  the block ${aClo[1][FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
+Return xResult
 
 // ---- objects ----------------------------------------------------------------
 // An object of a module's class: its class, and its data -- NAME => value.

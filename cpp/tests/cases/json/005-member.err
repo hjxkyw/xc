@@ -1,0 +1,4 @@
+005-member.xtpl:8: warning: 'jA:name': the AppServer has no member by name in a JsonObject -- "invalid property NAME" -- its key is jA["name"]
+005-member.xtpl:9: warning: 'jA:name': the AppServer has no member by name in a JsonObject -- "invalid property NAME" -- its key is jA["name"]
+005-member.xtpl:10: warning: 'jB:age': the AppServer has no member by name in a JsonObject -- "invalid property AGE" -- its key is jB["age"]
+005-member.xtpl:13: warning: 'jC:name': the AppServer has no member by name in a JsonObject -- "invalid property NAME" -- its key is jC["name"]

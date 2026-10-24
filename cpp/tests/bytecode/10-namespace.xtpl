@@ -16,7 +16,7 @@ User Function Main()
   Try
     ConOut(&cNome.(1, 2))
   Catch oErr
-    ConOut(oErr:Description)
+    ConOut("a macro does not find u_Soma: " + ValType(oErr))
   EndTry
   cNome := "xc.teste.u_Soma"
   ConOut(&cNome.(5, 6))

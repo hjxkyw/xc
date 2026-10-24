@@ -1,7 +1,7 @@
 // Chains that are loops, as TL++ writes them: over an array whose stages
-// fuse, over a range, over the lines of a file (08-chains.txt), over the
-// records of an area -- as a statement's whole value, a block's Local, a
-// Private, a 'return', a statement of its own, under a 'fallback'.
+// fuse, over a range, over the lines of a file (08-chains.txt) -- as a
+// statement's whole value, a block's Local, a Private, a 'return', a
+// statement of its own, under a 'fallback'. (Over an area's records: 12-areas.)
 User Function Main()
   Local aNums := {3, 1, 4, 1, 5, 9, 2, 6}
   Local aWords := {"b", "a", "b", "c", "a"}
@@ -109,12 +109,11 @@ User Function Main()
   EndIf
   Private aPriv := aWords |> map([w] w + "!") |> filter([w] w != "c!")
   ConOut(join(aPriv, ","))
-  aTmp := aNums |> map([x] 12 / (x - 1)) |> filter([x] x > 0) fallback {"fell back"}
+  aTmp := aNums |> map([x] aNums[x * 2]) |> filter([x] x > 0) fallback {"fell back"}
   ConOut(join(aTmp, ","))
   aTmp := aNums |> map([x] x) |> filter([x] x > 8) if nTmp > 0
   ConOut(join(aTmp, ","))
   aNums |> filter([x] x > 5) |> tap([x] ConOut("tap ${x}"))
-  ConOut(Records())
 Return Nil
 
 // The longest line: a 'return' of a chain. 08-chains.txt's last is 2007
@@ -123,7 +122,8 @@ Return Nil
 Static Function Longest(cPath)
 Return lines(cPath) |> map([l] Len(l)) |> amax
 
-// A 'return' from inside the walk closes the file first.
+// A 'return' from inside the walk closes the file first: FT_FEof() of no
+// file open is false, the AppServer's and xc-vm's.
 Static Function FirstWithDigit(cPath)
   for cLine in lines(cPath)
     If IsDigit(Right(cLine, 1))
@@ -132,7 +132,3 @@ Static Function FirstWithDigit(cPath)
   next
 Return ""
 
-// An area of xc-vm has no records.
-Static Function Records()
-  Local nCount := rows("SA1") |> count([r] r:A1_SALDO > 0)
-Return nCount

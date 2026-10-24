@@ -1,0 +1,2 @@
+009-break-no-value.xtpl:7: Break(): the AppServer refuses it with no value -- "C2003 Syntax Error" in TL++, "Use of reserved language word (BREAK)" in AdvPL. Write Break, or Break(Nil)
+009-break-no-value.xtpl:12: Break(): the AppServer refuses it with no value -- "C2003 Syntax Error" in TL++, "Use of reserved language word (BREAK)" in AdvPL. Write Break, or Break(Nil)

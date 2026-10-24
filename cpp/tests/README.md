@@ -47,12 +47,13 @@ with a type and no value that TL++ starts at something else than Nil;
 `refused/`, what the AppServer was seen to refuse since (`as Block`, a
 variable named `as`, a number as a `Decimal`'s value, a member after
 `Name():New()`, a class called as a function, a name the AppServer reads
-as a keyword, `Public Static Method`, a number and a string under `+`);
-`break/`, `Break()` with no value; `survey/`, forms
+as a keyword, `Public Static Method`, a number and a string under `+`,
+`Break()` with no value); `survey/`, forms
 of the survey of AdvPL and TL++ on GitHub that xc refused wrongly;
 `advpl/`, an AdvPL source that stays AdvPL, and the same source as TL++;
-`json/`, the JSON literals TL++ takes as written, and those xc makes with
-`u_xtpl_jnew` or `JsonObject():New()`; `decimal/`, Decimals written with
+`json/`, the JSON literals TL++ takes as written, those xc makes with
+`u_xtpl_jnew` or `JsonObject():New()`, and the warning for a key read as a
+member; `decimal/`, Decimals written with
 the `DEC_` functions, and the numbers refused where they meet one;
 `defer/`, what a `defer` cannot be written as yet; `data-value/`, the
 warning for a `Data`'s `default` or `init` value, which the AppServer
@@ -91,6 +92,8 @@ cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp
 ```
 
 A `NAME.out` is written only where there is one; an empty one asks for it.
+`NAME.vmonly` marks a case that needs xc-vm's own areas -- an AppServer run
+with `-run` has no tables --, which `run-protheus.raku --interp` leaves out.
 
 ## interp
 

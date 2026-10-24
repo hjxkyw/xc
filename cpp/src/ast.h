@@ -426,6 +426,7 @@ namespace xc
   {
     BreakStmt() : Stmt(SK::BreakStmt) {}
     Expr* value = nullptr;
+    bool empty_call = false;       // 'Break()', which the AppServer refuses
   };
 
   struct DefaultStmt : Stmt

@@ -4,7 +4,7 @@
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
 #                            [--xc=PATH] [--rootpath=PATH]
 #                            [--compile-only | --run-only | --corpus | --interp]
-#                            [--verbose]
+#                            [--trace] [--verbose]
 #
 # The self-tests (the default):
 #
@@ -30,7 +30,8 @@
 #
 # The bytecode's interpreter (--interp): xc compiles interp/xbc.xtpl into
 # build/interp/, and the AppServer compiles it with the runtime; xc compiles
-# the runtime, each case of cpp/tests/bytecode that has a NAME.out and both
+# the runtime, each case of cpp/tests/bytecode that has a NAME.out -- but
+# one with a NAME.vmonly, which needs xc-vm's own areas -- and both
 # self-tests to bytecode, into build/interp-xbc/. Then the AppServer runs the
 # interpreter on each --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xbc
@@ -42,6 +43,9 @@
 # relative name is; those copies are removed at the end. Both come from the
 # environment's section of the appserver.ini in the AppServer's folder;
 # --rootpath=PATH names the RootPath, as this machine reaches it, instead.
+# With --trace each run gives the interpreter 'trace=\xbc\NAME.trace' too --
+# each instruction it ran, each call of the AppServer's, each Break taken
+# -- and the trace is kept beside the logs, build/logs/interp/NAME.trace.
 #
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
@@ -75,7 +79,7 @@ my %opt =
   xc            => %*ENV<XC_COMPILER>,
   rootpath      => %*ENV<XC_ROOTPATH>,
   out           => Str;
-my ($compile, $run, $rebuild, $corpus, $interp, $verbose) = True, True, False, False, False, False;
+my ($compile, $run, $rebuild, $corpus, $interp, $verbose, $trace) = True, True, False, False, False, False, False;
 
 sub usage(Str $why)
 {
@@ -84,7 +88,7 @@ sub usage(Str $why)
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
      ~ "                                [--xc=PATH] [--rootpath=PATH]\n"
      ~ "                                [--compile-only | --run-only | --corpus | --interp]\n"
-     ~ "                                [--verbose]";
+     ~ "                                [--trace] [--verbose]";
   exit 2;
 }
 
@@ -96,12 +100,14 @@ for @*ARGS -> $a
   elsif $a eq '--corpus'     { $corpus = True }
   elsif $a eq '--interp'     { $interp = True }
   elsif $a eq '--verbose'    { $verbose = True }
+  elsif $a eq '--trace'      { $trace = True }
   elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc || rootpath) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
 usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
 usage("--corpus and --interp: one at a time") if $corpus && $interp;
+usage("--trace is for --interp") if $trace && !$interp;
 $run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
 usage("no include folder: --includes=PATH, or XC_INCLUDES") if $compile && !%opt<includes>;
@@ -164,8 +170,11 @@ my @tests =
   %(source => 'protheus/xc_selftest.xtpl', file => 'xc_selftest.tlpp', run => 'u_xc_selftest');
 
 # The AppServer: a path is started from its own folder, a bare name from here.
+# The folder is what comes before the last separator, as written: on Windows
+# the path's parent was taken for this folder.
 my $server = %opt<appserver>;
-my $cwd = $server.contains('/') || $server.contains('\\') ?? $server.IO.absolute.IO.parent.Str !! $*CWD.Str;
+my @cut = ($server.rindex('/'), $server.rindex('\\')).grep(*.defined);
+my $cwd = @cut ?? $server.substr(0, @cut.max) !! $*CWD.Str;
 
 # The AppServer run with these arguments; all it says goes into $log, and is
 # shown too with --verbose.
@@ -347,7 +356,9 @@ if $interp
 {
   my $xbc = $out.parent.add('interp-xbc');
   my $cases = $root.add('cpp/tests/bytecode');
-  my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, '')).sort;
+  # Not those that need xc-vm's own areas: NAME.vmonly says why.
+  my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
+                        .grep({ !$cases.add("$_.vmonly").e }).sort;
   my @selftests =
     %(source => 'xtpl/tests/54_selftest.xtpl', name => '54_selftest', run => 'U_SELFTEST',
       total => / 'selftest: ' \d+ ' ok, 0 falhas' /),
@@ -408,8 +419,10 @@ if $interp
   {
     my $got = $stage.add("$name.got");
     $got.unlink if $got.e;
+    my @traced = $trace ?? ("trace={on-server("$name.trace")}",) !! ();
     my ($code, $text) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
-                                  "out={on-server("$name.got")}", |@args);
+                                  "out={on-server("$name.got")}", |@traced, |@args);
+    spurt $logs.add("$name.trace"), $stage.add("$name.trace").slurp(:bin) if $trace && $stage.add("$name.trace").e;
     $got.e ?? $got.slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g)
            !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $code)\n"
               ~ $text.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join

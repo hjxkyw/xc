@@ -8,6 +8,6 @@ exit 0
 11
 1
 2
-function u_Soma does not exist
+a macro does not find u_Soma: O
 11
 --- errors

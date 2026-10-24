@@ -1,6 +1,8 @@
 // xtpl's own, as what they stand for in TL++: block locals and header
 // locals, 'for ... in', 'for n times', modifiers, '?=', '?:', '?.', 'in',
 // 'has', '%%', hashes, JSON objects, interpolation, 'with object', chains.
+// A JSON object's keys are read as jPerson["name"]: the AppServer has no
+// member by name in one ("invalid property NAME").
 User Function Main()
   Local aItems := {"pen", "ink", "cap"}
   Local nTotal := 0
@@ -9,6 +11,7 @@ User Function Main()
   Local hEmpty := { => }
   Local jPerson := {"name": "Ana", "age": 31}
   Local jNone := { : }
+  Local oAna := Pessoa():New("Ana", 31)
   Local oNil
   Local cKey := "BR"
 
@@ -52,7 +55,7 @@ User Function Main()
   cMissing ?= "filled"
   cMissing ?= "not again"
   ConOut(cMissing, oNil ?: "default", "set" ?: "never", Nil ?: 7)
-  ConOut(ValType(oNil?.name), jPerson?.name, ValType(jPerson?.nothing))
+  ConOut(ValType(oNil?.name), oAna?.cNome, ValType(jPerson["nothing"]))
 
   ConOut("-- in, has, %%")
   ConOut("ink" in aItems, "cup" in aItems, Len(aItems) + 1 in 2..4, 12 %% 4, 13 %% 4)
@@ -64,14 +67,14 @@ User Function Main()
   hRates{"AR"} += 0.1
   hEmpty{1} := "one"
   ConOut(hRates{"AR"}, hEmpty{1}, ValType(hEmpty))
-  ConOut(jPerson["name"], jPerson:age, ValType(jPerson), ValType(jNone))
+  ConOut(jPerson["name"], jPerson["age"], ValType(jPerson), ValType(jNone))
   jNone["k"] := {cKey: 1}
   ConOut(jNone["k"]["BR"])
 
   ConOut("-- with object")
-  with object jPerson
-    :age := :age + 1
-    ConOut(:name + " is ${:age}")
+  with object oAna
+    :nIdade := :nIdade + 1
+    ConOut(:cNome + " is ${:nIdade}")
   end with
 
   ConOut("-- chains")
@@ -80,3 +83,14 @@ User Function Main()
   ConOut(reduce({1, 2, 3, 4}, [acc, x] acc + x * x, 0))
   ConOut(Len(filter(aItems, [c] "p" $ c)))
 Return Nil
+
+Class Pessoa
+  Public Data cNome
+  Public Data nIdade
+  Public Method New(cNome, nIdade) Constructor
+EndClass
+
+Method New(cNome, nIdade) Class Pessoa
+  ::cNome := cNome
+  ::nIdade := nIdade
+Return Self

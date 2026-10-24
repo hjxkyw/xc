@@ -1,0 +1,12 @@
+exit 0
+--- output
+-- using alias
+inside SA1
+left after
+SB1
+inside SA1
+left from inside
+SB1
+-- rows
+0
+--- errors

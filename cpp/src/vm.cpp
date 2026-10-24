@@ -613,9 +613,11 @@ namespace
     std::vector<std::string> areas_{ "" };
     std::size_t area_ = 0;
     // The text file FT_FUse() opened -- one at a time, as AdvPL's --: its
-    // lines, and the one it is on.
+    // lines, and the one it is on; none open, FT_FEof() is false and
+    // FT_FReadLn() an error, as the AppServer's (probe xdo).
     std::vector<std::string> ft_lines_;
     std::size_t ft_at_ = 0;
+    bool ft_open_ = false;
     // The files FOpen() opened, by handle: for reading only.
     std::map<long, std::unique_ptr<std::ifstream>> files_;
     long next_file_ = 1;
@@ -653,6 +655,8 @@ namespace
     void set_index(const Value& a, const Value& i, const Value& x);
     Value member(const Value& o, const std::string& name);
     void set_member(const Value& o, const std::string& name, const Value& x);
+    Value json_get(const Value& o, const std::string& key);
+    void json_set(const Value& o, const std::string& key, const Value& x);
     bool logical(const Value& x, const char* what);
 
     // ---- the AppServer's ----------------------------------------------------
@@ -1181,11 +1185,12 @@ namespace
         case Op::Add: return N(x + y);
         case Op::Sub: return N(x - y);
         case Op::Mul: return N(x * y);
+        // x / 0 is 0 on the AppServer, x % 0 an error (probe xds).
         case Op::Div:
-          if (y == 0) { fail("zero division"); }
+          if (y == 0) { return N(0); }
           return N(x / y);
         case Op::Mod:
-          if (y == 0) { fail("zero division"); }
+          if (y == 0) { fail("Division By Zero"); }
           return N(std::fmod(x, y));
         default: return N(std::pow(x, y));
       }
@@ -1289,7 +1294,7 @@ namespace
       if (k < 1 || k > static_cast<long>((*arr)->size())) { fail("array out of bounds [" + num_text(*n) + "]"); }
       return (**arr)[static_cast<std::size_t>(k - 1)];
     }
-    if (type_of(a) == 'J') { return member(a, text(i)); }
+    if (type_of(a) == 'J') { return json_get(a, text(i)); }
     fail(std::string("index of what is no array: ") + type_of(a));
   }
 
@@ -1308,7 +1313,7 @@ namespace
     }
     if (type_of(a) == 'J')
     {
-      set_member(a, text(i), x);
+      json_set(a, text(i), x);
       return;
     }
     fail(std::string("index of what is no array: ") + type_of(a));
@@ -1328,16 +1333,38 @@ namespace
       }
       fail("no data " + name + " of " + (*obj)->cls->name);
     }
-    for (auto& [k, v] : (*obj)->props)
-    {
-      if (k == name) { return v; }
-    }
+    // A JsonObject has no member by name: o["name"] is its key (probes xds
+    // and xdt, on 24.3.1.9).
+    if ((*obj)->kind == Object::Json) { fail("invalid property " + upper(name)); }
     for (auto& [k, v] : (*obj)->props)
     {
       if (upper(k) == upper(name)) { return v; }
     }
-    if ((*obj)->kind == Object::Json) { return Value(); }
     fail("no member " + name + " of an error");
+  }
+
+  // A JsonObject's key, as written: Nil when it has none.
+  Value VM::json_get(const Value& o, const std::string& key)
+  {
+    for (auto& [k, v] : std::get<std::shared_ptr<Object>>(deref(o).v)->props)
+    {
+      if (k == key) { return v; }
+    }
+    return Value();
+  }
+
+  void VM::json_set(const Value& o, const std::string& key, const Value& x)
+  {
+    auto& props = std::get<std::shared_ptr<Object>>(deref(o).v)->props;
+    for (auto& [k, v] : props)
+    {
+      if (k == key)
+      {
+        v = deref(x);
+        return;
+      }
+    }
+    props.push_back({ key, deref(x) });
   }
 
   void VM::set_member(const Value& o0, const std::string& name, const Value& x)
@@ -1358,6 +1385,7 @@ namespace
       }
       fail("no data " + name + " of " + (*obj)->cls->name);
     }
+    if ((*obj)->kind == Object::Json) { fail("invalid property " + upper(name)); }
     for (auto& [k, v] : (*obj)->props)
     {
       if (k == name || ((*obj)->kind == Object::Error && upper(k) == upper(name)))
@@ -2510,9 +2538,11 @@ namespace
     {
       ft_lines_.clear();
       ft_at_ = 0;
+      ft_open_ = false;
       if (is_nil(at(a, 0))) { return N(0); }
       std::ifstream f(str_arg(a, 0, "FT_FUse"), std::ios::binary);
       if (!f) { return N(-1); }
+      ft_open_ = true;
       // The AppServer's FT_FReadLn() gives a line longer than 1023
       // characters in pieces of 1023, each a line of its own.
       std::string l;
@@ -2558,8 +2588,12 @@ namespace
       ft_at_ = 0;
       return Value();
     };
-    n["FT_FEOF"] = [this](Args&) { return L(ft_at_ >= ft_lines_.size()); };
-    n["FT_FREADLN"] = [this](Args&) { return S(ft_at_ < ft_lines_.size() ? ft_lines_[ft_at_] : ""); };
+    n["FT_FEOF"] = [this](Args&) { return L(ft_open_ && ft_at_ >= ft_lines_.size()); };
+    n["FT_FREADLN"] = [this](Args&) -> Value
+    {
+      if (!ft_open_) { fail("FT_FReadLn() with no file open"); }
+      return S(ft_at_ < ft_lines_.size() ? ft_lines_[ft_at_] : "");
+    };
     n["FT_FSKIP"] = [this](Args& a)
     {
       ft_at_ += static_cast<std::size_t>(is_nil(at(a, 0)) ? 1 : num_arg(a, 0, "FT_FSkip"));

@@ -1811,11 +1811,11 @@ function U_MAIN user 0 178
   local 171
   index
   setlocal 172
-  num 12
+  local 1
   local 172
-  num 1
-  sub
-  div
+  num 2
+  mul
+  index
   setlocal 172
   local 172
   num 0
@@ -1916,10 +1916,6 @@ function U_MAIN user 0 178
   setlocal 177
   jump 1888
   line 117
-  call 0 Records
-  call 1 ConOut
-  pop
-  line 118
   nil
   ret
 end
@@ -1981,7 +1977,7 @@ end
 
 function LONGEST static 1 5
   locals cPath .t1 .t2 .t3 .t4
-  line 124
+  line 123
   local 1
   call 1 File
   setlocal 3
@@ -2077,64 +2073,5 @@ function FIRSTWITHDIGIT static 1 4
   pop
   line 133
   str ""
-  ret
-end
-
-function RECORDS static 0 4
-  locals .t1 .t2 .t3 nCount
-  line 137
-  call 0 Alias
-  setlocal 1
-  str "SA1"
-  call 1 DbSelectArea
-  pop
-  str "SA1"
-  area
-  call 0 RecNo
-  endarea
-  setlocal 2
-  str "SA1"
-  area
-  call 0 DbGoTop
-  endarea
-  pop
-  num 0
-  setlocal 3
-  str "SA1"
-  area
-  call 0 Eof
-  endarea
-  not
-  jumpf 39
-  field SA1 A1_SALDO
-  num 0
-  gt
-  jumpf 33
-  local 3
-  num 1
-  add
-  setlocal 3
-  str "SA1"
-  area
-  call 0 DbSkip
-  endarea
-  pop
-  jump 19
-  str "SA1"
-  area
-  local 2
-  call 1 DbGoto
-  endarea
-  pop
-  local 1
-  call 1 Empty
-  jumpt 51
-  local 1
-  call 1 DbSelectArea
-  pop
-  local 3
-  setlocal 4
-  line 138
-  local 4
   ret
 end
