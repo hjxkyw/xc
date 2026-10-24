@@ -1,9 +1,16 @@
 // Decimals with the DEC_ functions, as for TL++: a literal that meets one is
 // DEC_CREATE of its text, an operator the DEC_ function, a Decimal that goes
-// into a number DEC_TO_DBL of it, Empty() of one a comparison with 0.
+// into a number DEC_TO_DBL of it, Empty() of one a comparison with 0. And
+// as the AppServer has it (probe xdw): a number put where a Decimal is --
+// a variable with no type, an element -- becomes a Decimal.
 User Function Main()
   Local fPreco := 40.1 as Decimal
+  Local xAny := fPreco
+  Local aAll := {fPreco, 2}
   ConOut(Total(fPreco), Empty(fPreco), Empty(fPreco - fPreco))
+  xAny := 5
+  aAll[1] := aAll[2]
+  ConOut(ValType(xAny), ValType(aAll[1]), ValType(aAll[2]))
 Return Nil
 
 Static Function Total(fPreco as Decimal)

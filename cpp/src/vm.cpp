@@ -445,6 +445,21 @@ namespace
     return true;
   }
 
+  // What a variable, a cell or an element of an array takes: a number where
+  // a Decimal is becomes a Decimal, as the AppServer has it (probe xdw: a
+  // Local, an element; Nil there it keeps a Decimal too, which this does
+  // not).
+  Value kept(const Value& was, const Value& x)
+  {
+    auto n = std::get_if<double>(&x.v);
+    if (!n || !std::holds_alternative<Dec>(was.v)) { return x; }
+    Dec d;
+    dec_parse(num_text(*n), d);
+    Value r;
+    r.v = d;
+    return r;
+  }
+
   // cValToChar().
   std::string text(const Value& x0)
   {
@@ -1315,7 +1330,8 @@ namespace
       {
         fail("array out of bounds [" + num_text(*n) + "] of [" + std::to_string((*arr)->size()) + "] ");
       }
-      (**arr)[static_cast<std::size_t>(k - 1)] = deref(x);
+      Value& e = (**arr)[static_cast<std::size_t>(k - 1)];
+      e = kept(e, deref(x));
       return;
     }
     if (type_of(a) == 'J')
@@ -1579,7 +1595,12 @@ namespace
           else { st.push_back(x); }
           break;
         }
-        case Op::SetLocal: local(in.a) = deref(pop()); break;
+        case Op::SetLocal:
+        {
+          Value x = deref(pop());
+          local(in.a) = kept(local(in.a), x);
+          break;
+        }
         case Op::Box:
         {
           Value x;
@@ -1591,18 +1612,23 @@ namespace
         case Op::SetCell:
         {
           Cell c = cell(in.a);
-          *c = deref(pop());
+          *c = kept(*c, deref(pop()));
           break;
         }
         case Op::Upval: st.push_back(*upval(in.a)); break;
         case Op::SetUpval:
         {
           Cell c = upval(in.a);
-          *c = deref(pop());
+          *c = kept(*c, deref(pop()));
           break;
         }
         case Op::Static: st.push_back(statics()[static_cast<std::size_t>(in.a - 1)]); break;
-        case Op::SetStatic: statics()[static_cast<std::size_t>(in.a - 1)] = deref(pop()); break;
+        case Op::SetStatic:
+        {
+          Value& s = statics()[static_cast<std::size_t>(in.a - 1)];
+          s = kept(s, deref(pop()));
+          break;
+        }
         case Op::Memvar:
         {
           Cell* c = memvar(in.s);

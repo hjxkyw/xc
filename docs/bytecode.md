@@ -462,6 +462,11 @@ It is the machine of this page, and the AppServer is the rest:
 - `ErrorBlock()` is the program's, kept apart: the interpreter runs under
   its own, which gives an error to the program's first, then to the
   innermost `try`; its own errors it raises with `UserException()`;
+- the program's values are put in the machine's own variables and stack
+  only where no Decimal is: where one is, the AppServer makes a number a
+  Decimal. A program that has made one -- the AppServer gave one back --
+  has each slot of the stack, and each temporary, given a value of no
+  number before a value goes in;
 - a Break is taken by a plain `Recover`, its value kept in a Static on its
   way -- the AppServer runs a `Recover Using` with every Local Nil but its
   variable, and keeps nothing it assigns --: the program's `Break()` is
@@ -524,7 +529,8 @@ functions -- a line longer than 1023 characters in pieces of 1023, and
 `FRead()` and `FClose()`, for reading;
 `THashMap` and `JsonObject`, with the methods the runtime calls -- a
 `JsonObject`'s keys by `j["name"]` only, as the AppServer's. As the
-AppServer's too, `x / 0` is 0 and `x % 0` an error.
+AppServer's too, `x / 0` is 0 and `x % 0` an error, and a number put where
+a Decimal is -- a variable, a cell, a static, an element -- becomes one.
 `Random()` starts from the same seed each run, so a run repeats. A work
 area is a name -- it can be selected and put back, and has no records --,
 and a macro is a variable's name.
