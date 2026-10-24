@@ -360,8 +360,7 @@ Method Load(cPath) Class XbcVM
   Local aCls
   Local aFn
   Local nI := 4
-  Break("xc-vm: ${cPath}: cannot be read") if !File(cPath)
-  for cRead in lines(cPath)
+  for cRead in XbcLines(cPath)
     Local cLine := LTrim(StrTran(StrTran(cRead, Chr(13), ""), Chr(9), " "))
     AAdd(aLines, cLine) if !Empty(cLine)
   next
@@ -453,6 +452,24 @@ Return aIns
 Static Function XbcWords(cLine)
   Local aWords := split(AllTrim(cLine), " ") |> reject([w] Empty(w))
 Return If(Empty(aWords), {""}, aWords)
+
+// A file's lines, read whole: the AppServer's FT_FReadLn() -- and so
+// lines() -- gives a line longer than 1023 characters in pieces, and a
+// string of the bytecode's makes one.
+Static Function XbcLines(cPath)
+  Local nFile := FOpen(cPath, 0)
+  Local cText := ""
+  Local cBlock
+  Local nRead
+  Break("xc-vm: ${cPath}: cannot be read") if nFile < 0
+  defer FClose(nFile)
+  While .T.
+    cBlock := Space(65536)
+    nRead := FRead(nFile, @cBlock, 65536)
+    Exit if nRead <= 0
+    cText += Left(cBlock, nRead)
+  EndDo
+Return split(StrTran(cText, Chr(13), ""), Chr(10))
 
 // ---- frames -----------------------------------------------------------------
 // A frame for a function of a module: its parameters from the arguments --

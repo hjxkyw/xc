@@ -1981,7 +1981,7 @@ end
 
 function LONGEST static 1 5
   locals cPath .t1 .t2 .t3 .t4
-  line 122
+  line 124
   local 1
   call 1 File
   setlocal 3
@@ -2029,7 +2029,7 @@ end
 
 function FIRSTWITHDIGIT static 1 4
   locals cPath .t1 .t2 cLine
-  line 126
+  line 128
   local 1
   setlocal 2
   local 2
@@ -2042,7 +2042,7 @@ function FIRSTWITHDIGIT static 1 4
   pop
   call 0 FT_FGoTop
   pop
-  line 126
+  line 128
   local 3
   andjump 19
   call 0 FT_FEof
@@ -2052,13 +2052,13 @@ function FIRSTWITHDIGIT static 1 4
   setlocal 4
   call 0 FT_FSkip
   pop
-  line 127
+  line 129
   local 4
   num 1
   call 2 Right
   call 1 IsDigit
   jumpf 42
-  line 128
+  line 130
   local 3
   jumpf 35
   call 0 FT_FUse
@@ -2075,14 +2075,14 @@ function FIRSTWITHDIGIT static 1 4
   jumpf 47
   call 0 FT_FUse
   pop
-  line 131
+  line 133
   str ""
   ret
 end
 
 function RECORDS static 0 4
   locals .t1 .t2 .t3 nCount
-  line 135
+  line 137
   call 0 Alias
   setlocal 1
   str "SA1"
@@ -2134,7 +2134,7 @@ function RECORDS static 0 4
   pop
   local 3
   setlocal 4
-  line 136
+  line 138
   local 4
   ret
 end

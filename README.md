@@ -135,14 +135,18 @@ into a log beside what it compiled (`compile.log`, `run-u_selftest.log`,
 point is that Protheus takes all of xc's output. With `--interp`, the
 AppServer compiles the interpreter (`interp/xbc.xtpl`) and runs it on each
 bytecode case and on both self-tests, made bytecode in `build/interp-xbc/`:
-each has to do what xc-vm does.
+each has to do what xc-vm does. The AppServer reads files under the
+environment's RootPath only, so the bytecode goes to `xbc/` there, and the
+files the cases read to its StartPath; both come from the environment's
+section of the `appserver.ini`, or `--rootpath=PATH` (`XC_ROOTPATH`) names
+the RootPath.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`
 line, then `appserver -run=u_selftest -env=...` and `-run=u_xc_selftest`. The
 settings can come from `XC_APPSERVER`, `XC_ENV`, `XC_INCLUDES`,
-`XC_AUTHORIZATION` and `XC_COMPILER` (`--xc`) instead, so that once set a
-run is just `rakupp run-protheus.raku`. The AppServer defaults to
+`XC_AUTHORIZATION`, `XC_COMPILER` (`--xc`) and `XC_ROOTPATH` instead, so
+that once set a run is just `rakupp run-protheus.raku`. The AppServer defaults to
 `appserver.exe` on Windows and `appsrvlinux` elsewhere, found on the PATH;
 given as a path, it is started from its own folder, where its
 `appserver.ini` is. xc's output goes to `build/protheus/`. A compile that

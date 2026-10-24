@@ -2,7 +2,7 @@
 #
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
-#                            [--xc=PATH]
+#                            [--xc=PATH] [--rootpath=PATH]
 #                            [--compile-only | --run-only | --corpus | --interp]
 #                            [--verbose]
 #
@@ -33,10 +33,15 @@
 # the runtime, each case of cpp/tests/bytecode that has a NAME.out and both
 # self-tests to bytecode, into build/interp-xbc/. Then the AppServer runs the
 # interpreter on each --
-#   appserver -run=u_xbc -env=<name> out=<NAME.got> xtpl_runtime.xbc NAME.xbc
+#   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xbc
 # -- and what it writes is compared with NAME.out, what xc-vm does; a
-# self-test has to end with its total and no check failed. The AppServer is
-# given the paths whole, as this machine writes them.
+# self-test has to end with its total and no check failed. The AppServer
+# reads and writes files under the environment's RootPath only -- a path with
+# a drive letter fails --, so the .xbc go to xbc/ in the RootPath, and what
+# the cases read by a relative name (08-chains.txt) to its StartPath, where a
+# relative name is; those copies are removed at the end. Both come from the
+# environment's section of the appserver.ini in the AppServer's folder;
+# --rootpath=PATH names the RootPath, as this machine reaches it, instead.
 #
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
@@ -57,9 +62,10 @@
 #
 # Every option can come from the environment instead, so that once set a run
 # is just 'rakupp run-protheus.raku': XC_APPSERVER, XC_ENV, XC_INCLUDES,
-# XC_AUTHORIZATION, XC_COMPILER (--xc). --appserver defaults to appserver.exe on Windows and
-# appsrvlinux elsewhere, found on the PATH; given as a path, the AppServer is
-# started from its own folder, where its appserver.ini is.
+# XC_AUTHORIZATION, XC_COMPILER (--xc), XC_ROOTPATH. --appserver defaults to
+# appserver.exe on Windows and appsrvlinux elsewhere, found on the PATH;
+# given as a path, the AppServer is started from its own folder, where its
+# appserver.ini is.
 
 my %opt =
   appserver     => %*ENV<XC_APPSERVER> // ($*DISTRO.is-win ?? 'appserver.exe' !! 'appsrvlinux'),
@@ -67,6 +73,7 @@ my %opt =
   includes      => %*ENV<XC_INCLUDES>,
   authorization => %*ENV<XC_AUTHORIZATION>,
   xc            => %*ENV<XC_COMPILER>,
+  rootpath      => %*ENV<XC_ROOTPATH>,
   out           => Str;
 my ($compile, $run, $rebuild, $corpus, $interp, $verbose) = True, True, False, False, False, False;
 
@@ -75,7 +82,7 @@ sub usage(Str $why)
   note "$why\n"
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
-     ~ "                                [--xc=PATH]\n"
+     ~ "                                [--xc=PATH] [--rootpath=PATH]\n"
      ~ "                                [--compile-only | --run-only | --corpus | --interp]\n"
      ~ "                                [--verbose]";
   exit 2;
@@ -89,7 +96,7 @@ for @*ARGS -> $a
   elsif $a eq '--corpus'     { $corpus = True }
   elsif $a eq '--interp'     { $interp = True }
   elsif $a eq '--verbose'    { $verbose = True }
-  elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc) '=' (.+) $ / { %opt{~$0} = ~$1 }
+  elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc || rootpath) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
@@ -314,6 +321,27 @@ if $corpus
   exit 0;
 }
 
+# The environment's RootPath -- --rootpath, else its section of the
+# appserver.ini in the AppServer's folder -- and its StartPath, '/system/'
+# when the section has none.
+sub env-paths(--> List)
+{
+  my ($rootpath, $startpath) = %opt<rootpath>, Str;
+  my $ini = $cwd.IO.add('appserver.ini');
+  if $ini.f
+  {
+    my $in = False;
+    for $ini.slurp(:bin).decode('windows-1252').lines>>.trim -> $l
+    {
+      if $l ~~ / ^ '[' (.*) ']' $ /                     { $in = ~$0.trim.lc eq %opt<env>.lc }
+      elsif $in && $l ~~ / ^ :i rootpath \s* '=' (.*) $ / { $rootpath //= ~$0.trim }
+      elsif $in && $l ~~ / ^ :i startpath \s* '=' (.*) $ / { $startpath = ~$0.trim }
+    }
+  }
+  usage("no RootPath for '{%opt<env>}' in {native($ini)}: --rootpath=PATH, or XC_ROOTPATH") unless $rootpath;
+  ($rootpath.IO, $startpath // '/system/')
+}
+
 # ---- the interpreter ---------------------------------------------------------
 if $interp
 {
@@ -363,13 +391,25 @@ if $interp
   exit 0 unless $run;
   mkdir $logs;
   my @bad;
+  # Where the AppServer reads them: the .xbc in xbc/ of the RootPath, named
+  # \xbc\NAME.xbc; what the cases read by a relative name in the StartPath.
+  my ($rootpath, $startpath) = env-paths();
+  my $stage = $rootpath.add('xbc');
+  my $start = $rootpath.add($startpath.subst(/ ^ <[\\/]>+ /, ''));
+  say "\nThe bytecode into {native($stage)}, the cases' files into {native($start)}";
+  mkdir $stage;
+  .unlink for $stage.dir.grep({ .f && .extension eq 'xbc' | 'got' });
+  spurt $stage.add(.basename), .slurp(:bin) for $xbc.dir.grep(*.extension eq 'xbc');
+  my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
+  spurt .key, .value.slurp(:bin) for @data;
+  sub on-server(Str $name --> Str) { "\\xbc\\$name" }
   # The interpreter run on the modules; what it wrote, '\r\n' read as '\n'.
   sub interpret(Str $name, *@args --> Str)
   {
-    my $got = $xbc.add("$name.got");
+    my $got = $stage.add("$name.got");
     $got.unlink if $got.e;
     my ($code, $text) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
-                                  "out={native($got)}", |@args);
+                                  "out={on-server("$name.got")}", |@args);
     $got.e ?? $got.slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g)
            !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $code)\n"
               ~ $text.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join
@@ -377,9 +417,9 @@ if $interp
   say "\nProtheus: the interpreter running {+@cases} cases and the self-tests";
   for @cases -> $c
   {
-    my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines.grep(*.trim).map({ native($xbc.add("$_.xbc")) })
+    my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines>>.trim.grep(*.chars).map({ on-server("$_.xbc") })
                                        !! ();
-    my $got = interpret($c, native($xbc.add('xtpl_runtime.xbc')), |@with, native($xbc.add("$c.xbc")));
+    my $got = interpret($c, on-server('xtpl_runtime.xbc'), |@with, on-server("$c.xbc"));
     my $expect = $cases.add("$c.out").slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g);
     if $got eq $expect
     {
@@ -399,7 +439,7 @@ if $interp
   }
   for @selftests -> %t
   {
-    my $got = interpret(%t<name>, "run={%t<run>}", native($xbc.add('xtpl_runtime.xbc')), native($xbc.add(%t<name> ~ '.xbc')));
+    my $got = interpret(%t<name>, "run={%t<run>}", on-server('xtpl_runtime.xbc'), on-server(%t<name> ~ '.xbc'));
     my $total = $got.lines.first({ $_ ~~ %t<total> });
     if $total.defined && $got.starts-with("exit 0\n")
     {
@@ -410,6 +450,7 @@ if $interp
     say "    FAIL  {%t<name>}";
     say "          $_" for $got.lines;
   }
+  .key.IO.unlink for @data;
   say "\n  {@bad ?? "{+@bad} of {@cases + @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
   exit(@bad ?? 1 !! 0);
 }

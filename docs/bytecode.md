@@ -462,7 +462,12 @@ It is the machine of this page, and the AppServer is the rest:
   function does not see them, and a macro other than a variable's name --
   the AppServer's -- does not either;
 - `PCount()` is the frame's; a field is `FieldGet()` and `FieldPut()` in its
-  area.
+  area;
+- a module is read whole, with `FOpen()` and `FRead()`: `FT_FReadLn()`
+  gives a line longer than 1023 characters -- a long string's -- in pieces.
+  The AppServer reads files under the environment's RootPath only, so the
+  modules and FILE are named there, `\xbc\prog.xbc`; a path with a drive
+  letter fails.
 
 It is written in xtpl -- hashes for the names of the machine, chains, block
 locals, `for ... in`, interpolation, postfix modifiers, `?:` and `?=`,
@@ -496,8 +501,10 @@ and `protheus/xc_selftest.xtpl`, the programs the AppServer runs.
 It is the machine this page describes, and of the AppServer only what the
 runtime and the tests need: some of the strings', numbers', dates' and
 arrays' functions, `Eval()`, `Break()`, `ErrorBlock()`, `PCount()`; the
-`DEC_` functions, on exact decimals; `File()` and the `FT_` functions, for a
-text file; `THashMap` and `JsonObject`, with the methods the runtime calls.
+`DEC_` functions, on exact decimals; `File()`, `MemoWrite()`, the `FT_`
+functions -- a line longer than 1023 characters in pieces of 1023, as the
+AppServer's -- and `FOpen()`, `FRead()` and `FClose()`, for reading;
+`THashMap` and `JsonObject`, with the methods the runtime calls.
 `Random()` starts from the same seed each run, so a run repeats. A work
 area is a name -- it can be selected and put back, and has no records --,
 and a macro is a variable's name.

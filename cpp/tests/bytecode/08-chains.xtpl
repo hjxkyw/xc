@@ -117,7 +117,9 @@ User Function Main()
   ConOut(Records())
 Return Nil
 
-// The longest line: a 'return' of a chain.
+// The longest line: a 'return' of a chain. 08-chains.txt's last is 2007
+// long, and FT_FReadLn() -- the AppServer's, and so xc-vm's -- gives it in
+// pieces of 1023.
 Static Function Longest(cPath)
 Return lines(cPath) |> map([l] Len(l)) |> amax
 

@@ -616,6 +616,9 @@ namespace
     // lines, and the one it is on.
     std::vector<std::string> ft_lines_;
     std::size_t ft_at_ = 0;
+    // The files FOpen() opened, by handle: for reading only.
+    std::map<long, std::unique_ptr<std::ifstream>> files_;
+    long next_file_ = 1;
     // Random()'s numbers: the same on every run, for the tests.
     std::mt19937 random_{ 1 };
     std::string where_;
@@ -2510,14 +2513,46 @@ namespace
       if (is_nil(at(a, 0))) { return N(0); }
       std::ifstream f(str_arg(a, 0, "FT_FUse"), std::ios::binary);
       if (!f) { return N(-1); }
+      // The AppServer's FT_FReadLn() gives a line longer than 1023
+      // characters in pieces of 1023, each a line of its own.
       std::string l;
       while (std::getline(f, l))
       {
         if (!l.empty() && l.back() == '\r') { l.pop_back(); }
-        ft_lines_.push_back(l);
+        std::size_t from = 0;
+        do
+        {
+          ft_lines_.push_back(l.substr(from, 1023));
+          from += 1023;
+        } while (from < l.size());
       }
       return N(1);
     };
+    n["FOPEN"] = [this](Args& a)
+    {
+      auto f = std::make_unique<std::ifstream>(str_arg(a, 0, "FOpen"), std::ios::binary);
+      if (!*f) { return N(-1); }
+      files_[next_file_] = std::move(f);
+      return N(static_cast<double>(next_file_++));
+    };
+    // FRead(handle, @buffer, count): what it read, into the buffer; how much.
+    n["FREAD"] = [this](Args& a)
+    {
+      auto it = files_.find(static_cast<long>(num_arg(a, 0, "FRead")));
+      std::string got;
+      if (it != files_.end())
+      {
+        got.resize(static_cast<std::size_t>(std::max(0.0, num_arg(a, 2, "FRead"))));
+        it->second->read(got.data(), static_cast<std::streamsize>(got.size()));
+        got.resize(static_cast<std::size_t>(it->second->gcount()));
+      }
+      if (a.size() > 1)
+      {
+        if (auto r = std::get_if<Ref>(&a[1].v)) { *r->to = S(got); }
+      }
+      return N(static_cast<double>(got.size()));
+    };
+    n["FCLOSE"] = [this](Args& a) { return L(files_.erase(static_cast<long>(num_arg(a, 0, "FClose"))) > 0); };
     n["FT_FGOTOP"] = [this](Args&)
     {
       ft_at_ = 0;

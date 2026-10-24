@@ -1591,7 +1591,12 @@ Return nTotal
   ```
 
 - `lines(path)` reads a text file line by line (`FT_FUse`, `FT_FReadLn`),
-  when `File()` finds it, and closes it at the end.
+  when `File()` finds it, and closes it at the end. The AppServer's
+  `FT_FReadLn()` gives a line longer than 1023 characters in pieces of
+  1023, each a line of its own: a file with longer lines is read whole,
+  with `FOpen()` and `FRead()`. The AppServer finds a file under its
+  RootPath only -- `\data\x.txt`; a path with a drive letter fails -- and
+  a relative name under the StartPath.
 - `lo..hi` counts from `lo` to `hi`.
 
 A chain from a source runs as a loop before its statement, so it is only the

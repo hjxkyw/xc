@@ -1,11 +1,11 @@
 # The bytecode's interpreter written in xtpl (interp/xbc.xtpl), run by xc-vm:
 # xc-vm runs the interpreter -- after xtpl's runtime, which the interpreter
 # uses, as the AppServer has it in its RPO --, and the interpreter runs the
-# program: xtpl's runtime and the program, both bytecode, both interpreted. What it writes
-# (--out) has to be what xc-vm does running the program itself: each case of
-# cpp/tests/bytecode that has a NAME.out, and xtpl's self-test; with
-# -DMODE=xc, xc's self-test instead (it walks arrays of 40,000 through two
-# machines: tens of seconds).
+# program: xtpl's runtime and the program, both bytecode, both interpreted.
+# What it writes (--out) has to be what xc-vm does running the program
+# itself: each case of cpp/tests/bytecode that has a NAME.out, and xtpl's
+# self-test; with -DMODE=xc, xc's self-test instead (it walks arrays of
+# 40,000 through two machines: tens of seconds).
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DROOT=. -DWORK=cpp/build/interp -P cpp/tests/interp.cmake
 #
