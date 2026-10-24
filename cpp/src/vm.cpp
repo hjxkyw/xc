@@ -1216,7 +1216,8 @@ namespace
     {
       return N(static_cast<double>(std::get<Date>(a.v).day - std::get<Date>(b.v).day));
     }
-    fail(std::string("type mismatch on ") + sign + ": " + ta + " and " + tb);
+    // The AppServer's words, its blank at the end too (probes xds, xdt).
+    fail(std::string("type mismatch on ") + sign + " ");
   }
 
   bool VM::equal(const Value& a0, const Value& b0, bool exact, const char* op)
@@ -1289,9 +1290,12 @@ namespace
     if (auto arr = std::get_if<ArrayP>(&a.v))
     {
       auto n = std::get_if<double>(&i.v);
-      if (!n) { fail("array index is not a number"); }
+      if (!n) { fail(std::string("type mismatch in array subscriptor - expected N->") + type_of(i)); }
       long k = static_cast<long>(*n);
-      if (k < 1 || k > static_cast<long>((*arr)->size())) { fail("array out of bounds [" + num_text(*n) + "]"); }
+      if (k < 1 || k > static_cast<long>((*arr)->size()))
+      {
+        fail("array out of bounds [" + num_text(*n) + "] of [" + std::to_string((*arr)->size()) + "] ");
+      }
       return (**arr)[static_cast<std::size_t>(k - 1)];
     }
     if (type_of(a) == 'J') { return json_get(a, text(i)); }
@@ -1305,9 +1309,12 @@ namespace
     if (auto arr = std::get_if<ArrayP>(&a.v))
     {
       auto n = std::get_if<double>(&i.v);
-      if (!n) { fail("array index is not a number"); }
+      if (!n) { fail(std::string("type mismatch in array subscriptor - expected N->") + type_of(i)); }
       long k = static_cast<long>(*n);
-      if (k < 1 || k > static_cast<long>((*arr)->size())) { fail("array out of bounds [" + num_text(*n) + "]"); }
+      if (k < 1 || k > static_cast<long>((*arr)->size()))
+      {
+        fail("array out of bounds [" + num_text(*n) + "] of [" + std::to_string((*arr)->size()) + "] ");
+      }
       (**arr)[static_cast<std::size_t>(k - 1)] = deref(x);
       return;
     }

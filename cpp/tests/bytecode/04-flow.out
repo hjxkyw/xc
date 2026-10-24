@@ -16,8 +16,8 @@ round 1
 round 2
 after the loop: 3
 -- errors
-caught: type mismatch on +: N and C
-try caught: array out of bounds [2]
+caught: type mismatch on + 
+try caught: array out of bounds [2] of [0] 
 finally
 -1
 fell back

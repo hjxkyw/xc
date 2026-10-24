@@ -445,11 +445,15 @@ output`, its lines, `--- errors`, its lines.
 
 It is the machine of this page, and the AppServer is the rest:
 
-- a function no module has is called by its name, through a code block a
-  macro makes once for that name, number of arguments and references --
-  `{|a, o, p1, p2, r| r := Upper(p1, @p2), a[2] := p2, r}` --; a method or a
-  member of the AppServer's objects, and `Name():M()` of a class no module
-  has, the same way;
+- a function no module has is the AppServer's: a well-known one -- some 150
+  functions, methods, constructors and members, each with each number of
+  arguments it takes, in the interpreter's own table (`XbcSyscalls()`) --
+  is called by its number there, as compiled code; any other through a code
+  block a macro makes once for that name, number of arguments and
+  references -- `{|a, o, p1, p2, r| r := Upper(p1, @p2), a[2] := p2, r}`
+  --; a method or a member of the AppServer's objects, and `Name():M()` of a
+  class no module has, the same way. Through a macro's block the AppServer
+  gave back a `Len()` that was a Decimal, after a `DEC_CREATE`;
 - a code block of the program is one of the AppServer's that runs it there,
   with as many arguments as its function takes -- so `aEval()`, `aSort()`
   and the runtime's verbs run it;

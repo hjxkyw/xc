@@ -254,6 +254,8 @@ Class XbcVM
   Public Data lHost
   Public Data aTrace
   Public Data aOpNames
+  Public Data hSys
+  Public Data aSys
   Public Method New() Constructor
   Public Method Start(aFiles, cEntry)
   Public Method Report(cFile, nExit)
@@ -282,7 +284,6 @@ Class XbcVM
   Public Method OnError(oErr)
   Public Method Trace(aF, nPc, aIns, nSp, aSt)
   Public Method Note(cLine)
-  Public Method MakeBlock(aClo)
   Public Method Enter(aClo, aArgs)
   Public Method Macro(cText)
   Public Method SetMacro(cText, xValue)
@@ -314,6 +315,12 @@ Method New() Class XbcVM
   next
   ::aOpNames := aOps
   ::aTrace := Nil
+  ::hSys := { => }
+  ::aSys := {}
+  for aCall in XbcSyscalls()
+    AAdd(::aSys, aCall[2])
+    ::hSys{aCall[1]} := Len(::aSys)
+  next
   ::aMods := {}
   ::hEvery := { => }
   ::hGlobals := { => }
@@ -1017,7 +1024,7 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := ::MakeBlock({aFn, xA, aF[F_SELF]})
+          aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
         Case nOp == OP_MACRO
           aSt[nSp] := ::Macro(aSt[nSp])
         Case nOp == OP_SETMACRO
@@ -1167,10 +1174,13 @@ Return ::Native("f", cName, "", Nil, aArgs)
 
 // A function, a method of an object, or 'Class():Method()' of the
 // AppServer's, by name: aArgs' references passed as such and written back.
-// On the AppServer a block a macro makes once per name, number of arguments
-// and references -- each argument a parameter of its own, by reference where
-// the call had one --; on xc-vm, its XBC_ functions.
+// A well-known one is called by its number, as compiled code
+// (XbcSyscalls()). Else, on the AppServer, a block a macro
+// makes once per name, number of arguments and references -- each argument
+// a parameter of its own, by reference where the call had one --; on xc-vm,
+// its XBC_ functions.
 Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
+  Local nSys
   Local aVals := Array(Len(aArgs))
   Local aRefs := {}
   Local cKey
@@ -1185,7 +1195,11 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
       aVals[nI] := xArg
     EndIf
   next
-  If ::lHost
+  nSys := ::hSys{cWhat + ":" + If(cWhat == "m", "", Upper(cName) + If(cWhat == "n", ":", "")) + Upper(cMethod) + ;
+                 "/" + cValToChar(Len(aVals)) + If(Empty(aRefs), "", aRefs |> map([k] ":${k}") |> join)}
+  If nSys != Nil
+    xResult := Eval(::aSys[nSys], xObj, aVals)
+  ElseIf ::lHost
     Do Case
     Case cWhat == "f"
       xResult := XBC_CALL(cName, aVals, aRefs)
@@ -1207,7 +1221,8 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
     xResult := XbcEvalN(::hCache{cKey}, aVals, xObj)
   EndIf
   If ::aTrace != Nil
-    ::Note("  the AppServer's ${cWhat}:${cName}:${cMethod}(" + (aVals |> map([x] XbcShown(x)) |> join(", ")) + ;
+    ::Note("  the AppServer's ${cWhat}:${cName}:${cMethod}" + If(nSys != Nil, " #${nSys}", "") + "(" + ;
+           (aVals |> map([x] XbcShown(x)) |> join(", ")) + ;
                    ") -> " + XbcShown(xResult))
   EndIf
   aRefs |> tap([k] aArgs[k][2][aArgs[k][3]] := aVals[k])
@@ -1282,6 +1297,9 @@ Method MemberOf(xObj, cName) Class XbcVM
     ::Fail("no data ${cName} of ${xObj:xbcCls[C_NAME]}") if !(xObj:hProps has Upper(cName))
     Return xObj:hProps{Upper(cName)}
   EndIf
+  If local nSys := ::hSys{"g:" + Upper(cName)}, nSys != Nil
+    Return Eval(::aSys[nSys], xObj)
+  EndIf
   Return XBC_MEMBER(xObj, cName) if ::lHost
   ::hCache{"g:" + cName} ?= &("{|o| o:${cName}}")
 Return Eval(::hCache{"g:" + cName}, xObj)
@@ -1290,6 +1308,8 @@ Method SetMemberOf(xObj, cName, xValue) Class XbcVM
   If ValType(xObj) == "O" .And. XbcIsObj(xObj)
     ::Fail("no data ${cName} of ${xObj:xbcCls[C_NAME]}") if !(xObj:hProps has Upper(cName))
     xObj:hProps{Upper(cName)} := xValue
+  ElseIf ::hSys has "s:" + Upper(cName)
+    Eval(::aSys[::hSys{"s:" + Upper(cName)}], xObj, xValue)
   ElseIf ::lHost
     XBC_SETMEMBER(xObj, cName, xValue)
   Else
@@ -1422,12 +1442,190 @@ Static Function XbcShown(xValue)
   EndCase
 Return cType
 
+// ---- the AppServer's well-known functions -----------------------------------
+// Each with as many arguments as it is given, a block of compiled code --
+// {|o, a| ...}, the object and the arguments --: the number a call is made
+// by is its place here. f:NAME/N a function, m:NAME/N a method, n:CLASS:
+// NAME/N 'Class():Name()', and :K after it for each argument K passed by
+// reference; g:NAME and s:NAME a member read and written, an error's. Through a macro's block the AppServer gave back, after a
+// DEC_CREATE, a Len() that was a Decimal; and a macro costs a compile. One a
+// line; a call not here goes through a macro's block.
+Static Function XbcSyscalls()
+  Local aT := {}
+  AAdd(aT, {"f:AADD/2", {|o, a| AAdd(a[1], a[2])}})
+  AAdd(aT, {"f:ABS/1", {|o, a| Abs(a[1])}})
+  AAdd(aT, {"f:ACLONE/1", {|o, a| aClone(a[1])}})
+  AAdd(aT, {"f:ADEL/2", {|o, a| aDel(a[1], a[2])}})
+  AAdd(aT, {"f:AEVAL/2", {|o, a| aEval(a[1], a[2])}})
+  AAdd(aT, {"f:AEVAL/3", {|o, a| aEval(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:AEVAL/4", {|o, a| aEval(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:AINS/2", {|o, a| aIns(a[1], a[2])}})
+  AAdd(aT, {"f:ALIAS/0", {|o, a| Alias()}})
+  AAdd(aT, {"f:ALIAS/1", {|o, a| Alias(a[1])}})
+  AAdd(aT, {"f:ALLTRIM/1", {|o, a| AllTrim(a[1])}})
+  AAdd(aT, {"f:ARRAY/1", {|o, a| Array(a[1])}})
+  AAdd(aT, {"f:ARRAY/2", {|o, a| Array(a[1], a[2])}})
+  AAdd(aT, {"f:ASC/1", {|o, a| Asc(a[1])}})
+  AAdd(aT, {"f:ASCAN/2", {|o, a| aScan(a[1], a[2])}})
+  AAdd(aT, {"f:ASCAN/3", {|o, a| aScan(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:ASCAN/4", {|o, a| aScan(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:ASIZE/2", {|o, a| aSize(a[1], a[2])}})
+  AAdd(aT, {"f:ASORT/1", {|o, a| aSort(a[1])}})
+  AAdd(aT, {"f:ASORT/2", {|o, a| aSort(a[1], a[2])}})
+  AAdd(aT, {"f:ASORT/3", {|o, a| aSort(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:ASORT/4", {|o, a| aSort(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:AT/2", {|o, a| At(a[1], a[2])}})
+  AAdd(aT, {"f:AT/3", {|o, a| At(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:ATAIL/1", {|o, a| aTail(a[1])}})
+  AAdd(aT, {"f:ATTISMEMBEROF/2", {|o, a| AttIsMemberOf(a[1], a[2])}})
+  AAdd(aT, {"f:BOF/0", {|o, a| Bof()}})
+  AAdd(aT, {"f:CHR/1", {|o, a| Chr(a[1])}})
+  AAdd(aT, {"f:CONOUT/1", {|o, a| ConOut(a[1])}})
+  AAdd(aT, {"f:CONOUT/2", {|o, a| ConOut(a[1], a[2])}})
+  AAdd(aT, {"f:CONOUT/3", {|o, a| ConOut(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:CONOUT/4", {|o, a| ConOut(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:CONOUT/5", {|o, a| ConOut(a[1], a[2], a[3], a[4], a[5])}})
+  AAdd(aT, {"f:CONOUT/6", {|o, a| ConOut(a[1], a[2], a[3], a[4], a[5], a[6])}})
+  AAdd(aT, {"f:CTOD/1", {|o, a| CtoD(a[1])}})
+  AAdd(aT, {"f:CVALTOCHAR/1", {|o, a| cValToChar(a[1])}})
+  AAdd(aT, {"f:DATE/0", {|o, a| Date()}})
+  AAdd(aT, {"f:DAY/1", {|o, a| Day(a[1])}})
+  AAdd(aT, {"f:DBSELECTAREA/1", {|o, a| DbSelectArea(a[1])}})
+  AAdd(aT, {"f:DEC_ADD/2", {|o, a| DEC_ADD(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_CREATE/1", {|o, a| DEC_CREATE(a[1])}})
+  AAdd(aT, {"f:DEC_CREATE/2", {|o, a| DEC_CREATE(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_CREATE/3", {|o, a| DEC_CREATE(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:DEC_DIV/2", {|o, a| DEC_DIV(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_MOD/2", {|o, a| DEC_MOD(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_MUL/2", {|o, a| DEC_MUL(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_POW/2", {|o, a| DEC_POW(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_RESCALE/2", {|o, a| DEC_RESCALE(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_RESCALE/3", {|o, a| DEC_RESCALE(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:DEC_ROUND/2", {|o, a| DEC_ROUND(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_SUB/2", {|o, a| DEC_SUB(a[1], a[2])}})
+  AAdd(aT, {"f:DEC_TO_DBL/1", {|o, a| DEC_TO_DBL(a[1])}})
+  AAdd(aT, {"f:DTOC/1", {|o, a| DtoC(a[1])}})
+  AAdd(aT, {"f:DTOS/1", {|o, a| DtoS(a[1])}})
+  AAdd(aT, {"f:EMPTY/1", {|o, a| Empty(a[1])}})
+  AAdd(aT, {"f:EOF/0", {|o, a| Eof()}})
+  AAdd(aT, {"f:FCLOSE/1", {|o, a| FClose(a[1])}})
+  AAdd(aT, {"f:FIELDGET/1", {|o, a| FieldGet(a[1])}})
+  AAdd(aT, {"f:FIELDPOS/1", {|o, a| FieldPos(a[1])}})
+  AAdd(aT, {"f:FIELDPUT/2", {|o, a| FieldPut(a[1], a[2])}})
+  AAdd(aT, {"f:FILE/1", {|o, a| File(a[1])}})
+  AAdd(aT, {"f:FINDFUNCTION/1", {|o, a| FindFunction(a[1])}})
+  AAdd(aT, {"f:FOPEN/1", {|o, a| FOpen(a[1])}})
+  AAdd(aT, {"f:FOPEN/2", {|o, a| FOpen(a[1], a[2])}})
+  AAdd(aT, {"f:FT_FEOF/0", {|o, a| FT_FEof()}})
+  AAdd(aT, {"f:FT_FGOTOP/0", {|o, a| FT_FGoTop()}})
+  AAdd(aT, {"f:FT_FREADLN/0", {|o, a| FT_FReadLn()}})
+  AAdd(aT, {"f:FT_FSKIP/0", {|o, a| FT_FSkip()}})
+  AAdd(aT, {"f:FT_FSKIP/1", {|o, a| FT_FSkip(a[1])}})
+  AAdd(aT, {"f:FT_FUSE/0", {|o, a| FT_FUse()}})
+  AAdd(aT, {"f:FT_FUSE/1", {|o, a| FT_FUse(a[1])}})
+  AAdd(aT, {"f:INDEXORD/0", {|o, a| IndexOrd()}})
+  AAdd(aT, {"f:INT/1", {|o, a| Int(a[1])}})
+  AAdd(aT, {"f:ISALPHA/1", {|o, a| IsAlpha(a[1])}})
+  AAdd(aT, {"f:ISDIGIT/1", {|o, a| IsDigit(a[1])}})
+  AAdd(aT, {"f:ISLOWER/1", {|o, a| IsLower(a[1])}})
+  AAdd(aT, {"f:ISUPPER/1", {|o, a| IsUpper(a[1])}})
+  AAdd(aT, {"f:LEFT/2", {|o, a| Left(a[1], a[2])}})
+  AAdd(aT, {"f:RANDOM/1", {|o, a| Random(a[1])}})
+  AAdd(aT, {"f:RANDOM/2", {|o, a| Random(a[1], a[2])}})
+  AAdd(aT, {"f:LEN/1", {|o, a| Len(a[1])}})
+  AAdd(aT, {"f:LOWER/1", {|o, a| Lower(a[1])}})
+  AAdd(aT, {"f:LTRIM/1", {|o, a| LTrim(a[1])}})
+  AAdd(aT, {"f:MAX/2", {|o, a| Max(a[1], a[2])}})
+  AAdd(aT, {"f:MEMOREAD/1", {|o, a| MemoRead(a[1])}})
+  AAdd(aT, {"f:MEMOWRITE/2", {|o, a| MemoWrite(a[1], a[2])}})
+  AAdd(aT, {"f:MIN/2", {|o, a| Min(a[1], a[2])}})
+  AAdd(aT, {"f:MOD/2", {|o, a| Mod(a[1], a[2])}})
+  AAdd(aT, {"f:MONTH/1", {|o, a| Month(a[1])}})
+  AAdd(aT, {"f:PADC/2", {|o, a| PadC(a[1], a[2])}})
+  AAdd(aT, {"f:PADC/3", {|o, a| PadC(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:PADL/2", {|o, a| PadL(a[1], a[2])}})
+  AAdd(aT, {"f:PADL/3", {|o, a| PadL(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:PADR/2", {|o, a| PadR(a[1], a[2])}})
+  AAdd(aT, {"f:PADR/3", {|o, a| PadR(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:QOUT/0", {|o, a| QOut()}})
+  AAdd(aT, {"f:QOUT/1", {|o, a| QOut(a[1])}})
+  AAdd(aT, {"f:QOUT/2", {|o, a| QOut(a[1], a[2])}})
+  AAdd(aT, {"f:QOUT/3", {|o, a| QOut(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:QOUT/4", {|o, a| QOut(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:QOUT/5", {|o, a| QOut(a[1], a[2], a[3], a[4], a[5])}})
+  AAdd(aT, {"f:QOUT/6", {|o, a| QOut(a[1], a[2], a[3], a[4], a[5], a[6])}})
+  AAdd(aT, {"f:RANDOMIZE/2", {|o, a| Randomize(a[1], a[2])}})
+  AAdd(aT, {"f:RAT/2", {|o, a| RAt(a[1], a[2])}})
+  AAdd(aT, {"f:RECNO/0", {|o, a| RecNo()}})
+  AAdd(aT, {"f:REPLICATE/2", {|o, a| Replicate(a[1], a[2])}})
+  AAdd(aT, {"f:RIGHT/2", {|o, a| Right(a[1], a[2])}})
+  AAdd(aT, {"f:ROUND/2", {|o, a| Round(a[1], a[2])}})
+  AAdd(aT, {"f:RTRIM/1", {|o, a| RTrim(a[1])}})
+  AAdd(aT, {"f:SECONDS/0", {|o, a| Seconds()}})
+  AAdd(aT, {"f:SELECT/0", {|o, a| Select()}})
+  AAdd(aT, {"f:SELECT/1", {|o, a| Select(a[1])}})
+  AAdd(aT, {"f:SPACE/1", {|o, a| Space(a[1])}})
+  AAdd(aT, {"f:SQRT/1", {|o, a| Sqrt(a[1])}})
+  AAdd(aT, {"f:STOD/1", {|o, a| StoD(a[1])}})
+  AAdd(aT, {"f:STR/1", {|o, a| Str(a[1])}})
+  AAdd(aT, {"f:STR/2", {|o, a| Str(a[1], a[2])}})
+  AAdd(aT, {"f:STR/3", {|o, a| Str(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:STRTRAN/2", {|o, a| StrTran(a[1], a[2])}})
+  AAdd(aT, {"f:STRTRAN/3", {|o, a| StrTran(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:STRTRAN/4", {|o, a| StrTran(a[1], a[2], a[3], a[4])}})
+  AAdd(aT, {"f:STRTRAN/5", {|o, a| StrTran(a[1], a[2], a[3], a[4], a[5])}})
+  AAdd(aT, {"f:STRZERO/2", {|o, a| StrZero(a[1], a[2])}})
+  AAdd(aT, {"f:STRZERO/3", {|o, a| StrZero(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:SUBSTR/2", {|o, a| SubStr(a[1], a[2])}})
+  AAdd(aT, {"f:SUBSTR/3", {|o, a| SubStr(a[1], a[2], a[3])}})
+  AAdd(aT, {"f:TIME/0", {|o, a| Time()}})
+  AAdd(aT, {"f:TRANSFORM/2", {|o, a| Transform(a[1], a[2])}})
+  AAdd(aT, {"f:TRIM/1", {|o, a| Trim(a[1])}})
+  AAdd(aT, {"f:UPPER/1", {|o, a| Upper(a[1])}})
+  AAdd(aT, {"f:USEREXCEPTION/1", {|o, a| UserException(a[1])}})
+  AAdd(aT, {"f:VAL/1", {|o, a| Val(a[1])}})
+  AAdd(aT, {"f:VALTYPE/1", {|o, a| ValType(a[1])}})
+  AAdd(aT, {"f:YEAR/1", {|o, a| Year(a[1])}})
+  AAdd(aT, {"m:GET/2:2", {|o, a, v, r| v := a[2], r := o:Get(a[1], @v), a[2] := v, r}})
+  AAdd(aT, {"m:SET/2", {|o, a| o:Set(a[1], a[2])}})
+  AAdd(aT, {"m:DEL/1", {|o, a| o:Del(a[1])}})
+  AAdd(aT, {"m:LIST/1:1", {|o, a, v, r| v := a[1], r := o:List(@v), a[1] := v, r}})
+  AAdd(aT, {"m:CLEAN/0", {|o, a| o:Clean()}})
+  AAdd(aT, {"m:TOJSON/0", {|o, a| o:toJson()}})
+  AAdd(aT, {"m:FROMJSON/1", {|o, a| o:fromJson(a[1])}})
+  AAdd(aT, {"m:GETNAMES/0", {|o, a| o:GetNames()}})
+  AAdd(aT, {"m:GETJSONTEXT/1", {|o, a| o:GetJsonText(a[1])}})
+  AAdd(aT, {"m:GETJSONOBJECT/1", {|o, a| o:GetJsonObject(a[1])}})
+  AAdd(aT, {"m:HASPROPERTY/1", {|o, a| o:HasProperty(a[1])}})
+  AAdd(aT, {"m:DELNAME/1", {|o, a| o:DelName(a[1])}})
+  AAdd(aT, {"n:THASHMAP:NEW/0", {|o, a| THashMap():New()}})
+  AAdd(aT, {"n:JSONOBJECT:NEW/0", {|o, a| JsonObject():New()}})
+  AAdd(aT, {"n:ERRORCLASS:NEW/0", {|o, a| ErrorClass():New()}})
+  AAdd(aT, {"g:DESCRIPTION", {|o, a| o:Description}})
+  AAdd(aT, {"g:OPERATION", {|o, a| o:Operation}})
+  AAdd(aT, {"g:SUBSYSTEM", {|o, a| o:SubSystem}})
+  AAdd(aT, {"g:GENCODE", {|o, a| o:GenCode}})
+  AAdd(aT, {"g:SUBCODE", {|o, a| o:SubCode}})
+  AAdd(aT, {"g:SEVERITY", {|o, a| o:Severity}})
+  AAdd(aT, {"g:ERRORSTACK", {|o, a| o:ErrorStack}})
+  AAdd(aT, {"g:FILENAME", {|o, a| o:FileName}})
+  AAdd(aT, {"g:OSCODE", {|o, a| o:OsCode}})
+  AAdd(aT, {"s:DESCRIPTION", {|o, a| o:Description := a}})
+  AAdd(aT, {"s:OPERATION", {|o, a| o:Operation := a}})
+  AAdd(aT, {"s:SUBSYSTEM", {|o, a| o:SubSystem := a}})
+Return aT
+
 // ---- code blocks ------------------------------------------------------------
 // The program's code block: one of the AppServer's that runs it here, with
-// as many arguments as its function takes.
-Method MakeBlock(aClo) Class XbcVM
+// as many arguments as its function takes. Its closure is a Local made
+// here: made in a method, from one call site run again and again, every
+// block the AppServer made saw the parameter of the last call -- every
+// block of the program ran as the last one made (02-blocks, 09-classes on
+// 24.3.1.9).
+Static Function XbcMakeBlock(oVM, aFn, aCells, xSelf)
+  Local aClo := {aFn, aCells, xSelf}
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
-        ::Enter(aClo, {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12})}
+        oVM:Enter(aClo, {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12})}
 
 Method Enter(aClo, aArgs) Class XbcVM
   Local xResult
