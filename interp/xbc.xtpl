@@ -3104,23 +3104,27 @@ Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
 // (JitWhole()): one of the AppServer's that runs that block, with the
 // cells, the constants, the statics -- for one that has some -- and the
 // object, and what it was given. snFast says, while it runs, whose it is:
-// an error in it is on the function's line (OnError()). Its closure holds
-// no array of the machine's either (XbcMakeBlock()).
+// an error in it is on the function's line (OnError()). What it uses are
+// Locals made here: a block that used a parameter of this function got Nil
+// for it (02-blocks on 24.3.1.9; XbcMakeBlock()). Its closure holds no
+// array of the machine's either.
 Static Function XbcMakeFast(aFast, aCells, xSelf)
   Local bFast := aFast[1]
   Local aK := aFast[2]
   Local aT := aFast[3]
   Local nFn := aFast[4]
+  Local aC := aCells
+  Local xO := xSelf
   Do Case
   Case aFast[5] == 0
-    Return {|r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf), snFast := 0, r}
+    Return {|r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO), snFast := 0, r}
   Case aFast[5] == 1
-    Return {|p1, r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf, p1), snFast := 0, r}
+    Return {|p1, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, p1), snFast := 0, r}
   Case aFast[5] == 2
-    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf, p1, p2), snFast := 0, r}
+    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, p1, p2), snFast := 0, r}
   EndCase
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
-        r := Eval(bFast, aCells, aK, aT, xSelf, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
+        r := Eval(bFast, aC, aK, aT, xO, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
 
 // A block run: its frame, its parameters from what it was given, in Run() --
 // Enter1() in Run1(), and so on.
