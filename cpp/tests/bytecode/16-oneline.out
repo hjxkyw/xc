@@ -16,5 +16,7 @@ big!!!
 1
 4
 28
+big!!!9174
+0
 --- errors
-xc-vm: error: type mismatch on +  (U_MAIN, line 28)
+xc-vm: error: type mismatch on +  (U_MAIN, line 30)

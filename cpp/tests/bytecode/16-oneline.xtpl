@@ -1,7 +1,7 @@
 // Statements on one line -- 'if c exec s, s else s', 'while c exec s',
-// 'for x in a exec s', 'for n times exec s', a one-line form inside another
-// in parentheses --, each the block it stands for, and an error in one: on
-// its line.
+// 'for i := a to b exec s', 'for x in a exec s', 'for n times exec s', a
+// one-line form inside another in parentheses --, each the block it stands
+// for, and an error in one: on its line.
 User Function Main()
   Local aNums := {4, 7, 1, 9}
   Local nSum := 0
@@ -25,6 +25,8 @@ User Function Main()
   nI := 0
   while .T. exec nI++, (if nI >= 4 exec exit else nSum++)
   ConOut(nI, nSum)
+  For nI := Len(aNums) To 1 Step -1 exec cOut += Str(aNums[nI], 1)
+  ConOut(cOut, nI)
   if nSum > 0 exec nOdd := 0, nSum := nSum + "x"
 Return nSum
 

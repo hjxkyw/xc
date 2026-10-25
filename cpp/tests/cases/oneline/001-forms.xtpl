@@ -17,4 +17,7 @@ User Function Forms(aItems)
   for len(aItems) times exec nSum++
   for nJ in 1..5 exec nSum += nJ
   for nJ, nK in nI..nSum exec nSum += nJ * nK
+  For nI := 1 To Len(aItems) exec nSum += aItems[nI]
+  for nI := 10 to 1 step -3 exec nSum -= nI, conout(nI)
+  for local nL := 1 to 3 exec nSum += nL
 Return nSum

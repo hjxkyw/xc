@@ -1530,6 +1530,18 @@ namespace xc
         out.push_back("EndDo");
         break;
       }
+      case SK::ForStmt:
+      {
+        // TL++'s own: a block local counter renamed, and declared.
+        auto f = static_cast<const ForStmt*>(s);
+        std::string x = f->var_local ? nm(s, f->var) : local(f->var);
+        if (f->var_local) { hoist(x, "a block local"); }
+        out.push_back("For " + x + " := " + expr(f->from_) + " To " + expr(f->to_)
+                      + (f->step ? " Step " + expr(f->step) : ""));
+        body(f->body, 0, true);
+        out.push_back("Next");
+        break;
+      }
       case SK::ForTimesStmt:
       {
         auto f = static_cast<const ForTimesStmt*>(s);

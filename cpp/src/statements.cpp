@@ -2947,8 +2947,9 @@ namespace xc
   }
 
   // ---- one-line forms -------------------------------------------------------
-  // 'if c exec s, s [else s, s]', 'while c exec s, s', 'for x [, i] in a exec
-  // s, s', 'for n times exec s, s': the block on one line. A branch is
+  // 'if c exec s, s [else s, s]', 'while c exec s, s', 'for i := a to b exec
+  // s, s', 'for x [, i] in a exec s, s', 'for n times exec s, s': the block on
+  // one line. A branch is
   // statements between commas -- simple ones, or groups in parentheses -- up
   // to 'else', the ')' of its group or the end of the line. A one-line form
   // inside another's branch goes in a group, and takes the rest of it; one
@@ -3029,6 +3030,10 @@ namespace xc
       if (!s)
       {
         s = fortimesst();
+      }
+      if (!s)
+      {
+        s = forst();
       }
     }
     if (!s || !s->oneline)
@@ -3397,7 +3402,22 @@ namespace xc
         p_ = save;
       }
     }
-    if (!ws() || !nl() || !ws())
+    if (!ws())
+    {
+      return fail();
+    }
+    if (exec_at())
+    {
+      // On one line: 'for i := a to b [step s] exec s, s'.
+      p_ += 4;
+      if (!oneline_branch(s->body, false))
+      {
+        return fail();
+      }
+      s->oneline = true;
+      return s;
+    }
+    if (!nl() || !ws())
     {
       return fail();
     }

@@ -213,24 +213,52 @@ function U_MAIN user 0 14
   call 2 ConOut
   pop
   line 28
+  local 1
+  call 1 Len
+  setlocal 4
+  line 28
+  local 4
+  num 1
+  ge
+  jumpf 232
+  local 5
+  local 1
+  local 4
+  index
+  num 1
+  call 2 Str
+  add
+  setlocal 5
+  local 4
+  num 1
+  neg
+  add
+  setlocal 4
+  jump 213
+  line 29
+  local 5
+  local 4
+  call 2 ConOut
+  pop
+  line 30
   local 2
   num 0
   gt
-  jumpf 220
+  jumpf 248
   num 0
   setlocal 3
   local 2
   str "x"
   add
   setlocal 2
-  line 29
+  line 31
   local 2
   ret
 end
 
 function SIGN static 1 1
   locals nX
-  line 32
+  line 34
   local 1
   num 0
   lt
@@ -248,7 +276,7 @@ function SIGN static 1 1
   jump 19
   num 1
   ret
-  line 33
+  line 35
   nil
   ret
 end

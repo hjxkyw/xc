@@ -8,7 +8,7 @@ User Function Forms(aItems)
   Local nI := 0
   Local nSum := 0
   Local lBig := .F.
-  Local s_0_0  // a slot: the block locals 'oItem', 'nJ'
+  Local s_0_0  // a slot: the block locals 'oItem', 'nJ', 'nL'
   Local fs_0_0  // the source of a 'for ... in'
   Local fi_0_0  // the counter of a 'for ... in'
   Local s_0_1  // a slot: the block locals 'nPos', 'nK'
@@ -62,5 +62,15 @@ User Function Forms(aItems)
     s_0_0 := fi_0_4
     s_0_1++
     nSum += s_0_0 * s_0_1
+  Next
+  For nI := 1 To Len(aItems)
+    nSum += aItems[nI]
+  Next
+  For nI := 10 To 1 Step -3
+    nSum -= nI
+    conout(nI)
+  Next
+  For s_0_0 := 1 To 3
+    nSum += s_0_0
   Next
 Return nSum

@@ -751,8 +751,8 @@ statement, and only exists with a modifier.
 
 ### One-line forms
 
-An `if`, a `while`, a `for ... in` and a `for ... times` may be written on
-one line, the condition first and the statements after `exec`:
+An `if`, a `while`, a `For`, a `for ... in` and a `for ... times` may be
+written on one line, the condition first and the statements after `exec`:
 
 ```xtpl
 User Function OneLine(aItems)
@@ -798,8 +798,9 @@ User Function OneLine(aItems)
 Return nSum
 ```
 
-`if c exec s, s else s, s`, `while c exec s, s`, `for x [, i] in source exec
-s, s` and `for n times exec s, s` are the blocks they stand for. A branch is
+`if c exec s, s else s, s`, `while c exec s, s`, `For i := a To b [Step s]
+exec s, s`, `for x [, i] in source exec s, s` and `for n times exec s, s` are
+the blocks they stand for. A branch is
 statements between commas -- the simple statements a modifier takes --,
 and runs to its `else`, to the `)` of its group, or to the end of the line:
 the commas are always the innermost form's. A group, `( ... )`, holds
