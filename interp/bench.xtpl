@@ -14,35 +14,67 @@
 // -----------------------------------------------------------------------------
 
 User Function bench()
-  Local aTen := {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-  Timed("loop", {|n| Looped(n)}, 1000)
-  Timed("call", {|n| Called(n)}, 1000)
-  Timed("native", {|n| Natives(n)}, 1000)
-  Timed("stuff", {|n| Stuffed(n)}, 1000) if !FindFunction("XBC_CALL")
-  Timed("array", {|n| Indexed(n)}, 1000)
-  Timed("string", {|n| Joined(n)}, 1000)
-  Timed("method", {|n| Methods(n)}, 1000)
-  Timed("member", {|n| Members(n)}, 1000)
-  Timed("block", {|n| Blocks(n)}, 1000)
-  Timed("aeval", {|n| Evals(n, aTen)}, 1000)
-  Timed("hash", {|n| Hashed(n)}, 1000)
-  Timed("pipe", {|n| Piped(n, aTen)}, 1000)
+  Timed("loop", 1000)
+  Timed("call", 1000)
+  Timed("native", 1000)
+  Timed("stuff", 1000) if !FindFunction("XBC_CALL")
+  Timed("array", 1000)
+  Timed("string", 1000)
+  Timed("method", 1000)
+  Timed("member", 1000)
+  Timed("block", 1000)
+  Timed("aeval", 1000)
+  Timed("hash", 1000)
+  Timed("pipe", 1000)
 Return Nil
 
 // A part, round after round for a second at least: the time of one of the
 // N things a round does. Seconds() starts again from 0 at midnight: a part
 // timed across it ran for ever.
-Static Function Timed(cName, bPart, nN)
+Static Function Timed(cName, nN)
   Local nRounds := 0
   Local nStart := Seconds()
   Local nSpent := 0
   While nSpent < 1
-    Eval(bPart, nN)
+    Part(cName, nN)
     nRounds++
     nSpent := Seconds() - nStart
     nSpent += 86400 if nSpent < 0
   EndDo
   ConOut("bench " + PadR(cName, 8) + Str(nSpent * 1000000 / (nRounds * nN), 12, 3) + " us")
+Return Nil
+
+// A round of a part, called as a program calls a function: a part's code
+// blocks run one deep, as a program's do as a rule -- not inside a block
+// of the bench's own.
+Static Function Part(cName, nN)
+  Local aTen := {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+  Do Case
+  Case cName == "loop"
+    Looped(nN)
+  Case cName == "call"
+    Called(nN)
+  Case cName == "native"
+    Natives(nN)
+  Case cName == "stuff"
+    Stuffed(nN)
+  Case cName == "array"
+    Indexed(nN)
+  Case cName == "string"
+    Joined(nN)
+  Case cName == "method"
+    Methods(nN)
+  Case cName == "member"
+    Members(nN)
+  Case cName == "block"
+    Blocks(nN)
+  Case cName == "aeval"
+    Evals(nN, aTen)
+  Case cName == "hash"
+    Hashed(nN)
+  Case cName == "pipe"
+    Piped(nN, aTen)
+  EndCase
 Return Nil
 
 // Locals, numbers, a loop.
