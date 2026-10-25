@@ -1,0 +1,60 @@
+# The interpreter's loop, Run() of interp/xbc.xtpl, three times again under
+# other names -- Run1(), Run2(), Run3() --, between the lines '// >>> the
+# loop's copies' and '// <<< the loop's copies': the AppServer enters a
+# function that is already running further down at a cost that grows with
+# its size, and a run inside a run is the next copy instead. ctest's interp
+# checks them; after a change of Run(), write them again:
+#
+#   cmake -DROOT=. -DUPDATE=1 -P cpp/tests/loop-copies.cmake
+
+cmake_policy(SET CMP0054 NEW)
+get_filename_component(ROOT "${ROOT}" ABSOLUTE)
+set(source ${ROOT}/interp/xbc.xtpl)
+file(READ ${source} text)
+string(REPLACE "\r\n" "\n" text "${text}")
+set(head "Method Run(nBase) Class XbcVM\n")
+set(tail "\nReturn xResult\n")
+string(FIND "${text}" "${head}" from)
+if(from EQUAL -1)
+  message(FATAL_ERROR "  interp/xbc.xtpl: no 'Method Run(nBase) Class XbcVM'")
+endif()
+string(SUBSTRING "${text}" ${from} -1 rest)
+string(FIND "${rest}" "${tail}" end)
+if(end EQUAL -1)
+  message(FATAL_ERROR "  interp/xbc.xtpl: Run() does not end with 'Return xResult'")
+endif()
+string(LENGTH "${tail}" length)
+math(EXPR end "${end} + ${length}")
+string(SUBSTRING "${rest}" 0 ${end} loop)
+set(copies "")
+foreach(n 1 2 3)
+  if(n GREATER 1)
+    string(APPEND copies "\n")
+  endif()
+  string(REPLACE "${head}" "Method Run${n}(nBase) Class XbcVM\n" one "${loop}")
+  string(APPEND copies "${one}")
+endforeach()
+
+set(open "// >>> the loop's copies\n")
+set(close "// <<< the loop's copies\n")
+string(FIND "${text}" "${open}" from)
+string(FIND "${text}" "${close}" to)
+if(from EQUAL -1 OR to EQUAL -1 OR to LESS from)
+  message(FATAL_ERROR "  interp/xbc.xtpl: no lines '// >>> the loop's copies' and '// <<< the loop's copies'")
+endif()
+string(LENGTH "${open}" skip)
+math(EXPR start "${from} + ${skip}")
+math(EXPR length "${to} - ${start}")
+string(SUBSTRING "${text}" ${start} ${length} have)
+if(have STREQUAL copies)
+  return()
+endif()
+if(UPDATE)
+  string(SUBSTRING "${text}" 0 ${start} before)
+  string(SUBSTRING "${text}" ${to} -1 after)
+  file(WRITE ${source} "${before}${copies}${after}")
+  message("  interp/xbc.xtpl: the loop's copies written again")
+else()
+  message(FATAL_ERROR "  interp/xbc.xtpl: the loop's copies are not Run()'s; "
+                      "write them again: cmake -DROOT=. -DUPDATE=1 -P cpp/tests/loop-copies.cmake")
+endif()

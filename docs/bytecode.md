@@ -520,18 +520,30 @@ It runs what it loads as the loop is fastest at it:
   setlocal a`, `x += n`; `num n, add`; `add, setlocal a`; a comparison and
   the `jumpf` after it -- never over an instruction something jumps to;
 - a function's frame has one array for its locals and its stack, as big as
-  the most its stack holds, worked out when it is loaded;
+  the most its stack holds, worked out when it is loaded; the frame itself
+  is an array of eight -- the AppServer takes longer to make a longer one
+  --, what few frames have (references, regions, areas, defers, privates)
+  in one more, made the first time a frame needs it;
 - the instructions are numbered by how often programs run them, and the
   loop asks for the most frequent first;
 - a call finds what it calls the first time it runs, and keeps it: a
   function of a module, one of the AppServer's in the table, `PCount()`,
-  `Eval()` of a block -- with no argument by reference -- are then made by
-  the loop itself, a frame pushed or the table's block run, with no method
-  between; a method of a module's class, and of the AppServer's objects,
-  the same way;
+  `Eval()` of a block, another of the AppServer's -- with no argument by
+  reference -- are then made by the loop itself, a frame pushed, the
+  table's block run or the block a macro made for that call once, with no
+  method between; a method of a module's class, and of the AppServer's
+  objects, the same way;
 - an object of a module's class keeps its data in an array, each at the
   place its class gives its name; `member` and `setmember` find the place
-  once for the class they see.
+  once for the class they see;
+- a run inside a run -- a code block of the program's that the AppServer
+  runs, from `aEval()`, `aSort()`, the runtime's verbs, `Eval()` -- is
+  another copy of the loop: the AppServer enters a function that is
+  already running further down at a cost that grows with its size, some
+  45 us for the loop, where calling it costs 5 (probes xea, xeb on
+  24.3.1.9). There are four, and a run goes to the copy after the one
+  running; `cpp/tests/loop-copies.cmake` writes `Run1()` to `Run3()` from
+  `Run()`, and ctest's `interp` checks them.
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.

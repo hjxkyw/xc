@@ -12,7 +12,8 @@
 # xtpl's self-test runs a second time without the runtime's bytecode: the
 # runtime's calls are the AppServer's then -- the interpreter's table of
 # them, on xc-vm its own runtime. And the table has to have each of the
-# runtime's functions (runtime-calls.cmake).
+# runtime's functions (runtime-calls.cmake), and the loop's copies have to
+# be the loop (loop-copies.cmake).
 #
 # CMake runs it as a test (ctest), 'interp' and 'interp-xc'. "\r\n" is read
 # as "\n".
@@ -68,6 +69,7 @@ if(NOT code EQUAL 0 OR said MATCHES "warning")
   message(FATAL_ERROR "  interp/xbc.xtpl, as TL++:\n${said}")
 endif()
 include(${CMAKE_CURRENT_LIST_DIR}/runtime-calls.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/loop-copies.cmake)
 compile(${ROOT}/interp/xbc.xtpl xbc)
 compile(${ROOT}/runtime/xtpl_runtime.tlpp xtpl_runtime)
 set(failed "")
