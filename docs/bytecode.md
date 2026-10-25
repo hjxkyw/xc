@@ -596,11 +596,12 @@ It runs what it loads as the loop is fastest at it:
   there -- ctest's `interp` runs each case so too, and has it do what it
   did without.
 
-  A code block's function that is one such run and its `ret` -- most of a
-  program's: `[x] x * 3`, `{|x| nSum += x}` -- is one block of the macro
-  compiler's whole, made the first time a block of it is made, and the
-  program's block runs that itself: no frame, no copy of the loop, no
-  `Enter()`:
+  A function that is one such run and its `ret` -- most of a program's
+  code blocks, `[x] x * 3`, `{|x| nSum += x}`, and small functions,
+  `Return nA + nB` -- is one block of the macro compiler's whole, made the
+  first time a block of it is made or a call finds it, and the program's
+  block runs that itself, and so does the call from its second time: no
+  frame, no copy of the loop, no `Enter()`:
 
   ```text
   upval 1, local 1, add, dup, setupval 1, ret
@@ -608,8 +609,9 @@ It runs what it loads as the loop is fastest at it:
   ```
 
   P1, P2, ... are its parameters -- none, one, two or 12 of them, as many
-  as the block passes --, L its other locals, and the last expression what
-  it gives. An error in it is on the function's line, as in the loop.
+  as a block or a call passes it --, L its other locals, and the last
+  expression what it gives. An error in it is on the function's line, as
+  in the loop (`cpp/tests/bytecode/13-whole`).
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.

@@ -1,0 +1,388 @@
+xbc 1
+source 13-whole.xtpl
+statics 1
+
+function __INIT init 0 0
+  locals
+  line 5
+  num 100
+  setstatic 1
+  nil
+  ret
+end
+
+function U_MAIN user 0 7
+  locals nSum aNums bTwice bNone bFour nI oErr
+  box 1
+  line 8
+  num 0
+  setcell 1
+  line 9
+  num 5
+  num 3
+  num 9
+  num 1
+  array 4
+  setlocal 2
+  line 10
+  block U_MAIN#1 0
+  setlocal 3
+  line 11
+  refcell 1
+  block U_MAIN#2 1
+  setlocal 4
+  line 12
+  block U_MAIN#3 0
+  setlocal 5
+  line 16
+  num 1
+  setlocal 6
+  line 16
+  local 6
+  num 3
+  le
+  jumpf 55
+  line 17
+  cell 1
+  local 6
+  call 1 Twice
+  local 6
+  num 1
+  call 2 Plus
+  add
+  local 6
+  num 1
+  num 1
+  num 1
+  num 1
+  call 5 Five
+  add
+  local 6
+  call 1 Based
+  add
+  add
+  setcell 1
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 25
+  line 19
+  cell 1
+  call 1 ConOut
+  pop
+  line 20
+  num 1
+  setlocal 6
+  line 20
+  local 6
+  num 2
+  le
+  jumpf 90
+  line 21
+  str "a"
+  str "b"
+  str "c"
+  call 3 Words
+  local 6
+  call 1 Halves
+  num 4
+  num 1
+  call 3 Str
+  add
+  str " "
+  add
+  call 0 Unset
+  call 1 ValType
+  add
+  call 1 ConOut
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 62
+  line 24
+  num 0
+  setcell 1
+  line 25
+  local 2
+  refcell 1
+  block U_MAIN#4 1
+  call 2 aEval
+  pop
+  line 26
+  cell 1
+  call 1 ConOut
+  pop
+  line 27
+  local 2
+  local 3
+  call 2 aEval
+  pop
+  line 28
+  local 3
+  num 21
+  call 2 Eval
+  local 4
+  call 1 Eval
+  local 5
+  num 1
+  num 2
+  num 3
+  num 4
+  call 5 Eval
+  call 3 ConOut
+  pop
+  line 29
+  local 2
+  nil
+  nil
+  block U_MAIN#5 0
+  call 4 aSort
+  pop
+  line 30
+  local 2
+  num 1
+  index
+  local 2
+  num 4
+  index
+  call 2 ConOut
+  pop
+  line 31
+  num 1
+  setlocal 6
+  line 31
+  local 6
+  num 2
+  le
+  jumpf 158
+  line 32
+  block U_MAIN#6 0
+  str "n"
+  local 6
+  call 3 Eval
+  call 1 ConOut
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 141
+  line 35
+  try 186
+  line 36
+  num 1
+  setlocal 6
+  line 36
+  local 6
+  num 3
+  le
+  jumpf 184
+  line 37
+  local 6
+  num 3
+  lt
+  jumpf 175
+  local 6
+  jump 176
+  str "x"
+  call 1 Twice
+  call 1 ConOut
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 163
+  endseq
+  jump 194
+  setlocal 7
+  line 40
+  str "caught: "
+  local 7
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 42
+  try 205
+  line 43
+  num 1
+  str "x"
+  array 2
+  local 3
+  call 2 aEval
+  pop
+  endseq
+  jump 213
+  setlocal 7
+  line 45
+  str "caught: "
+  local 7
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 47
+  num 1
+  array 0
+  array 2
+  refcell 1
+  block U_MAIN#7 1
+  call 2 aEval
+  pop
+  line 48
+  cell 1
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals x
+  line 10
+  local 1
+  num 2
+  mul
+  ret
+end
+
+function U_MAIN#2 block 0 0
+  locals
+  upvals nSum
+  line 11
+  upval 1
+  num 1
+  add
+  ret
+end
+
+function U_MAIN#3 block 4 4
+  locals a b c d
+  line 12
+  local 1
+  local 2
+  add
+  local 3
+  add
+  local 4
+  add
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals x
+  upvals nSum
+  line 25
+  upval 1
+  local 1
+  add
+  dup
+  setupval 1
+  ret
+end
+
+function U_MAIN#5 block 2 2
+  locals a b
+  line 29
+  local 1
+  local 2
+  gt
+  ret
+end
+
+function U_MAIN#6 block 2 2
+  locals x y
+  line 32
+  local 1
+  local 2
+  num 1
+  call 2 Str
+  add
+  ret
+end
+
+function U_MAIN#7 block 1 1
+  locals x
+  upvals nSum
+  line 47
+  upval 1
+  local 1
+  add
+  dup
+  setupval 1
+  ret
+end
+
+function TWICE static 1 1
+  locals nX
+  line 51
+  local 1
+  num 2
+  mul
+  ret
+end
+
+function PLUS static 2 2
+  locals nA nB
+  line 54
+  local 1
+  local 2
+  add
+  ret
+end
+
+function FIVE static 5 5
+  locals a b c d e
+  line 57
+  local 1
+  local 2
+  add
+  local 3
+  add
+  local 4
+  add
+  local 5
+  add
+  ret
+end
+
+function BASED static 1 1
+  locals nX
+  line 60
+  local 1
+  static 1
+  add
+  ret
+end
+
+function WORDS static 3 3
+  locals cA cB cC
+  line 63
+  local 1
+  str "-"
+  add
+  local 2
+  add
+  str "-"
+  add
+  local 3
+  add
+  ret
+end
+
+function HALVES static 1 1
+  locals nX
+  line 66
+  local 1
+  num 2
+  div
+  ret
+end
+
+function UNSET static 1 1
+  locals xNone
+  line 69
+  local 1
+  ret
+end

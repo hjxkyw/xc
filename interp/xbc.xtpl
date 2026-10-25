@@ -157,13 +157,16 @@
 // at a call is there every time: K_FN a function of a module, I_X; K_SYS
 // one of the AppServer's in the table, the block I_X; K_PCOUNT, K_EVAL of a
 // block; K_MACRO another of the AppServer's, the block a macro made for it,
-// I_X; K_SLOW any other, through Invoke(). For a method: K_FN when it has
-// no reference, K_SLOW when it has.
+// I_X; K_WHOLE a function of a module that is a whole of the JIT's, what
+// runs instead of it, I_X (JitWhole()); K_SLOW any other, through
+// Invoke(). For a method: K_FN when it has no reference, K_SLOW when it
+// has.
 #define K_FN      1
 #define K_SYS     2
 #define K_PCOUNT  3
 #define K_EVAL    4
 #define K_MACRO   5
+#define K_WHOLE   6
 #define K_SLOW    9
 
 // A function: {name, kind, parameters, locals, module, instructions, the
@@ -1216,6 +1219,26 @@ Method Run(nBase) Class XbcVM
               aSt := xA
               nSp := aFn[FN_NLOCALS]
               nPc := 1
+            ElseIf nK == K_WHOLE
+              // A function of a module that is a whole of the JIT's: its
+              // block, with no frame -- with as many arguments as it has
+              // places for (JitWhole()).
+              xB := aIns[I_X]
+              nAt := nSp - nN
+              snFast := xB[4]
+              Do Case
+              Case nN == 0 .Or. xB[5] == 0
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+              Case nN == 1 .Or. xB[5] == 1
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+              Case nN == 2 .Or. xB[5] == 2
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+              Otherwise
+                xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
+              EndCase
+              snFast := 0
+              nSp := nAt + 1
+              aSt[nSp] := xA
             Else
               aArgs := Array(nN)
               For nI := 1 To nN
@@ -1889,6 +1912,11 @@ Method Classify(aIns, xFound, aArgs) Class XbcVM
   Case ValType(xFound) == "A"
     aIns[I_K] := K_FN
     aIns[I_X] := xFound
+    ::JitWhole(xFound) if xFound[FN_FAST] == Nil
+    If ValType(xFound[FN_FAST]) == "A"
+      aIns[I_K] := K_WHOLE
+      aIns[I_X] := xFound[FN_FAST]
+    EndIf
   Case xFound == "PCOUNT"
     aIns[I_K] := K_PCOUNT
   Case xFound == "EVAL"
@@ -2127,16 +2155,19 @@ Method JitOps(aJ, aMod, aRun) Class XbcVM
   next
 Return .T.
 
-// A code block's function that is one run of the JIT's and its 'ret' --
-// most of a program's, '[x] x * 3', '{|x| nSum += x}' -- is one block the
-// macro compiler makes, the first time a block of it is made, that the
-// program's block runs itself, with no frame and no loop (XbcMakeFast()):
+// A function that is one run of the JIT's and its 'ret' -- most of a
+// program's code blocks, '[x] x * 3', '{|x| nSum += x}', and small
+// functions, 'Return nA + nB' -- is one block the macro compiler makes,
+// the first time a block of it is made or a call finds it (Classify()),
+// that the program's block runs itself (XbcMakeFast()), and the call
+// (K_WHOLE), with no frame and no loop:
 //
 //   {|XC, XK, XT, XO, P1, ..., L1, ..., X1, ...| statement, ..., value}
 //
-// P its parameters -- as many as the block passes, none, one, two or 12
-// --, L its other locals, then what a run's block has. A run that leaves
-// other than one value, or reads below it, is not one.
+// P its parameters -- as many as a block or a call passes it, none, one,
+// two or 12 --, L its other locals, then what a run's block has. A run
+// that leaves other than one value, or reads below it, is not one; a
+// plain function's has no cells and no Self.
 Method JitWhole(aFn) Class XbcVM
   Local aCode := aFn[FN_CODE]
   Local aIns := aCode[1]
@@ -3124,6 +3155,16 @@ Static Function XbcMakeFast(aFast, aCells, xSelf)
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
         r := Eval(bFast, aC, aK, aT, xO, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
 
+// A call of a whole of the JIT's with three to 12 arguments, from the stack
+// above nAt.
+Static Function XbcWhole(aFast, aSt, nAt, nN)
+  Local aA := Array(12)
+  For local nK := 1 To nN
+    aA[nK] := aSt[nAt + nK]
+  Next
+Return Eval(aFast[1], Nil, aFast[2], aFast[3], Nil, aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], aA[8], ;
+            aA[9], aA[10], aA[11], aA[12])
+
 // A block run: its frame, its parameters from what it was given, in Run() --
 // Enter1() in Run1(), and so on.
 Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
@@ -3272,6 +3313,26 @@ Method Run1(nBase) Class XbcVM
               aSt := xA
               nSp := aFn[FN_NLOCALS]
               nPc := 1
+            ElseIf nK == K_WHOLE
+              // A function of a module that is a whole of the JIT's: its
+              // block, with no frame -- with as many arguments as it has
+              // places for (JitWhole()).
+              xB := aIns[I_X]
+              nAt := nSp - nN
+              snFast := xB[4]
+              Do Case
+              Case nN == 0 .Or. xB[5] == 0
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+              Case nN == 1 .Or. xB[5] == 1
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+              Case nN == 2 .Or. xB[5] == 2
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+              Otherwise
+                xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
+              EndCase
+              snFast := 0
+              nSp := nAt + 1
+              aSt[nSp] := xA
             Else
               aArgs := Array(nN)
               For nI := 1 To nN
@@ -3829,6 +3890,26 @@ Method Run2(nBase) Class XbcVM
               aSt := xA
               nSp := aFn[FN_NLOCALS]
               nPc := 1
+            ElseIf nK == K_WHOLE
+              // A function of a module that is a whole of the JIT's: its
+              // block, with no frame -- with as many arguments as it has
+              // places for (JitWhole()).
+              xB := aIns[I_X]
+              nAt := nSp - nN
+              snFast := xB[4]
+              Do Case
+              Case nN == 0 .Or. xB[5] == 0
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+              Case nN == 1 .Or. xB[5] == 1
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+              Case nN == 2 .Or. xB[5] == 2
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+              Otherwise
+                xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
+              EndCase
+              snFast := 0
+              nSp := nAt + 1
+              aSt[nSp] := xA
             Else
               aArgs := Array(nN)
               For nI := 1 To nN
@@ -4386,6 +4467,26 @@ Method Run3(nBase) Class XbcVM
               aSt := xA
               nSp := aFn[FN_NLOCALS]
               nPc := 1
+            ElseIf nK == K_WHOLE
+              // A function of a module that is a whole of the JIT's: its
+              // block, with no frame -- with as many arguments as it has
+              // places for (JitWhole()).
+              xB := aIns[I_X]
+              nAt := nSp - nN
+              snFast := xB[4]
+              Do Case
+              Case nN == 0 .Or. xB[5] == 0
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+              Case nN == 1 .Or. xB[5] == 1
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+              Case nN == 2 .Or. xB[5] == 2
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+              Otherwise
+                xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
+              EndCase
+              snFast := 0
+              nSp := nAt + 1
+              aSt[nSp] := xA
             Else
               aArgs := Array(nN)
               For nI := 1 To nN

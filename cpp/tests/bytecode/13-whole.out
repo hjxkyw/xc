@@ -1,0 +1,19 @@
+exit 1
+--- output
+345
+a-b-c 0.5 U
+a-b-c 1.0 U
+18
+42
+19
+10
+9
+1
+n1
+n2
+2
+4
+caught: type mismatch on * 
+caught: type mismatch on * 
+--- errors
+xc-vm: error: type mismatch on +  (U_MAIN#7, line 47)

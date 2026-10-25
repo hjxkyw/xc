@@ -1,0 +1,69 @@
+// Functions and code blocks that are one line of plain work: the
+// interpreter runs each as one block of the AppServer's macro compiler
+// (JitWhole()) -- a call from its second time, a block from the first one
+// made. What they give, and an error in one: on its own line.
+Static nBase := 100
+
+User Function Main()
+  Local nSum := 0
+  Local aNums := {5, 3, 9, 1}
+  Local bTwice := {|x| x * 2}
+  Local bNone := {|| nSum + 1}
+  Local bFour := {|a, b, c, d| a + b + c + d}
+  Local nI
+  Local oErr
+
+  For nI := 1 To 3
+    nSum += Twice(nI) + Plus(nI, 1) + Five(nI, 1, 1, 1, 1) + Based(nI)
+  Next
+  ConOut(nSum)
+  For nI := 1 To 2
+    ConOut(Words("a", "b", "c") + Str(Halves(nI), 4, 1) + " " + ValType(Unset()))
+  Next
+
+  nSum := 0
+  aEval(aNums, {|x| nSum += x})
+  ConOut(nSum)
+  aEval(aNums, bTwice)
+  ConOut(Eval(bTwice, 21), Eval(bNone), Eval(bFour, 1, 2, 3, 4))
+  aSort(aNums, , , {|a, b| a > b})
+  ConOut(aNums[1], aNums[4])
+  For nI := 1 To 2
+    ConOut(Eval({|x, y| x + Str(y, 1)}, "n", nI))
+  Next
+
+  Try
+    For nI := 1 To 3
+      ConOut(Twice(If(nI < 3, nI, "x")))
+    Next
+  Catch oErr
+    ConOut("caught: " + oErr:Description)
+  EndTry
+  Try
+    aEval({1, "x"}, bTwice)
+  Catch oErr
+    ConOut("caught: " + oErr:Description)
+  EndTry
+  aEval({1, {}}, {|x| nSum += x})
+Return nSum
+
+Static Function Twice(nX)
+Return nX * 2
+
+Static Function Plus(nA, nB)
+Return nA + nB
+
+Static Function Five(a, b, c, d, e)
+Return a + b + c + d + e
+
+Static Function Based(nX)
+Return nX + nBase
+
+Static Function Words(cA, cB, cC)
+Return cA + "-" + cB + "-" + cC
+
+Static Function Halves(nX)
+Return nX / 2
+
+Static Function Unset(xNone)
+Return xNone
