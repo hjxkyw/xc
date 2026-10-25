@@ -1060,17 +1060,24 @@ Method Run(nBase) Class XbcVM
           EndCase
         ElseIf nOp <= OP_EQJF
           Do Case
+          // What is subscripted is a Local: the AppServer words an error of an
+          // element subscripted again otherwise -- 'array out of bounds ( 2
+          // of 0 )', not '[2] of [0]' (04-flow, on 24.3.1.9).
           Case nOp == OP_LOCALIDX
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aIns[I_N]]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_LOCALIDXL
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aLoc[aIns[I_B]]]
+            aSt[nSp] := xA[aLoc[aIns[I_B]]]
           Case nOp == OP_INDEX
+            xA := aSt[nSp - 1]
             nSp--
-            aSt[nSp] := aSt[nSp][aSt[nSp + 1]]
+            aSt[nSp] := xA[aSt[nSp + 1]]
           Case nOp == OP_NUMIDX
-            aSt[nSp] := aSt[nSp][aIns[I_N]]
+            xA := aSt[nSp]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_INCLOCAL
             aLoc[aIns[I_A]] := aLoc[aIns[I_A]] + aIns[I_N]
           Case nOp == OP_ADDNUM
@@ -2584,17 +2591,24 @@ Method Run1(nBase) Class XbcVM
           EndCase
         ElseIf nOp <= OP_EQJF
           Do Case
+          // What is subscripted is a Local: the AppServer words an error of an
+          // element subscripted again otherwise -- 'array out of bounds ( 2
+          // of 0 )', not '[2] of [0]' (04-flow, on 24.3.1.9).
           Case nOp == OP_LOCALIDX
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aIns[I_N]]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_LOCALIDXL
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aLoc[aIns[I_B]]]
+            aSt[nSp] := xA[aLoc[aIns[I_B]]]
           Case nOp == OP_INDEX
+            xA := aSt[nSp - 1]
             nSp--
-            aSt[nSp] := aSt[nSp][aSt[nSp + 1]]
+            aSt[nSp] := xA[aSt[nSp + 1]]
           Case nOp == OP_NUMIDX
-            aSt[nSp] := aSt[nSp][aIns[I_N]]
+            xA := aSt[nSp]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_INCLOCAL
             aLoc[aIns[I_A]] := aLoc[aIns[I_A]] + aIns[I_N]
           Case nOp == OP_ADDNUM
@@ -3215,17 +3229,24 @@ Method Run2(nBase) Class XbcVM
           EndCase
         ElseIf nOp <= OP_EQJF
           Do Case
+          // What is subscripted is a Local: the AppServer words an error of an
+          // element subscripted again otherwise -- 'array out of bounds ( 2
+          // of 0 )', not '[2] of [0]' (04-flow, on 24.3.1.9).
           Case nOp == OP_LOCALIDX
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aIns[I_N]]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_LOCALIDXL
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aLoc[aIns[I_B]]]
+            aSt[nSp] := xA[aLoc[aIns[I_B]]]
           Case nOp == OP_INDEX
+            xA := aSt[nSp - 1]
             nSp--
-            aSt[nSp] := aSt[nSp][aSt[nSp + 1]]
+            aSt[nSp] := xA[aSt[nSp + 1]]
           Case nOp == OP_NUMIDX
-            aSt[nSp] := aSt[nSp][aIns[I_N]]
+            xA := aSt[nSp]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_INCLOCAL
             aLoc[aIns[I_A]] := aLoc[aIns[I_A]] + aIns[I_N]
           Case nOp == OP_ADDNUM
@@ -3846,17 +3867,24 @@ Method Run3(nBase) Class XbcVM
           EndCase
         ElseIf nOp <= OP_EQJF
           Do Case
+          // What is subscripted is a Local: the AppServer words an error of an
+          // element subscripted again otherwise -- 'array out of bounds ( 2
+          // of 0 )', not '[2] of [0]' (04-flow, on 24.3.1.9).
           Case nOp == OP_LOCALIDX
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aIns[I_N]]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_LOCALIDXL
+            xA := aLoc[aIns[I_A]]
             nSp++
-            aSt[nSp] := aLoc[aIns[I_A]][aLoc[aIns[I_B]]]
+            aSt[nSp] := xA[aLoc[aIns[I_B]]]
           Case nOp == OP_INDEX
+            xA := aSt[nSp - 1]
             nSp--
-            aSt[nSp] := aSt[nSp][aSt[nSp + 1]]
+            aSt[nSp] := xA[aSt[nSp + 1]]
           Case nOp == OP_NUMIDX
-            aSt[nSp] := aSt[nSp][aIns[I_N]]
+            xA := aSt[nSp]
+            aSt[nSp] := xA[aIns[I_N]]
           Case nOp == OP_INCLOCAL
             aLoc[aIns[I_A]] := aLoc[aIns[I_A]] + aIns[I_N]
           Case nOp == OP_ADDNUM
