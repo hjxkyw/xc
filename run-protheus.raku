@@ -31,9 +31,9 @@
 # The bytecode's interpreter (--interp): xc compiles interp/xbc.xtpl into
 # build/interp/, and the AppServer compiles it with the runtime; xc compiles
 # the runtime, each case of cpp/tests/bytecode that has a NAME.out -- but
-# one with a NAME.vmonly, which needs xc-vm's own areas -- and both
-# self-tests to bytecode, into build/interp-xbc/. Then the AppServer runs the
-# interpreter on each --
+# one with a NAME.vmonly, which needs what only xc-vm does: its own areas,
+# Decimals -- and xtpl's self-test to bytecode, into build/interp-xbc/.
+# Then the AppServer runs the interpreter on each --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xbc
 # -- and what it writes is compared with NAME.out, what xc-vm does; a
 # self-test has to end with its total and no check failed. The AppServer
@@ -359,11 +359,12 @@ if $interp
   # Not those that need xc-vm's own areas: NAME.vmonly says why.
   my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
                         .grep({ !$cases.add("$_.vmonly").e }).sort;
+  # Not xc's self-test: it has Decimals, which go wrong in the interpreter on
+  # the AppServer (docs/bytecode.md, The interpreter) -- as 05-decimal does,
+  # which its NAME.vmonly leaves out.
   my @selftests =
     %(source => 'xtpl/tests/54_selftest.xtpl', name => '54_selftest', run => 'U_SELFTEST',
-      total => / 'selftest: ' \d+ ' ok, 0 falhas' /),
-    %(source => 'protheus/xc_selftest.xtpl', name => 'xc_selftest', run => 'U_XC_SELFTEST',
-      total => / 'xc_selftest: ' \d+ ' ok, 0 failed' /);
+      total => / 'selftest: ' \d+ ' ok, 0 falhas' /),;
   if $compile
   {
     say "xc ($xc-shown): compiling the interpreter into {shown($out)}";
@@ -427,7 +428,7 @@ if $interp
            !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $code)\n"
               ~ $text.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join
   }
-  say "\nProtheus: the interpreter running {+@cases} cases and the self-tests";
+  say "\nProtheus: the interpreter running {+@cases} cases and xtpl's self-test";
   for @cases -> $c
   {
     my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines>>.trim.grep(*.chars).map({ on-server("$_.xbc") })

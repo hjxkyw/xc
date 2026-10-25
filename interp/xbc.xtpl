@@ -256,7 +256,6 @@ Class XbcVM
   Public Data aOpNames
   Public Data hSys
   Public Data aSys
-  Public Data lDec
   Public Method New() Constructor
   Public Method Start(aFiles, cEntry)
   Public Method Report(cFile, nExit)
@@ -318,7 +317,6 @@ Method New() Class XbcVM
   ::aTrace := Nil
   ::hSys := { => }
   ::aSys := {}
-  ::lDec := .F.
   for aCall in XbcSyscalls()
     AAdd(::aSys, aCall[2])
     ::hSys{aCall[1]} := Len(::aSys)
@@ -518,20 +516,18 @@ Return split(StrTran(cText, Chr(13), ""), Chr(10))
 
 // ---- frames -----------------------------------------------------------------
 // A frame for a function of a module: its parameters from the arguments --
-// a reference's value, written back when it ends. The program's values are
-// read where they are, never into a variable of the machine's that held
-// another: where a Decimal was, the AppServer makes a number a Decimal
-// (probe xdw).
+// a reference's value, written back when it ends.
 Method Push(aFn, aArgs, aCells, xSelf) Class XbcVM
   Local aLocals := Array(aFn[FN_NLOCALS])
   Local aByRef := {}
   ::Fail("stack overflow") if Len(::aFrames) > 4000
-  for nI in 1..Min(Len(aArgs), aFn[FN_PARAMS])
-    If XbcIsRef(aArgs[nI])
-      aLocals[nI] := aArgs[nI][2][aArgs[nI][3]]
-      AAdd(aByRef, {nI, aArgs[nI]})
+  for xArg, nI in aArgs
+    Exit if nI > aFn[FN_PARAMS]
+    If XbcIsRef(xArg)
+      aLocals[nI] := xArg[2][xArg[3]]
+      AAdd(aByRef, {nI, xArg})
     Else
-      aLocals[nI] := aArgs[nI]
+      aLocals[nI] := xArg
     EndIf
   next
   AAdd(::aFrames, {aFn, aLocals, Array(16), 0, 1, 0, Len(aArgs), aCells, xSelf, aByRef, {}, {}, {}, 0, {}, .F.})
@@ -541,11 +537,9 @@ Return Nil
 // -- a cell's value, for one a code block shares --, its privates gone.
 Method EndFrame(aF) Class XbcVM
   for aBy in aF[F_BYREF]
-    If XbcBoxed(aF, aBy[1])
-      aBy[2][2][aBy[2][3]] := aF[F_LOCALS][aBy[1]][1]
-    Else
-      aBy[2][2][aBy[2][3]] := aF[F_LOCALS][aBy[1]]
-    EndIf
+    Local xValue := aF[F_LOCALS][aBy[1]]
+    xValue := xValue[1] if XbcBoxed(aF, aBy[1])
+    aBy[2][2][aBy[2][3]] := xValue
   next
   for cName in aF[F_PRIVS]
     Local aStack := ::hPrivs{cName}
@@ -604,7 +598,6 @@ Method Unwind(nBase, xWhat, lError) Class XbcVM
       ASize(aF[F_AREAS], aReg[4])
       aF[F_SP] := aReg[3] + 1
       ASize(aF[F_STACK], aF[F_SP] * 2) if aF[F_SP] > Len(aF[F_STACK])
-      aF[F_STACK][aF[F_SP]] := .F.
       aF[F_STACK][aF[F_SP]] := xWhat
       aF[F_PC] := aReg[2]
       Return .T.
@@ -618,7 +611,6 @@ Return .F.
 
 // ---- the loop ---------------------------------------------------------------
 Method Exec(nBase) Class XbcVM
-  Local lDec := ::lDec
   Local aF := ::aFrames[Len(::aFrames)]
   Local aCode := aF[F_FN][FN_CODE]
   Local aSt := aF[F_STACK]
@@ -640,14 +632,6 @@ Method Exec(nBase) Class XbcVM
   While .T.
     aIns := aCode[nPc]
     ::Trace(aF, nPc, aIns, nSp, aSt) if ::aTrace != Nil
-    // Where a Decimal is, the AppServer makes a number put there one (probe
-    // xdw): its temporaries, where one may have been, take one of no number
-    // first -- slots of the stack before a value is put in them, below.
-    If lDec
-      xA := .F.
-      xB := .F.
-      xC := .F.
-    EndIf
     nPc++
     nOp := aIns[I_OP]
     If nOp <= OP_REFMEMVAR
@@ -657,7 +641,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aF[F_LOCALS][aIns[I_A]]
         Case nOp == OP_SETLOCAL
           aF[F_LOCALS][aIns[I_A]] := aSt[nSp]
@@ -667,28 +650,24 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aIns[I_N]
         Case nOp == OP_STR
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aIns[I_S]
         Case nOp == OP_NIL .Or. nOp == OP_TRUE .Or. nOp == OP_FALSE
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := If(nOp == OP_NIL, Nil, nOp == OP_TRUE)
         Case nOp == OP_CELL
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aF[F_LOCALS][aIns[I_A]][1]
         Case nOp == OP_SETCELL
           aF[F_LOCALS][aIns[I_A]][1] := aSt[nSp]
@@ -700,7 +679,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aF[F_CELLS][aIns[I_A]][1]
         Case nOp == OP_SETUPVAL
           aF[F_CELLS][aIns[I_A]][1] := aSt[nSp]
@@ -710,7 +688,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]]
         Case nOp == OP_SETSTATIC
           aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
@@ -722,7 +699,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := xA[1]
         Case nOp == OP_SETMEMVAR
           xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
@@ -737,7 +713,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
         Case nOp == OP_SETFIELD
           ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
@@ -752,28 +727,24 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := {scRef, aF[F_LOCALS], aIns[I_A]}
         Case nOp == OP_REFCELL
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := {scRef, aF[F_LOCALS][aIns[I_A]], 1}
         Case nOp == OP_REFUPVAL
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
         Case nOp == OP_REFSTATIC
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
         Case nOp == OP_REFMEMVAR
           xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
@@ -781,7 +752,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := {scRef, xA, 1}
       EndCase
     ElseIf nOp <= OP_SELF
@@ -792,7 +762,6 @@ Method Exec(nBase) Class XbcVM
           xA := aSt[nSp - 1]
           xB := aSt[nSp]
           nSp--
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := xA[xB]
         Case nOp == OP_MEMBER
           aSt[nSp] := ::MemberOf(aSt[nSp], aIns[I_S])
@@ -808,16 +777,13 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aSt[nSp - 1]
         Case nOp == OP_DUP2
           nSp += 2
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp - 1] := .F. if lDec
           aSt[nSp - 1] := aSt[nSp - 3]
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aSt[nSp - 2]
         Case nOp == OP_ARRAY
           nN := aIns[I_A]
@@ -829,14 +795,12 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := xA
         Case nOp == OP_SELF
           nSp++
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := aF[F_SELF]
       EndCase
     ElseIf nOp <= OP_ORJUMP
@@ -935,7 +899,6 @@ Method Exec(nBase) Class XbcVM
           aF[F_SP] := nSp
           aF[F_PC] := nPc
           xA := ::Invoke(aF, cName, aArgs, nOp == OP_CALLX, If(nOp == OP_CALL, aIns, Nil))
-          lDec := ::lDec
           If xA
             // A function of a module: its frame runs on.
             aF := ::aFrames[Len(::aFrames)]
@@ -962,7 +925,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := xA
         Case nOp == OP_METHOD .Or. nOp == OP_SUPER .Or. nOp == OP_NEW
           nN := aIns[I_A]
@@ -994,12 +956,10 @@ Method Exec(nBase) Class XbcVM
               xC := xB
             Else
               xA := ::MethodCall(xB, aIns[I_S], aArgs)
-              lDec := ::lDec
               nSp++
               If nSp > Len(aSt)
                 ASize(aSt, nSp * 2)
               EndIf
-              aSt[nSp] := .F. if lDec
               aSt[nSp] := xA
             EndIf
           ElseIf nOp == OP_SUPER
@@ -1020,7 +980,6 @@ Method Exec(nBase) Class XbcVM
               If nSp > Len(aSt)
                 ASize(aSt, nSp * 2)
               EndIf
-              aSt[nSp] := .F. if lDec
               aSt[nSp] := aF[F_SELF]
             Else
               xC := aF[F_SELF]
@@ -1031,12 +990,10 @@ Method Exec(nBase) Class XbcVM
             aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
             If aCls == Nil
               xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
-              lDec := ::lDec
               nSp++
               If nSp > Len(aSt)
                 ASize(aSt, nSp * 2)
               EndIf
-              aSt[nSp] := .F. if lDec
               aSt[nSp] := xA
             Else
               aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
@@ -1067,7 +1024,6 @@ Method Exec(nBase) Class XbcVM
           If nSp > Len(aSt)
             ASize(aSt, nSp * 2)
           EndIf
-          aSt[nSp] := .F. if lDec
           aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
         Case nOp == OP_MACRO
           aSt[nSp] := ::Macro(aSt[nSp])
@@ -1139,7 +1095,6 @@ Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
   EndCase
   aF[F_SP]++
   ASize(aF[F_STACK], aF[F_SP] * 2) if aF[F_SP] > Len(aF[F_STACK])
-  aF[F_STACK][aF[F_SP]] := .F.
   aF[F_STACK][aF[F_SP]] := xResult
 Return .F.
 
@@ -1231,17 +1186,15 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
   Local cKey
   Local cSrc
   Local xResult
-  // Every call of the AppServer's comes here: one walk, no blocks; each
-  // value read where it is (Push says why).
-  for nI in 1..Len(aArgs)
-    If XbcIsRef(aArgs[nI])
-      aVals[nI] := aArgs[nI][2][aArgs[nI][3]]
+  // Every call of the AppServer's comes here: one walk, no blocks.
+  for xArg, nI in aArgs
+    If XbcIsRef(xArg)
+      aVals[nI] := xArg[2][xArg[3]]
       AAdd(aRefs, nI)
     Else
-      aVals[nI] := aArgs[nI]
+      aVals[nI] := xArg
     EndIf
   next
-  xResult := .F.
   nSys := ::hSys{cWhat + ":" + If(cWhat == "m", "", Upper(cName) + If(cWhat == "n", ":", "")) + Upper(cMethod) + ;
                  "/" + cValToChar(Len(aVals)) + If(Empty(aRefs), "", aRefs |> map([k] ":${k}") |> join)}
   If nSys != Nil
@@ -1267,7 +1220,6 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
     EndIf
     xResult := XbcEvalN(::hCache{cKey}, aVals, xObj)
   EndIf
-  ::lDec := .T. if ValType(xResult) == "F"
   If ::aTrace != Nil
     ::Note("  the AppServer's ${cWhat}:${cName}:${cMethod}" + If(nSys != Nil, " #${nSys}", "") + "(" + ;
            (aVals |> map([x] XbcShown(x)) |> join(", ")) + ;
@@ -1369,7 +1321,7 @@ Return Nil
 // ALIAS->NAME, in its area -- the alias FIELD the area selected.
 Method FieldOf(cAlias, cName) Class XbcVM
   Local nWas := ::CallNative("Select", {})
-  Local xValue := .F.
+  Local xValue
   ::CallNative("DbSelectArea", {cAlias}) if !(Upper(cValToChar(cAlias)) == "FIELD")
   xValue := ::CallNative("FieldGet", {::CallNative("FieldPos", {cName})})
   ::CallNative("DbSelectArea", {nWas})
@@ -1493,13 +1445,12 @@ Return cType
 // ---- the AppServer's well-known functions -----------------------------------
 // Each with as many arguments as it is given, a block of compiled code --
 // {|o, a| ...}, the object and the arguments --: the number a call is made
-// by is its place here. f:NAME/N a function, m:NAME/N a method, n:CLASS:
-// NAME/N 'Class():Name()', and :K after it for each argument K passed by
-// reference; g:NAME and s:NAME a member read and written, an error's. Through a macro's block the AppServer gave back, after a
-// DEC_CREATE, a Len() that was a Decimal; and a macro costs a compile. One a
-// line; a call not here goes through a macro's block. Not one with fewer
-// arguments than the AppServer declares: it warns (W0008, "Too few
-// parameters calling DEC_CREATE").
+// by is its place here. f:NAME/N a function, m:NAME/N a method,
+// n:CLASS:NAME/N 'Class():Name()', and :K after it for each argument K
+// passed by reference; g:NAME and s:NAME a member read and written, an
+// error's. No macro is compiled for them. One a line; a call not here goes
+// through a macro's block. Not one with fewer arguments than the AppServer
+// declares: it warns (W0008, "Too few parameters calling DEC_CREATE").
 Static Function XbcSyscalls()
   Local aT := {}
   AAdd(aT, {"f:AADD/2", {|o, a| AAdd(a[1], a[2])}})

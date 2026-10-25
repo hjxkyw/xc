@@ -1197,11 +1197,17 @@ decimals)` makes it one; and `nX += fD`, a Decimal added to a number:
 `DEC_TO_DBL(fD)` makes it one. A value of no type known here goes as it is, and
 has to hold a Decimal when it runs; a number of no type the compiler knows
 goes into a Decimal -- `fD := u_f()` -- with 15 digits at most. A Decimal
-declared with no value starts at Nil. A variable of no type, or an element
-of an array, that holds a Decimal makes a number put there a Decimal --
-`xAny := fD`, then `xAny := 5`, holds a Decimal 5 --, and Nil there keeps
-one too: a loop's variable that met a Decimal makes Decimals of the numbers
-after it. The names here start with `f`, the
+declared with no value starts at Nil.
+
+**A slot that has held a Decimal.** A variable of no type, or an element of
+an array, that has once held a Decimal makes each number put there after a
+Decimal -- `xAny := fD`, then `xAny := 5`, holds a Decimal 5 --, whatever
+went there in between: Nil, a logical, a string. A method's Locals keep it
+from one call to the next; a function's start afresh. So a loop's variable
+that met a Decimal makes Decimals of the numbers after it, and an index
+that became one is refused ("type mismatch in array subscriptor - expected
+N->F"). It is the AppServer's (seen on 24.3.1.9), and xc does nothing about
+it: keep Decimals in variables of their own, declared `as Decimal`. The names here start with `f`, the
 letter of its `ValType()`, as `n` does a Numeric's. The `DEC_` functions
 24.3.1.9 has are `DEC_CREATE`, `DEC_ADD`, `DEC_SUB`, `DEC_MUL`, `DEC_DIV`,
 `DEC_MOD`, `DEC_POW` (its exponent a Decimal too), `DEC_RESIZE`,

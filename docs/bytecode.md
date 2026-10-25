@@ -452,8 +452,7 @@ It is the machine of this page, and the AppServer is the rest:
   block a macro makes once for that name, number of arguments and
   references -- `{|a, o, p1, p2, r| r := Upper(p1, @p2), a[2] := p2, r}`
   --; a method or a member of the AppServer's objects, and `Name():M()` of a
-  class no module has, the same way. Through a macro's block the AppServer
-  gave back a `Len()` that was a Decimal, after a `DEC_CREATE`;
+  class no module has, the same way;
 - a code block of the program is one of the AppServer's that runs it there,
   with as many arguments as its function takes -- so `aEval()`, `aSort()`
   and the runtime's verbs run it;
@@ -462,11 +461,6 @@ It is the machine of this page, and the AppServer is the rest:
 - `ErrorBlock()` is the program's, kept apart: the interpreter runs under
   its own, which gives an error to the program's first, then to the
   innermost `try`; its own errors it raises with `UserException()`;
-- the program's values are put in the machine's own variables and stack
-  only where no Decimal is: where one is, the AppServer makes a number a
-  Decimal. A program that has made one -- the AppServer gave one back --
-  has each slot of the stack, and each temporary, given a value of no
-  number before a value goes in;
 - a Break is taken by a plain `Recover`, its value kept in a Static on its
   way -- the AppServer runs a `Recover Using` with every Local Nil but its
   variable, and keeps nothing it assigns --: the program's `Break()` is
@@ -495,6 +489,13 @@ and on xtpl's self-test, the runtime interpreted too, and what it writes
 has to be what xc-vm does running them itself; `interp-xc` the same for
 xc's self-test, slowly -- labelled `slow` (`cpp/tests/interp.cmake`).
 `rakupp run-protheus.raku --interp` does it on an AppServer.
+
+A program that uses Decimals goes wrong in the interpreter on the
+AppServer: a slot of its stack, or a variable of its own, that has held a
+Decimal makes Decimals of the numbers put there after it, for good (the
+AppServer's, [A slot that has held a Decimal](language.md#decimals)) -- a
+counter, an index, an argument becomes one. It is left so: `--interp`
+leaves out 05-decimal and xc's self-test, which have Decimals.
 
 With `trace=FILE`, the interpreter writes there each instruction it runs
 -- the frames' depth, the function, where in it, the instruction, the
@@ -529,8 +530,7 @@ functions -- a line longer than 1023 characters in pieces of 1023, and
 `FRead()` and `FClose()`, for reading;
 `THashMap` and `JsonObject`, with the methods the runtime calls -- a
 `JsonObject`'s keys by `j["name"]` only, as the AppServer's. As the
-AppServer's too, `x / 0` is 0 and `x % 0` an error, and a number put where
-a Decimal is -- a variable, a cell, a static, an element -- becomes one.
+AppServer's too, `x / 0` is 0 and `x % 0` an error.
 `Random()` starts from the same seed each run, so a run repeats. A work
 area is a name -- it can be selected and put back, and has no records --,
 and a macro is a variable's name.

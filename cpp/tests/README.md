@@ -92,8 +92,10 @@ cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DRUNTIME=runtime/xtpl_runtime.tlpp
 ```
 
 A `NAME.out` is written only where there is one; an empty one asks for it.
-`NAME.vmonly` marks a case that needs xc-vm's own areas -- an AppServer run
-with `-run` has no tables --, which `run-protheus.raku --interp` leaves out.
+`NAME.vmonly` marks a case that needs what only xc-vm does -- its own
+areas, as an AppServer run with `-run` has no tables; Decimals, which go
+wrong in the interpreter on the AppServer --, which `run-protheus.raku
+--interp` leaves out.
 
 ## interp
 

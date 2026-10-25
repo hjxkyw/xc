@@ -122,7 +122,7 @@ totals. xc is the one CMake built (`cpp/build/xc`, or
 rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH] [--authorization=FILE]
 rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
-rakupp run-protheus.raku ... --interp           # the bytecode's interpreter, on the bytecode cases and the self-tests
+rakupp run-protheus.raku ... --interp           # the bytecode's interpreter, on the bytecode cases and xtpl's self-test
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
 rakupp run-protheus.raku ... --rebuild          # the self-tests compiled again, up to date or not
 ```
@@ -133,14 +133,15 @@ into a log beside what it compiled (`compile.log`, `run-u_selftest.log`,
 ...). With `--corpus`, xc compiles every program of xtpl's corpus into
 `build/corpus/` and the AppServer compiles that folder: nothing runs, the
 point is that Protheus takes all of xc's output. With `--interp`, the
-AppServer compiles the interpreter (`interp/xbc.xtpl`) and runs it on each
-bytecode case and on both self-tests, made bytecode in `build/interp-xbc/`:
+AppServer compiles the interpreter (`interp/xbc.xtpl`) and runs it on the
+bytecode cases and on xtpl's self-test, made bytecode in `build/interp-xbc/`:
 each has to do what xc-vm does. The AppServer reads files under the
 environment's RootPath only, so the bytecode goes to `xbc/` there, and the
 files the cases read to its StartPath; both come from the environment's
 section of the `appserver.ini`, or `--rootpath=PATH` (`XC_ROOTPATH`) names
-the RootPath. A case that needs xc-vm's own tables (`NAME.vmonly`) is left
-out, and `--trace` keeps what the interpreter did in each run, in
+the RootPath. A case that needs what only xc-vm does (`NAME.vmonly`: its
+own tables, Decimals) is left out, and so is xc's self-test, which has
+Decimals; `--trace` keeps what the interpreter did in each run, in
 `build/logs/interp/NAME.trace`.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`

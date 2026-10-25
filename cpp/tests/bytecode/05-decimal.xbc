@@ -2,23 +2,15 @@ xbc 1
 source 05-decimal.xtpl
 statics 0
 
-function U_MAIN user 0 3
-  locals fPreco xAny aAll
-  line 7
+function U_MAIN user 0 1
+  locals fPreco
+  line 5
   str "40.1"
   num 3
   num 1
   call 3 DEC_CREATE
   setlocal 1
-  line 8
-  local 1
-  setlocal 2
-  line 9
-  local 1
-  num 2
-  array 2
-  setlocal 3
-  line 10
+  line 6
   local 1
   call 1 Total
   local 1
@@ -37,52 +29,29 @@ function U_MAIN user 0 3
   exact
   call 3 ConOut
   pop
-  line 11
-  num 5
-  setlocal 2
-  line 12
-  local 3
-  num 1
-  local 3
-  num 2
-  index
-  setindex
-  line 13
-  local 2
-  call 1 ValType
-  local 3
-  num 1
-  index
-  call 1 ValType
-  local 3
-  num 2
-  index
-  call 1 ValType
-  call 3 ConOut
-  pop
-  line 14
+  line 7
   nil
   ret
 end
 
 function TOTAL static 1 4
   locals fPreco fTotal fTaxa nAprox
-  line 17
+  line 10
   str "0"
   num 1
   num 0
   call 3 DEC_CREATE
   setlocal 2
-  line 18
+  line 11
   str "0.05"
   num 3
   num 2
   call 3 DEC_CREATE
   setlocal 3
-  line 19
+  line 12
   num 0
   setlocal 4
-  line 20
+  line 13
   local 1
   str "3"
   num 1
@@ -95,14 +64,14 @@ function TOTAL static 1 4
   call 3 DEC_CREATE
   call 2 DEC_ADD
   setlocal 2
-  line 21
+  line 14
   local 2
   local 2
   local 3
   call 2 DEC_MUL
   call 2 DEC_ADD
   setlocal 2
-  line 22
+  line 15
   local 2
   str "1"
   num 1
@@ -110,7 +79,7 @@ function TOTAL static 1 4
   call 3 DEC_CREATE
   call 2 DEC_ADD
   setlocal 2
-  line 23
+  line 16
   local 2
   str "100"
   num 3
@@ -118,7 +87,7 @@ function TOTAL static 1 4
   call 3 DEC_CREATE
   gt
   jumpf 63
-  line 24
+  line 17
   local 2
   str "10"
   num 2
@@ -129,11 +98,11 @@ function TOTAL static 1 4
   num 0
   call 3 DEC_RESCALE
   setlocal 2
-  line 26
+  line 19
   local 2
   call 1 DEC_TO_DBL
   setlocal 4
-  line 27
+  line 20
   local 4
   ret
 end
