@@ -432,7 +432,7 @@ A `#define` from an include file is not seen: its name is a memvar.
 compiles it to TL++, the AppServer into the RPO, with the runtime. Then
 
 ```text
-appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module.xbc ...
+appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] [jit=off] module.xbc ...
 ```
 
 loads the modules, runs each one's `__INIT` in the order given, then NAME --
@@ -547,7 +547,34 @@ It runs what it loads as the loop is fastest at it:
   that no function between is entered again either;
   `cpp/tests/loop-copies.cmake` writes `Run1()` to `Run3()` and `Enter1()`
   to `Enter3()` from `Run()` and `Enter()`, and ctest's `interp` checks
-  them.
+  them;
+- a run of instructions on one line, that nothing jumps into, is one code
+  block the AppServer's macro compiler makes the first time it runs -- the
+  JIT; `jit=off` makes none. Its instructions are locals, statics, cells,
+  Self, constants, operators, arrays, subscripts and the AppServer's
+  functions -- not one that runs code blocks (`Eval()`, `aEval()`,
+  `aScan()`, `aSort()`, the runtime's verbs): in a macro's block, `Eval()`
+  of a block of the program's gave back its argument, not its value -- and
+  a jump that ends the run, whose condition the block gives:
+
+  ```text
+  local 2, local 3, num 7, mod, num 2, mul, add, setlocal 2
+    {|XL, XK, XC, XT, XO| XL[2] := (XL[2] + ((XL[3] % (7)) * (2))), Nil}
+  ```
+
+  XL is the frame's locals and stack, XK the run's constants -- its
+  strings --, XC its cells, XT the module's statics, XO Self, and X1, X2,
+  ... values kept on the way. What the run pushes and takes again is an
+  expression, never stored; a value is kept first when something is set
+  before it is used, and what is subscripted is a variable, as in the loop.
+  The block is made for the stack's height the run first meets; at
+  another, and when a call turns out to be a module's function or the
+  macro compiler refuses the block, the run is the loop's. An error in it
+  is on its line. xc-vm has no macro compiler: with `jitdump=FILE` the
+  interpreter writes the blocks it would make, as a module whose
+  `u_xbcjit()` gives each, and with that module loaded it takes them from
+  there -- ctest's `interp` runs each case so too, and has it do what it
+  did without.
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.

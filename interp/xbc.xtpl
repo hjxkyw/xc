@@ -34,104 +34,110 @@
 // ---- instructions -----------------------------------------------------------
 // Numbered by how often a program runs them, the most first: the loop asks
 // for the first ones first. Some are the loader's own: two to four of the
-// bytecode's run as one (XbcFused()).
-#define OP_LOCAL      1
-#define OP_SETLOCAL   2
-#define OP_NUM        3
-#define OP_LOCAL2     4
-#define OP_CALL       5
-#define OP_JUMPF      6
-#define OP_ADD        7
-#define OP_JUMP       8
-#define OP_LOCALIDX   9
-#define OP_LOCALIDXL  10
-#define OP_INDEX      11
-#define OP_NUMIDX     12
-#define OP_INCLOCAL   13
-#define OP_ADDNUM     14
-#define OP_ADDSET     15
-#define OP_LEJF       16
-#define OP_LTJF       17
-#define OP_GEJF       18
-#define OP_GTJF       19
-#define OP_EXACTJF    20
-#define OP_NEJF       21
-#define OP_EQJF       22
-#define OP_RET        23
-#define OP_POP        24
-#define OP_STR        25
-#define OP_NIL        26
-#define OP_METHOD     27
-#define OP_MEMBER     28
-#define OP_SETMEMBER  29
-#define OP_SETINDEX   30
-#define OP_SELF       31
-#define OP_EXACT      32
-#define OP_TRUE       33
-#define OP_FALSE      34
-#define OP_SUB        35
-#define OP_MUL        36
-#define OP_DIV        37
-#define OP_MOD        38
-#define OP_NOT        39
-#define OP_EQ         40
-#define OP_NE         41
-#define OP_LT         42
-#define OP_GT         43
-#define OP_LE         44
-#define OP_GE         45
-#define OP_ANDJUMP    46
-#define OP_ORJUMP     47
-#define OP_JUMPT      48
-#define OP_ARRAY      49
-#define OP_DUP        50
-#define OP_DUP2       51
-#define OP_CELL       52
-#define OP_SETCELL    53
-#define OP_UPVAL      54
-#define OP_SETUPVAL   55
-#define OP_REFLOCAL   56
-#define OP_REFCELL    57
-#define OP_REFUPVAL   58
-#define OP_BLOCK      59
-#define OP_NEW        60
-#define OP_ISNIL      61
-#define OP_NEG        62
-#define OP_POW        63
-#define OP_CONTAINS   64
-#define OP_STATIC     65
-#define OP_SETSTATIC  66
-#define OP_REFSTATIC  67
-#define OP_MEMVAR     68
-#define OP_SETMEMVAR  69
-#define OP_REFMEMVAR  70
-#define OP_PRIVATE    71
-#define OP_PUBLIC     72
-#define OP_FIELD      73
-#define OP_SETFIELD   74
-#define OP_FIELDX     75
-#define OP_SETFIELDX  76
-#define OP_BOX        77
-#define OP_CALLX      78
-#define OP_SUPER      79
-#define OP_MACRO      80
-#define OP_SETMACRO   81
-#define OP_LINE       82
-#define OP_SEQ        83
-#define OP_TRY        84
-#define OP_ENDSEQ     85
-#define OP_DEFER      86
-#define OP_RUNDEFERS  87
-#define OP_ENDDEFER   88
-#define OP_AREA       89
-#define OP_ENDAREA    90
-#define OP_COUNT      90
+// bytecode's run as one (XbcFused()); JIT, a run of them as one code block
+// the AppServer's macro compiler makes (XbcJitRuns(), Jit()).
+#define OP_JIT        1
+#define OP_LOCAL      2
+#define OP_SETLOCAL   3
+#define OP_NUM        4
+#define OP_LOCAL2     5
+#define OP_CALL       6
+#define OP_JUMPF      7
+#define OP_ADD        8
+#define OP_JUMP       9
+#define OP_LOCALIDX   10
+#define OP_LOCALIDXL  11
+#define OP_INDEX      12
+#define OP_NUMIDX     13
+#define OP_INCLOCAL   14
+#define OP_ADDNUM     15
+#define OP_ADDSET     16
+#define OP_LEJF       17
+#define OP_LTJF       18
+#define OP_GEJF       19
+#define OP_GTJF       20
+#define OP_EXACTJF    21
+#define OP_NEJF       22
+#define OP_EQJF       23
+#define OP_RET        24
+#define OP_POP        25
+#define OP_STR        26
+#define OP_NIL        27
+#define OP_METHOD     28
+#define OP_MEMBER     29
+#define OP_SETMEMBER  30
+#define OP_SETINDEX   31
+#define OP_SELF       32
+#define OP_EXACT      33
+#define OP_TRUE       34
+#define OP_FALSE      35
+#define OP_SUB        36
+#define OP_MUL        37
+#define OP_DIV        38
+#define OP_MOD        39
+#define OP_NOT        40
+#define OP_EQ         41
+#define OP_NE         42
+#define OP_LT         43
+#define OP_GT         44
+#define OP_LE         45
+#define OP_GE         46
+#define OP_ANDJUMP    47
+#define OP_ORJUMP     48
+#define OP_JUMPT      49
+#define OP_ARRAY      50
+#define OP_DUP        51
+#define OP_DUP2       52
+#define OP_CELL       53
+#define OP_SETCELL    54
+#define OP_UPVAL      55
+#define OP_SETUPVAL   56
+#define OP_REFLOCAL   57
+#define OP_REFCELL    58
+#define OP_REFUPVAL   59
+#define OP_BLOCK      60
+#define OP_NEW        61
+#define OP_ISNIL      62
+#define OP_NEG        63
+#define OP_POW        64
+#define OP_CONTAINS   65
+#define OP_STATIC     66
+#define OP_SETSTATIC  67
+#define OP_REFSTATIC  68
+#define OP_MEMVAR     69
+#define OP_SETMEMVAR  70
+#define OP_REFMEMVAR  71
+#define OP_PRIVATE    72
+#define OP_PUBLIC     73
+#define OP_FIELD      74
+#define OP_SETFIELD   75
+#define OP_FIELDX     76
+#define OP_SETFIELDX  77
+#define OP_BOX        78
+#define OP_CALLX      79
+#define OP_SUPER      80
+#define OP_MACRO      81
+#define OP_SETMACRO   82
+#define OP_LINE       83
+#define OP_SEQ        84
+#define OP_TRY        85
+#define OP_ENDSEQ     86
+#define OP_DEFER      87
+#define OP_RUNDEFERS  88
+#define OP_ENDDEFER   89
+#define OP_AREA       90
+#define OP_ENDAREA    91
+#define OP_COUNT      91
 
 // An instruction: {op, a, b, s, s2, n, what it found, its line, what kind
 // of call it is, what the call runs}. A fused one: LOCAL2 a b, LOCALIDX a n
 // (local a's element n), LOCALIDXL a b (local a's element local b), NUMIDX
 // n, INCLOCAL a n (local a plus n), ADDNUM n, ADDSET a (add, setlocal a),
-// and LEJF a ... EQJF a (the comparison, and jumpf a).
+// and LEJF a ... EQJF a (the comparison, and jumpf a). JIT a b: the run of
+// instructions after it, I_X, as one block -- a where it ends, b where the
+// jump that ends it goes, n which jump (1 jumpf, 2 jumpt, 3 jump, 0 none);
+// the block I_C, its constants I_S2, the stack's height it was made for
+// I_D and the height after it I_E; I_K 0 not made yet, 1 made, 2 not to be.
 #define I_OP   1
 #define I_A    2
 #define I_B    3
@@ -142,6 +148,8 @@
 #define I_LINE 8
 #define I_K    9
 #define I_X    10
+#define I_D    11
+#define I_E    12
 
 // What a call is, found the first time it runs -- an argument by reference
 // at a call is there every time: K_FN a function of a module, I_X; K_SYS
@@ -212,6 +220,18 @@
 #define X_PRIVS   6
 #define X_CTOR    7
 
+// The JIT's state: {the stack -- {text, 0 a constant or a kept value, 1 one
+// that reads what may be set, 2 one with a call or a new array} --, the
+// statements, the constants, how many values kept, the stack's height at
+// the start, how many it took from below that, whether it read them}.
+#define J_STACK  1
+#define J_OUT    2
+#define J_CONSTS 3
+#define J_TEMPS  4
+#define J_BASE   5
+#define J_BELOW  6
+#define J_READS  7
+
 // What a reference and an error on its way are: arrays no program makes,
 // their first element one of these.
 Static scRef
@@ -225,8 +245,8 @@ Static scNone
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
-// ours -- 'out=FILE', 'run=NAME', 'trace=FILE' (or '--out=', ...), the
-// modules --; xc-vm gives those after '--'.
+// ours -- 'out=FILE', 'run=NAME', 'trace=FILE', 'jit=off', 'jitdump=FILE'
+// (or '--out=', ...), the modules --; xc-vm gives those after '--'.
 User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16)
   Local oVM := XbcVM():New()
   Local aFiles := {}
@@ -250,6 +270,10 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
       cEntry := SubStr(cOpt, 5)
     Case Left(cOpt, 6) == "trace="
       cTrace := SubStr(cOpt, 7)
+    Case cOpt == "jit=off"
+      oVM:lJit := .F.
+    Case Left(cOpt, 8) == "jitdump="
+      oVM:cJitDump := SubStr(cOpt, 9)
     Case !(Left(cArg, 1) == "-" .Or. ".exe" $ Lower(cArg) .Or. "appsrv" $ Lower(cArg))
       AAdd(aFiles, cArg)
     EndCase
@@ -258,6 +282,7 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   oVM:aTrace := {} if !Empty(cTrace)
   nExit := oVM:Start(aFiles, cEntry)
   oVM:Report(cOut, nExit) if !Empty(cOut)
+  oVM:JitDump() if !Empty(oVM:cJitDump)
   MemoWrite(cTrace, oVM:aTrace |> map([l] l + Chr(10)) |> join) if !Empty(cTrace)
 Return nExit
 
@@ -300,6 +325,9 @@ Class XbcVM
   Public Data cWhere
   Public Data aErrAt
   Public Data nRuns
+  Public Data lJit
+  Public Data cJitDump
+  Public Data hJitDump
   Public Data aOut
   Public Data aErr
   Public Data lCapture
@@ -328,6 +356,9 @@ Class XbcVM
   Public Method SlotOf(aCls, cName)
   Public Method Invoke(aF, cName, aArgs, lMacro, aIns)
   Public Method Classify(aIns, xFound, aArgs)
+  Public Method JitCallable(cName)
+  Public Method Jit(aF, aIns, nSp)
+  Public Method JitDump()
   Public Method CallNative(cName, aArgs)
   Public Method Native(cWhat, cName, cMethod, xObj, aArgs)
   Public Method MacroOf(cWhat, cName, cMethod, nArgs, aRefs)
@@ -383,7 +414,8 @@ Method New() Class XbcVM
     ::aOpNames[aOp[3]] := {aOp[1], aOp[2]}
   next
   // The loader's own, which no .xbc has.
-  for aOp in {{"local2", "II", OP_LOCAL2}, {"localidx", "I", OP_LOCALIDX}, {"numidx", "", OP_NUMIDX}, ;
+  for aOp in {{"jit", "II", OP_JIT}, {"local2", "II", OP_LOCAL2}, {"localidx", "I", OP_LOCALIDX}, ;
+              {"numidx", "", OP_NUMIDX}, ;
               {"localidxl", "II", OP_LOCALIDXL}, {"inclocal", "I", OP_INCLOCAL}, {"addnum", "", OP_ADDNUM}, ;
               {"addset", "I", OP_ADDSET}, {"lejf", "I", OP_LEJF}, ;
               {"ltjf", "I", OP_LTJF}, {"gejf", "I", OP_GEJF}, {"gtjf", "I", OP_GTJF}, {"exactjf", "I", OP_EXACTJF}, ;
@@ -410,6 +442,9 @@ Method New() Class XbcVM
   ::cWhere := ""
   ::aErrAt := Nil
   ::nRuns := 0
+  ::lJit := .T.
+  ::cJitDump := ""
+  ::hJitDump := { => }
   ::aOut := {}
   ::aErr := {}
   ::lCapture := .F.
@@ -485,6 +520,7 @@ Method Load(cPath) Class XbcVM
   Local aFn
   Local aIns
   Local nLine
+  Local lJit
   Local nI := 4
   for cRead in XbcLines(cPath)
     Local cLine := LTrim(StrTran(StrTran(cRead, Chr(13), ""), Chr(9), " "))
@@ -531,14 +567,22 @@ Method Load(cPath) Class XbcVM
         EndIf
       EndDo
       nI++
-      aFn[FN_STACK] := XbcDepth(aFn[FN_CODE]) + 2
-      aFn[FN_CODE] := XbcFused(aFn[FN_CODE]) if ::aTrace == Nil
       aMod[M_FNS]{Upper(aFn[FN_NAME])} := aFn
       AAdd(aMod[M_LIST], aFn)
       ::hEvery{Upper(aFn[FN_NAME])} := aFn
       ::hGlobals{Upper(aFn[FN_NAME])} := aFn if aFn[FN_KIND] in {"user", "function", "main"}
     EndCase
   EndDo
+  // What each function's stack holds at the most, and its instructions as
+  // the loop runs them -- once the module's functions are known: a call of
+  // one is no run of the JIT's. The JIT is the AppServer's macro compiler;
+  // on xc-vm, a module of the blocks it would make, which jitdump=FILE
+  // writes (cpp/tests/interp.cmake).
+  lJit := ::aTrace == Nil .And. ::lJit .And. (!::lHost .Or. !Empty(::cJitDump) .Or. FindFunction("U_XBCJIT"))
+  for aOne in aMod[M_LIST]
+    aOne[FN_STACK] := XbcDepth(aOne[FN_CODE]) + 2
+    aOne[FN_CODE] := XbcFused(aOne[FN_CODE], If(lJit, {|c| ::JitCallable(c)}, Nil)) if ::aTrace == Nil
+  next
   // Where a plain name is looked for: the namespace, then those it uses.
   aMod[M_SEARCH] := If(Empty(aMod[M_NS]), {}, {Upper(aMod[M_NS])})
   aMod[M_USINGS] |> tap([u] AAdd(aMod[M_SEARCH], Upper(u)))
@@ -697,7 +741,7 @@ Return 0
 // 'num n, add' ADDNUM n; 'add, setlocal a' ADDSET a; a comparison and
 // 'jumpf a' LEJF a, LTJF a, ... -- never over an instruction something
 // jumps to. What jumped to an instruction jumps to the one it is in now.
-Static Function XbcFused(aCode)
+Static Function XbcFused(aCode, bCall)
   Local aMap := Array(Len(aCode))
   Local aOne := {}
   Local aOut := {}
@@ -721,16 +765,10 @@ Static Function XbcFused(aCode)
     aMap[nI] := nNext
   Next
   XbcRetarget(aOne, aMap)
-  // What something jumps to.
-  aTo := Array(Len(aOne) + 1)
-  For nI := 1 To Len(aTo)
-    aTo[nI] := .F.
-  Next
-  for aJump in aOne
-    nI := XbcTarget(aJump)
-    aTo[nI] := .T. if nI > 0 .And. nI <= Len(aTo)
-  next
-  aMap := Array(Len(aOne))
+  aOne := XbcJitRuns(aOne, bCall) if bCall != Nil
+  aTo := XbcTargets(aOne)
+  aMap := Array(Len(aOne) + 1)
+  aMap[Len(aOne) + 1] := Len(aOne) + 1
   nI := 1
   While nI <= Len(aOne)
     aIns := aOne[nI]
@@ -774,8 +812,103 @@ Static Function XbcFused(aCode)
     Next
     nI += nTake
   EndDo
+  aMap[Len(aOne) + 1] := Len(aOut) + 1
   XbcRetarget(aOut, aMap)
 Return aOut
+
+// What something jumps to: aTo[N] for instruction N, and N + 1 past the end.
+Static Function XbcTargets(aCode)
+  Local aTo := Array(Len(aCode) + 1)
+  Local nTo
+  For local nI := 1 To Len(aTo)
+    aTo[nI] := .F.
+  Next
+  for aJump in aCode
+    nTo := XbcTarget(aJump)
+    aTo[nTo] := .T. if nTo > 0 .And. nTo <= Len(aTo)
+    // A JIT's run ends at a jump: where that goes too.
+    If aJump[I_OP] == OP_JIT .And. aJump[I_B] > 0 .And. aJump[I_B] <= Len(aTo)
+      aTo[aJump[I_B]] := .T.
+    EndIf
+  next
+Return aTo
+
+// The runs of instructions the JIT is to make one code block of, the first
+// time each runs: each a JIT instruction before it, which jumps over it
+// once its block is made; what jumped to the run's first instruction jumps
+// to the JIT. A run is on one line, and nothing jumps into it: locals,
+// statics, cells, constants, operators, arrays, the AppServer's functions
+// bCall takes -- and a jump that ends it, whose condition the block gives.
+// It is worth it from three instructions, or with a call.
+Static Function XbcJitRuns(aCode, bCall)
+  Local aTo := XbcTargets(aCode)
+  Local aOut := {}
+  Local aMap := Array(Len(aCode) + 1)
+  Local nI := 1
+  Local nEnd
+  Local nCalls
+  Local nTerm
+  Local nOp
+  Local nLine
+  Local aRun
+  While nI <= Len(aCode)
+    nLine := aCode[nI][I_LINE]
+    nEnd := nI
+    nCalls := 0
+    While nEnd <= Len(aCode) .And. (nEnd == nI .Or. (!aTo[nEnd] .And. aCode[nEnd][I_LINE] == nLine)) .And. ;
+          XbcJitOp(aCode[nEnd], bCall)
+      nCalls++ if aCode[nEnd][I_OP] == OP_CALL
+      nEnd++
+    EndDo
+    nTerm := 0
+    If nEnd > nI .And. nEnd <= Len(aCode) .And. !aTo[nEnd] .And. aCode[nEnd][I_LINE] == nLine
+      nOp := aCode[nEnd][I_OP]
+      nTerm := If(nOp == OP_JUMPF, 1, If(nOp == OP_JUMPT, 2, If(nOp == OP_JUMP, 3, 0)))
+    EndIf
+    If nCalls > 0 .Or. nEnd - nI + If(nTerm > 0, 1, 0) >= 3
+      aRun := {}
+      For local nK := nI To nEnd - 1
+        AAdd(aRun, aCode[nK])
+      Next
+      AAdd(aOut, {OP_JIT, nEnd + If(nTerm > 0, 1, 0), If(nTerm > 0, aCode[nEnd][I_A], 0), "", Nil, nTerm, Nil, ;
+                  nLine, 0, aRun, 0, 0})
+      aMap[nI] := Len(aOut)
+      nEnd++ if nTerm > 0
+      For local nK := nI To nEnd - 1
+        AAdd(aOut, aCode[nK])
+        aMap[nK] := Len(aOut) if nK > nI
+      Next
+      nI := nEnd
+    Else
+      nEnd := Max(nEnd, nI + 1)
+      For local nK := nI To nEnd - 1
+        AAdd(aOut, aCode[nK])
+        aMap[nK] := Len(aOut)
+      Next
+      nI := nEnd
+    EndIf
+  EndDo
+  aMap[Len(aCode) + 1] := Len(aOut) + 1
+  XbcRetarget(aOut, aMap)
+Return aOut
+
+// Can the JIT have it in a run.
+Static Function XbcJitOp(aIns, bCall)
+  Local nOp := aIns[I_OP]
+  Do Case
+  Case nOp == OP_CALL
+    Return Eval(bCall, aIns[I_S])
+  Case nOp == OP_NIL .Or. nOp == OP_TRUE .Or. nOp == OP_FALSE .Or. nOp == OP_NUM .Or. nOp == OP_STR .Or. ;
+       nOp == OP_LOCAL .Or. nOp == OP_SETLOCAL .Or. nOp == OP_CELL .Or. nOp == OP_SETCELL .Or. nOp == OP_UPVAL .Or. ;
+       nOp == OP_SETUPVAL .Or. nOp == OP_STATIC .Or. nOp == OP_SETSTATIC .Or. nOp == OP_SELF .Or. nOp == OP_POP .Or. ;
+       nOp == OP_DUP .Or. nOp == OP_DUP2 .Or. nOp == OP_ARRAY .Or. nOp == OP_INDEX .Or. nOp == OP_SETINDEX .Or. ;
+       nOp == OP_ADD .Or. nOp == OP_SUB .Or. nOp == OP_MUL .Or. nOp == OP_DIV .Or. nOp == OP_MOD .Or. ;
+       nOp == OP_POW .Or. nOp == OP_NEG .Or. nOp == OP_NOT .Or. nOp == OP_ISNIL .Or. nOp == OP_EQ .Or. ;
+       nOp == OP_EXACT .Or. nOp == OP_NE .Or. ;
+       nOp == OP_LT .Or. nOp == OP_GT .Or. nOp == OP_LE .Or. nOp == OP_GE .Or. nOp == OP_CONTAINS
+    Return .T.
+  EndCase
+Return .F.
 
 // A new instruction of the loader's.
 Static Function XbcIns(nOp, nA, nB, nN, nLine)
@@ -808,17 +941,21 @@ Static Function XbcTarget(aIns)
   Local nOp := aIns[I_OP]
   Do Case
   Case nOp == OP_JUMP .Or. nOp == OP_JUMPF .Or. nOp == OP_JUMPT .Or. nOp == OP_ANDJUMP .Or. nOp == OP_ORJUMP .Or. ;
-       nOp == OP_SEQ .Or. nOp == OP_TRY .Or. (nOp >= OP_LEJF .And. nOp <= OP_EQJF)
+       nOp == OP_SEQ .Or. nOp == OP_TRY .Or. (nOp >= OP_LEJF .And. nOp <= OP_EQJF) .Or. nOp == OP_JIT
     Return aIns[I_A]
   Case nOp == OP_DEFER
     Return aIns[I_B]
   EndCase
 Return 0
 
-// What goes to instruction N goes to aMap[N] now.
+// What goes to instruction N goes to aMap[N] now -- a JIT's end, and where
+// the jump that ends its run goes, both.
 Static Function XbcRetarget(aCode, aMap)
   for aIns in aCode
     Local nTo := XbcTarget(aIns)
+    If aIns[I_OP] == OP_JIT .And. aIns[I_B] > 0 .And. aIns[I_B] <= Len(aMap)
+      aIns[I_B] := aMap[aIns[I_B]]
+    EndIf
     Loop if nTo <= 0 .Or. nTo > Len(aMap)
     If aIns[I_OP] == OP_DEFER
       aIns[I_B] := aMap[nTo]
@@ -976,6 +1113,24 @@ Method Run(nBase) Class XbcVM
         nOp := aIns[I_OP]
         If nOp <= OP_JUMP
           Do Case
+          Case nOp == OP_JIT
+            // A run as one block, made the first time, for the stack's height
+            // then; at another height the run is interpreted.
+            ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
+            If aIns[I_K] == 1 .And. aIns[I_D] == nSp
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              nSp := aIns[I_E]
+              Do Case
+              Case aIns[I_N] == 0
+                nPc := aIns[I_A]
+              Case aIns[I_N] == 3
+                nPc := aIns[I_B]
+              Case aIns[I_N] == 1
+                nPc := If(xA, aIns[I_A], aIns[I_B])
+              Otherwise
+                nPc := If(xA, aIns[I_B], aIns[I_A])
+              EndCase
+            EndIf
           Case nOp == OP_LOCAL
             nSp++
             aSt[nSp] := aLoc[aIns[I_A]]
@@ -1691,6 +1846,323 @@ Method Classify(aIns, xFound, aArgs) Class XbcVM
     EndCase
   EndCase
 Return Nil
+
+// ---- the JIT ----------------------------------------------------------------
+// Can a call be in a run of the JIT's: one of the AppServer's functions --
+// not one a module loaded so far has, nor the program's own PCount(),
+// Break(), ErrorBlock(), nor, with out=FILE, ConOut() and QOut(); nor one
+// that runs code blocks: in a macro's block, Eval() of a block of the
+// program's gave back its argument, not its value (02-blocks, on 24.3.1.9).
+// Of the runtime's, those that take no block.
+Method JitCallable(cName) Class XbcVM
+  Local cUp := Upper(cName)
+  Return .F. if "." $ cUp .Or. ::hEvery has cUp
+  Return .F. if cUp == "PCOUNT" .Or. cUp == "BREAK" .Or. cUp == "ERRORBLOCK" .Or. cUp == "EVAL" .Or. ;
+                cUp == "AEVAL" .Or. cUp == "ASCAN" .Or. cUp == "ASORT" .Or. cUp == "DBEVAL"
+  Return .F. if (cUp == "CONOUT" .Or. cUp == "QOUT") .And. ::lCapture
+  If Left(cUp, 2) == "U_"
+    Return AScan({"U_XTPL_ASUM", "U_XTPL_APROD", "U_XTPL_AMAX", "U_XTPL_AMIN", "U_XTPL_IN", "U_XTPL_HGET", ;
+                  "U_XTPL_HSET", "U_XTPL_HHAS", "U_XTPL_HNEW", "U_XTPL_JNEW", "U_XTPL_TAKE", "U_XTPL_DROP", ;
+                  "U_XTPL_DISTINCT", "U_XTPL_SEEN", "U_XTPL_REVERSE", "U_XTPL_FLATTEN", "U_XTPL_ENUMERATE", ;
+                  "U_XTPL_CHUNKS", "U_XTPL_ZIP", "U_XTPL_PAIRS", "U_XTPL_KEYS", "U_XTPL_VALUES", ;
+                  "U_XTPL_PAIRWISE", "U_XTPL_SPLIT", "U_XTPL_JOIN", "U_XTPL_STARTS", "U_XTPL_ENDS", ;
+                  "U_XTPL_CONTAINS", "U_XTPL_QUEUE", "U_XTPL_APICK", "U_XTPL_AROLL", "U_XTPL_SETMAXROLL"}, ;
+                 {|c| c == cUp}) > 0
+  EndIf
+Return .T.
+
+// A run of instructions (XbcJitRuns()) as one code block the AppServer's
+// macro compiler makes, the first time it runs, for the stack's height
+// then:
+//
+//   {|XL, XK, XC, XT, XO, X1, X2| statement, ..., condition}
+//
+// XL the frame's locals and stack, XK the run's constants, XC its cells, XT
+// the module's statics, XO Self, X1 ... values kept on the way. What the
+// run pushes and takes again is an expression, never stored; what it
+// leaves goes where it would be, and the condition of the jump that ends
+// it is what the block gives. A value is kept before anything is set --
+// one read before, or a call --, and what is subscripted is a variable, as
+// in the loop. A call that turns out to be a module's, or a block the
+// macro compiler refuses, leaves the run to the loop. On xc-vm, the block
+// is u_xbcjit()'s, from the module jitdump=FILE wrote.
+Method Jit(aF, aIns, nSp) Class XbcVM
+  Local aJ := {{}, {}, {}, 0, nSp, 0, .F.}
+  Local aE
+  Local aA
+  Local aX
+  Local aArgs
+  Local cText
+  Local cCond := ""
+  Local cTemps := ""
+  Local bBlock := Nil
+  Local bOld
+  Local nTop
+  Local nOp
+  aIns[I_K] := 2
+  for aOne in aIns[I_X]
+    nOp := aOne[I_OP]
+    Do Case
+    Case nOp == OP_NIL
+      XjPush(aJ, "Nil", 0)
+    Case nOp == OP_TRUE
+      XjPush(aJ, ".T.", 0)
+    Case nOp == OP_FALSE
+      XjPush(aJ, ".F.", 0)
+    Case nOp == OP_NUM
+      If aOne[I_N] == Int(aOne[I_N]) .And. Abs(aOne[I_N]) < 1000000000
+        XjPush(aJ, "(" + cValToChar(aOne[I_N]) + ")", 0)
+      Else
+        XjPush(aJ, XjConst(aJ, aOne[I_N]), 0)
+      EndIf
+    Case nOp == OP_STR
+      XjPush(aJ, XjConst(aJ, aOne[I_S]), 0)
+    Case nOp == OP_LOCAL
+      XjPush(aJ, "XL[${aOne[I_A]}]", 1)
+    Case nOp == OP_CELL
+      XjPush(aJ, "XL[${aOne[I_A]}][1]", 1)
+    Case nOp == OP_UPVAL
+      XjPush(aJ, "XC[${aOne[I_A]}][1]", 1)
+    Case nOp == OP_STATIC
+      XjPush(aJ, "XT[${aOne[I_A]}]", 1)
+    Case nOp == OP_SELF
+      XjPush(aJ, "XO", 0)
+    Case nOp == OP_SETLOCAL .Or. nOp == OP_SETCELL .Or. nOp == OP_SETUPVAL .Or. nOp == OP_SETSTATIC
+      aE := XjPop(aJ)
+      XjSettle(aJ)
+      Do Case
+      Case nOp == OP_SETLOCAL
+        cText := "XL[${aOne[I_A]}]"
+      Case nOp == OP_SETCELL
+        cText := "XL[${aOne[I_A]}][1]"
+      Case nOp == OP_SETUPVAL
+        cText := "XC[${aOne[I_A]}][1]"
+      Otherwise
+        cText := "XT[${aOne[I_A]}]"
+      EndCase
+      AAdd(aJ[J_OUT], cText + " := " + aE[1])
+    Case nOp == OP_POP
+      aE := XjPop(aJ)
+      If aE[2] == 2
+        XjSettle(aJ)
+        AAdd(aJ[J_OUT], aE[1])
+      EndIf
+    Case nOp == OP_DUP
+      // Twice the same value: an expression kept, not worked out twice.
+      aE := XjPop(aJ)
+      Do Case
+      Case aE[2] == 2 .Or. XjCalls(aJ)
+        XjPush(aJ, aE[1], aE[2])
+        XjSettle(aJ)
+        aE := XjPop(aJ)
+      Case "(" $ aE[1]
+        aE := {XjVar(aJ, aE), 0}
+      EndCase
+      XjPush(aJ, aE[1], aE[2])
+      XjPush(aJ, aE[1], aE[2])
+    Case nOp == OP_DUP2
+      aE := XjPop(aJ)
+      aA := XjPop(aJ)
+      If aE[2] == 2 .Or. aA[2] == 2
+        XjPush(aJ, aA[1], aA[2])
+        XjPush(aJ, aE[1], aE[2])
+        XjSettle(aJ)
+        aE := XjPop(aJ)
+        aA := XjPop(aJ)
+      EndIf
+      XjPush(aJ, aA[1], aA[2])
+      XjPush(aJ, aE[1], aE[2])
+      XjPush(aJ, aA[1], aA[2])
+      XjPush(aJ, aE[1], aE[2])
+    Case nOp == OP_ARRAY
+      aArgs := XjPops(aJ, aOne[I_A])
+      XjPush(aJ, "{" + XjTexts(aArgs) + "}", 2)
+    Case nOp == OP_INDEX
+      aE := XjPop(aJ)
+      aA := XjPop(aJ)
+      If aA[2] == 2 .Or. XjCalls(aJ)
+        XjPush(aJ, aA[1], aA[2])
+        XjSettle(aJ)
+        aA := XjPop(aJ)
+      EndIf
+      XjPush(aJ, XjVar(aJ, aA) + "[" + aE[1] + "]", Max(1, aE[2]))
+    Case nOp == OP_SETINDEX
+      aX := XjPop(aJ)
+      aE := XjPop(aJ)
+      aA := XjPop(aJ)
+      XjSettle(aJ)
+      AAdd(aJ[J_OUT], XjVar(aJ, aA) + "[" + aE[1] + "] := " + aX[1])
+    Case nOp == OP_NEG .Or. nOp == OP_NOT
+      aE := XjPop(aJ)
+      XjPush(aJ, "(" + If(nOp == OP_NEG, "-", "!") + aE[1] + ")", aE[2])
+    Case nOp == OP_ISNIL
+      aE := XjPop(aJ)
+      XjPush(aJ, "(ValType(" + aE[1] + ") == " + XjConst(aJ, "U") + ")", aE[2])
+    Case nOp == OP_CALL
+      Return Nil if ValType(::Resolve(aF[F_FN][FN_MOD], aOne[I_S], .F.)) == "A" .Or. !::JitCallable(aOne[I_S])
+      aArgs := XjPops(aJ, aOne[I_A])
+      XjPush(aJ, aOne[I_S] + "(" + XjTexts(aArgs) + ")", 2)
+    Otherwise
+      cText := XjOperator(nOp)
+      Return Nil if Empty(cText)
+      aE := XjPop(aJ)
+      aA := XjPop(aJ)
+      XjPush(aJ, "(" + aA[1] + " " + cText + " " + aE[1] + ")", Max(aA[2], aE[2]))
+    EndCase
+  next
+  If aIns[I_N] == 1 .Or. aIns[I_N] == 2
+    cCond := XjPop(aJ)[1]
+  EndIf
+  // What it leaves, where it would be -- each kept first when one reads
+  // the stack below the run, which they go over.
+  nTop := aJ[J_BASE] - aJ[J_BELOW]
+  If aJ[J_READS] .And. !Empty(aJ[J_STACK])
+    XjPush(aJ, cCond, 1) if !Empty(cCond)
+    XjSettle(aJ)
+    cCond := XjPop(aJ)[1] if !Empty(cCond)
+  EndIf
+  for aEach, nK in aJ[J_STACK]
+    cText := "XL[${nTop + nK}]"
+    AAdd(aJ[J_OUT], cText + " := " + aEach[1]) if !(aEach[1] == cText)
+  next
+  AAdd(aJ[J_OUT], If(Empty(cCond), "Nil", cCond))
+  For local nT := 1 To aJ[J_TEMPS]
+    cTemps += ", X${nT}"
+  Next
+  cText := "{|XL, XK, XC, XT, XO${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
+  If ::lHost
+    bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
+  Else
+    bOld := ErrorBlock({|e| Break(e)})
+    Begin Sequence
+      bBlock := &(cText)
+    Recover
+      bBlock := Nil
+    End Sequence
+    ErrorBlock(bOld)
+  EndIf
+  If ValType(bBlock) != "B"
+    ::hJitDump{cText} := .T. if !Empty(::cJitDump)
+    Return Nil
+  EndIf
+  aIns[I_C] := bBlock
+  aIns[I_S2] := aJ[J_CONSTS]
+  aIns[I_D] := nSp
+  aIns[I_E] := nTop + Len(aJ[J_STACK])
+  aIns[I_K] := 1
+Return Nil
+
+// With jitdump=FILE: the blocks the JIT could not make, as a module whose
+// u_xbcjit(cText) gives the block of each -- for xc-vm, which has no macro
+// compiler, to load the next time (cpp/tests/interp.cmake).
+Method JitDump() Class XbcVM
+  Local cNl := Chr(10)
+  Local aTexts := ::hJitDump |> keys
+  Local cSrc := "#include " + Chr(34) + "totvs.ch" + Chr(34) + cNl + cNl + ;
+                "// The blocks the interpreter's JIT makes, for xc-vm (interp/xbc.xtpl, JitDump())." + cNl + ;
+                "User Function xbcjit(cText)" + cNl + "  Do Case" + cNl + ;
+                "  Case cText == " + Chr(34) + Chr(34) + cNl + "    Return Nil" + cNl
+  ASort(aTexts)
+  for cText in aTexts
+    cSrc += "  Case cText == " + Chr(34) + cText + Chr(34) + cNl + "    Return " + cText + cNl
+  next
+  MemoWrite(::cJitDump, cSrc + "  EndCase" + cNl + "Return Nil" + cNl)
+Return Nil
+
+Static Function XjPush(aJ, cText, nKind)
+  AAdd(aJ[J_STACK], {cText, nKind})
+Return Nil
+
+// The top of the stack: below what the run pushed, the stack it found.
+Static Function XjPop(aJ)
+  Local aE
+  If Empty(aJ[J_STACK])
+    aE := {"XL[${aJ[J_BASE] - aJ[J_BELOW]}]", 1}
+    aJ[J_BELOW]++
+    aJ[J_READS] := .T.
+    Return aE
+  EndIf
+  aE := ATail(aJ[J_STACK])
+  ASize(aJ[J_STACK], Len(aJ[J_STACK]) - 1)
+Return aE
+
+// The top N, in the order they were pushed.
+Static Function XjPops(aJ, nN)
+  Local aEs := Array(nN)
+  For local nK := nN To 1 Step -1
+    aEs[nK] := XjPop(aJ)
+  Next
+Return aEs
+
+Static Function XjTexts(aEs)
+Return aEs |> map([e] e[1]) |> join(", ")
+
+// Each value on the stack that something set next could change, or that
+// has a call, kept now, in order.
+Static Function XjSettle(aJ)
+  Local cTemp
+  for aE in aJ[J_STACK]
+    Loop if aE[2] == 0
+    cTemp := XjTemp(aJ)
+    AAdd(aJ[J_OUT], cTemp + " := " + aE[1])
+    aE[1] := cTemp
+    aE[2] := 0
+  next
+Return Nil
+
+Static Function XjCalls(aJ)
+Return aJ[J_STACK] |> anyof([e] e[2] == 2)
+
+Static Function XjTemp(aJ)
+  aJ[J_TEMPS]++
+Return "X${aJ[J_TEMPS]}"
+
+// A variable holding the value: itself when it is one kept, else one now.
+Static Function XjVar(aJ, aE)
+  Local cTemp
+  Return aE[1] if Left(aE[1], 1) == "X" .And. Len(aE[1]) > 1 .And. ;
+                  AllTrim(Str(Val(SubStr(aE[1], 2)))) == SubStr(aE[1], 2)
+  cTemp := XjTemp(aJ)
+  AAdd(aJ[J_OUT], cTemp + " := " + aE[1])
+Return cTemp
+
+Static Function XjConst(aJ, xValue)
+  AAdd(aJ[J_CONSTS], xValue)
+Return "XK[${Len(aJ[J_CONSTS])}]"
+
+// A binary operator's text, or "".
+Static Function XjOperator(nOp)
+  Do Case
+  Case nOp == OP_ADD
+    Return "+"
+  Case nOp == OP_SUB
+    Return "-"
+  Case nOp == OP_MUL
+    Return "*"
+  Case nOp == OP_DIV
+    Return "/"
+  Case nOp == OP_MOD
+    Return "%"
+  Case nOp == OP_POW
+    Return "**"
+  Case nOp == OP_EQ
+    Return "="
+  Case nOp == OP_EXACT
+    Return "=="
+  Case nOp == OP_NE
+    Return "!="
+  Case nOp == OP_LT
+    Return "<"
+  Case nOp == OP_GT
+    Return ">"
+  Case nOp == OP_LE
+    Return "<="
+  Case nOp == OP_GE
+    Return ">="
+  Case nOp == OP_CONTAINS
+    Return "$"
+  EndCase
+Return ""
 
 // A function by name, from a module: its own, then -- a name with no
 // namespace -- its namespace's, then those it uses, then one of no
@@ -2528,6 +3000,24 @@ Method Run1(nBase) Class XbcVM
         nOp := aIns[I_OP]
         If nOp <= OP_JUMP
           Do Case
+          Case nOp == OP_JIT
+            // A run as one block, made the first time, for the stack's height
+            // then; at another height the run is interpreted.
+            ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
+            If aIns[I_K] == 1 .And. aIns[I_D] == nSp
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              nSp := aIns[I_E]
+              Do Case
+              Case aIns[I_N] == 0
+                nPc := aIns[I_A]
+              Case aIns[I_N] == 3
+                nPc := aIns[I_B]
+              Case aIns[I_N] == 1
+                nPc := If(xA, aIns[I_A], aIns[I_B])
+              Otherwise
+                nPc := If(xA, aIns[I_B], aIns[I_A])
+              EndCase
+            EndIf
           Case nOp == OP_LOCAL
             nSp++
             aSt[nSp] := aLoc[aIns[I_A]]
@@ -3205,6 +3695,24 @@ Method Run2(nBase) Class XbcVM
         nOp := aIns[I_OP]
         If nOp <= OP_JUMP
           Do Case
+          Case nOp == OP_JIT
+            // A run as one block, made the first time, for the stack's height
+            // then; at another height the run is interpreted.
+            ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
+            If aIns[I_K] == 1 .And. aIns[I_D] == nSp
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              nSp := aIns[I_E]
+              Do Case
+              Case aIns[I_N] == 0
+                nPc := aIns[I_A]
+              Case aIns[I_N] == 3
+                nPc := aIns[I_B]
+              Case aIns[I_N] == 1
+                nPc := If(xA, aIns[I_A], aIns[I_B])
+              Otherwise
+                nPc := If(xA, aIns[I_B], aIns[I_A])
+              EndCase
+            EndIf
           Case nOp == OP_LOCAL
             nSp++
             aSt[nSp] := aLoc[aIns[I_A]]
@@ -3882,6 +4390,24 @@ Method Run3(nBase) Class XbcVM
         nOp := aIns[I_OP]
         If nOp <= OP_JUMP
           Do Case
+          Case nOp == OP_JIT
+            // A run as one block, made the first time, for the stack's height
+            // then; at another height the run is interpreted.
+            ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
+            If aIns[I_K] == 1 .And. aIns[I_D] == nSp
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              nSp := aIns[I_E]
+              Do Case
+              Case aIns[I_N] == 0
+                nPc := aIns[I_A]
+              Case aIns[I_N] == 3
+                nPc := aIns[I_B]
+              Case aIns[I_N] == 1
+                nPc := If(xA, aIns[I_A], aIns[I_B])
+              Otherwise
+                nPc := If(xA, aIns[I_B], aIns[I_A])
+              EndCase
+            EndIf
           Case nOp == OP_LOCAL
             nSp++
             aSt[nSp] := aLoc[aIns[I_A]]

@@ -11,7 +11,8 @@
 #
 # xtpl's self-test runs a second time without the runtime's bytecode: the
 # runtime's calls are the AppServer's then -- the interpreter's table of
-# them, on xc-vm its own runtime. And the table has to have each of the
+# them, on xc-vm its own runtime. Each run is made three times: as it is,
+# and twice for the JIT (interpret(), below). And the table has to have each of the
 # runtime's functions (runtime-calls.cmake), and the loop's copies have to
 # be the loop (loop-copies.cmake).
 #
@@ -39,22 +40,52 @@ function(compile source name)
   endif()
 endfunction()
 
-# interpret(NAME RESULT ARGS...): the interpreter run on the modules ARGS, its
-# --out in RESULT.
-function(interpret name result)
-  execute_process(COMMAND ${VM} --run=U_XBC ${WORK}/xtpl_runtime.xbc ${WORK}/xbc.xbc -- --out=${WORK}/${name}.got ${ARGN}
+# vm(OUT MODULES ARGS RESULT): xc-vm running the interpreter, after the
+# runtime and MODULES -- a list --, on ARGS, its --out=OUT in RESULT.
+function(vm out modules args result)
+  execute_process(COMMAND ${VM} --run=U_XBC ${WORK}/xtpl_runtime.xbc ${WORK}/xbc.xbc ${modules} -- --out=${out} ${args}
                   WORKING_DIRECTORY ${CASES}
-                  OUTPUT_VARIABLE out
+                  OUTPUT_VARIABLE said
                   ERROR_VARIABLE err
                   RESULT_VARIABLE code)
   set(got "")
-  if(EXISTS ${WORK}/${name}.got)
-    file(READ ${WORK}/${name}.got got)
+  if(EXISTS ${out})
+    file(READ ${out} got)
   endif()
   if(NOT code EQUAL 0 AND NOT code EQUAL 1)
-    set(got "${got}--- xc-vm, running the interpreter: exit ${code}\n${out}${err}")
+    set(got "${got}--- xc-vm, running the interpreter: exit ${code}\n${said}${err}")
   endif()
   string(REPLACE "\r\n" "\n" got "${got}")
+  set(${result} "${got}" PARENT_SCOPE)
+endfunction()
+
+# interpret(NAME RESULT ARGS...): the interpreter run on the modules ARGS, its
+# --out in RESULT. Then twice more, for the JIT, which is the AppServer's
+# macro compiler: with --jitdump=FILE, each run of the JIT's left to the
+# loop and its block written down -- FILE a module of them --, then with
+# that module, the JIT's blocks made from it; each run has to do what the
+# first did, and the second has to have found every block.
+function(interpret name result)
+  vm(${WORK}/${name}.got "" "${ARGN}" got)
+  vm(${WORK}/${name}.jit1.got "" "--jitdump=${WORK}/${name}.jit.xtpl;${ARGN}" got1)
+  execute_process(COMMAND ${XC} --bytecode ${WORK}/${name}.jit.xtpl ${WORK}/${name}.jit.xbc
+                  OUTPUT_QUIET
+                  ERROR_VARIABLE said
+                  RESULT_VARIABLE code)
+  if(NOT code EQUAL 0)
+    set(${result} "${got}--- the JIT's blocks do not compile:\n${said}" PARENT_SCOPE)
+    return()
+  endif()
+  vm(${WORK}/${name}.jit2.got ${WORK}/${name}.jit.xbc "--jitdump=${WORK}/${name}.jit2.xtpl;${ARGN}" got2)
+  file(STRINGS ${WORK}/${name}.jit2.xtpl missed REGEX "^  Case cText == \"[{]")
+  if(NOT got1 STREQUAL got)
+    set(got "${got}--- the JIT's runs left to the loop:\n${got1}")
+  elseif(NOT got2 STREQUAL got)
+    set(got "${got}--- the JIT's blocks:\n${got2}")
+  elseif(missed)
+    list(LENGTH missed n)
+    set(got "${got}--- the JIT's blocks: ${n} not found the second time (${WORK}/${name}.jit2.xtpl)\n")
+  endif()
   set(${result} "${got}" PARENT_SCOPE)
 endfunction()
 

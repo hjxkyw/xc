@@ -143,9 +143,11 @@ section of the `appserver.ini`, or `--rootpath=PATH` (`XC_ROOTPATH`) names
 the RootPath. A case that needs what only xc-vm does (`NAME.vmonly`: its
 own tables, Decimals) is left out, and so is xc's self-test, which has
 Decimals; `--trace` keeps what the interpreter did in each run, in
-`build/logs/interp/NAME.trace`. With `--bench`, the AppServer runs
-`interp/bench.xtpl` compiled, then the interpreter on it as bytecode, and
-the times of each of its parts are shown side by side.
+`build/logs/interp/NAME.trace`, and `--nojit` has the interpreter make no
+code blocks of runs of instructions with the macro compiler. With
+`--bench`, the AppServer runs `interp/bench.xtpl` compiled, then the
+interpreter on it as bytecode, with and without those blocks, and the
+times of each of its parts are shown side by side.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`

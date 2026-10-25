@@ -4,7 +4,7 @@
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
 #                            [--xc=PATH] [--rootpath=PATH]
 #                            [--compile-only | --run-only | --corpus | --interp | --bench]
-#                            [--trace] [--verbose]
+#                            [--trace] [--nojit] [--verbose]
 #
 # The self-tests (the default):
 #
@@ -47,6 +47,8 @@
 # With --trace each run gives the interpreter 'trace=\xbc\NAME.trace' too --
 # each instruction it ran, each call of the AppServer's, each Break taken
 # -- and the trace is kept beside the logs, build/logs/interp/NAME.trace.
+# With --nojit, 'jit=off': the interpreter has no run of instructions made
+# a code block by the AppServer's macro compiler.
 #
 # The interpreter's speed (--bench): xc compiles interp/bench.xtpl -- parts
 # that each do one thing over and over: a loop, calls, the AppServer's
@@ -58,7 +60,8 @@
 #   appserver -run=u_xbc -env=<name> out=\xbc\bench.got \xbc\bench.xbc
 # Each part prints the time of one of the things it does, in microseconds;
 # this shows them side by side, and how many times slower the interpreter
-# is. Nothing is checked: a run takes half a minute or so.
+# is -- and the interpreter's times with no JIT, jit=off, which --nojit
+# makes the only ones. Nothing is checked: a run takes a minute or so.
 #
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
@@ -92,7 +95,8 @@ my %opt =
   xc            => %*ENV<XC_COMPILER>,
   rootpath      => %*ENV<XC_ROOTPATH>,
   out           => Str;
-my ($compile, $run, $rebuild, $corpus, $interp, $bench, $verbose, $trace) = True, True, False, False, False, False, False, False;
+my ($compile, $run, $rebuild, $corpus, $interp, $bench, $verbose, $trace, $nojit) =
+   True, True, False, False, False, False, False, False, False;
 
 sub usage(Str $why)
 {
@@ -101,7 +105,7 @@ sub usage(Str $why)
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
      ~ "                                [--xc=PATH] [--rootpath=PATH]\n"
      ~ "                                [--compile-only | --run-only | --corpus | --interp | --bench]\n"
-     ~ "                                [--trace] [--verbose]";
+     ~ "                                [--trace] [--nojit] [--verbose]";
   exit 2;
 }
 
@@ -115,6 +119,7 @@ for @*ARGS -> $a
   elsif $a eq '--bench'      { $bench = True }
   elsif $a eq '--verbose'    { $verbose = True }
   elsif $a eq '--trace'      { $trace = True }
+  elsif $a eq '--nojit'      { $nojit = True }
   elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc || rootpath) '=' (.+) $ / { %opt{~$0} = ~$1 }
   else                       { usage("$a: no such option") }
 }
@@ -122,6 +127,7 @@ usage("--compile-only and --run-only together leave nothing to do") unless $comp
 usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
 usage("--corpus, --interp and --bench: one at a time") if ($corpus, $interp, $bench).grep(*.so) > 1;
 usage("--trace is for --interp") if $trace && !$interp;
+usage("--nojit is for --interp and --bench") if $nojit && !($interp || $bench);
 $run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
 usage("no include folder: --includes=PATH, or XC_INCLUDES") if $compile && !%opt<includes>;
@@ -435,6 +441,7 @@ if $interp
     my $got = $stage.add("$name.got");
     $got.unlink if $got.e;
     my @traced = $trace ?? ("trace={on-server("$name.trace")}",) !! ();
+    @traced.push('jit=off') if $nojit;
     my ($code, $text) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
                                   "out={on-server("$name.got")}", |@traced, |@args);
     spurt $logs.add("$name.trace"), $stage.add("$name.trace").slurp(:bin) if $trace && $stage.add("$name.trace").e;
@@ -545,11 +552,18 @@ if $bench
   spurt $stage.add('bench.xbc'), $xbc.add('bench.xbc').slurp(:bin);
   my $got = $stage.add('bench.got');
   $got.unlink if $got.e;
-  say "\nProtheus: the bench, interpreted";
-  my ($icode, $itext) = appserver($logs.add('run-bench.log'), '-run=u_xbc', "-env={%opt<env>}", "out=\\xbc\\bench.got",
-                                  "\\xbc\\bench.xbc");
-  my $said = $got.e ?? $got.slurp(:bin).decode('windows-1252') !! '';
-  my %interpreted = times($said);
+  # The interpreter on the bench: what it printed, the times in it.
+  sub interpreted(Str $how, *@args --> List)
+  {
+    say "\nProtheus: the bench, interpreted$how";
+    $got.unlink if $got.e;
+    appserver($logs.add("run-bench{@args ?? '-nojit' !! ''}.log"), '-run=u_xbc', "-env={%opt<env>}",
+              "out=\\xbc\\bench.got", |@args, "\\xbc\\bench.xbc");
+    my $said = $got.e ?? $got.slurp(:bin).decode('windows-1252') !! '';
+    ($said, times($said))
+  }
+  my ($said, %interpreted) = interpreted($nojit ?? ', with no JIT' !! '', |($nojit ?? ('jit=off',) !! ()));
+  my %nojit = $nojit ?? () !! interpreted(', with no JIT', 'jit=off')[1];
   $stage.add('bench.xbc').unlink;
   $got.unlink if $got.e;
   my @parts = $text.lines.grep(/ 'bench ' \w+ \h /).map({ ~(.match(/ 'bench ' (\w+) /)[0]) });
@@ -559,12 +573,13 @@ if $bench
     say "      $_" for (@parts ?? $said.lines !! $text.lines).grep(*.trim).tail(15);
     exit 1;
   }
-  say "\n  part      compiled us  interpreted us   times slower";
+  sub us($x --> Str) { $x.defined ?? sprintf("%.3f", $x) !! '-' }
+  say "\n  part      compiled us  interpreted us   times slower{$nojit ?? '' !! '      no JIT us'}";
   for @parts -> $p
   {
     my ($c, $i) = %compiled{$p}, %interpreted{$p};
-    say sprintf("  %-8s %12.3f %15s %14s", $p, $c, $i.defined ?? sprintf("%.3f", $i) !! '-',
-                $i.defined && $c > 0 ?? sprintf("%.0f", $i / $c) !! '-');
+    say sprintf("  %-8s %12.3f %15s %14s", $p, $c, us($i), $i.defined && $c > 0 ?? sprintf("%.0f", $i / $c) !! '-')
+        ~ ($nojit ?? '' !! sprintf(" %15s", us(%nojit{$p})));
   }
   exit 0;
 }

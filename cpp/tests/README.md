@@ -103,7 +103,11 @@ Nothing to keep either: xc-vm runs `interp/xbc.xtpl`, compiled to bytecode,
 and the interpreter runs xtpl's runtime and each case of `bytecode/` that
 has a `NAME.out` -- what it writes has to be that `NAME.out`, what xc-vm does
 running the case itself --, then the self-tests, and xtpl's again without
-the runtime's bytecode. It checks that the interpreter's table has the
+the runtime's bytecode. Each run is made three times: as it is, then for
+the JIT -- the AppServer's macro compiler, which xc-vm has not --, with
+`--jitdump=FILE`, the blocks it would make written down and its runs left
+to the loop, then with FILE, compiled, loaded: the blocks taken from it;
+all three have to do the same. It checks that the interpreter's table has the
 runtime's functions as `runtime/xtpl_runtime.tlpp` declares them; after a
 change of theirs, `cmake -DROOT=. -DUPDATE=1 -P cpp/tests/runtime-calls.cmake`
 writes them again. It checks too that the copies of the interpreter's loop
