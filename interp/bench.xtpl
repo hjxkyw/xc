@@ -30,7 +30,8 @@ User Function bench()
 Return Nil
 
 // A part, round after round for a second at least: the time of one of the
-// N things a round does.
+// N things a round does. Seconds() starts again from 0 at midnight: a part
+// timed across it ran for ever.
 Static Function Timed(cName, bPart, nN)
   Local nRounds := 0
   Local nStart := Seconds()
@@ -39,6 +40,7 @@ Static Function Timed(cName, bPart, nN)
     Eval(bPart, nN)
     nRounds++
     nSpent := Seconds() - nStart
+    nSpent += 86400 if nSpent < 0
   EndDo
   ConOut("bench " + PadR(cName, 8) + Str(nSpent * 1000000 / (nRounds * nN), 12, 3) + " us")
 Return Nil
