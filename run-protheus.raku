@@ -3,7 +3,7 @@
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
 #                            [--xc=PATH] [--rootpath=PATH]
-#                            [--compile-only | --run-only | --corpus | --interp]
+#                            [--compile-only | --run-only | --corpus | --interp | --bench]
 #                            [--trace] [--verbose]
 #
 # The self-tests (the default):
@@ -48,6 +48,18 @@
 # each instruction it ran, each call of the AppServer's, each Break taken
 # -- and the trace is kept beside the logs, build/logs/interp/NAME.trace.
 #
+# The interpreter's speed (--bench): xc compiles interp/bench.xtpl -- parts
+# that each do one thing over and over: a loop, calls, the AppServer's
+# functions, arrays, strings, methods, blocks, hashes, a chain -- as TL++,
+# with the interpreter, into build/bench/, and as bytecode into
+# build/bench-xbc/; the AppServer compiles the first and runs it --
+#   appserver -run=u_bench -env=<name>
+# -- then the interpreter on the second, with the runtime the RPO's:
+#   appserver -run=u_xbc -env=<name> out=\xbc\bench.got \xbc\bench.xbc
+# Each part prints the time of one of the things it does, in microseconds;
+# this shows them side by side, and how many times slower the interpreter
+# is. Nothing is checked: a run takes half a minute or so.
+#
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
 # 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
@@ -80,7 +92,7 @@ my %opt =
   xc            => %*ENV<XC_COMPILER>,
   rootpath      => %*ENV<XC_ROOTPATH>,
   out           => Str;
-my ($compile, $run, $rebuild, $corpus, $interp, $verbose, $trace) = True, True, False, False, False, False, False;
+my ($compile, $run, $rebuild, $corpus, $interp, $bench, $verbose, $trace) = True, True, False, False, False, False, False, False;
 
 sub usage(Str $why)
 {
@@ -88,7 +100,7 @@ sub usage(Str $why)
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
      ~ "                                [--xc=PATH] [--rootpath=PATH]\n"
-     ~ "                                [--compile-only | --run-only | --corpus | --interp]\n"
+     ~ "                                [--compile-only | --run-only | --corpus | --interp | --bench]\n"
      ~ "                                [--trace] [--verbose]";
   exit 2;
 }
@@ -100,6 +112,7 @@ for @*ARGS -> $a
   elsif $a eq '--rebuild'    { $rebuild = True }
   elsif $a eq '--corpus'     { $corpus = True }
   elsif $a eq '--interp'     { $interp = True }
+  elsif $a eq '--bench'      { $bench = True }
   elsif $a eq '--verbose'    { $verbose = True }
   elsif $a eq '--trace'      { $trace = True }
   elsif $a ~~ / ^ '--' (appserver || env || includes || authorization || out || xc || rootpath) '=' (.+) $ / { %opt{~$0} = ~$1 }
@@ -107,7 +120,7 @@ for @*ARGS -> $a
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
 usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
-usage("--corpus and --interp: one at a time") if $corpus && $interp;
+usage("--corpus, --interp and --bench: one at a time") if ($corpus, $interp, $bench).grep(*.so) > 1;
 usage("--trace is for --interp") if $trace && !$interp;
 $run = False if $corpus;
 usage("no environment: --env=NAME, or XC_ENV") unless %opt<env>;
@@ -116,7 +129,7 @@ usage("no xc at {%opt<xc>}: --xc=PATH names the program") if $compile && %opt<xc
 
 # Everything from the top of the repository, wherever this is run from.
 my $root = $*PROGRAM.IO.absolute.IO.parent;
-%opt<out> //= $corpus ?? 'build/corpus' !! $interp ?? 'build/interp' !! 'build/protheus';
+%opt<out> //= $corpus ?? 'build/corpus' !! $interp ?? 'build/interp' !! $bench ?? 'build/bench' !! 'build/protheus';
 my $out = %opt<out>.IO.is-absolute ?? %opt<out>.IO !! $root.add(%opt<out>);
 # The logs: beside the compiled folder, not in it -- the AppServer compiles a
 # folder whole, and counted a log there as one more source.
@@ -473,6 +486,87 @@ if $interp
   .key.IO.unlink for @data;
   say "\n  {@bad ?? "{+@bad} of {@cases + 2 * @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
   exit(@bad ?? 1 !! 0);
+}
+
+# ---- the interpreter's speed -------------------------------------------------
+if $bench
+{
+  my $xbc = $out.parent.add('bench-xbc');
+  if $compile
+  {
+    say "xc ($xc-shown): compiling the interpreter and interp/bench.xtpl into {shown($out)}";
+    mkdir $out;
+    for <xbc bench> -> $n
+    {
+      my $p = xc(native($root.add("interp/$n.xtpl")), native($out.add("$n.tlpp")));
+      print $p.out.slurp(:close).lines.map({ "  $_\n" }).join;
+      if $p.exitcode
+      {
+        say "\n  xc could not compile interp/$n.xtpl";
+        exit 1;
+      }
+    }
+    say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}'";
+    my $count = prepare-folder($out, ['xbc.tlpp', 'bench.tlpp']);
+    with compile-folder($out, $count)
+    {
+      say "\n  $_";
+      exit 1;
+    }
+    say "\nxc: interp/bench.xtpl as bytecode, into {shown($xbc)}";
+    mkdir $xbc;
+    my $q = xc('--bytecode', native($root.add('interp/bench.xtpl')), native($xbc.add('bench.xbc')));
+    my $said = $q.out.slurp(:close);
+    if $q.exitcode
+    {
+      print $said.lines.map({ "  $_\n" }).join;
+      say "\n  xc could not make interp/bench.xtpl bytecode";
+      exit 1;
+    }
+  }
+  exit 0 unless $run;
+  mkdir $logs;
+  # 'bench loop  0.052 us': the part, and its time.
+  sub times(Str $text --> Hash)
+  {
+    my %t;
+    for $text.lines -> $l
+    {
+      %t{~$0} = +$1 if $l ~~ / 'bench ' (\w+) \h+ (<[\d.]>+) ' us' /;
+    }
+    %t
+  }
+  say "\nProtheus: the bench, compiled";
+  my ($code, $text) = appserver($logs.add('run-u_bench.log'), '-run=u_bench', "-env={%opt<env>}");
+  my %compiled = times($text);
+  my ($rootpath, $startpath) = env-paths();
+  my $stage = $rootpath.add('xbc');
+  mkdir $stage;
+  spurt $stage.add('bench.xbc'), $xbc.add('bench.xbc').slurp(:bin);
+  my $got = $stage.add('bench.got');
+  $got.unlink if $got.e;
+  say "\nProtheus: the bench, interpreted";
+  my ($icode, $itext) = appserver($logs.add('run-bench.log'), '-run=u_xbc', "-env={%opt<env>}", "out=\\xbc\\bench.got",
+                                  "\\xbc\\bench.xbc");
+  my $said = $got.e ?? $got.slurp(:bin).decode('windows-1252') !! '';
+  my %interpreted = times($said);
+  $stage.add('bench.xbc').unlink;
+  $got.unlink if $got.e;
+  my @parts = $text.lines.grep(/ 'bench ' \w+ \h /).map({ ~(.match(/ 'bench ' (\w+) /)[0]) });
+  unless @parts && %interpreted
+  {
+    say "    nothing to show: {@parts ?? 'the interpreter' !! 'the compiled bench'} printed no times";
+    say "      $_" for (@parts ?? $said.lines !! $text.lines).grep(*.trim).tail(15);
+    exit 1;
+  }
+  say "\n  part      compiled us  interpreted us   times slower";
+  for @parts -> $p
+  {
+    my ($c, $i) = %compiled{$p}, %interpreted{$p};
+    say sprintf("  %-8s %12.3f %15s %14s", $p, $c, $i.defined ?? sprintf("%.3f", $i) !! '-',
+                $i.defined && $c > 0 ?? sprintf("%.0f", $i / $c) !! '-');
+  }
+  exit 0;
 }
 
 # ---- the self-tests ----------------------------------------------------------

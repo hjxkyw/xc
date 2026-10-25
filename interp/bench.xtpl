@@ -1,0 +1,179 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// bench.xtpl -- what the interpreter's speed is measured with: the same
+// program compiled and interpreted (run-protheus.raku --bench). Each part
+// runs round after round for a second at least; a round does what the part
+// does N times, and the part's line is the time of one of those, in
+// microseconds:
+//
+//   bench loop         0.052 us
+//
+// A part the machine cannot run is left out: 'stuff', an AppServer
+// function that is not in the interpreter's table, on xc-vm.
+// -----------------------------------------------------------------------------
+
+User Function bench()
+  Local aTen := {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+  Timed("loop", {|n| Looped(n)}, 1000)
+  Timed("call", {|n| Called(n)}, 1000)
+  Timed("native", {|n| Natives(n)}, 1000)
+  Timed("stuff", {|n| Stuffed(n)}, 1000) if !FindFunction("XBC_CALL")
+  Timed("array", {|n| Indexed(n)}, 1000)
+  Timed("string", {|n| Joined(n)}, 1000)
+  Timed("method", {|n| Methods(n)}, 1000)
+  Timed("member", {|n| Members(n)}, 1000)
+  Timed("block", {|n| Blocks(n)}, 1000)
+  Timed("aeval", {|n| Evals(n, aTen)}, 1000)
+  Timed("hash", {|n| Hashed(n)}, 1000)
+  Timed("pipe", {|n| Piped(n, aTen)}, 1000)
+Return Nil
+
+// A part, round after round for a second at least: the time of one of the
+// N things a round does.
+Static Function Timed(cName, bPart, nN)
+  Local nRounds := 0
+  Local nStart := Seconds()
+  Local nSpent := 0
+  While nSpent < 1
+    Eval(bPart, nN)
+    nRounds++
+    nSpent := Seconds() - nStart
+  EndDo
+  ConOut("bench " + PadR(cName, 8) + Str(nSpent * 1000000 / (nRounds * nN), 12, 3) + " us")
+Return Nil
+
+// Locals, numbers, a loop.
+Static Function Looped(nN)
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN
+    nSum += nI % 7 * 2
+  Next
+Return nSum
+
+// A function of the program's.
+Static Function Called(nN)
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN
+    nSum := Plus(nSum, 1)
+  Next
+Return nSum
+
+Static Function Plus(nA, nB)
+Return nA + nB
+
+// The AppServer's, in the interpreter's table.
+Static Function Natives(nN)
+  Local cText := "the quick brown fox"
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN
+    nSum += Len(cText) + At("q", cText)
+  Next
+Return nSum
+
+// The AppServer's, not in it.
+Static Function Stuffed(nN)
+  Local cText := "the quick brown fox"
+  Local nI
+  For nI := 1 To nN
+    cText := Stuff(cText, 5, 1, "Q")
+  Next
+Return cText
+
+// An array's elements, read and written.
+Static Function Indexed(nN)
+  Local aNums := Array(100)
+  Local nSum := 0
+  Local nI
+  For nI := 1 To 100
+    aNums[nI] := 0
+  Next
+  For nI := 1 To nN
+    aNums[nI % 100 + 1] := nI
+    nSum += aNums[(nI + 50) % 100 + 1]
+  Next
+Return nSum
+
+// A string, longer and longer.
+Static Function Joined(nN)
+  Local cText := ""
+  Local nI
+  For nI := 1 To nN
+    cText += "x"
+    cText := "" if Len(cText) > 100
+  Next
+Return cText
+
+// A method of the program's class.
+Static Function Methods(nN)
+  Local oCount := BenchCount():New()
+  Local nI
+  For nI := 1 To nN
+    oCount:Add(nI)
+  Next
+Return oCount:nTotal
+
+// A data of the program's class, read and written.
+Static Function Members(nN)
+  Local oCount := BenchCount():New()
+  Local nI
+  For nI := 1 To nN
+    oCount:nTotal := oCount:nTotal + 1
+  Next
+Return oCount:nTotal
+
+// A code block of the program's, run by the program.
+Static Function Blocks(nN)
+  Local nSum := 0
+  Local bAdd := {|x| nSum += x}
+  Local nI
+  For nI := 1 To nN
+    Eval(bAdd, nI)
+  Next
+Return nSum
+
+// A code block of the program's, run by the AppServer: N elements.
+Static Function Evals(nN, aTen)
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN / 10
+    aEval(aTen, {|x| nSum += x})
+  Next
+Return nSum
+
+// A hash, written and read: xtpl's runtime.
+Static Function Hashed(nN)
+  Local hSeen := { => }
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN
+    hSeen{nI % 10} := nI
+    nSum += hSeen{5} ?: 0
+  Next
+Return nSum
+
+// A chain: N elements.
+Static Function Piped(nN, aTen)
+  Local nSum := 0
+  Local nI
+  For nI := 1 To nN / 10
+    nSum += aTen |> filter([x] x % 2 == 0) |> map([x] x * 3) |> asum
+  Next
+Return nSum
+
+Class BenchCount
+  Public Data nTotal
+  Public Method New() Constructor
+  Public Method Add(nBy)
+EndClass
+
+Method New() Class BenchCount
+  ::nTotal := 0
+Return Self
+
+Method Add(nBy) Class BenchCount
+  ::nTotal += nBy
+Return Self

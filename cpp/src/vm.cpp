@@ -2,23 +2,27 @@
 // says each instruction does, as a program, and what the tests run the .xbc
 // files they compile with (cpp/tests/bytecode).
 //
-//   xc-vm [--run=NAME] module.xbc ...
+//   xc-vm [--run=NAME] [--profile=FILE] module.xbc ...
 //
 // Each module's __INIT runs, in the order given -- what a program needs, xtpl's
 // runtime among them, first, the program last --; then NAME -- when it is not
 // given, U_MAIN if there is one, else the first user function of the last
 // module -- with no arguments. What ConOut() is given goes to the output; an
-// error nothing catches goes to the errors, and the exit code is 1.
+// error nothing catches goes to the errors, and the exit code is 1. With
+// --profile=FILE, how many instructions ran, by function and by line, and
+// how many times each of the AppServer's functions was called, go to FILE.
 //
 // The AppServer's functions are a few of their namesakes, enough for the
 // tests and for xtpl's runtime, compiled to bytecode as any program: the
 // strings', the numbers', the dates', the arrays', Eval(), Break(),
-// ErrorBlock(), Random() -- the same numbers on every run --; File() and the
-// FT_ functions, for a text file; THashMap and JsonObject; Decimals and the
-// DEC_ functions, exact, on digits. A work area is a name: it can be selected
-// and put back, and it has no records. A macro is a variable's name.
+// ErrorBlock(), Random() -- the same numbers on every run --, Seconds(), to
+// time a run; File() and the FT_ functions, for a text file; THashMap and
+// JsonObject; Decimals and the DEC_ functions, exact, on digits. A work area
+// is a name: it can be selected and put back, and it has no records. A macro
+// is a variable's name.
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -598,6 +602,8 @@ namespace
     VM() { natives(); }
     void load(const std::string& path);
     int start(const std::string& entry, const std::vector<std::string>& args);
+    void profile_to(const std::string& path) { profile_ = path; }
+    void write_profile() const;
 
   private:
     std::vector<std::unique_ptr<Module>> modules_;
@@ -624,6 +630,13 @@ namespace
     // Random()'s numbers: the same on every run, for the tests.
     std::mt19937 random_{ 1 };
     std::string where_;
+    // --profile=FILE: the instructions run, by function and line, and the
+    // AppServer's functions called, by name.
+    std::string profile_;
+    std::map<std::pair<const Function*, long>, unsigned long long> run_lines_;
+    std::map<std::pair<int, int>, unsigned long long> run_ops_;      // {the one before, it}
+    int last_op_ = -1;
+    std::unordered_map<std::string, unsigned long long> run_natives_;
 
     // ---- errors -------------------------------------------------------------
     [[noreturn]] void fail(const std::string& description);
@@ -1064,6 +1077,7 @@ namespace
     }
     auto it = natives_.find(upper(name));
     if (it == natives_.end()) { fail("function " + name + " does not exist"); }
+    if (!profile_.empty()) { run_natives_[it->first]++; }
     Value r = it->second(args);
     frames_.back()->stack.push_back(std::move(r));
   }
@@ -1545,6 +1559,12 @@ namespace
       Frame& f = *frames_.back();
       if (f.pc >= f.fn->code.size()) { fail(f.fn->name + " runs past its end"); }
       const Ins& in = f.fn->code[f.pc++];
+      if (!profile_.empty())
+      {
+        run_lines_[{ f.fn, f.line }]++;
+        run_ops_[{ last_op_, static_cast<int>(in.op) }]++;
+        last_op_ = static_cast<int>(in.op);
+      }
       std::vector<Value>& st = f.stack;
       auto pop = [&]() -> Value
       {
@@ -2325,6 +2345,14 @@ namespace
       return N(static_cast<double>(std::uniform_int_distribution<long>(lo, hi)(random_)));
     };
     n["RANDOMIZE"] = n["RANDOM"];
+    // The seconds since midnight, to the millisecond, as the AppServer's --
+    // midnight UTC: for timing a run, as the interpreter's bench does.
+    n["SECONDS"] = [](Args&)
+    {
+      auto now = std::chrono::system_clock::now().time_since_epoch();
+      long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count() % 86400000;
+      return N(static_cast<double>(ms) / 1000);
+    };
 
     // Dates.
     n["DTOS"] = [this](Args& a)
@@ -2505,6 +2533,7 @@ namespace
       }
       auto it = natives_.find(upper(name));
       if (it == natives_.end()) { fail("function " + name + " does not exist"); }
+      if (!profile_.empty()) { run_natives_[it->first]++; }
       return it->second(args);
     };
     n["XBC_METHOD"] = [this, host_args](Args& a)
@@ -2676,15 +2705,78 @@ namespace
     std::cout.flush();
     return 0;
   }
+
+  // The profile, most first: the instructions run, in all and by function,
+  // then by function and line -- the line the last 'line' gave --, then by
+  // instruction, then by instruction and the one run before it; then the
+  // AppServer's functions called.
+  void VM::write_profile() const
+  {
+    if (profile_.empty()) { return; }
+    std::ofstream out(profile_, std::ios::binary);
+    unsigned long long all = 0;
+    std::map<std::string, unsigned long long> by_fn;
+    std::vector<std::pair<unsigned long long, std::string>> lines;
+    for (const auto& [at, count] : run_lines_)
+    {
+      all += count;
+      by_fn[at.first->name] += count;
+      lines.emplace_back(count, at.first->name + ":" + std::to_string(at.second));
+    }
+    std::vector<std::pair<unsigned long long, std::string>> fns;
+    for (const auto& [name, count] : by_fn) { fns.emplace_back(count, name); }
+    std::vector<std::pair<unsigned long long, std::string>> calls;
+    for (const auto& [name, count] : run_natives_) { calls.emplace_back(count, name); }
+    auto most = [](auto& v)
+    {
+      std::sort(v.begin(), v.end(), [](const auto& a, const auto& b)
+      {
+        return a.first != b.first ? a.first > b.first : a.second < b.second;
+      });
+    };
+    auto named = [](int op) -> std::string
+    {
+      for (const OpInfo& o : OPS)
+      {
+        if (static_cast<int>(o.op) == op) { return o.name; }
+      }
+      return "-";
+    };
+    std::map<int, unsigned long long> by_op;
+    std::vector<std::pair<unsigned long long, std::string>> ops;
+    std::vector<std::pair<unsigned long long, std::string>> pairs;
+    for (const auto& [two, count] : run_ops_)
+    {
+      by_op[two.second] += count;
+      pairs.emplace_back(count, named(two.first) + " " + named(two.second));
+    }
+    for (const auto& [op, count] : by_op) { ops.emplace_back(count, named(op)); }
+    most(fns);
+    most(lines);
+    most(ops);
+    most(pairs);
+    most(calls);
+    out << "instructions " << all << "\n--- by function\n";
+    for (const auto& [count, name] : fns) { out << count << " " << name << "\n"; }
+    out << "--- by line\n";
+    for (const auto& [count, name] : lines) { out << count << " " << name << "\n"; }
+    out << "--- by instruction\n";
+    for (const auto& [count, name] : ops) { out << count << " " << name << "\n"; }
+    out << "--- by instruction and the one before\n";
+    for (const auto& [count, name] : pairs) { out << count << " " << name << "\n"; }
+    out << "--- the AppServer's\n";
+    for (const auto& [count, name] : calls) { out << count << " " << name << "\n"; }
+  }
 }
 
-// xc-vm [--run=NAME] module.xbc ... [-- ARG ...]: what follows '--' are
-// the entry's arguments, strings.
+// xc-vm [--run=NAME] [--profile=FILE] module.xbc ... [-- ARG ...]: what
+// follows '--' are the entry's arguments, strings.
 int main(int argc, char** argv)
 {
   std::vector<std::string> files;
   std::vector<std::string> args;
   std::string entry;
+  std::string profile;
   bool rest = false;
   for (int i = 1; i < argc; i++)
   {
@@ -2692,19 +2784,21 @@ int main(int argc, char** argv)
     if (rest) { args.push_back(a); }
     else if (a == "--") { rest = true; }
     else if (a.rfind("--run=", 0) == 0) { entry = a.substr(6); }
+    else if (a.rfind("--profile=", 0) == 0) { profile = a.substr(10); }
     else if (a.rfind("--", 0) == 0)
     {
-      std::cerr << "usage: xc-vm [--run=NAME] module.xbc ... [-- ARG ...]\n";
+      std::cerr << "usage: xc-vm [--run=NAME] [--profile=FILE] module.xbc ... [-- ARG ...]\n";
       return 2;
     }
     else { files.push_back(a); }
   }
   if (files.empty())
   {
-    std::cerr << "usage: xc-vm [--run=NAME] module.xbc ... [-- ARG ...]\n";
+    std::cerr << "usage: xc-vm [--run=NAME] [--profile=FILE] module.xbc ... [-- ARG ...]\n";
     return 2;
   }
   VM vm;
+  vm.profile_to(profile);
   try
   {
     for (const std::string& f : files) { vm.load(f); }
@@ -2714,5 +2808,7 @@ int main(int argc, char** argv)
     std::cerr << "xc-vm: " << e.what() << "\n";
     return 2;
   }
-  return vm.start(entry, args);
+  int code = vm.start(entry, args);
+  vm.write_profile();
+  return code;
 }

@@ -509,14 +509,29 @@ lines. It is how a difference on the AppServer is looked into:
 `rakupp run-protheus.raku --interp --trace` keeps one for each case, in
 `build/logs/interp/`.
 
+Its speed is measured with `interp/bench.xtpl`: parts that each do one
+thing over and over -- a loop, calls of the program's functions and of the
+AppServer's, an array's elements, a string, methods and data of the
+program's class, code blocks, a hash, a chain --, each for a second at
+least, printing the time of one of those things in microseconds. `rakupp
+run-protheus.raku --bench` has the AppServer run it compiled, then the
+interpreter run it as bytecode, and shows both and their ratio. On xc-vm,
+`xc-vm --run=U_XBC xtpl_runtime.xbc xbc.xbc -- bench.xbc` against
+`xc-vm --run=U_BENCH xtpl_runtime.xbc bench.xbc` does the same, and
+`--profile=FILE` says where the interpreter's instructions go.
+
 ## xc-vm
 
-`xc-vm [--run=NAME] module.xbc ... [-- ARG ...]` loads the modules, runs
-each one's `__INIT` in the order given, then NAME -- `U_MAIN` when it is not
-given and there is one, else the first user function of the last module --
-with the ARGs after `--`, strings, as its arguments. What `ConOut()` is given goes to its output, a line for each
+`xc-vm [--run=NAME] [--profile=FILE] module.xbc ... [-- ARG ...]` loads
+the modules, runs each one's `__INIT` in the order given, then NAME --
+`U_MAIN` when it is not given and there is one, else the first user
+function of the last module -- with the ARGs after `--`, strings, as its
+arguments. What `ConOut()` is given goes to its output, a line for each
 argument; an error nothing catches goes to its errors, with the function and
-the line, and the exit code is 1.
+the line, and the exit code is 1. With `--profile=FILE`, FILE gets how many
+instructions ran, in all, by function, by function and line, by instruction
+and by instruction and the one before it, and how many times each of the
+AppServer's functions was called -- the most first.
 
 xtpl's runtime is a module like any other: `xc --bytecode
 runtime/xtpl_runtime.tlpp` makes it, and it goes first, the program last --
@@ -535,6 +550,7 @@ functions -- a line longer than 1023 characters in pieces of 1023, and
 `THashMap` and `JsonObject`, with the methods the runtime calls -- a
 `JsonObject`'s keys by `j["name"]` only, as the AppServer's. As the
 AppServer's too, `x / 0` is 0 and `x % 0` an error.
-`Random()` starts from the same seed each run, so a run repeats. A work
+`Random()` starts from the same seed each run, so a run repeats;
+`Seconds()` counts from midnight UTC, for timing a run. A work
 area is a name -- it can be selected and put back, and has no records --,
 and a macro is a variable's name.
