@@ -1,0 +1,18 @@
+// 'then' is '|>' as a word: the same chains, the same TL++.
+User Function ThenChains()
+  Local aL := { 3, 1, 2 }
+  Local cThen := "a name with 'then' in it is a name"
+  Local cS := aL then ASort() then ArrToStr(",")
+  Local nN := 0, nI
+  aL THEN ASort() Then ConOut()
+  aL |> ASort() then ConOut()
+  nN := { 1, 2 } then aEval({|x| ConOut(x)}) then Len()
+  aL ;
+    then ASort() ;
+    then ConOut()
+  for nI := 1 to aL then Len() exec nN += nI
+  ConOut(cThen + cS)
+Return nN
+
+Static Function ArrToStr(aA, cSep)
+Return ""

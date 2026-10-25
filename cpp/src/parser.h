@@ -101,6 +101,8 @@ namespace xc
     Expr* back(int at) { p_ = at; return nullptr; }
     template <class T> T* make() { return tree_.make<T>(); }
     Expr* span(Expr* e, int from, int to) { e->from = from; e->to = to; return e; }
+    int pipe_at(int p) const;
+    bool then_at(int p) const;
     Expr* joined(Binary* b);
     Expr* interval(Expr* lo, Expr* hi);
     Expr* incdec(Expr* target, bool plus, const char* where);

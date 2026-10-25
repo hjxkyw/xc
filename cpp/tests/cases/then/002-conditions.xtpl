@@ -1,0 +1,30 @@
+// A 'then' chain that is all of a condition reads as 'If ... Then': xc warns,
+// and takes it as the chain it is. '|>', or parentheses, say it plainly.
+User Function ThenConditions()
+  Local aL := { 3, 1, 2 }
+  If aL then Empty()
+    ConOut("empty")
+  ElseIf aL then Len() then IsOdd()
+    ConOut("odd")
+  EndIf
+  While aL then Empty()
+    Exit
+  EndDo
+  ConOut("x") if aL then Empty()
+  Do Case
+    Case aL then Empty()
+      ConOut("e")
+  EndCase
+  if aL then Empty() exec ConOut("e")
+  If (aL then Empty())
+    ConOut("empty")
+  EndIf
+  If aL |> Empty()
+    ConOut("empty")
+  EndIf
+  if (aL then Empty()) exec ConOut("e")
+  ConOut("x") while (aL then Empty())
+Return Nil
+
+Static Function IsOdd(nN)
+Return nN % 2 == 1

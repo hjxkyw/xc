@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'then' is '|>' as a word: the same chains, the same TL++.
+User Function ThenChains()
+  Local aL := { 3, 1, 2 }
+  Local cThen := "a name with 'then' in it is a name"
+  Local cS := ArrToStr(ASort(aL), ",")
+  Local nN := 0, nI
+  ConOut(ASort(aL))
+  ConOut(ASort(aL))
+  nN := Len(aEval({ 1, 2 }, {|x| ConOut(x)}))
+  ConOut(ASort(aL))
+  For nI := 1 To Len(aL)
+    nN += nI
+  Next
+  ConOut(cThen + cS)
+Return nN
+
+Static Function ArrToStr(aA, cSep)
+Return ""

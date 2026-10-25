@@ -1,0 +1,6 @@
+002-conditions.xtpl:5: warning: the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+002-conditions.xtpl:7: warning: the condition of an 'elseif' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+002-conditions.xtpl:10: warning: the condition of a 'while' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+002-conditions.xtpl:13: warning: the condition of a postfix 'if' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+002-conditions.xtpl:15: warning: the condition of a 'case' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+002-conditions.xtpl:18: warning: the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses

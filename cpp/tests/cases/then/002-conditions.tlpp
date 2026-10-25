@@ -1,0 +1,41 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A 'then' chain that is all of a condition reads as 'If ... Then': xc warns,
+// and takes it as the chain it is. '|>', or parentheses, say it plainly.
+User Function ThenConditions()
+  Local aL := { 3, 1, 2 }
+  If Empty(aL)
+    ConOut("empty")
+  ElseIf IsOdd(Len(aL))
+    ConOut("odd")
+  EndIf
+  While Empty(aL)
+    Exit
+  EndDo
+  If Empty(aL)
+    ConOut("x")
+  EndIf
+  Do Case
+    Case Empty(aL)
+      ConOut("e")
+  EndCase
+  If Empty(aL)
+    ConOut("e")
+  EndIf
+  If Empty(aL)
+    ConOut("empty")
+  EndIf
+  If Empty(aL)
+    ConOut("empty")
+  EndIf
+  If Empty(aL)
+    ConOut("e")
+  EndIf
+  While Empty(aL)
+    ConOut("x")
+  EndDo
+Return Nil
+
+Static Function IsOdd(nN)
+Return nN % 2 == 1

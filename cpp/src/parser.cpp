@@ -91,7 +91,7 @@ namespace xc
         f = 0;
       }
       else if (ch == '=') { f |= L_EQ; }
-      else if (ch == '|') { f |= L_BAR; }
+      else if (ch == '|' || ((ch == 't' || ch == 'T') && then_at(i))) { f |= L_BAR; }
       else if (ch == '/') { f |= L_DIV; }
       else if (ch == ';') { f |= L_SEMI; }
     }
@@ -400,6 +400,23 @@ namespace xc
     return true;
   }
 
+  // A chain's operator at p: '|>', or 'then', its word -- the length, or 0.
+  int Parser::pipe_at(int p) const
+  {
+    if (c(p) == '|' && c(p + 1) == '>')
+    {
+      return 2;
+    }
+    return then_at(p) ? 4 : 0;
+  }
+
+  // The word 'then' at p, letter case aside, with no word character on
+  // either side.
+  bool Parser::then_at(int p) const
+  {
+    return iword_at(p, "then") && !is_w(c(p + 4)) && !(p > 0 && is_w(c(p - 1)));
+  }
+
   bool Parser::stmtword_at(int p) const
   {
     int e = name_end(p);
@@ -475,7 +492,8 @@ namespace xc
     return last;
   }
 
-  // <opnext>: an operator's first character, or 'in' or 'has' as a word.
+  // <opnext>: an operator's first character, or 'in', 'has' or 'then' as a
+  // word.
   bool Parser::opnext() const
   {
     int ch = c(p_);
@@ -491,6 +509,10 @@ namespace xc
     if (lower(ch) == 'i' && d == 'n' && !is_w(c(p_ + 2)))
     {
       return true;
+    }
+    if (lower(ch) == 't')
+    {
+      return then_at(p_);
     }
     return lower(ch) == 'h' && d == 'a' && lower(c(p_ + 2)) == 's' && !is_w(c(p_ + 3));
   }
@@ -635,9 +657,11 @@ namespace xc
     }
     int elvis_end = p_;
     std::vector<Call*> stages;
-    while (c(p_) == '|' && c(p_ + 1) == '>' && !in_block_)
+    bool then = false;
+    while (pipe_at(p_) && !in_block_)
     {
       int save = p_;
+      bool t = pipe_at(p_) == 4;
       Call* st = feed();
       if (!st)
       {
@@ -645,6 +669,7 @@ namespace xc
         break;
       }
       stages.push_back(st);
+      then = then || t;
     }
     if (!stages.empty())
     {
@@ -652,16 +677,18 @@ namespace xc
       auto pipe = make<Pipeline>();
       pipe->source = source;
       pipe->stages = std::move(stages);
+      pipe->then = then;
+      pipe->line = line(start);
       return span(pipe, start, p_);
     }
     return span(source, start, p_);
   }
 
-  // rule feed { <?[|]> <!{ in a block }> '|>' <stage> }
+  // rule feed { <?[|tT]> <!{ in a block }> [ '|>' || :i 'then' >> ] <stage> }
   // rule stage { <nscall> || <call> || <name> }
   Call* Parser::feed()
   {
-    p_ += 2;
+    p_ += pipe_at(p_);
     if (!ws())
     {
       return nullptr;
@@ -808,7 +835,7 @@ namespace xc
       {
         p_ += 2;
         Expr* hi = ws() ? climb(L_ADD, nullptr, false) : nullptr;
-        if (hi && (in || (c(p_) == '|' && c(p_ + 1) == '>')))
+        if (hi && (in || pipe_at(p_)))
         {
           x = interval(x, hi);
           cap = L_CMP;
@@ -1397,6 +1424,10 @@ namespace xc
     }
     if (more.empty())
     {
+      if (first->kind == EK::Pipeline)
+      {
+        static_cast<Pipeline*>(first)->then = false;     // in parentheses
+      }
       return first;
     }
     auto list = make<ExprList>();
@@ -1906,7 +1937,7 @@ namespace xc
     {
       q++;
     }
-    if (c(q) == '|' && c(q + 1) == '>')
+    if (pipe_at(q))
     {
       return back(start);
     }
@@ -2678,9 +2709,11 @@ namespace xc
     }
     int elvis_end = p_;
     std::vector<Call*> stages;
-    while (c(p_) == '|' && c(p_ + 1) == '>' && !in_block_)
+    bool then = false;
+    while (pipe_at(p_) && !in_block_)
     {
       int save = p_;
+      bool t = pipe_at(p_) == 4;
       Call* st = feed();
       if (!st)
       {
@@ -2688,6 +2721,7 @@ namespace xc
         break;
       }
       stages.push_back(st);
+      then = then || t;
     }
     if (stages.empty())
     {
@@ -2697,6 +2731,8 @@ namespace xc
     auto pipe = make<Pipeline>();
     pipe->source = source;
     pipe->stages = std::move(stages);
+    pipe->then = then;
+    pipe->line = line(start);
     return span(pipe, start, p_);
   }
 }

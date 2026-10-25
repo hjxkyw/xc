@@ -13,6 +13,40 @@ namespace xc
   {
     bool has(std::string_view s, std::string_view what) { return s.find(what) != std::string_view::npos; }
 
+    // Whether the word 'then', letter case aside, is at k of s.
+    bool then_at(std::string_view s, std::size_t k)
+    {
+      if (k + 4 > s.size() || (k > 0 && is_w(static_cast<unsigned char>(s[k - 1]))))
+      {
+        return false;
+      }
+      for (std::size_t i = 0; i < 4; i++)
+      {
+        if ((s[k + i] | 0x20) != "then"[i])
+        {
+          return false;
+        }
+      }
+      return !(k + 4 < s.size() && is_w(static_cast<unsigned char>(s[k + 4])));
+    }
+
+    // A chain's operator anywhere in s: '|>', or 'then'.
+    bool has_pipe(std::string_view s)
+    {
+      if (has(s, "|>"))
+      {
+        return true;
+      }
+      for (std::size_t k = 0; k < s.size(); k++)
+      {
+        if ((s[k] == 't' || s[k] == 'T') && then_at(s, k))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Strings and comments, which ahead() reads past -- the grammar's
     // 'noise': a '"' string or a "'" one (a "'" between two digits groups
     // them, '12'345', and is no string), to its quote or the line's end; a
@@ -99,8 +133,8 @@ namespace xc
   {
     // Not a sign of what is looked for anywhere, nor a '/*' that may hide
     // one: no, before reading anything.
-    std::string_view sign = what == Ahead::Pipe ? "|>" : "=";
-    if (!has(text, sign) && !has(text, "/*"))
+    bool pipe = what == Ahead::Pipe;
+    if (!(pipe ? has_pipe(text) : has(text, "=")) && !has(text, "/*"))
     {
       return false;
     }
@@ -109,11 +143,11 @@ namespace xc
     std::string code = without_noise(text);
     if (!has(code, ";") && !has(code, "/*"))
     {
-      if (!has(code, sign))
+      if (!(pipe ? has_pipe(code) : has(code, "=")))
       {
         return false;
       }
-      if (what != Ahead::Pipe)
+      if (!pipe)
       {
         bool bind = false;
         for (std::string_view b : { ":=", "+=", "-=", "*=", "/=", "?=" })
@@ -230,7 +264,7 @@ namespace xc
             }
           }
         }
-        else if (c == '|' && next == '>')
+        else if ((c == '|' && next == '>') || ((c == 't' || c == 'T') && then_at(text, i)))
         {
           return true;
         }

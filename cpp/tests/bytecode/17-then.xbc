@@ -1,0 +1,215 @@
+xbc 1
+source 17-then.xtpl
+statics 0
+
+function U_MAIN user 0 12
+  locals aNums cThen aTmp nSum nI .t1 .t2 .t3 .t4 .t5 .t6 .t7
+  line 5
+  num 5
+  num 2
+  num 8
+  num 1
+  array 4
+  setlocal 1
+  line 6
+  str "then"
+  setlocal 2
+  line 7
+  local 1
+  block U_MAIN#1 0
+  call 2 u_xtpl_filter
+  block U_MAIN#2 0
+  call 2 u_xtpl_map
+  setlocal 3
+  line 8
+  num 0
+  setlocal 4
+  line 9
+  num 0
+  setlocal 5
+  line 11
+  local 3
+  call 1 Len
+  local 3
+  num 1
+  index
+  local 3
+  num 3
+  index
+  call 3 ConOut
+  pop
+  line 12
+  local 1
+  block U_MAIN#3 0
+  call 2 u_xtpl_sortby
+  block U_MAIN#4 0
+  call 2 u_xtpl_map
+  str "-"
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 13
+  array 0
+  setlocal 8
+  num 1
+  setlocal 6
+  local 6
+  local 1
+  call 1 Len
+  le
+  jumpf 72
+  local 1
+  local 6
+  index
+  setlocal 7
+  local 7
+  num 1
+  add
+  setlocal 7
+  local 8
+  local 7
+  call 2 AAdd
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 50
+  local 8
+  str ","
+  call 2 u_xtpl_join
+  setlocal 8
+  local 8
+  call 1 ConOut
+  pop
+  line 14
+  num 1
+  setlocal 5
+  line 14
+  local 5
+  local 1
+  call 1 Len
+  le
+  jumpf 99
+  local 4
+  local 1
+  local 5
+  index
+  add
+  setlocal 4
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 82
+  line 15
+  local 4
+  call 1 ConOut
+  pop
+  line 16
+  local 1
+  block U_MAIN#5 0
+  call 2 u_xtpl_filter
+  call 1 Len
+  num 1
+  exact
+  jumpf 114
+  str "one"
+  call 1 ConOut
+  pop
+  line 17
+  num 0
+  setlocal 11
+  array 0
+  setlocal 12
+  num 1
+  setlocal 9
+  local 9
+  local 1
+  call 1 Len
+  le
+  jumpf 152
+  local 1
+  local 9
+  index
+  setlocal 10
+  local 10
+  num 3
+  lt
+  jumpt 147
+  local 11
+  num 1
+  ge
+  jumpf 139
+  jump 152
+  local 11
+  num 1
+  add
+  setlocal 11
+  local 12
+  local 10
+  call 2 AAdd
+  pop
+  local 9
+  num 1
+  add
+  setlocal 9
+  jump 121
+  local 12
+  setlocal 3
+  line 20
+  local 3
+  call 1 Len
+  local 3
+  num 1
+  index
+  local 2
+  call 3 ConOut
+  pop
+  line 21
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals x
+  line 7
+  local 1
+  num 1
+  gt
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals x
+  line 7
+  local 1
+  num 10
+  mul
+  ret
+end
+
+function U_MAIN#3 block 1 1
+  locals x
+  line 12
+  local 1
+  neg
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals __it
+  line 12
+  local 1
+  call 1 cValToChar
+  ret
+end
+
+function U_MAIN#5 block 1 1
+  locals x
+  line 16
+  local 1
+  num 7
+  gt
+  ret
+end

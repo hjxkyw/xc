@@ -232,6 +232,8 @@ namespace xc
     Pipeline() : Expr(EK::Pipeline) {}
     Expr* source = nullptr;
     std::vector<Call*> stages;
+    bool then = false;               // a stage after 'then', '|>' as a word,
+                                     // and no parentheses around the chain
   };
 
   // ---- statements -----------------------------------------------------------

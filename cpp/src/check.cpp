@@ -474,6 +474,7 @@ namespace xc
 
       void problem(const std::string& m) { found.push_back({ line_, m }); }
       void warning(const std::string& m) { warned.push_back({ line_, m }); }
+      void then_cond(const Expr* cond, const std::string& where);
       void keyword_name(const std::string& name, int line);
       std::unordered_set<std::string> keyword_seen_;   // line and name, said once
 
@@ -906,6 +907,19 @@ namespace xc
       {
         warned.push_back({ end, w0019 });
       }
+    }
+
+    // A 'then' chain that is all of a condition: 'If cS then Empty()' reads
+    // as BASIC's 'If ... Then', and a reader can miss the chain.
+    void Checker::then_cond(const Expr* cond, const std::string& where)
+    {
+      if (!cond || cond->kind != EK::Pipeline || !static_cast<const Pipeline*>(cond)->then)
+      {
+        return;
+      }
+      warned.push_back({ cond->line > 0 ? cond->line : line_,
+                         "the condition of " + where + " is a 'then' chain, which reads as 'if ... then': write "
+                         "'|>' there, or put the chain in parentheses" });
     }
 
     // ---- scopes -------------------------------------------------------------
@@ -1348,6 +1362,7 @@ namespace xc
             if (auto d = i->header_decl) { declare(d->name, d->line, d->attributes, "local", true); }
             for (Branch* b : i->branches)
             {
+              then_cond(b->cond, b == i->branches.front() ? "an 'if'" : "an 'elseif'");
               expr(b->cond);
               body(b->body);
             }
@@ -1366,6 +1381,7 @@ namespace xc
           in_block([&]
           {
             if (auto d = w->header_decl) { declare(d->name, d->line, d->attributes, "local", true); }
+            then_cond(w->cond, "a 'while'");
             expr(w->cond);
             body(w->body);
           });
@@ -1428,6 +1444,7 @@ namespace xc
             if (auto d = c->subject_decl) { declare(d->name, d->line, d->attributes, "local", true); }
             for (Branch* b : c->branches)
             {
+              then_cond(b->cond, "a 'case'");
               expr(b->cond);
               body(b->body);
             }
@@ -1507,6 +1524,7 @@ namespace xc
         case SK::Modified:
         {
           auto m = static_cast<Modified*>(s);
+          then_cond(m->cond, "a postfix '" + lc(m->op) + "'");
           expr(m->cond);
           stmt(m->stmt);
           break;

@@ -264,7 +264,8 @@ namespace xc
   {
     nl_ = src_.find("\r\n") != std::string::npos ? "\r\n" : "\n";
     std::string l = lc(src_);
-    chains_ = l.find("|>") != std::string::npos || l.find("..") != std::string::npos
+    chains_ = l.find("|>") != std::string::npos || l.find("then") != std::string::npos
+              || l.find("..") != std::string::npos
               || l.find("rows") != std::string::npos || l.find("lines") != std::string::npos;
   }
 

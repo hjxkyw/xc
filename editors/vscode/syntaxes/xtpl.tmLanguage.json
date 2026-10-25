@@ -498,7 +498,7 @@
     "operators": {
       "patterns": [
         {
-          "match": "(\\|>)\\s*([A-Za-z_]\\w*)\\b(?!\\s*\\()",
+          "match": "(\\|>|(?i:\\bthen\\b))\\s*([A-Za-z_]\\w*)\\b(?!\\s*\\()",
           "captures": {
             "1": {
               "name": "keyword.operator.pipe.xtpl"
@@ -510,7 +510,7 @@
         },
         {
           "name": "keyword.operator.pipe.xtpl",
-          "match": "\\|>"
+          "match": "\\|>|(?i:\\bthen\\b)"
         },
         {
           "name": "keyword.operator.word.xtpl",

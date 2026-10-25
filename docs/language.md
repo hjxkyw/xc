@@ -1036,7 +1036,7 @@ From the loosest to the tightest:
 | Level | Operators |
 |---|---|
 | guard | `e fallback alt` |
-| chain | `x \|> f()` |
+| chain | `x \|> f()`, `x then f()` |
 | elvis | `a ?: b` |
 | or | `.Or.` |
 | and | `.And.` |
@@ -1423,6 +1423,41 @@ parenthesis or the start of the expression that holds it -- so
 `aR := nA > 1 |> sortRows` feeds `nA > 1`, and xc warns. A chain may be the
 value of anything, or a statement of its own, run for its effect.
 
+`then` is `|>` written as a word, in any letter case, and the two mix in a
+chain: `aOrders then validate() then save()` is the chain above. It is the
+operator only where one goes -- after a value, before a stage --, so a name
+stays a name. A condition that is a whole `then` chain reads as BASIC's
+`If ... Then`, which TL++ does not have: xc takes the chain, and warns. Write
+`|>` there, or put the chain in parentheses.
+
+```xtpl
+User Function Names(cName)
+  cName then alltrim |> upper then ConOut()
+  If cName then Empty()
+    ConOut("none")
+  EndIf
+  If (cName then Len()) > 9
+    ConOut("long")
+  EndIf
+Return Nil
+```
+
+```tlpp
+User Function Names(cName)
+  ConOut(upper(alltrim(cName)))
+  If Empty(cName)
+    ConOut("none")
+  EndIf
+  If Len(cName) > 9
+    ConOut("long")
+  EndIf
+Return Nil
+```
+
+```text
+names.xtpl:3: warning: the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '|>' there, or put the chain in parentheses
+```
+
 ### The verbs
 
 A call to one of these names -- a call, not a method -- is the runtime's
@@ -1768,8 +1803,8 @@ parses, in xtpl's words.
 | `distinctAdjacent` over `rows()` without a key | `distinctAdjacent over rows() needs a key -- ...` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
-comma in a declaration, `?=` in an expression, `|>` or `fallback` inside a
-lambda or a code block, a `|>` with nothing on its left, `${` never closed,
+comma in a declaration, `?=` in an expression, a chain or a `fallback`
+inside a lambda or a code block, a `|>` with nothing on its left, `${` never closed,
 a lambda with no parameters, `with` without `object`. It refuses a reserved
 word or a name of xc's shape declared too, and xc then reads the file again
 with any name allowed, to say which name it was and why.
@@ -1796,6 +1831,7 @@ with any name allowed, to say which name it was and why.
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
+| a `then` chain that is all of the condition of an `If`, an `ElseIf`, a `While`, a `Case`, a postfix `if` or `while` | `the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '\|>' there, or put the chain in parentheses` |
 
 A User Function of the file called without its `u_` is refused even when
 the call means a function of the framework by the same name -- `TCBrowse()`

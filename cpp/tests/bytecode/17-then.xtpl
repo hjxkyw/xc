@@ -1,0 +1,21 @@
+// 'then', '|>' as a word: the same chains, in the same code -- in a
+// declaration, a statement, a 'for' bound, one carried on by ';', in
+// parentheses in a condition, and mixed with '|>'.
+User Function Main()
+  Local aNums := {5, 2, 8, 1}
+  Local cThen := "then"
+  Local aTmp := aNums then filter([x] x > 1) then map([x] x * 10)
+  Local nSum := 0
+  Local nI := 0
+
+  ConOut(Len(aTmp), aTmp[1], aTmp[3])
+  ConOut(aNums then sortBy([x] -x) |> map(cValToChar) then join("-"))
+  aNums THEN map([x] x + 1) Then join(",") then ConOut()
+  for nI := 1 to aNums then Len() exec nSum += aNums[nI]
+  ConOut(nSum)
+  if (aNums then filter([x] x > 7) then Len()) == 1 exec ConOut("one")
+  aTmp := aNums ;
+    then reject([x] x < 3) ;
+    then take(1)
+  ConOut(Len(aTmp), aTmp[1], cThen)
+Return Nil
