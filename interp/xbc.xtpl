@@ -96,24 +96,26 @@
 #define OP_REFCELL    58
 #define OP_REFUPVAL   59
 #define OP_BLOCK      60
-#define OP_NEW        61
-#define OP_ISNIL      62
-#define OP_NEG        63
-#define OP_POW        64
-#define OP_CONTAINS   65
-#define OP_STATIC     66
-#define OP_SETSTATIC  67
-#define OP_REFSTATIC  68
-#define OP_MEMVAR     69
-#define OP_SETMEMVAR  70
-#define OP_REFMEMVAR  71
-#define OP_PRIVATE    72
-#define OP_PUBLIC     73
-#define OP_FIELD      74
-#define OP_SETFIELD   75
-#define OP_FIELDX     76
-#define OP_SETFIELDX  77
-#define OP_BOX        78
+#define OP_ISNIL      61
+#define OP_NEG        62
+#define OP_POW        63
+#define OP_CONTAINS   64
+#define OP_STATIC     65
+#define OP_SETSTATIC  66
+#define OP_BOX        67
+// The rare ones, from here: a method's of their own (Rare()).
+#define OP_RARE       68
+#define OP_NEW        68
+#define OP_REFSTATIC  69
+#define OP_MEMVAR     70
+#define OP_SETMEMVAR  71
+#define OP_REFMEMVAR  72
+#define OP_PRIVATE    73
+#define OP_PUBLIC     74
+#define OP_FIELD      75
+#define OP_SETFIELD   76
+#define OP_FIELDX     77
+#define OP_SETFIELDX  78
 #define OP_CALLX      79
 #define OP_SUPER      80
 #define OP_MACRO      81
@@ -368,6 +370,7 @@ Class XbcVM
   Public Method Run1(nBase)
   Public Method Run2(nBase)
   Public Method Run3(nBase)
+  Public Method Rare(aF, aIns)
   Public Method Unwind(nBase, xWhat, lError)
   Public Method Push(aFn, aArgs, aCells, xSelf)
   Public Method EndFrame(aF)
@@ -1134,7 +1137,6 @@ Method Run(nBase) Class XbcVM
   Local aArgs
   Local xA
   Local xB
-  Local xC
   Local nI
   Local nK
   Local nN
@@ -1142,7 +1144,6 @@ Method Run(nBase) Class XbcVM
   Local aCls
   Local aM
   Local aFn
-  Local cName
   Local xResult
   ::nRuns++
   While !lDone
@@ -1587,35 +1588,6 @@ Method Run(nBase) Class XbcVM
             Else
               aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
             EndIf
-          Case nOp == OP_NEW
-            // 'Name():M(...)': an object of the class, M run on it -- the
-            // object what the caller gets; a static M, what it returns.
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
-            If aCls == Nil
-              xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
-              nSp++
-              aSt[nSp] := xA
-            Else
-              aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
-              ::Fail("Cannot find method ${aCls[C_NAME]}:${Upper(aIns[I_S2])}") if aM == Nil
-              xC := If(aM[2], Nil, ::Instance(aCls))
-              ::Push(aM[1], aArgs, Nil, xC)
-              aF := aFrames[Len(aFrames)]
-              XbcMore(aF)[X_CTOR] := .T. if xC != Nil
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
           Case nOp == OP_ISNIL
             aSt[nSp] := (ValType(aSt[nSp]) == "U")
           Case nOp == OP_NEG
@@ -1635,133 +1607,21 @@ Method Run(nBase) Class XbcVM
           Case nOp == OP_SETSTATIC
             aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
             nSp--
-          Case nOp == OP_REFSTATIC
-            nSp++
-            aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
-          Case nOp == OP_MEMVAR
-            xA := ::MemCell(aIns[I_S])
-            ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
-            nSp++
-            aSt[nSp] := xA[1]
-          Case nOp == OP_SETMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            xA[1] := aSt[nSp]
-            nSp--
-          Case nOp == OP_REFMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            nSp++
-            aSt[nSp] := {scRef, xA, 1}
-          Case nOp == OP_PRIVATE
-            ::PrivCell(aIns[I_S], .T.)
-          Case nOp == OP_PUBLIC
-            ::hPubs{aIns[I_S]} := {Nil} if !(::hPubs has aIns[I_S])
-          Case nOp == OP_FIELD
-            nSp++
-            aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
-          Case nOp == OP_SETFIELD
-            ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
-            nSp--
-          Case nOp == OP_FIELDX
-            aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
-          Case nOp == OP_SETFIELDX
-            ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
-            nSp -= 2
           Case nOp == OP_BOX
             aLoc[aIns[I_A]] := {aLoc[aIns[I_A]]}
           EndCase
         Else
-          Do Case
-          Case nOp == OP_CALLX
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            cName := aSt[nSp]
-            nSp--
-            ::Fail("&name.(): the name is no string") if ValType(cName) != "C"
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            If ::Invoke(aF, cName, aArgs, .T., Nil)
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            Else
-              nSp := aF[F_SP]
-            EndIf
-          Case nOp == OP_SUPER
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            cName := Upper(aF[F_FN][FN_NAME])
-            nAt := At("#", cName)
-            If nAt > 0
-              cName := Left(cName, nAt - 1)
-            EndIf
-            nAt := At(":", cName)
-            aCls := If(nAt > 0, ::hClasses{Left(cName, nAt - 1)}, Nil)
-            ::Fail("_Super outside a method") if aCls == Nil
-            aM := ::Above(aCls, aIns[I_S2])
-            If aM == Nil
-              // A class above that is the AppServer's: its constructor is Self.
-              ::Fail("no method ${aIns[I_S]} above ${aCls[C_NAME]}") if !(aIns[I_S2] == "NEW")
-              nSp++
-              aSt[nSp] := aF[F_SELF]
-            Else
-              ::Push(aM[1], aArgs, Nil, aF[F_SELF])
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
-          Case nOp == OP_MACRO
-            aSt[nSp] := ::Macro(aSt[nSp])
-          Case nOp == OP_SETMACRO
-            ::SetMacro(aSt[nSp - 1], aSt[nSp])
-            nSp -= 2
-          Case nOp == OP_LINE
-            // Its line is each instruction's: a 'line' left in -- with
-            // trace=FILE -- does nothing.
-          Case nOp == OP_SEQ .Or. nOp == OP_TRY
-            xA := XbcMore(aF)
-            If xA[X_REGIONS] == Nil
-              xA[X_REGIONS] := {}
-            EndIf
-            AAdd(xA[X_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, If(xA[X_AREAS] == Nil, 0, Len(xA[X_AREAS]))})
-          Case nOp == OP_ENDSEQ
-            ASize(aF[F_MORE][X_REGIONS], Len(aF[F_MORE][X_REGIONS]) - 1)
-          Case nOp == OP_DEFER
-            XbcDefer(aF, aIns[I_A], aIns[I_B])
-          Case nOp == OP_RUNDEFERS
-            If aF[F_MORE] != Nil .And. aF[F_MORE][X_DEFERS] != Nil .And. !Empty(aF[F_MORE][X_DEFERS])
-              aF[F_MORE][X_BACK] := nPc - 1
-              nPc := XbcNextDefer(aF)
-            EndIf
-          Case nOp == OP_ENDDEFER
-            nPc := aF[F_MORE][X_BACK]
-          Case nOp == OP_AREA
-            xA := XbcMore(aF)
-            If xA[X_AREAS] == Nil
-              xA[X_AREAS] := {}
-            EndIf
-            AAdd(xA[X_AREAS], ::CallNative("Select", {}))
-            ::CallNative("DbSelectArea", {aSt[nSp]})
-            nSp--
-          Case nOp == OP_ENDAREA
-            ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
-            ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
-          EndCase
+          // The rare ones (Rare()): the frame's stack and place there, and
+          // back from the frame on top -- a new one, for a call.
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          ::Rare(aF, aIns)
+          aF := aFrames[Len(aFrames)]
+          aCode := aF[F_FN][FN_CODE]
+          aLoc := aF[F_LOCALS]
+          aSt := aF[F_LOCALS]
+          nSp := aF[F_SP]
+          nPc := aF[F_PC]
         EndIf
       EndDo
     Recover
@@ -1790,6 +1650,144 @@ Method Run(nBase) Class XbcVM
   EndDo
   ::nRuns--
 Return xResult
+
+// ---- the rare instructions --------------------------------------------------
+// What a program runs seldom -- objects made, statics by reference,
+// privates and publics, fields, calls by name, _Super, macros, regions,
+// defers, areas --, out of the loop: the AppServer enters a function at a
+// cost that grows with its size, and the loop is four times in the file
+// (the loop's copies). The loop puts the frame's stack and place in aF,
+// and takes them back from the frame on top -- a new one, for a call.
+Method Rare(aF, aIns) Class XbcVM
+  Local nOp := aIns[I_OP]
+  Local aSt := aF[F_LOCALS]
+  Local nSp := aF[F_SP]
+  Local nPc := aF[F_PC]
+  Local aArgs
+  Local aCls
+  Local aM
+  Local xA
+  Local cName
+  Local nAt
+  If nOp == OP_NEW .Or. nOp == OP_CALLX .Or. nOp == OP_SUPER
+    aArgs := Array(aIns[I_A])
+    For local nI := 1 To aIns[I_A]
+      aArgs[nI] := aSt[nSp - aIns[I_A] + nI]
+    Next
+    nSp -= aIns[I_A]
+  EndIf
+  Do Case
+  Case nOp == OP_NEW
+    // 'Name():M(...)': an object of the class, M run on it -- the object
+    // what the caller gets; a static M, what it returns.
+    aF[F_SP] := nSp
+    aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
+    If aCls == Nil
+      xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
+      nSp++
+      aSt[nSp] := xA
+    Else
+      aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
+      ::Fail("Cannot find method ${aCls[C_NAME]}:${Upper(aIns[I_S2])}") if aM == Nil
+      xA := If(aM[2], Nil, ::Instance(aCls))
+      ::Push(aM[1], aArgs, Nil, xA)
+      XbcMore(ATail(::aFrames))[X_CTOR] := .T. if xA != Nil
+      Return Nil
+    EndIf
+  Case nOp == OP_REFSTATIC
+    nSp++
+    aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
+  Case nOp == OP_MEMVAR
+    xA := ::MemCell(aIns[I_S])
+    ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
+    nSp++
+    aSt[nSp] := xA[1]
+  Case nOp == OP_SETMEMVAR
+    xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
+    xA[1] := aSt[nSp]
+    nSp--
+  Case nOp == OP_REFMEMVAR
+    xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
+    nSp++
+    aSt[nSp] := {scRef, xA, 1}
+  Case nOp == OP_PRIVATE
+    ::PrivCell(aIns[I_S], .T.)
+  Case nOp == OP_PUBLIC
+    ::hPubs{aIns[I_S]} := {Nil} if !(::hPubs has aIns[I_S])
+  Case nOp == OP_FIELD
+    nSp++
+    aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
+  Case nOp == OP_SETFIELD
+    ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
+    nSp--
+  Case nOp == OP_FIELDX
+    aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
+  Case nOp == OP_SETFIELDX
+    ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
+    nSp -= 2
+  Case nOp == OP_CALLX
+    cName := aSt[nSp]
+    nSp--
+    ::Fail("&name.(): the name is no string") if ValType(cName) != "C"
+    aF[F_SP] := nSp
+    // A function of a module pushes its frame; any other's result is on
+    // the stack.
+    ::Invoke(aF, cName, aArgs, .T., Nil)
+    Return Nil
+  Case nOp == OP_SUPER
+    aF[F_SP] := nSp
+    cName := Upper(aF[F_FN][FN_NAME])
+    nAt := At("#", cName)
+    cName := Left(cName, nAt - 1) if nAt > 0
+    nAt := At(":", cName)
+    aCls := If(nAt > 0, ::hClasses{Left(cName, nAt - 1)}, Nil)
+    ::Fail("_Super outside a method") if aCls == Nil
+    aM := ::Above(aCls, aIns[I_S2])
+    If aM == Nil
+      // A class above that is the AppServer's: its constructor is Self.
+      ::Fail("no method ${aIns[I_S]} above ${aCls[C_NAME]}") if !(aIns[I_S2] == "NEW")
+      nSp++
+      aSt[nSp] := aF[F_SELF]
+    Else
+      ::Push(aM[1], aArgs, Nil, aF[F_SELF])
+      Return Nil
+    EndIf
+  Case nOp == OP_MACRO
+    aSt[nSp] := ::Macro(aSt[nSp])
+  Case nOp == OP_SETMACRO
+    ::SetMacro(aSt[nSp - 1], aSt[nSp])
+    nSp -= 2
+  Case nOp == OP_LINE
+    // Its line is each instruction's: a 'line' left in -- with trace=FILE
+    // -- does nothing.
+  Case nOp == OP_SEQ .Or. nOp == OP_TRY
+    xA := XbcMore(aF)
+    xA[X_REGIONS] ?= {}
+    AAdd(xA[X_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, If(xA[X_AREAS] == Nil, 0, Len(xA[X_AREAS]))})
+  Case nOp == OP_ENDSEQ
+    ASize(aF[F_MORE][X_REGIONS], Len(aF[F_MORE][X_REGIONS]) - 1)
+  Case nOp == OP_DEFER
+    XbcDefer(aF, aIns[I_A], aIns[I_B])
+  Case nOp == OP_RUNDEFERS
+    If aF[F_MORE] != Nil .And. aF[F_MORE][X_DEFERS] != Nil .And. !Empty(aF[F_MORE][X_DEFERS])
+      aF[F_MORE][X_BACK] := nPc - 1
+      nPc := XbcNextDefer(aF)
+    EndIf
+  Case nOp == OP_ENDDEFER
+    nPc := aF[F_MORE][X_BACK]
+  Case nOp == OP_AREA
+    xA := XbcMore(aF)
+    xA[X_AREAS] ?= {}
+    AAdd(xA[X_AREAS], ::CallNative("Select", {}))
+    ::CallNative("DbSelectArea", {aSt[nSp]})
+    nSp--
+  Case nOp == OP_ENDAREA
+    ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
+    ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
+  EndCase
+  aF[F_SP] := nSp
+  aF[F_PC] := nPc
+Return Nil
 
 // A run inside a run: the copy of the loop next to the one running -- the
 // AppServer enters a function already running further down at a cost that
@@ -3195,7 +3193,6 @@ Method Run1(nBase) Class XbcVM
   Local aArgs
   Local xA
   Local xB
-  Local xC
   Local nI
   Local nK
   Local nN
@@ -3203,7 +3200,6 @@ Method Run1(nBase) Class XbcVM
   Local aCls
   Local aM
   Local aFn
-  Local cName
   Local xResult
   ::nRuns++
   While !lDone
@@ -3648,35 +3644,6 @@ Method Run1(nBase) Class XbcVM
             Else
               aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
             EndIf
-          Case nOp == OP_NEW
-            // 'Name():M(...)': an object of the class, M run on it -- the
-            // object what the caller gets; a static M, what it returns.
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
-            If aCls == Nil
-              xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
-              nSp++
-              aSt[nSp] := xA
-            Else
-              aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
-              ::Fail("Cannot find method ${aCls[C_NAME]}:${Upper(aIns[I_S2])}") if aM == Nil
-              xC := If(aM[2], Nil, ::Instance(aCls))
-              ::Push(aM[1], aArgs, Nil, xC)
-              aF := aFrames[Len(aFrames)]
-              XbcMore(aF)[X_CTOR] := .T. if xC != Nil
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
           Case nOp == OP_ISNIL
             aSt[nSp] := (ValType(aSt[nSp]) == "U")
           Case nOp == OP_NEG
@@ -3696,133 +3663,21 @@ Method Run1(nBase) Class XbcVM
           Case nOp == OP_SETSTATIC
             aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
             nSp--
-          Case nOp == OP_REFSTATIC
-            nSp++
-            aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
-          Case nOp == OP_MEMVAR
-            xA := ::MemCell(aIns[I_S])
-            ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
-            nSp++
-            aSt[nSp] := xA[1]
-          Case nOp == OP_SETMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            xA[1] := aSt[nSp]
-            nSp--
-          Case nOp == OP_REFMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            nSp++
-            aSt[nSp] := {scRef, xA, 1}
-          Case nOp == OP_PRIVATE
-            ::PrivCell(aIns[I_S], .T.)
-          Case nOp == OP_PUBLIC
-            ::hPubs{aIns[I_S]} := {Nil} if !(::hPubs has aIns[I_S])
-          Case nOp == OP_FIELD
-            nSp++
-            aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
-          Case nOp == OP_SETFIELD
-            ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
-            nSp--
-          Case nOp == OP_FIELDX
-            aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
-          Case nOp == OP_SETFIELDX
-            ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
-            nSp -= 2
           Case nOp == OP_BOX
             aLoc[aIns[I_A]] := {aLoc[aIns[I_A]]}
           EndCase
         Else
-          Do Case
-          Case nOp == OP_CALLX
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            cName := aSt[nSp]
-            nSp--
-            ::Fail("&name.(): the name is no string") if ValType(cName) != "C"
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            If ::Invoke(aF, cName, aArgs, .T., Nil)
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            Else
-              nSp := aF[F_SP]
-            EndIf
-          Case nOp == OP_SUPER
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            cName := Upper(aF[F_FN][FN_NAME])
-            nAt := At("#", cName)
-            If nAt > 0
-              cName := Left(cName, nAt - 1)
-            EndIf
-            nAt := At(":", cName)
-            aCls := If(nAt > 0, ::hClasses{Left(cName, nAt - 1)}, Nil)
-            ::Fail("_Super outside a method") if aCls == Nil
-            aM := ::Above(aCls, aIns[I_S2])
-            If aM == Nil
-              // A class above that is the AppServer's: its constructor is Self.
-              ::Fail("no method ${aIns[I_S]} above ${aCls[C_NAME]}") if !(aIns[I_S2] == "NEW")
-              nSp++
-              aSt[nSp] := aF[F_SELF]
-            Else
-              ::Push(aM[1], aArgs, Nil, aF[F_SELF])
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
-          Case nOp == OP_MACRO
-            aSt[nSp] := ::Macro(aSt[nSp])
-          Case nOp == OP_SETMACRO
-            ::SetMacro(aSt[nSp - 1], aSt[nSp])
-            nSp -= 2
-          Case nOp == OP_LINE
-            // Its line is each instruction's: a 'line' left in -- with
-            // trace=FILE -- does nothing.
-          Case nOp == OP_SEQ .Or. nOp == OP_TRY
-            xA := XbcMore(aF)
-            If xA[X_REGIONS] == Nil
-              xA[X_REGIONS] := {}
-            EndIf
-            AAdd(xA[X_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, If(xA[X_AREAS] == Nil, 0, Len(xA[X_AREAS]))})
-          Case nOp == OP_ENDSEQ
-            ASize(aF[F_MORE][X_REGIONS], Len(aF[F_MORE][X_REGIONS]) - 1)
-          Case nOp == OP_DEFER
-            XbcDefer(aF, aIns[I_A], aIns[I_B])
-          Case nOp == OP_RUNDEFERS
-            If aF[F_MORE] != Nil .And. aF[F_MORE][X_DEFERS] != Nil .And. !Empty(aF[F_MORE][X_DEFERS])
-              aF[F_MORE][X_BACK] := nPc - 1
-              nPc := XbcNextDefer(aF)
-            EndIf
-          Case nOp == OP_ENDDEFER
-            nPc := aF[F_MORE][X_BACK]
-          Case nOp == OP_AREA
-            xA := XbcMore(aF)
-            If xA[X_AREAS] == Nil
-              xA[X_AREAS] := {}
-            EndIf
-            AAdd(xA[X_AREAS], ::CallNative("Select", {}))
-            ::CallNative("DbSelectArea", {aSt[nSp]})
-            nSp--
-          Case nOp == OP_ENDAREA
-            ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
-            ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
-          EndCase
+          // The rare ones (Rare()): the frame's stack and place there, and
+          // back from the frame on top -- a new one, for a call.
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          ::Rare(aF, aIns)
+          aF := aFrames[Len(aFrames)]
+          aCode := aF[F_FN][FN_CODE]
+          aLoc := aF[F_LOCALS]
+          aSt := aF[F_LOCALS]
+          nSp := aF[F_SP]
+          nPc := aF[F_PC]
         EndIf
       EndDo
     Recover
@@ -3895,7 +3750,6 @@ Method Run2(nBase) Class XbcVM
   Local aArgs
   Local xA
   Local xB
-  Local xC
   Local nI
   Local nK
   Local nN
@@ -3903,7 +3757,6 @@ Method Run2(nBase) Class XbcVM
   Local aCls
   Local aM
   Local aFn
-  Local cName
   Local xResult
   ::nRuns++
   While !lDone
@@ -4348,35 +4201,6 @@ Method Run2(nBase) Class XbcVM
             Else
               aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
             EndIf
-          Case nOp == OP_NEW
-            // 'Name():M(...)': an object of the class, M run on it -- the
-            // object what the caller gets; a static M, what it returns.
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
-            If aCls == Nil
-              xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
-              nSp++
-              aSt[nSp] := xA
-            Else
-              aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
-              ::Fail("Cannot find method ${aCls[C_NAME]}:${Upper(aIns[I_S2])}") if aM == Nil
-              xC := If(aM[2], Nil, ::Instance(aCls))
-              ::Push(aM[1], aArgs, Nil, xC)
-              aF := aFrames[Len(aFrames)]
-              XbcMore(aF)[X_CTOR] := .T. if xC != Nil
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
           Case nOp == OP_ISNIL
             aSt[nSp] := (ValType(aSt[nSp]) == "U")
           Case nOp == OP_NEG
@@ -4396,133 +4220,21 @@ Method Run2(nBase) Class XbcVM
           Case nOp == OP_SETSTATIC
             aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
             nSp--
-          Case nOp == OP_REFSTATIC
-            nSp++
-            aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
-          Case nOp == OP_MEMVAR
-            xA := ::MemCell(aIns[I_S])
-            ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
-            nSp++
-            aSt[nSp] := xA[1]
-          Case nOp == OP_SETMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            xA[1] := aSt[nSp]
-            nSp--
-          Case nOp == OP_REFMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            nSp++
-            aSt[nSp] := {scRef, xA, 1}
-          Case nOp == OP_PRIVATE
-            ::PrivCell(aIns[I_S], .T.)
-          Case nOp == OP_PUBLIC
-            ::hPubs{aIns[I_S]} := {Nil} if !(::hPubs has aIns[I_S])
-          Case nOp == OP_FIELD
-            nSp++
-            aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
-          Case nOp == OP_SETFIELD
-            ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
-            nSp--
-          Case nOp == OP_FIELDX
-            aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
-          Case nOp == OP_SETFIELDX
-            ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
-            nSp -= 2
           Case nOp == OP_BOX
             aLoc[aIns[I_A]] := {aLoc[aIns[I_A]]}
           EndCase
         Else
-          Do Case
-          Case nOp == OP_CALLX
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            cName := aSt[nSp]
-            nSp--
-            ::Fail("&name.(): the name is no string") if ValType(cName) != "C"
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            If ::Invoke(aF, cName, aArgs, .T., Nil)
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            Else
-              nSp := aF[F_SP]
-            EndIf
-          Case nOp == OP_SUPER
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            cName := Upper(aF[F_FN][FN_NAME])
-            nAt := At("#", cName)
-            If nAt > 0
-              cName := Left(cName, nAt - 1)
-            EndIf
-            nAt := At(":", cName)
-            aCls := If(nAt > 0, ::hClasses{Left(cName, nAt - 1)}, Nil)
-            ::Fail("_Super outside a method") if aCls == Nil
-            aM := ::Above(aCls, aIns[I_S2])
-            If aM == Nil
-              // A class above that is the AppServer's: its constructor is Self.
-              ::Fail("no method ${aIns[I_S]} above ${aCls[C_NAME]}") if !(aIns[I_S2] == "NEW")
-              nSp++
-              aSt[nSp] := aF[F_SELF]
-            Else
-              ::Push(aM[1], aArgs, Nil, aF[F_SELF])
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
-          Case nOp == OP_MACRO
-            aSt[nSp] := ::Macro(aSt[nSp])
-          Case nOp == OP_SETMACRO
-            ::SetMacro(aSt[nSp - 1], aSt[nSp])
-            nSp -= 2
-          Case nOp == OP_LINE
-            // Its line is each instruction's: a 'line' left in -- with
-            // trace=FILE -- does nothing.
-          Case nOp == OP_SEQ .Or. nOp == OP_TRY
-            xA := XbcMore(aF)
-            If xA[X_REGIONS] == Nil
-              xA[X_REGIONS] := {}
-            EndIf
-            AAdd(xA[X_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, If(xA[X_AREAS] == Nil, 0, Len(xA[X_AREAS]))})
-          Case nOp == OP_ENDSEQ
-            ASize(aF[F_MORE][X_REGIONS], Len(aF[F_MORE][X_REGIONS]) - 1)
-          Case nOp == OP_DEFER
-            XbcDefer(aF, aIns[I_A], aIns[I_B])
-          Case nOp == OP_RUNDEFERS
-            If aF[F_MORE] != Nil .And. aF[F_MORE][X_DEFERS] != Nil .And. !Empty(aF[F_MORE][X_DEFERS])
-              aF[F_MORE][X_BACK] := nPc - 1
-              nPc := XbcNextDefer(aF)
-            EndIf
-          Case nOp == OP_ENDDEFER
-            nPc := aF[F_MORE][X_BACK]
-          Case nOp == OP_AREA
-            xA := XbcMore(aF)
-            If xA[X_AREAS] == Nil
-              xA[X_AREAS] := {}
-            EndIf
-            AAdd(xA[X_AREAS], ::CallNative("Select", {}))
-            ::CallNative("DbSelectArea", {aSt[nSp]})
-            nSp--
-          Case nOp == OP_ENDAREA
-            ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
-            ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
-          EndCase
+          // The rare ones (Rare()): the frame's stack and place there, and
+          // back from the frame on top -- a new one, for a call.
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          ::Rare(aF, aIns)
+          aF := aFrames[Len(aFrames)]
+          aCode := aF[F_FN][FN_CODE]
+          aLoc := aF[F_LOCALS]
+          aSt := aF[F_LOCALS]
+          nSp := aF[F_SP]
+          nPc := aF[F_PC]
         EndIf
       EndDo
     Recover
@@ -4595,7 +4307,6 @@ Method Run3(nBase) Class XbcVM
   Local aArgs
   Local xA
   Local xB
-  Local xC
   Local nI
   Local nK
   Local nN
@@ -4603,7 +4314,6 @@ Method Run3(nBase) Class XbcVM
   Local aCls
   Local aM
   Local aFn
-  Local cName
   Local xResult
   ::nRuns++
   While !lDone
@@ -5048,35 +4758,6 @@ Method Run3(nBase) Class XbcVM
             Else
               aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
             EndIf
-          Case nOp == OP_NEW
-            // 'Name():M(...)': an object of the class, M run on it -- the
-            // object what the caller gets; a static M, what it returns.
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            aCls := ::ClassNamed(aF[F_FN][FN_MOD], aIns[I_S])
-            If aCls == Nil
-              xA := ::NewNative(aIns[I_S], aIns[I_S2], aArgs)
-              nSp++
-              aSt[nSp] := xA
-            Else
-              aM := ::MethodOf(aCls, Upper(aIns[I_S2]))
-              ::Fail("Cannot find method ${aCls[C_NAME]}:${Upper(aIns[I_S2])}") if aM == Nil
-              xC := If(aM[2], Nil, ::Instance(aCls))
-              ::Push(aM[1], aArgs, Nil, xC)
-              aF := aFrames[Len(aFrames)]
-              XbcMore(aF)[X_CTOR] := .T. if xC != Nil
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
           Case nOp == OP_ISNIL
             aSt[nSp] := (ValType(aSt[nSp]) == "U")
           Case nOp == OP_NEG
@@ -5096,133 +4777,21 @@ Method Run3(nBase) Class XbcVM
           Case nOp == OP_SETSTATIC
             aF[F_FN][FN_MOD][M_STATICS][aIns[I_A]] := aSt[nSp]
             nSp--
-          Case nOp == OP_REFSTATIC
-            nSp++
-            aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
-          Case nOp == OP_MEMVAR
-            xA := ::MemCell(aIns[I_S])
-            ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
-            nSp++
-            aSt[nSp] := xA[1]
-          Case nOp == OP_SETMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            xA[1] := aSt[nSp]
-            nSp--
-          Case nOp == OP_REFMEMVAR
-            xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-            nSp++
-            aSt[nSp] := {scRef, xA, 1}
-          Case nOp == OP_PRIVATE
-            ::PrivCell(aIns[I_S], .T.)
-          Case nOp == OP_PUBLIC
-            ::hPubs{aIns[I_S]} := {Nil} if !(::hPubs has aIns[I_S])
-          Case nOp == OP_FIELD
-            nSp++
-            aSt[nSp] := ::FieldOf(aIns[I_S], aIns[I_S2])
-          Case nOp == OP_SETFIELD
-            ::SetFieldOf(aIns[I_S], aIns[I_S2], aSt[nSp])
-            nSp--
-          Case nOp == OP_FIELDX
-            aSt[nSp] := ::FieldOf(aSt[nSp], aIns[I_S])
-          Case nOp == OP_SETFIELDX
-            ::SetFieldOf(aSt[nSp - 1], aIns[I_S], aSt[nSp])
-            nSp -= 2
           Case nOp == OP_BOX
             aLoc[aIns[I_A]] := {aLoc[aIns[I_A]]}
           EndCase
         Else
-          Do Case
-          Case nOp == OP_CALLX
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            cName := aSt[nSp]
-            nSp--
-            ::Fail("&name.(): the name is no string") if ValType(cName) != "C"
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            If ::Invoke(aF, cName, aArgs, .T., Nil)
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            Else
-              nSp := aF[F_SP]
-            EndIf
-          Case nOp == OP_SUPER
-            nN := aIns[I_A]
-            aArgs := Array(nN)
-            For nI := 1 To nN
-              aArgs[nI] := aSt[nSp - nN + nI]
-            Next
-            nSp -= nN
-            aF[F_SP] := nSp
-            aF[F_PC] := nPc
-            cName := Upper(aF[F_FN][FN_NAME])
-            nAt := At("#", cName)
-            If nAt > 0
-              cName := Left(cName, nAt - 1)
-            EndIf
-            nAt := At(":", cName)
-            aCls := If(nAt > 0, ::hClasses{Left(cName, nAt - 1)}, Nil)
-            ::Fail("_Super outside a method") if aCls == Nil
-            aM := ::Above(aCls, aIns[I_S2])
-            If aM == Nil
-              // A class above that is the AppServer's: its constructor is Self.
-              ::Fail("no method ${aIns[I_S]} above ${aCls[C_NAME]}") if !(aIns[I_S2] == "NEW")
-              nSp++
-              aSt[nSp] := aF[F_SELF]
-            Else
-              ::Push(aM[1], aArgs, Nil, aF[F_SELF])
-              aF := aFrames[Len(aFrames)]
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
-            EndIf
-          Case nOp == OP_MACRO
-            aSt[nSp] := ::Macro(aSt[nSp])
-          Case nOp == OP_SETMACRO
-            ::SetMacro(aSt[nSp - 1], aSt[nSp])
-            nSp -= 2
-          Case nOp == OP_LINE
-            // Its line is each instruction's: a 'line' left in -- with
-            // trace=FILE -- does nothing.
-          Case nOp == OP_SEQ .Or. nOp == OP_TRY
-            xA := XbcMore(aF)
-            If xA[X_REGIONS] == Nil
-              xA[X_REGIONS] := {}
-            EndIf
-            AAdd(xA[X_REGIONS], {nOp == OP_TRY, aIns[I_A], nSp, If(xA[X_AREAS] == Nil, 0, Len(xA[X_AREAS]))})
-          Case nOp == OP_ENDSEQ
-            ASize(aF[F_MORE][X_REGIONS], Len(aF[F_MORE][X_REGIONS]) - 1)
-          Case nOp == OP_DEFER
-            XbcDefer(aF, aIns[I_A], aIns[I_B])
-          Case nOp == OP_RUNDEFERS
-            If aF[F_MORE] != Nil .And. aF[F_MORE][X_DEFERS] != Nil .And. !Empty(aF[F_MORE][X_DEFERS])
-              aF[F_MORE][X_BACK] := nPc - 1
-              nPc := XbcNextDefer(aF)
-            EndIf
-          Case nOp == OP_ENDDEFER
-            nPc := aF[F_MORE][X_BACK]
-          Case nOp == OP_AREA
-            xA := XbcMore(aF)
-            If xA[X_AREAS] == Nil
-              xA[X_AREAS] := {}
-            EndIf
-            AAdd(xA[X_AREAS], ::CallNative("Select", {}))
-            ::CallNative("DbSelectArea", {aSt[nSp]})
-            nSp--
-          Case nOp == OP_ENDAREA
-            ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
-            ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
-          EndCase
+          // The rare ones (Rare()): the frame's stack and place there, and
+          // back from the frame on top -- a new one, for a call.
+          aF[F_SP] := nSp
+          aF[F_PC] := nPc
+          ::Rare(aF, aIns)
+          aF := aFrames[Len(aFrames)]
+          aCode := aF[F_FN][FN_CODE]
+          aLoc := aF[F_LOCALS]
+          aSt := aF[F_LOCALS]
+          nSp := aF[F_SP]
+          nPc := aF[F_PC]
         EndIf
       EndDo
     Recover

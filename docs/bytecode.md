@@ -525,7 +525,12 @@ It runs what it loads as the loop is fastest at it:
   --, what few frames have (references, regions, areas, defers, privates)
   in one more, made the first time a frame needs it;
 - the instructions are numbered by how often programs run them, and the
-  loop asks for the most frequent first;
+  loop asks for the most frequent first; the rarest -- objects made,
+  statics by reference, privates and publics, fields, calls by name,
+  `_Super`, macros, regions, defers, areas -- are a method's of their own,
+  `Rare()`, which the loop calls with the frame's stack and place in the
+  frame: the AppServer enters a function at a cost that grows with its
+  size;
 - a call finds what it calls the first time it runs, and keeps it: a
   function of a module, one of the AppServer's in the table, `PCount()`,
   `Eval()` of a block, another of the AppServer's -- with no argument by
