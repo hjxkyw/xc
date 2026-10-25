@@ -1,0 +1,11 @@
+// A file static whose line is xtpl's is written again, as a Local is: a
+// typed array or hash, 'as T' before the value, attributes, a hash.
+Static shRates := {"a" => 1.5}
+Static snMax as Numeric := 10
+Static scKey <const> := "k"  // the key
+Static saSeen as Array<c>, snCount := 0
+
+User Function FileStatics()
+  AAdd(saSeen, scKey)
+  snCount++
+Return shRates{scKey} + snMax + Len(saSeen) + snCount

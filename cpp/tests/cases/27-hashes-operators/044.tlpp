@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A chain that runs as a loop, written into a hash: THashMap's Set.
+User Function HashChain(aN, cKey)
+  Local hX := THashMap():New()
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // what a loop collected, for the stages after it
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aN)
+    fv_0_0 := aN[fi_0_0]
+    If fv_0_0 > 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  hX:Set(cKey, u_xtpl_sortby(fo_0_0, {|x| -x}))
+Return hX

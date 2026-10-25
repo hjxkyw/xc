@@ -31,6 +31,7 @@ add_library(xclib STATIC
   src/parser.cpp
   src/statements.cpp
   src/text.cpp
+  src/typed.cpp
   src/walk.cpp
 )
 

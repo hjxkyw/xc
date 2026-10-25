@@ -21,6 +21,7 @@
 #include "chars.h"
 #include "decimal.h"
 #include "parser.h"
+#include "typed.h"
 #include "walk.h"
 
 namespace xc
@@ -144,7 +145,8 @@ namespace xc
     // judge -- xc makes a literal one, and refuses a Numeric.
     std::optional<std::string> type_problem(const Declarator* v, bool advpl)
     {
-      if (v->declared == "?" || !v->init) { return std::nullopt; }
+      // A typed array's or hash's value: typed.cpp's to say.
+      if (v->declared == "?" || !v->init || !v->container.empty()) { return std::nullopt; }
       std::string found = type_of(v->init);
       if (found == "?" || v->declared == "Variant") { return std::nullopt; }
       if (is_literal(v->init) && lc(static_cast<const Literal*>(v->init)->text) == "nil") { return std::nullopt; }
@@ -2217,6 +2219,9 @@ namespace xc
     Checker c(lines, dictionary, strict, source, advpl, bytecode);
     c.program(p);
     for (Finding& f : decimal_problems(p, source, advpl)) { c.found.push_back(std::move(f)); }
+    Checked typed = typed_problems(p, dictionary);
+    for (Finding& f : typed.errors) { c.found.push_back(std::move(f)); }
+    for (Finding& f : typed.warnings) { c.warned.push_back(std::move(f)); }
     return Checked{ tidy(c.found), tidy(c.warned) };
   }
 

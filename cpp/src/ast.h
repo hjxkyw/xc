@@ -183,10 +183,14 @@ namespace xc
     Expr* value = nullptr;
   };
 
+  // Types of what an array or a hash holds -- 'Array<n>', 'Hash<c, n>' --
+  // are written as types.h has them: a letter ('N', 'C', 'L', 'D', 'A', 'H',
+  // 'O', 'B', 'J', 'F'), 'A<T>' or 'H<K,V>'; '' where there is none.
   struct ArrayLit : Literal
   {
     ArrayLit() : Literal(EK::ArrayLit) {}
     std::vector<Expr*> items;
+    std::string elem;                // '{ <n> }': what its elements are
   };
 
   // A string with '${ }': a run of text, or an expression.
@@ -208,6 +212,8 @@ namespace xc
   {
     HashLit() : Literal(EK::HashLit) {}
     std::vector<KeyValue*> pairs;
+    std::string key_type;            // '{ <n> => <c> }': what its keys are
+    std::string value_type;          // and its values
   };
 
   struct CodeBlock : Literal
@@ -269,8 +275,11 @@ namespace xc
     std::vector<std::string> attributes;
     int line = 0;
     bool type_first = false;         // 'local x as N := 1' -- xtpl's order
-    OptStr typespec_text;            // the 'as ...' as written
+    OptStr typespec_text;            // the 'as ...' as written -- TL++'s, for
+                                     // a typed array or hash: 'as Array'
     std::vector<Expr*> dims;         // 'Local aX[10]'
+    std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
+    bool init_made = false;          // its value xc's: one starts empty
   };
 
   struct Declaration : Stmt
@@ -461,6 +470,10 @@ namespace xc
     std::vector<std::string> attributes;
     int attrs_from = -1;             // from the name's end to the '>'
     int attrs_to = -1;
+    std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
+    int type_from = -1;              // where its type is written, then
+    int type_to = -1;
+    std::string type_tlpp;           // and TL++'s word for it there
   };
 
   struct FunctionDef : Node
@@ -472,6 +485,10 @@ namespace xc
     Body body;
     int line = 0;
     OptStr rettype_word;
+    std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
+    int ret_from = -1;               // where it is written
+    int ret_to = -1;
+    std::string ret_tlpp;            // and TL++'s word for it there
   };
 
   struct DataMember : Node

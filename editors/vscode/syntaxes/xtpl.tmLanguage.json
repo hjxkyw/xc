@@ -205,7 +205,14 @@
           "match": "(?i)\\b(local|static|private|public|protected|constructor)\\b"
         },
         {
-          "match": "(?i)\\b(as)\\s+(numeric|character|logical|date|object|block|codeblock|array|json|variant|integer|decimal|double|variadic|[A-Za-z_]\\w*)\\b",
+          "name": "keyword.other.as.xtpl",
+          "match": "(?i)\\b(as)\\b(?=\\s+(?:array|hash)\\s*<)"
+        },
+        {
+          "include": "#generic"
+        },
+        {
+          "match": "(?i)\\b(as)\\s+(?!(?:array|hash)\\s*<)(numeric|character|logical|date|object|block|codeblock|array|json|variant|integer|decimal|double|variadic|[A-Za-z_]\\w*)\\b",
           "captures": {
             "1": {
               "name": "keyword.other.as.xtpl"
@@ -310,6 +317,9 @@
         },
         {
           "include": "#constants"
+        },
+        {
+          "include": "#typedliteral"
         },
         {
           "include": "#codeblock"
@@ -684,6 +694,82 @@
         {
           "name": "variable.other.xtpl",
           "match": "[A-Za-z_]\\w*"
+        }
+      ]
+    },
+    "generic": {
+      "begin": "(?i)\\b(array|hash)\\s*(<)",
+      "end": ">",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.xtpl"
+        },
+        "2": {
+          "name": "punctuation.definition.generic.begin.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.generic.end.xtpl"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#generic"
+        },
+        {
+          "name": "storage.type.letter.xtpl",
+          "match": "(?i)\\b[nclahdobjf]\\b"
+        },
+        {
+          "name": "punctuation.separator.comma.xtpl",
+          "match": ","
+        }
+      ]
+    },
+    "typeargs": {
+      "begin": "<",
+      "end": ">",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.generic.begin.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.generic.end.xtpl"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#generic"
+        },
+        {
+          "name": "storage.type.letter.xtpl",
+          "match": "(?i)\\b[nclahdobjf]\\b"
+        }
+      ]
+    },
+    "typedliteral": {
+      "begin": "(\\{)\\s*(?=<\\s*(?:(?i:array|hash)\\s*<|(?i:[nclahdobjf])\\s*>))",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.braces.begin.xtpl"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.end.xtpl"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#typeargs"
+        },
+        {
+          "name": "punctuation.separator.key-value.xtpl",
+          "match": "=>"
         }
       ]
     }

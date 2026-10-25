@@ -1,0 +1,35 @@
+// Typed arrays and hashes: an array or a hash, as any other -- one declared
+// with no value starts empty, a file static's too --, and what goes in is
+// xc's to check as it compiles: here, a value it cannot tell, a warning.
+Static scCache as Hash<c, Array<n>>
+
+User Function Main()
+  Local aN := { <n> }
+  Local aC as Array<c>
+  Local hH := { <n> => <c> }
+  Local hX as Hash<n, c>
+  Local aNN := {{1}, {2, 3}} as Array<Array<n>>
+  AAdd(aN, 1)
+  AAdd(aC, "a")
+  hH{1} := "one"
+  hX:Set(2, "two")
+  scCache{"k"} := aN
+  AAdd(aNN[2], Len(aNN))
+  ConOut(Len(aN), Len(aC), hH{1}, hX{2}, Len(scCache{"k"}), ValType(aC), ValType(hX), aNN[2][3])
+  if Len(aN) > 0
+    local aB as Array<n>
+    AAdd(aB, aN[1] + 1)
+    ConOut(aB[1])
+  endif
+  ConOut(Sum({1, 2, 3}), Len(Names()))
+  AAdd(aN, Eval({|| 5}))
+  ConOut(Len(aN))
+Return Nil
+
+Static Function Sum(aV as Array<n>) as Numeric
+  Local nS := 0
+  for nX in aV exec nS += nX
+Return nS
+
+Static Function Names() as Array<c>
+Return { <c> }

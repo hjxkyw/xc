@@ -1,0 +1,38 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Typed arrays and hashes, every way to declare one: TL++ gets 'as Array',
+// 'as Object' and empty literals -- what they hold is xc's to check. One
+// declared with no value starts empty, not Nil.
+Static scCache := THashMap():New() as Object
+Static saNames := {}
+
+User Function Forms(aIn as Array, cKey as Character) as Array
+  Local aN := {}
+  Local aC := {} as Array
+  Local hH := THashMap():New()
+  Local hX := THashMap():New() as Object
+  Local aNN := {{1}, {2, 3}} as Array
+  Local aOut := {"x"} as Array
+  Local aH := {}
+  Local aGrid[2] as Array
+  Local s_0_0  // a slot: the block locals 'aT', 'aB'
+  AAdd(aN, Len(aIn))
+  AAdd(aC, cKey + "!")
+  hH:Set(1, "one")
+  hX:Set(2, "two")
+  scCache:Set(cKey, aN)
+  AAdd(saNames, Upper(cKey))
+  AAdd(aNN[2], 4)
+  AAdd(aH, THashMap():New())
+  aGrid[1] := {}
+  s_0_0 := {}
+  If Len(s_0_0) == 0
+    AAdd(s_0_0, "e")
+  endif
+  if Len(aN) > 0
+    s_0_0 := {}  // aB
+    AAdd(s_0_0, aN[1] + 1)
+  endif
+  AAdd(aOut, Str(Len(aC) + Len(hX:Keys())))
+Return aOut

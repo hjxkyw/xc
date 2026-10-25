@@ -1,0 +1,5 @@
+003-unknown.xtpl:6: warning: 'aN' is an Array<n>: xc cannot tell that this is Numeric.
+003-unknown.xtpl:8: warning: 'hH' is a Hash<c, n>: xc cannot tell that this key is Character.
+003-unknown.xtpl:9: warning: 'hH' is a Hash<c, n>: xc cannot tell that this is Numeric.
+003-unknown.xtpl:10: warning: 'aN' is an Array<n>: xc cannot tell that this is an Array<n>.
+003-unknown.xtpl:11: warning: 'aN' is an Array<n>: xc cannot tell that this is Numeric.

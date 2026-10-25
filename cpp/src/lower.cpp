@@ -247,7 +247,7 @@ namespace xc
         }
         else if (!statement)
         {
-          st.lines.push_back(expr(static_cast<const Assignment*>(s)->target) + " := " + st.result);
+          st.lines.push_back(assigned(static_cast<const Assignment*>(s), st.result));
         }
         replace(s, false, st.lines);
       }
@@ -624,7 +624,7 @@ namespace xc
       Stream st = stream(chain, !statement);
       if (s->kind == SK::Assignment)
       {
-        st.lines.push_back(expr(static_cast<const Assignment*>(s)->target) + " := " + st.result);
+        st.lines.push_back(assigned(static_cast<const Assignment*>(s), st.result));
       }
       return st.lines;
     }
@@ -1469,7 +1469,7 @@ namespace xc
       }
       if (s->kind == SK::Assignment)
       {
-        st.lines.push_back(expr(static_cast<const Assignment*>(s)->target) + " := " + st.result);
+        st.lines.push_back(assigned(static_cast<const Assignment*>(s), st.result));
       }
       return st.lines;
     }
@@ -1663,6 +1663,10 @@ namespace xc
     }
     switch (k)
     {
+      case EK::ArrayLit:
+        // '{ <n> }': an empty array -- what it holds is xc's to know.
+        if (!static_cast<const ArrayLit*>(e)->elem.empty()) { return "{}"; }
+        break;
       case EK::HashIndex:
       {
         auto h = static_cast<const HashIndex*>(e);
@@ -1835,6 +1839,7 @@ namespace xc
         return is_expr(static_cast<const AssignExpr*>(e)->target, EK::HashIndex);
       case EK::Literal: case EK::ArrayLit: case EK::CodeBlock:
       {
+        if (e->kind == EK::ArrayLit && !static_cast<const ArrayLit*>(e)->elem.empty()) { return true; }
         auto l = static_cast<const Literal*>(e);
         return l->type == "Numeric" && l->text.find('\'') != std::string::npos;
       }
@@ -2066,6 +2071,14 @@ namespace xc
 
   // 'h{k} := v' -> 'h:Set(k, v)'. One that also reads holds anything but a
   // name (and, for the key, a literal) first, to be evaluated once.
+  // 'x := v' -- for 'h{k} := ...', THashMap's own 'h:Set(k, v)'.
+  std::string Emitter::assigned(const Assignment* a, const std::string& value)
+  {
+    if (!is_expr(a->target, EK::HashIndex)) { return expr(a->target) + " := " + value; }
+    auto t = static_cast<const HashIndex*>(a->target);
+    return expr(t->base) + ":Set(" + expr(t->key) + ", " + value + ")";
+  }
+
   Emitter::Lowered Emitter::hash_set(const Assignment* a)
   {
     auto t = static_cast<const HashIndex*>(a->target);

@@ -1,0 +1,5 @@
+// A chain that runs as a loop, written into a hash: THashMap's Set.
+User Function HashChain(aN, cKey)
+  Local hX := { => }
+  hX{cKey} := aN |> filter([x] x > 1) |> sortby([x] -x)
+Return hX

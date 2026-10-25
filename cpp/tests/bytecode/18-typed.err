@@ -1,0 +1,1 @@
+18-typed.xtpl:25: warning: 'aN' is an Array<n>: xc cannot tell that this is Numeric.

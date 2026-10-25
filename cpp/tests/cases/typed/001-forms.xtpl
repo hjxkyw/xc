@@ -1,0 +1,33 @@
+// Typed arrays and hashes, every way to declare one: TL++ gets 'as Array',
+// 'as Object' and empty literals -- what they hold is xc's to check. One
+// declared with no value starts empty, not Nil.
+Static scCache as Hash<c, Array<n>>
+Static saNames := { <c> }
+
+User Function Forms(aIn as Array<n>, cKey as Character) as Array<c>
+  Local aN := { <n> }
+  Local aC as Array<c>
+  Local hH := { <n> => <c> }
+  Local hX as Hash<n, c>
+  Local aNN := {{1}, {2, 3}} as Array<Array<n>>
+  Local aOut as Array<c> := {"x"}
+  Local aH := { <Hash<c, n>> }
+  Local aGrid[2] as Array<a>
+  AAdd(aN, Len(aIn))
+  AAdd(aC, cKey + "!")
+  hH{1} := "one"
+  hX:Set(2, "two")
+  scCache{cKey} := aN
+  AAdd(saNames, Upper(cKey))
+  AAdd(aNN[2], 4)
+  AAdd(aH, { => })
+  aGrid[1] := {}
+  if local aT := { <c> } as Array<c>, Len(aT) == 0
+    AAdd(aT, "e")
+  endif
+  if Len(aN) > 0
+    local aB as Array<n>
+    AAdd(aB, aN[1] + 1)
+  endif
+  AAdd(aOut, Str(Len(aC) + Len(hX:Keys())))
+Return aOut

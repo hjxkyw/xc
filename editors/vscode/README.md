@@ -7,7 +7,8 @@ xtpl -- TL++ with xtpl's extensions, the language
   types; xtpl's own -- `|>` (and `then`, its word) and the runtime's verbs,
   lambdas (`[x] x * 2`), `defer`, `using alias`, `with object`, `fallback`,
   `?=`, `?:`, `?.`, `in`, `has`, `%%`, ranges, `${...}` inside strings,
-  hashes; Clipper's `&&` and `*` comments; the preprocessor's directives.
+  hashes, typed arrays and hashes (`Array<n>`, `{ <c> => <n> }`); Clipper's
+  `&&` and `*` comments; the preprocessor's directives.
 - **xc's checks** as diagnostics, each time a file is opened or saved:
   what would stop the compile is an error, a warning is a warning, on its
   line.

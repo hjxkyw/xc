@@ -1,0 +1,25 @@
+// A value known to be of another type than a typed array or hash holds: an
+// error, wherever it goes in.
+Static saCodes := { <c> }
+
+User Function Wrong(cKey)
+  Local aN := {1, "two", 3} as Array<n>
+  Local hH := { <n> => <c> }
+  Local aNN as Array<Array<n>>
+  Local aC := { <c> }
+  AAdd(aN, "x")
+  aN[1] := .T.
+  aN[2] += "z"
+  AAdd(aNN, {1, Date()})
+  aNN[1][1] := cKey + "!"
+  hH{"one"} := 1
+  hH:Set(2, 2)
+  aC := aN
+  AAdd(saCodes, 5)
+  for nX in aN exec AAdd(aC, nX)
+  aC := aN |> map([x] x * 2)
+  Total(aC)
+Return Nil
+
+Static Function Total(aV as Array<n>) as Array<c>
+Return { <n> }

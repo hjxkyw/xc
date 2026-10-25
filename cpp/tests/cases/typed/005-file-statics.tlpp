@@ -1,0 +1,14 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A file static whose line is xtpl's is written again, as a Local is: a
+// typed array or hash, 'as T' before the value, attributes, a hash.
+Static shRates := u_xtpl_hnew({{"a", 1.5}})
+Static snMax := 10 as Numeric
+Static scKey := "k"  // [const] -- the key
+Static saSeen := {} as Array, snCount := 0
+
+User Function FileStatics()
+  AAdd(saSeen, scKey)
+  snCount++
+Return u_xtpl_hget(shRates, scKey) + snMax + Len(saSeen) + snCount

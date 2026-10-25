@@ -1,0 +1,29 @@
+// What xc can tell, so no warning: literals, TL++'s functions, a name
+// declared with a type, a Local whose every value it can tell, a 'for' and
+// a 'for ... in' over a typed array, what a typed array or hash gives, the
+// runtime's verbs over one, the file's functions declared with a type.
+User Function Known(cText as Character)
+  Local aN := { <n> }
+  Local aC := { <c> }
+  Local hC := { <c> => <Array<n>> }
+  Local nTotal := 0
+  Local nI
+  Local cLast
+  AAdd(aN, Val(cText) * 2)
+  AAdd(aN, Len(cText) + At(",", cText))
+  AAdd(aC, AllTrim(Upper(cText)))
+  AAdd(aC, cText)
+  for nI := 1 to 3 exec nTotal += nI
+  AAdd(aN, nTotal)
+  for nX in aN exec AAdd(aC, Str(nX))
+  cLast := aC[Len(aC)]
+  AAdd(aC, cLast)
+  hC{cLast} := aN |> filter([x] x > 1) |> sortby([x] -x)
+  AAdd(hC{cLast}, aN |> asum)
+  aC := split(cText, ",") |> map([p] AllTrim(p))
+  AAdd(aN, Twice(1))
+  AAdd(aC, If(nTotal > 1, "many", "one"))
+Return {aN, aC, hC}
+
+Static Function Twice(nX as Numeric) as Numeric
+Return nX * 2

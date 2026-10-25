@@ -1,0 +1,15 @@
+002-wrong.xtpl:6: 'aN' is an Array<n>: this is Character, not Numeric.
+002-wrong.xtpl:10: 'aN' is an Array<n>: this is Character, not Numeric.
+002-wrong.xtpl:11: 'aN' is an Array<n>: this is Logical, not Numeric.
+002-wrong.xtpl:12: 'aN' is an Array<n>: this is Character, and '+=' makes no Numeric of it.
+002-wrong.xtpl:13: 'aNN' is an Array<Array<n>>: this is Date, not Numeric.
+002-wrong.xtpl:14: 'aNN' is an Array<Array<n>>: this is Character, not Numeric.
+002-wrong.xtpl:15: 'hH' is a Hash<n, c>: this key is Character, not Numeric.
+002-wrong.xtpl:15: 'hH' is a Hash<n, c>: this is Numeric, not Character.
+002-wrong.xtpl:16: 'hH' is a Hash<n, c>: this is Numeric, not Character.
+002-wrong.xtpl:17: 'aC' is an Array<c>: this is an Array<n>, not an Array<c>.
+002-wrong.xtpl:18: 'saCodes' is an Array<c>: this is Numeric, not Character.
+002-wrong.xtpl:19: 'aC' is an Array<c>: this is Numeric, not Character.
+002-wrong.xtpl:20: 'aC' is an Array<c>: this is an Array<n>, not an Array<c>.
+002-wrong.xtpl:21: the parameter 'aV' of Total() is an Array<n>: this is an Array<c>, not an Array<n>.
+002-wrong.xtpl:25: Total() returns an Array<c>: this is an Array<n>, not an Array<c>.

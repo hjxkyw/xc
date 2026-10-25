@@ -1353,7 +1353,8 @@ namespace xc
     }
     else if (ch == '{')
     {
-      x = codeblock();
+      x = typed_literal();
+      if (!x) { x = codeblock(); }
       if (!x) { x = pairs(false); }
       if (!x) { x = pairs(true); }
       if (!x) { x = arrayliteral(); }
@@ -2220,6 +2221,68 @@ namespace xc
     a->type = "Array";
     a->text = trim(src_.substr(start, p_ - start));
     a->items = std::move(items);
+    return a;
+  }
+
+  // rule typedarray { '{' '<' <elemtype> '>' '}' }
+  // rule typedhash { '{' '<' <elemtype> '>' '=>' '<' <elemtype> '>' '}' }
+  // An empty array or hash that says what it holds: '{ <n> }', '{ <c> =>
+  // <n> }', '{ <Array<n>> }'.
+  Expr* Parser::typed_literal()
+  {
+    int start = p_;
+    p_++;
+    if (!ws() || c(p_) != '<')
+    {
+      return back(start);
+    }
+    std::vector<std::string> one;
+    int e = type_args(p_, 1, one);
+    if (e < 0)
+    {
+      return back(start);
+    }
+    p_ = e;
+    if (!ws())
+    {
+      return back(start);
+    }
+    std::vector<std::string> two;
+    if (c(p_) == '=' && c(p_ + 1) == '>')
+    {
+      p_ += 2;
+      if (!ws() || (e = type_args(p_, 1, two)) < 0)
+      {
+        return back(start);
+      }
+      p_ = e;
+      if (!ws())
+      {
+        return back(start);
+      }
+    }
+    if (c(p_) != '}')
+    {
+      return back(start);
+    }
+    p_++;
+    if (!ws())
+    {
+      return back(start);
+    }
+    if (!two.empty())
+    {
+      auto h = make<HashLit>();
+      h->type = "Object";
+      h->text = trim(src_.substr(start, p_ - start));
+      h->key_type = one[0];
+      h->value_type = two[0];
+      return h;
+    }
+    auto a = make<ArrayLit>();
+    a->type = "Array";
+    a->text = trim(src_.substr(start, p_ - start));
+    a->elem = one[0];
     return a;
   }
 

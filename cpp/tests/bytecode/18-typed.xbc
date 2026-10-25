@@ -1,0 +1,194 @@
+xbc 1
+source 18-typed.xtpl
+statics 1
+
+function __INIT init 0 0
+  locals
+  line 4
+  new 0 THashMap New
+  setstatic 1
+  nil
+  ret
+end
+
+function U_MAIN user 0 6
+  locals aN aC hH hX aNN aB
+  line 7
+  array 0
+  setlocal 1
+  line 8
+  array 0
+  setlocal 2
+  line 9
+  new 0 THashMap New
+  setlocal 3
+  line 10
+  new 0 THashMap New
+  setlocal 4
+  line 11
+  num 1
+  array 1
+  num 2
+  num 3
+  array 2
+  array 2
+  setlocal 5
+  line 12
+  local 1
+  num 1
+  call 2 AAdd
+  pop
+  line 13
+  local 2
+  str "a"
+  call 2 AAdd
+  pop
+  line 14
+  local 3
+  num 1
+  str "one"
+  call 3 u_xtpl_hset
+  pop
+  line 15
+  local 4
+  num 2
+  str "two"
+  method 2 Set
+  pop
+  line 16
+  static 1
+  str "k"
+  local 1
+  call 3 u_xtpl_hset
+  pop
+  line 17
+  local 5
+  num 2
+  index
+  local 5
+  call 1 Len
+  call 2 AAdd
+  pop
+  line 18
+  local 1
+  call 1 Len
+  local 2
+  call 1 Len
+  local 3
+  num 1
+  call 2 u_xtpl_hget
+  local 4
+  num 2
+  call 2 u_xtpl_hget
+  static 1
+  str "k"
+  call 2 u_xtpl_hget
+  call 1 Len
+  local 2
+  call 1 ValType
+  local 4
+  call 1 ValType
+  local 5
+  num 2
+  index
+  num 3
+  index
+  call 8 ConOut
+  pop
+  line 19
+  local 1
+  call 1 Len
+  num 0
+  gt
+  jumpf 107
+  line 20
+  array 0
+  setlocal 6
+  line 21
+  local 6
+  local 1
+  num 1
+  index
+  num 1
+  add
+  call 2 AAdd
+  pop
+  line 22
+  local 6
+  num 1
+  index
+  call 1 ConOut
+  pop
+  line 24
+  num 1
+  num 2
+  num 3
+  array 3
+  call 1 Sum
+  call 0 Names
+  call 1 Len
+  call 2 ConOut
+  pop
+  line 25
+  local 1
+  block U_MAIN#1 0
+  call 1 Eval
+  call 2 AAdd
+  pop
+  line 26
+  local 1
+  call 1 Len
+  call 1 ConOut
+  pop
+  line 27
+  nil
+  ret
+end
+
+function U_MAIN#1 block 0 0
+  locals
+  line 25
+  num 5
+  ret
+end
+
+function SUM static 1 5
+  locals aV nS .t1 nX .t2
+  line 30
+  num 0
+  setlocal 2
+  line 31
+  local 1
+  setlocal 3
+  num 1
+  setlocal 5
+  line 31
+  local 5
+  local 3
+  call 1 Len
+  le
+  jumpf 28
+  local 3
+  local 5
+  index
+  setlocal 4
+  local 2
+  local 4
+  add
+  setlocal 2
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 9
+  line 32
+  local 2
+  ret
+end
+
+function NAMES static 0 0
+  locals
+  line 35
+  array 0
+  ret
+end

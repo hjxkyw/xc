@@ -1,7 +1,8 @@
 # xtpl, as xc reads it
 
 xtpl is TL++ with extensions: block locals, lambdas, chains with `|>`,
-hashes, `defer`, `using alias`, string interpolation and a few operators.
+hashes, typed arrays and hashes, `defer`, `using alias`, string
+interpolation and a few operators.
 xc compiles it to plain TL++ for Protheus. This is the reference for the
 language as xc reads it today: what it takes, what it makes of it, and what
 it refuses.
@@ -170,7 +171,9 @@ A file holds, in any order:
   lines;
 - `namespace minha.empresa` and `using namespace ...`;
 - `external` declarations;
-- file statics: `Static aCache := {}`;
+- file statics: `Static aCache := {}`, written as a `Local` is -- the type
+  after the value, the attributes as a comment, what is xtpl's in the value
+  lowered;
 - functions, classes, interfaces, method implementations, web services;
 - annotations, before the function or method they annotate, and the
   definitions of the file's own, `@annotation Name` to `@end`, passed
@@ -354,16 +357,17 @@ goes on to the next line ends in `;`. A `Private` may name its variable as
 `M->nX`, the alias of the variables: it declares `nX`, as the AppServer
 takes it.
 
-**Types.** The type comes before the value or after it. TL++ only takes it
-after, so xc moves it there. Only one of the two places: `Local nX as
-Numeric := 1 as Numeric` is refused. The types are TL++'s, by their whole
-names -- `as N` is "Invalid Type N" to Protheus, and an error to xc:
-`Numeric`, `Character`, `Logical`, `Date`, `Array`, `Object`, `CodeBlock`,
-`JSON`, `Variant`, `Integer`, `Decimal`, `Double`, and `Variadic` -- a
-parameter that takes every argument there is, read as `parm:vCount` and
-`parm:vArgs[i]`. `Char` and `Block` are refused, as Protheus refuses them
-("Use Character Type instead of Char Type", "Use CodeBlock Type instead of
-Block Type").
+**Types.** The type comes before the value or after it -- for a typed array
+or hash, `as Array<n>` or `as Hash<c, n>`: see [Typed arrays and
+hashes](#typed-arrays-and-hashes). TL++ only takes it after, so xc moves it
+there. Only one of the two places: `Local nX as Numeric := 1 as Numeric` is
+refused. The types are TL++'s, by their whole names -- `as N` is "Invalid
+Type N" to Protheus, and an error to xc: `Numeric`, `Character`, `Logical`,
+`Date`, `Array`, `Object`, `CodeBlock`, `JSON`, `Variant`, `Integer`,
+`Decimal`, `Double`, and `Variadic` -- a parameter that takes every argument
+there is, read as `parm:vCount` and `parm:vArgs[i]`. `Char` and `Block` are
+refused, as Protheus refuses them ("Use Character Type instead of Char
+Type", "Use CodeBlock Type instead of Block Type").
 
 A value whose type xc can tell has to agree with the type declared: a
 literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
@@ -579,6 +583,80 @@ The header's declaration needs a value. In `If` and `While` it comes after
 `local`, then a comma and the condition. `ElseIf` does not declare. Without
 `local`, `Do Case With x := e` assigns a variable declared before and tests
 it in each `Case`.
+
+### Typed arrays and hashes
+
+```xtpl
+User Function Totals(aIn as Array<n>, cName as Character) as Array<c>
+  Local aN := { <n> }
+  Local aOut as Array<c>
+  Local hSeen := { <c> => <n> }
+  Local aRows := {{1, 2}, {3}} as Array<Array<n>>
+  AAdd(aN, Len(aIn) * 2)
+  hSeen{cName} := Len(aRows)
+  AAdd(aRows[2], aN[1])
+  AAdd(aOut, Str(aN[1]) + cName)
+Return aOut
+```
+
+```tlpp
+User Function Totals(aIn as Array, cName as Character) as Array
+  Local aN := {}
+  Local aOut := {} as Array
+  Local hSeen := THashMap():New()
+  Local aRows := {{1, 2}, {3}} as Array
+  AAdd(aN, Len(aIn) * 2)
+  hSeen:Set(cName, Len(aRows))
+  AAdd(aRows[2], aN[1])
+  AAdd(aOut, Str(aN[1]) + cName)
+Return aOut
+```
+
+`Array<T>` and `Hash<K, V>` say what an array or a hash holds: `T`, `K` and
+`V` are a type's letter -- `n`, `c`, `l`, `d`, `a`, `h`, `o`, `b`, `j`, `f`:
+Numeric, Character, Logical, Date, Array, Hash, Object, CodeBlock, JSON,
+Decimal -- or one of these again, `Array<Array<n>>`, `Hash<c, Array<n>>`. A
+`Local` or a `Static` takes one after `as`, with a value or with none -- it
+then starts empty, an array or a hash, not Nil --, and so do a function's
+parameters and what it returns. `{ <n> }` is an empty array of numbers and
+`{ <c> => <n> }` an empty hash, and a `Local` or a `Static` given one is
+declared so. TL++ is given none of it: `as Array`, `as Object` -- a hash is
+a `THashMap` --, `{}`, `THashMap():New()`. What one holds is xc's to check,
+as it compiles.
+
+What goes in has to be what it holds: a declaration's value, `x := v`,
+`a[i] := v`, `a[i] += v`, `h{k} := v`, `AAdd()`, `AFill()`, `ACopy()`,
+`h:Set()`, an argument a parameter so declared takes, a `Return` of a
+function so declared. A value known to be of another type is an error; one
+whose type xc cannot tell, a warning -- the file is written. Nil goes
+anywhere.
+
+xc can tell literals; a name declared with a type; a `Local` or a `Static`
+whose every value it can tell, the same each time -- a file static's over
+the whole file; what reading a typed array or hash gives; an operator's
+result, and a string with something it cannot tell is a string; TL++'s
+common functions -- `Len()`, `Val()`, `Str()`, `AllTrim()`, `Date()`, ...
+--; the runtime's verbs over a typed array -- `filter` and the like keep
+what it holds, `map` gives what its lambda does --; the file's functions
+declared with a type; a field, given `--dict`. Not a method, a parameter
+declared with no type, a `Private`, a code block's parameter. And a typed
+array given to a function whose parameter has no type is out of sight:
+nothing checks what that function puts in.
+
+```xtpl
+User Function Stock(oItem)
+  Local aN := { <n> }
+  Local hQtd as Hash<c, n>
+  AAdd(aN, "x")
+  hQtd{1} := oItem:nQtd
+Return {aN, hQtd}
+```
+
+```text
+stock.xtpl:4: 'aN' is an Array<n>: this is Character, not Numeric.
+stock.xtpl:5: 'hQtd' is a Hash<c, n>: this key is Numeric, not Character.
+stock.xtpl:5: warning: 'hQtd' is a Hash<c, n>: xc cannot tell that this is Numeric.
+```
 
 ## Statements
 
@@ -1801,6 +1879,7 @@ parses, in xtpl's words.
 | `for ... in rows()` | `'for ... in' over rows() is not supported: ...` |
 | a `fallback` around a chain from a source | `'fallback' cannot guard a walk over rows(). ...` |
 | `distinctAdjacent` over `rows()` without a key | `distinctAdjacent over rows() needs a key -- ...` |
+| a value of another type than a typed array or hash holds, going in | `'aN' is an Array<n>: this is Character, not Numeric.` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
 comma in a declaration, `?=` in an expression, a chain or a `fallback`
@@ -1831,6 +1910,7 @@ with any name allowed, to say which name it was and why.
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
+| a value whose type xc cannot tell, going into a typed array or hash | `'aN' is an Array<n>: xc cannot tell that this is Numeric.` |
 | a `then` chain that is all of the condition of an `If`, an `ElseIf`, a `While`, a `Case`, a postfix `if` or `while` | `the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '\|>' there, or put the chain in parentheses` |
 
 A User Function of the file called without its `u_` is refused even when

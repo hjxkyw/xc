@@ -1,0 +1,62 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// What xc can tell, so no warning: literals, TL++'s functions, a name
+// declared with a type, a Local whose every value it can tell, a 'for' and
+// a 'for ... in' over a typed array, what a typed array or hash gives, the
+// runtime's verbs over one, the file's functions declared with a type.
+User Function Known(cText as Character)
+  Local aN := {}
+  Local aC := {}
+  Local hC := THashMap():New()
+  Local nTotal := 0
+  Local nI
+  Local cLast
+  Local nX  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fi_0_1  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // what a loop collected, for the stages after it
+  Local fs_0_1  // the array walked
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_1  // the element walked
+  Local fo_0_1  // the result of the chain
+  AAdd(aN, Val(cText) * 2)
+  AAdd(aN, Len(cText) + At(",", cText))
+  AAdd(aC, AllTrim(Upper(cText)))
+  AAdd(aC, cText)
+  For nI := 1 To 3
+    nTotal += nI
+  Next
+  AAdd(aN, nTotal)
+  fs_0_0 := aN
+  For fi_0_0 := 1 To Len(fs_0_0)
+    nX := fs_0_0[fi_0_0]
+    AAdd(aC, Str(nX))
+  Next
+  cLast := aC[Len(aC)]
+  AAdd(aC, cLast)
+  fo_0_0 := {}
+  For fi_0_1 := 1 To Len(aN)
+    fv_0_0 := aN[fi_0_1]
+    If fv_0_0 > 1
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  hC:Set(cLast, u_xtpl_sortby(fo_0_0, {|x| -x}))
+  AAdd(u_xtpl_hget(hC, cLast), u_xtpl_asum(aN))
+  fs_0_1 := u_xtpl_split(cText, ",")
+  fo_0_1 := {}
+  For fi_0_2 := 1 To Len(fs_0_1)
+    fv_0_1 := fs_0_1[fi_0_2]
+    fv_0_1 := AllTrim(fv_0_1)
+    AAdd(fo_0_1, fv_0_1)
+  Next
+  aC := fo_0_1
+  AAdd(aN, Twice(1))
+  AAdd(aC, If(nTotal > 1, "many", "one"))
+Return {aN, aC, hC}
+
+Static Function Twice(nX as Numeric) as Numeric
+Return nX * 2

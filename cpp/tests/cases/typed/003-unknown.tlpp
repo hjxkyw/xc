@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A value whose type xc cannot tell: a warning, and the file is written --
+// a method, a parameter with no type, a function it does not know.
+User Function Unknown(oItem, cKey, nQtd as Numeric)
+  Local aN := {}
+  Local hH := THashMap():New() as Object
+  AAdd(aN, oItem:nQtd)
+  AAdd(aN, nQtd)
+  hH:Set(cKey, 1)
+  hH:Set("total", u_Total(aN))
+  aN := u_LoadAll()
+  aEval({1, 2}, {|x| AAdd(aN, x)})
+Return aN

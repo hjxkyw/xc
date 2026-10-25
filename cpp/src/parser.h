@@ -75,6 +75,8 @@ namespace xc
     int furthest_ = 0;
     bool past_prologue_ = false; // the body's declarations are over
     bool memvar_ok_ = false;     // a Private's names: 'M->' may come before one
+    bool generic_ok_ = false;    // a Local's or a Static's, or a function's
+                                 // parameters: 'as Array<n>' may type one
     bool top_level_ = false;     // in a function's own body, not a block's
     std::vector<int> rows_;      // where each line starts, as Raku's .lines splits them
     bool in_with_ = false;       // inside 'with object': ':x' is the subject's
@@ -166,6 +168,7 @@ namespace xc
     Expr* pairs(bool hash);
     KeyValue* kv_pair(bool hash);
     Expr* arrayliteral();
+    Expr* typed_literal();
 
     // Literals.
     Expr* literal();
@@ -235,8 +238,19 @@ namespace xc
     Declarator* declarator(bool hdr);
     bool dims(std::vector<Expr*>& out);
     int attrs(int p) const;
-    bool typespec(int& from, std::string& typename_text);
+    // A typed array's or hash's type, after 'as': 'Array<n>', 'Hash<c, n>'.
+    struct Generic
+    {
+      std::string container;     // 'A<N>', 'H<C,N>' (see ast.h's ArrayLit)
+      int from = -1;             // where it is written
+      int to = -1;
+      std::string tlpp;          // TL++'s word for it: 'Array', 'Object'
+    };
+    bool typespec(int& from, std::string& typename_text, Generic* g = nullptr);
     int type_name_end(int p) const;
+    int elem_type(int p, std::string& out) const;
+    int type_args(int p, int n, std::vector<std::string>& out) const;
+    Expr* made_empty(const std::string& container);
     bool refused(const std::string& name) const;
     Stmt* ifcallst();
     bool exec_at() const;

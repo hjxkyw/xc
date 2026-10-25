@@ -242,7 +242,7 @@ namespace xc
       case SK::Declaration:
         for (const Declarator* d : static_cast<const Declaration*>(s)->declarators)
         {
-          if (d->type_first || !d->attributes.empty()) { return true; }
+          if (d->type_first || !d->attributes.empty() || !d->container.empty()) { return true; }
         }
         return false;
       default:
@@ -710,7 +710,9 @@ namespace xc
     }
 
     // A file static declared 'as Decimal': its literal value made one. In
-    // TL++: a .prw has no Decimal.
+    // TL++: a .prw has no Decimal. One that needs it -- a typed array or
+    // hash, 'as T' first, attributes -- written again, as a Local is. The
+    // values of the rest: what is xtpl's in them lowered.
     if (!advpl_) { dec_.file(p); }
     dec_.function({}, {});
     for (const Declaration* d : p->statics)
@@ -718,14 +720,31 @@ namespace xc
       std::vector<Expr*> values;
       for (const Declarator* v : d->declarators)
       {
-        if (v->init && decimal_word(v->typespec_text))
-        {
-          into_decimal_.insert(v->init);
-          values.push_back(v->init);
-        }
+        if (v->init && decimal_word(v->typespec_text)) { into_decimal_.insert(v->init); }
+        if (v->init) { values.push_back(v->init); }
       }
       no_temps_++;
-      expressions(values);
+      if (needs_lowering(d) && d->from >= 0)
+      {
+        int end = d->from + static_cast<int>(code_end(slice(d)));
+        std::string notes = notes_of(d);
+        // The attributes as a comment: in the line's own, if it has one.
+        int from = line_start(d->from);
+        std::string line = text(from, line_end(d->from));
+        long at = comment_at(line);
+        bool own = at >= 0 && from + at >= end && (line.compare(static_cast<std::size_t>(at), 2, "//") == 0
+                                                   || line.compare(static_cast<std::size_t>(at), 2, "&&") == 0);
+        if (!notes.empty() && own)
+        {
+          edit(from + static_cast<int>(at), from + static_cast<int>(at) + 2, "// " + notes + " --");
+          notes.clear();
+        }
+        edit(d->from, end, lower(d).lines.at(0) + (notes.empty() ? "" : "  // " + notes));
+      }
+      else
+      {
+        expressions(values);
+      }
       no_temps_--;
     }
 
@@ -733,6 +752,12 @@ namespace xc
     {
       ret_decimal_ = decimal_word(f->rettype_word);
       ret_numeric_ = numeric_word(f->rettype_word);
+      // 'as Array<n>' is TL++'s 'as Array', 'as Hash<c, n>' its 'as Object'.
+      if (!f->ret_container.empty()) { edit(f->ret_from, f->ret_to, f->ret_tlpp); }
+      for (const Param* q : f->params)
+      {
+        if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+      }
       function(f->params, f->body);
     }
     for (const MethodImpl* m : p->methods)

@@ -289,6 +289,7 @@ namespace xc
     std::string safe_chain(const Expr* e);
     void safe_steps(const Expr* e, Lines& conds, std::string& value);
     Lowered hash_set(const Assignment* a);
+    std::string assigned(const Assignment* a, const std::string& value);
     std::string block_arg(const std::string& verb, const Expr* e);
     std::string part(const Expr* e);
     template <class N> std::string with_edits(const N* node, const std::vector<Expr*>& exprs);

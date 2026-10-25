@@ -753,7 +753,9 @@ namespace xc
       bool ok = false;
       if (ws())
       {
+        generic_ok_ = true;
         std::vector<Param*> ps = params();
+        generic_ok_ = false;
         if (c(p_) == ')')
         {
           p_++;
@@ -778,9 +780,14 @@ namespace xc
       int save = p_;
       int from = 0;
       std::string tn;
-      if (typespec(from, tn))
+      Generic gen;
+      if (typespec(from, tn, &gen))
       {
         f->rettype_word = tn;
+        f->ret_container = gen.container;
+        f->ret_from = gen.from;
+        f->ret_to = gen.to;
+        f->ret_tlpp = gen.tlpp;
       }
       else
       {
@@ -877,10 +884,15 @@ namespace xc
     int save = p_;
     int from = 0;
     std::string tn;
-    if (typespec(from, tn))
+    Generic gen;
+    if (typespec(from, tn, generic_ok_ ? &gen : nullptr))
     {
       p->declared = type_of_name(tn);
       p->type_word = tn;
+      p->container = gen.container;
+      p->type_from = gen.from;
+      p->type_to = gen.to;
+      p->type_tlpp = gen.tlpp;
     }
     else
     {
@@ -1783,6 +1795,12 @@ namespace xc
     auto d = make<Declaration>();
     d->scope = "static";
     d->line = line(start);
+    struct Reset
+    {
+      bool& on;
+      ~Reset() { on = false; }
+    } reset{ generic_ok_ };
+    generic_ok_ = true;
     Declarator* first = declarator(false);
     if (!first)
     {
@@ -1806,6 +1824,8 @@ namespace xc
       }
       d->declarators.push_back(x);
     }
+    d->from = start;
+    d->to = p_;
     if (!ws())
     {
       p_ = start;
@@ -2583,6 +2603,17 @@ namespace xc
     d->declared = "?";
     std::string type_word;
     bool typed = false;
+    Generic gen;
+    Generic* g = hdr || generic_ok_ ? &gen : nullptr;
+    // A typed array's or hash's 'as', as TL++ has it: 'as Array'.
+    auto typespec_of = [&](int from, int to) -> std::string
+    {
+      if (!gen.container.empty())
+      {
+        return trim(std::string(src_.substr(from, gen.from - from)) + gen.tlpp);
+      }
+      return trim(src_.substr(from, to - from));
+    };
     if (hdr)
     {
       if (!lit(":=") || !ws())
@@ -2596,10 +2627,10 @@ namespace xc
       }
       int save = p_;
       int from = 0;
-      if (typespec(from, type_word))
+      if (typespec(from, type_word, g))
       {
         typed = true;
-        d->typespec_text = trim(src_.substr(from, p_ - from));
+        d->typespec_text = typespec_of(from, p_);
       }
       else
       {
@@ -2660,10 +2691,10 @@ namespace xc
         {
           d->init = v;
           int s2 = p_;
-          if (typespec(from, type_word))
+          if (typespec(from, type_word, g))
           {
             typed = true;
-            d->typespec_text = trim(src_.substr(from, p_ - from));
+            d->typespec_text = typespec_of(from, p_);
           }
           else
           {
@@ -2687,7 +2718,7 @@ namespace xc
       if (!d->init)
       {
         // [ <typespec> ':=' <guardexpr> ] || [ <typespec> ] || <?>
-        if (typespec(from, type_word))
+        if (typespec(from, type_word, g))
         {
           int after = p_;
           if (lit(":=") && ws())
@@ -2711,7 +2742,7 @@ namespace xc
             }
           }
           typed = true;
-          d->typespec_text = trim(src_.substr(from, after - from));
+          d->typespec_text = typespec_of(from, after);
         }
         else
         {
@@ -2734,6 +2765,13 @@ namespace xc
     if (typed)
     {
       d->declared = type_of_name(type_word);
+      d->container = gen.container;
+      // A typed array or hash starts empty, not Nil.
+      if (!d->container.empty() && !d->init && d->dims.empty())
+      {
+        d->init = made_empty(d->container);
+        d->init_made = true;
+      }
     }
     else if (!d->dims.empty())
     {
@@ -2828,13 +2866,44 @@ namespace xc
 
   // rule typespec { :i 'as' <typename> }: where it starts, and the type's
   // word as written.
-  bool Parser::typespec(int& from, std::string& typename_text)
+  //   g: where a typed array or hash may be declared -- 'Array<n>', 'Hash<c,
+  //   n>' --, which it then tells of; TL++ is given 'Array' and 'Object'.
+  bool Parser::typespec(int& from, std::string& typename_text, Generic* g)
   {
     int start = p_;
     if (!ilit("as") || !ws())
     {
       p_ = start;
       return false;
+    }
+    if (g)
+    {
+      *g = Generic{};
+      bool hash = iword_at(p_, "hash") && c(p_ + 4) == '<';
+      std::string t;
+      if (hash || (iword_at(p_, "array") && c(p_ + 5) == '<'))
+      {
+        int e = elem_type(p_, t);
+        if (e < 0)
+        {
+          p_ = start;
+          return false;
+        }
+        g->container = t;
+        g->from = p_;
+        g->to = e;
+        g->tlpp = hash ? "Object" : text(p_, p_ + 5);
+        typename_text = g->tlpp;
+        p_ = e;
+        if (!ws())
+        {
+          p_ = start;
+          *g = Generic{};
+          return false;
+        }
+        from = start;
+        return true;
+      }
     }
     int e = type_name_end(p_);
     if (e < 0)
@@ -2851,6 +2920,97 @@ namespace xc
     }
     from = start;
     return true;
+  }
+
+  // What a typed array or hash holds: a type's letter -- n, c, l, d, a, h, o,
+  // b, j, f --, 'Array<T>' or 'Hash<K, V>', letter case aside. Where it ends,
+  // or -1; the type as ast.h writes it, in out.
+  int Parser::elem_type(int p, std::string& out) const
+  {
+    std::vector<std::string> args;
+    if (iword_at(p, "array") && c(p + 5) == '<')
+    {
+      int e = type_args(p + 5, 1, args);
+      if (e >= 0) { out = "A<" + args[0] + ">"; }
+      return e;
+    }
+    if (iword_at(p, "hash") && c(p + 4) == '<')
+    {
+      int e = type_args(p + 4, 2, args);
+      if (e >= 0) { out = "H<" + args[0] + "," + args[1] + ">"; }
+      return e;
+    }
+    int ch = lower(c(p));
+    if (ch < 0 || is_w(c(p + 1)) || std::string_view("nclahdobjf").find(static_cast<char>(ch)) == std::string_view::npos)
+    {
+      return -1;
+    }
+    out = std::string(1, static_cast<char>(ch - 'a' + 'A'));
+    return p + 1;
+  }
+
+  // '<' T [ ',' T ]* '>', n types, blanks around them: where it ends, or -1.
+  int Parser::type_args(int p, int n, std::vector<std::string>& out) const
+  {
+    if (c(p) != '<')
+    {
+      return -1;
+    }
+    int q = p + 1;
+    for (int i = 0; i < n; i++)
+    {
+      while (is_h(c(q))) { q++; }
+      if (i > 0)
+      {
+        if (c(q) != ',')
+        {
+          return -1;
+        }
+        q++;
+        while (is_h(c(q))) { q++; }
+      }
+      std::string t;
+      q = elem_type(q, t);
+      if (q < 0)
+      {
+        return -1;
+      }
+      out.push_back(t);
+    }
+    while (is_h(c(q))) { q++; }
+    return c(q) == '>' ? q + 1 : -1;
+  }
+
+  // The empty array or hash a typed one declared with no value starts at.
+  Expr* Parser::made_empty(const std::string& container)
+  {
+    if (container[0] == 'H')
+    {
+      auto h = make<HashLit>();
+      h->type = "Object";
+      h->text = "{ => }";
+      std::size_t comma = container.find(',');
+      int depth = 0;
+      for (std::size_t i = 2; i + 1 < container.size(); i++)
+      {
+        char ch = container[i];
+        if (ch == '<') { depth++; }
+        else if (ch == '>') { depth--; }
+        else if (ch == ',' && depth == 0)
+        {
+          comma = i;
+          break;
+        }
+      }
+      h->key_type = container.substr(2, comma - 2);
+      h->value_type = container.substr(comma + 1, container.size() - comma - 2);
+      return h;
+    }
+    auto a = make<ArrayLit>();
+    a->type = "Array";
+    a->text = "{}";
+    a->elem = container.substr(2, container.size() - 3);
+    return a;
   }
 
   // token typename: the full names, and the abbreviations as words.
@@ -2913,8 +3073,9 @@ namespace xc
     {
       bool& on;
       ~Reset() { on = false; }
-    } reset{ memvar_ok_ };
+    } reset{ memvar_ok_ }, reset_generic{ generic_ok_ };
     memvar_ok_ = scope == "private";
+    generic_ok_ = scope == "local" || scope == "static";
     Declarator* first = declarator(false);
     if (!first)
     {
