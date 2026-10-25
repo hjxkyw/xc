@@ -1,0 +1,19 @@
+007-fixed-wrong.xtpl:9: warning: 'aNone' is declared but never used
+007-fixed-wrong.xtpl:10: warning: 'aT' is assigned but never read
+007-fixed-wrong.xtpl:9: 'aNone' is an Array<fixed>: it takes its value where it is declared.
+007-fixed-wrong.xtpl:12: 'aX' is an Array<fixed n>: nothing in it may be written.
+007-fixed-wrong.xtpl:13: 'aX' is an Array<fixed n> (declared on line 7) and cannot be assigned.
+007-fixed-wrong.xtpl:14: 'aX' is an Array<fixed n>: AAdd() would write into it.
+007-fixed-wrong.xtpl:15: 'aX' is an Array<fixed n>: ASort() would write into it.
+007-fixed-wrong.xtpl:16: 'aX' is an Array<fixed n>: ASort() would write into it.
+007-fixed-wrong.xtpl:17: 'hX' is a Hash<fixed c, Array<n>>: nothing in it may be written.
+007-fixed-wrong.xtpl:18: 'hX' is a Hash<fixed c, Array<n>>: Set() would write into it.
+007-fixed-wrong.xtpl:19: 'hX' is a Hash<fixed c, Array<n>>: Del() would write into it.
+007-fixed-wrong.xtpl:20: 'hX' holds an Array<fixed n> here: AAdd() would write into it.
+007-fixed-wrong.xtpl:21: 'aIn' is an Array<fixed n>: nothing in it may be written.
+007-fixed-wrong.xtpl:22: 'aIn' is an Array<fixed n> (declared on line 6) and cannot be assigned.
+007-fixed-wrong.xtpl:23: 'saCodes' is an Array<fixed c>: nothing in it may be written.
+007-fixed-wrong.xtpl:24: 'aT' is an Array<n>: this is an Array<fixed n>, not an Array<n>.
+007-fixed-wrong.xtpl:26: 'aY' may hold an Array<fixed n>: nothing in it may be written.
+007-fixed-wrong.xtpl:27: 'aX' is an Array<fixed n> (declared on line 7) and cannot be passed by reference.
+007-fixed-wrong.xtpl:28: the parameter 'aV' of Total() is an Array<n>: this is an Array<fixed n>, not an Array<n>.

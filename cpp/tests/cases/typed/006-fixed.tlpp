@@ -1,0 +1,28 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Fixed arrays and hashes: given their value where they are declared, and
+// read -- not written into, nor anything they hold. TL++ gets 'as Array'
+// and 'as Object', as for any typed one.
+Static saCodes := {"A", "B", "C"} as Array
+Static shRates := u_xtpl_hnew({{"a", 1.5}, {"b", 2}}) as Object
+
+User Function Fixed(aIn as Array, cCode as Character) as Array
+  Local aGrid := {{1, 2}, {3, 4}} as Array
+  Local hAny := u_xtpl_hnew({{"x", {}}}) as Object
+  Local aCopy := AClone(aGrid)
+  Local nTotal := 0
+  Local aRow  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  aCopy[1][1] := 9
+  AAdd(aCopy, {5})
+  fs_0_0 := aGrid
+  For fi_0_0 := 1 To Len(fs_0_0)
+    aRow := fs_0_0[fi_0_0]
+    nTotal += aRow[1] + Len(aRow)
+  Next
+  nTotal += AScan(saCodes, cCode) + Len(aIn) + u_xtpl_hget(shRates, "a") + Len(u_xtpl_hget(hAny, "x"))
+  ConOut(Len(u_xtpl_filter(aIn, {|x| x > nTotal})))
+  ConOut(u_Show(aGrid))
+Return saCodes

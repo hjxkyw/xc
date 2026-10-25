@@ -1,0 +1,18 @@
+// Fixed arrays and hashes: given their value where they are declared, and
+// read -- not written into, nor anything they hold. TL++ gets 'as Array'
+// and 'as Object', as for any typed one.
+Static saCodes := {"A", "B", "C"} as Array<fixed c>
+Static shRates := {"a" => 1.5, "b" => 2} as Hash<fixed c, n>
+
+User Function Fixed(aIn as Array<fixed n>, cCode as Character) as Array<fixed c>
+  Local aGrid := {{1, 2}, {3, 4}} as Array<fixed Array<n>>
+  Local hAny := {"x" => {}} as Hash<fixed>
+  Local aCopy := AClone(aGrid)
+  Local nTotal := 0
+  aCopy[1][1] := 9
+  AAdd(aCopy, {5})
+  for aRow in aGrid exec nTotal += aRow[1] + Len(aRow)
+  nTotal += AScan(saCodes, cCode) + Len(aIn) + shRates{"a"} + Len(hAny{"x"})
+  ConOut(aIn |> filter([x] x > nTotal) |> Len())
+  ConOut(u_Show(aGrid))
+Return saCodes

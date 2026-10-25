@@ -12,6 +12,13 @@
 // so declared. A value known to be of another type is an error; one whose
 // type xc cannot tell, a warning.
 //
+// A fixed one -- 'Array<fixed>', 'Array<fixed n>', 'Hash<fixed c, n>' -- is
+// written into by nothing: no 'a[i] := v', no AAdd(), ASort() and the other
+// functions that change an array, no h:Set() or h:Del(); nor is anything it
+// holds. Its name takes its value where it is declared, and is never assigned
+// again nor passed with '@'. A fixed one goes only where a fixed one is
+// wanted, or where nothing is said: a name it is given is fixed too.
+//
 // What xc can tell: literals; a name declared with a type, and a function's
 // Local or Static whose every assignment xc can tell, and the same; what
 // reading a typed array or hash gives; an operator's result; TL++'s common

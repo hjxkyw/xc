@@ -19,19 +19,49 @@ namespace xc
 
     // ---- types --------------------------------------------------------------
     // As ast.h writes them: 'N', 'C', 'L', 'D', 'A', 'H', 'O', 'B', 'J', 'F',
-    // 'A<T>', 'H<K,V>'; and here, NIL (fits every type), UNKNOWN, and NONE --
-    // nothing known yet, while the types of a function's names are worked out.
+    // 'A<T>', 'H<K,V>', '!' before a fixed one; and here, NIL (fits every
+    // type), UNKNOWN, '!?' -- what xc cannot tell, read from a fixed one, so
+    // fixed if it is an array or a hash -- and NONE -- nothing known yet,
+    // while the types of the names are worked out.
     const std::string NIL;
     const std::string UNKNOWN = "?";
     const std::string NONE = "_";
 
-    bool generic(const std::string& t) { return t.size() > 2 && t[1] == '<'; }
+    bool fixed(const std::string& t) { return !t.empty() && t[0] == '!'; }
+    std::string bare(const std::string& t) { return fixed(t) ? t.substr(1) : t; }
+    char kind(const std::string& t) { return fixed(t) ? t[1] : t.empty() ? '\0' : t[0]; }
+
+    bool generic(const std::string& t)
+    {
+      std::size_t at = fixed(t) ? 1 : 0;
+      return t.size() > at + 2 && t[at + 1] == '<';
+    }
+
+    // Fixed, if it is an array, a hash, or what xc cannot tell: what is read
+    // from a fixed one.
+    std::string fix(const std::string& t)
+    {
+      char k = kind(t);
+      return fixed(t) || !(k == 'A' || k == 'H' || t == UNKNOWN) ? t : "!" + t;
+    }
+
+    // Nothing fixed in it: what AClone() gives.
+    std::string unfixed(const std::string& t)
+    {
+      std::string out;
+      for (char c : t)
+      {
+        if (c != '!') { out += c; }
+      }
+      return out;
+    }
 
     // The types between the '<' and the '>' of 'A<T>' or 'H<K,V>'.
-    std::vector<std::string> args_of(const std::string& t)
+    std::vector<std::string> args_of(const std::string& t0)
     {
       std::vector<std::string> out;
-      if (!generic(t)) { return out; }
+      if (!generic(t0)) { return out; }
+      std::string t = bare(t0);
       int depth = 0;
       std::size_t from = 2;
       for (std::size_t i = 2; i + 1 < t.size(); i++)
@@ -49,12 +79,14 @@ namespace xc
       return out;
     }
 
-    // What an element of an array of type t is; a key, a value of a hash.
-    std::string part_of(const std::string& t, char kind, std::size_t n)
+    // What an element of an array of type t is; a key, a value of a hash --
+    // fixed, read from a fixed one.
+    std::string part_of(const std::string& t, char k, std::size_t n)
     {
       if (t == NONE) { return NONE; }
-      if (!generic(t) || t[0] != kind) { return UNKNOWN; }
-      return args_of(t).at(n);
+      if (kind(t) != k) { return UNKNOWN; }
+      std::string r = generic(t) ? args_of(t).at(n) : UNKNOWN;
+      return fixed(t) ? fix(r) : r;
     }
     std::string elem_of(const std::string& t) { return part_of(t, 'A', 0); }
     std::string key_of(const std::string& t) { return part_of(t, 'H', 0); }
@@ -63,24 +95,29 @@ namespace xc
     std::string array_of(const std::string& t)
     {
       if (t == NONE) { return NONE; }
-      return t.empty() || t == UNKNOWN ? "A" : "A<" + t + ">";
+      return t.empty() || bare(t) == UNKNOWN ? "A" : "A<" + t + ">";
     }
 
-    // A type as xtpl writes it: 'Numeric', 'Array<n>', 'Hash<c, Array<n>>'.
+    // A type as xtpl writes it: 'Numeric', 'Array<n>', 'Hash<c, Array<n>>',
+    // 'Array<fixed n>'.
     std::string show(const std::string& t);
 
     std::string inner(const std::string& t)
     {
-      return generic(t) ? show(t) : lc(t);
+      return generic(t) || fixed(t) ? show(t) : lc(t);
     }
 
     std::string show(const std::string& t)
     {
+      std::string f = fixed(t) ? "fixed" : "";
       if (generic(t))
       {
         std::vector<std::string> a = args_of(t);
-        return t[0] == 'A' ? "Array<" + inner(a[0]) + ">" : "Hash<" + inner(a[0]) + ", " + inner(a[1]) + ">";
+        std::string pre = f.empty() ? "" : f + " ";
+        return kind(t) == 'A' ? "Array<" + pre + inner(a[0]) + ">"
+                              : "Hash<" + pre + inner(a[0]) + ", " + inner(a[1]) + ">";
       }
+      if (!f.empty()) { return kind(t) == 'A' ? "Array<fixed>" : kind(t) == 'H' ? "Hash<fixed>" : "?"; }
       static const std::unordered_map<std::string, std::string> names =
       {
         { "N", "Numeric" }, { "C", "Character" }, { "L", "Logical" }, { "D", "Date" }, { "A", "Array" },
@@ -93,8 +130,8 @@ namespace xc
     // With its article, for an array or a hash: 'an Array<n>', 'Character'.
     std::string shown(const std::string& t)
     {
-      if (!t.empty() && t[0] == 'A') { return "an " + show(t); }
-      if (!t.empty() && t[0] == 'H') { return "a " + show(t); }
+      if (kind(t) == 'A') { return "an " + show(t); }
+      if (kind(t) == 'H') { return "a " + show(t); }
       return show(t);
     }
 
@@ -122,14 +159,18 @@ namespace xc
 
     enum class Fit { Ok, Wrong, Unknown };
 
-    // Whether a value of type v goes where slot is wanted.
+    // Whether a value of type v goes where slot is wanted. A fixed array or
+    // hash goes where a fixed one is, or where nothing is said: anywhere
+    // else, it could be written into.
     Fit fits(const std::string& v, const std::string& slot)
     {
       if (slot.empty() || slot == UNKNOWN || v.empty()) { return Fit::Ok; }
-      if (v == UNKNOWN || v == NONE) { return Fit::Unknown; }
-      if (v == slot) { return Fit::Ok; }
-      char vk = v[0];
-      char sk = slot[0];
+      if (bare(v) == UNKNOWN || v == NONE) { return Fit::Unknown; }
+      char vk = kind(v);
+      char sk = kind(slot);
+      bool boxes = (vk == 'A' || vk == 'H') && (sk == 'A' || sk == 'H');
+      if (boxes && fixed(v) && !fixed(slot)) { return Fit::Wrong; }
+      if (bare(v) == bare(slot)) { return Fit::Ok; }
       if (sk == 'O' && vk == 'H') { return Fit::Ok; }          // a THashMap is an object
       if (vk == 'O' && sk == 'H') { return Fit::Unknown; }     // and an object may be one
       if (vk != sk) { return Fit::Wrong; }
@@ -140,22 +181,28 @@ namespace xc
       Fit worst = Fit::Ok;
       for (std::size_t i = 0; i < sa.size(); i++)
       {
-        Fit f = fits(va[i], sa[i]);
+        Fit f = fits(fixed(v) ? fix(va[i]) : va[i], sa[i]);
         if (f == Fit::Wrong) { return Fit::Wrong; }
         if (f == Fit::Unknown) { worst = Fit::Unknown; }
       }
       return worst;
     }
 
-    // What a name holds, given two of its values.
+    // What a name holds, given two of its values -- fixed, if one is.
     std::string join(const std::string& a, const std::string& b)
     {
       if (a == NONE || a.empty()) { return b; }
       if (b == NONE || b.empty()) { return a; }
       if (a == b) { return a; }
-      if (a == UNKNOWN || b == UNKNOWN) { return UNKNOWN; }
-      if (a[0] == b[0] && (a[0] == 'A' || a[0] == 'H')) { return std::string(1, a[0]); }
-      return UNKNOWN;
+      std::string x = bare(a);
+      std::string y = bare(b);
+      std::string r = UNKNOWN;
+      if (x == y) { r = x; }
+      else if (x != UNKNOWN && y != UNKNOWN && x[0] == y[0] && (x[0] == 'A' || x[0] == 'H'))
+      {
+        r = std::string(1, x[0]);
+      }
+      return fixed(a) || fixed(b) ? fix(r) : r;
     }
 
     const std::unordered_set<std::string> LOGICAL =
@@ -164,14 +211,16 @@ namespace xc
     };
 
     // An operator's result, given its operands'.
-    std::string binop(const std::string& op, const std::string& l, const std::string& r)
+    std::string binop(const std::string& op, const std::string& l0, const std::string& r0)
     {
       if (LOGICAL.count(op)) { return "L"; }
       if (op == "?:")
       {
-        if (l == NONE || r == NONE) { return NONE; }
-        return l == r || r.empty() ? l : l.empty() ? r : UNKNOWN;
+        if (l0 == NONE || r0 == NONE) { return NONE; }
+        return l0 == r0 || r0.empty() ? l0 : l0.empty() ? r0 : join(l0, r0) == l0 ? l0 : UNKNOWN;
       }
+      std::string l = bare(l0);
+      std::string r = bare(r0);
       if (op == "neg")
       {
         return r == NONE ? NONE : r == "N" || r == "F" ? r : UNKNOWN;
@@ -245,14 +294,15 @@ namespace xc
     struct Var
     {
       std::string name;
-      bool fixed = false;            // its type declared, or one xc does not work out
+      bool pinned = false;           // its type declared, or one xc does not work out
       std::string type = NONE;       // what it holds
       std::string container;         // the typed array or hash it is declared as
+      int line = 0;                  // where it is declared
     };
 
     struct Event
     {
-      enum Kind { Decl, Assign, Counter, ForIn, Unknown, CallE, MethodE, Return } kind = Decl;
+      enum Kind { Decl, Assign, Counter, ForIn, Unknown, Ref, CallE, MethodE, Return } kind = Decl;
       int line = 0;
       Var* var = nullptr;
       Var* index = nullptr;
@@ -309,10 +359,10 @@ namespace xc
       int line_ = 0;
 
       bool any_typed() const;
-      Var* declare(const std::string& name, bool fixed, const std::string& type, const std::string& container);
+      Var* declare(const std::string& name, bool pinned, const std::string& type, const std::string& container);
       Var* find(const std::string& name) const;
       void function(const std::vector<Param*>& params, const Body& body, const std::string& ret,
-                    const std::string& name);
+                    const std::string& name, int line);
       void body(const Body& b);
       void stmt(Stmt* s);
       void expr(Expr* e);
@@ -333,6 +383,9 @@ namespace xc
 
       void into(const Expr* e, const std::string& slot, const std::string& who, bool key = false);
       std::string who_of(const Expr* base);
+      std::string fixed_who(const Expr* written);
+      std::string declared_as(const Var* v) const;
+      void writes(const Expr* into, const std::string& how, const std::string* fed = nullptr);
       void call_check(const std::string& name, const std::vector<Expr*>& args, const Expr* fed_expr,
                       const std::string* fed);
     };
@@ -389,14 +442,15 @@ namespace xc
     }
 
     // ---- names --------------------------------------------------------------
-    Var* Typer::declare(const std::string& name, bool fixed, const std::string& type, const std::string& container)
+    Var* Typer::declare(const std::string& name, bool pinned, const std::string& type, const std::string& container)
     {
       vars_.push_back(std::make_unique<Var>());
       Var* v = vars_.back().get();
       v->name = name;
-      v->fixed = fixed;
-      v->type = fixed ? type : NONE;
+      v->pinned = pinned;
+      v->type = pinned ? type : NONE;
       v->container = container;
+      v->line = line_;
       scopes_.back()[lc(name)] = v;
       return v;
     }
@@ -473,20 +527,21 @@ namespace xc
       for (const FunctionDef* f : p_->functions)
       {
         scopes_.assign(1, file);
-        function(f->params, f->body, f->ret_container, f->name);
+        function(f->params, f->body, f->ret_container, f->name, f->line);
       }
       for (const MethodImpl* m : p_->methods)
       {
         scopes_.assign(1, file);
-        function(m->params, m->body, "", m->name);
+        function(m->params, m->body, "", m->name, m->line);
       }
       infer();
       for (const Unit& u : units_) { check(u); }
     }
 
     void Typer::function(const std::vector<Param*>& params, const Body& b, const std::string& ret,
-                         const std::string& name)
+                         const std::string& name, int line)
     {
+      line_ = line;
       units_.emplace_back();
       units_.back().ret = ret;
       units_.back().name = name;
@@ -767,7 +822,7 @@ namespace xc
             if (Var* v = find(static_cast<Name*>(r->target)->name))
             {
               Event ev;
-              ev.kind = Event::Unknown;
+              ev.kind = Event::Ref;
               ev.var = v;
               event(ev);
             }
@@ -826,7 +881,7 @@ namespace xc
       bool changed = true;
       auto give = [&](Var* v, const std::string& t)
       {
-        if (!v || v->fixed) { return; }
+        if (!v || v->pinned) { return; }
         std::string n = join(v->type, t);
         if (n != v->type)
         {
@@ -865,6 +920,7 @@ namespace xc
                 give(e.index, "N");
                 break;
               case Event::Unknown:
+              case Event::Ref:
                 give(e.var, UNKNOWN);
                 break;
               default:
@@ -875,7 +931,7 @@ namespace xc
       }
       for (const std::unique_ptr<Var>& v : vars_)
       {
-        if (!v->fixed && v->type == NONE) { v->type = UNKNOWN; }
+        if (!v->pinned && v->type == NONE) { v->type = UNKNOWN; }
       }
     }
 
@@ -1023,16 +1079,14 @@ namespace xc
         std::size_t i = name[0] == 'm' ? 0 : 1;
         return binop("?:", arg(i), arg(i + 1));
       }
-      if (name == "aclone" || name == "asort" || name == "asize" || name == "adel" || name == "ains"
-          || name == "afill")
-      {
-        return arg(0);
-      }
+      if (name == "aclone") { return unfixed(arg(0)); }
+      if (name == "asort" || name == "asize" || name == "adel" || name == "ains" || name == "afill") { return arg(0); }
       if (name == "aadd" || name == "acopy") { return arg(1); }
       if (name == "atail") { return elem_of(arg(0)); }
       // The runtime's verbs.
       std::string s = arg(0);
-      if (KEEPS.count(name)) { return s == NONE ? NONE : generic(s) && s[0] == 'A' ? s : "A"; }
+      // A copy: fixed no more, but for what it holds.
+      if (KEEPS.count(name)) { return s == NONE ? NONE : kind(s) != 'A' ? "A" : fixed(s) ? array_of(elem_of(s)) : s; }
       if (name == "map")
       {
         const Expr* f = arg_expr(1);
@@ -1066,7 +1120,7 @@ namespace xc
       if (name == "anyof" || name == "allof" || name == "noneof") { return "L"; }
       if (name == "chunks" || name == "chunkby" || name == "pairwise")
       {
-        return s == NONE ? NONE : generic(s) && s[0] == 'A' ? "A<" + s + ">" : "A<A>";
+        return s == NONE ? NONE : generic(s) && kind(s) == 'A' ? "A<" + s + ">" : "A<A>";
       }
       if (name == "enumerate" || name == "zip" || name == "pairs") { return "A<A>"; }
       if (name == "flatten" || name == "expand") { return "A"; }
@@ -1097,13 +1151,13 @@ namespace xc
     void Typer::into(const Expr* e, const std::string& slot, const std::string& who, bool key)
     {
       if (!e || slot.empty() || slot == UNKNOWN || is(e, EK::Ref) || is(e, EK::Omitted)) { return; }
-      if (is(e, EK::ArrayLit) && static_cast<const ArrayLit*>(e)->elem.empty() && generic(slot) && slot[0] == 'A')
+      if (is(e, EK::ArrayLit) && static_cast<const ArrayLit*>(e)->elem.empty() && generic(slot) && kind(slot) == 'A')
       {
         std::string t = elem_of(slot);
         for (const Expr* x : static_cast<const ArrayLit*>(e)->items) { into(x, t, who); }
         return;
       }
-      if (is(e, EK::HashLit) && static_cast<const HashLit*>(e)->key_type.empty() && generic(slot) && slot[0] == 'H')
+      if (is(e, EK::HashLit) && static_cast<const HashLit*>(e)->key_type.empty() && generic(slot) && kind(slot) == 'H')
       {
         for (const KeyValue* kv : static_cast<const HashLit*>(e)->pairs)
         {
@@ -1138,7 +1192,47 @@ namespace xc
       }
       if (is(root, EK::Name)) { return "'" + static_cast<const Name*>(root)->name + "' is " + shown(type(root)); }
       std::string t = type(base);
-      return std::string(t[0] == 'H' ? "the hash" : "the array") + " is " + shown(t);
+      return std::string(kind(t) == 'H' ? "the hash" : "the array") + " is " + shown(t);
+    }
+
+    // A fixed array or hash written into, said so: the name it is, or the one
+    // it is read from.
+    std::string Typer::fixed_who(const Expr* written)
+    {
+      std::string t = type(written);
+      std::string what = bare(t) == UNKNOWN ? "a fixed array or hash" : shown(t);
+      if (is(written, EK::Name))
+      {
+        // Declared so, or given one somewhere.
+        auto it = names_.find(written);
+        bool declared = it != names_.end() && fixed(it->second->container);
+        return "'" + static_cast<const Name*>(written)->name + (declared ? "' is " : "' may hold ") + what;
+      }
+      const Expr* root = written;
+      while (is(root, EK::Index) || is(root, EK::HashIndex))
+      {
+        root = is(root, EK::Index) ? static_cast<const Index*>(root)->base : static_cast<const HashIndex*>(root)->base;
+      }
+      if (is(root, EK::Name)) { return "'" + static_cast<const Name*>(root)->name + "' holds " + what + " here"; }
+      return "this is " + what;
+    }
+
+    // A fixed name, as its declaration says: "'aX' is an Array<fixed n>
+    // (declared on line 3)".
+    std::string Typer::declared_as(const Var* v) const
+    {
+      return "'" + v->name + "' is " + shown(v->container) + " (declared on line " + std::to_string(v->line) + ")";
+    }
+
+    // A function that writes into what it is given -- how: its name --, given
+    // a fixed array or hash. fed: the type of what a chain feeds it.
+    void Typer::writes(const Expr* into_, const std::string& how, const std::string* fed)
+    {
+      std::string t = fed ? *fed : type(into_);
+      if (!fixed(t)) { return; }
+      std::string who = into_ ? fixed_who(into_)
+                              : "this is " + (bare(t) == UNKNOWN ? std::string("a fixed array or hash") : shown(t));
+      errors.push_back({ line_, who + ": " + how + "() would write into it." });
     }
 
     // AAdd(), AFill(), ACopy(), and a function of the file whose parameters
@@ -1157,10 +1251,21 @@ namespace xc
         if (fed && i == 0) { return *fed; }
         return type(arg(i));
       };
-      if (name == "aadd" || name == "afill")
+      // TL++'s functions that change the array they are given.
+      static const std::unordered_map<std::string, std::string> writers =
+      {
+        { "aadd", "AAdd" }, { "adel", "ADel" }, { "ains", "AIns" }, { "asize", "ASize" }, { "afill", "AFill" },
+        { "asort", "ASort" },
+      };
+      if (auto w = writers.find(name); w != writers.end())
       {
         std::string t = arg_type(0);
-        if (generic(t) && t[0] == 'A' && arg(1))
+        if (fixed(t))
+        {
+          writes(arg(0), w->second, fed && !fed_expr ? fed : nullptr);
+          return;
+        }
+        if ((name == "aadd" || name == "afill") && generic(t) && kind(t) == 'A' && arg(1))
         {
           into(arg(1), elem_of(t), fed && !fed_expr ? "the array is " + shown(t) : who_of(arg(0)));
         }
@@ -1169,7 +1274,12 @@ namespace xc
       if (name == "acopy")
       {
         std::string t = type(arg(1));
-        if (generic(t) && t[0] == 'A' && arg(0)) { into(arg(0), t, who_of(arg(1))); }
+        if (fixed(t))
+        {
+          writes(arg(1), "ACopy");
+          return;
+        }
+        if (generic(t) && kind(t) == 'A' && arg(0)) { into(arg(0), t, who_of(arg(1))); }
         return;
       }
       auto f = functions_.find(name);
@@ -1209,9 +1319,26 @@ namespace xc
         switch (e.kind)
         {
           case Event::Decl:
-            if (!e.var->container.empty() && e.decl->init && !e.decl->init_made)
+            if (fixed(e.var->container) && (!e.decl->init || e.decl->init_made))
+            {
+              errors.push_back({ line_, "'" + e.var->name + "' is " + shown(e.var->container)
+                                        + ": it takes its value where it is declared." });
+            }
+            else if (!e.var->container.empty() && e.decl->init && !e.decl->init_made)
             {
               into(e.decl->init, e.var->container, "'" + e.var->name + "' is " + shown(e.var->container));
+            }
+            break;
+          case Event::Counter:
+            if (fixed(e.var->container))
+            {
+              errors.push_back({ line_, declared_as(e.var) + " and cannot be assigned." });
+            }
+            break;
+          case Event::Ref:
+            if (fixed(e.var->container))
+            {
+              errors.push_back({ line_, declared_as(e.var) + " and cannot be passed by reference." });
             }
             break;
           case Event::Assign:
@@ -1220,6 +1347,11 @@ namespace xc
             {
               auto it = names_.find(e.target);
               Var* v = it != names_.end() ? it->second : nullptr;
+              if (v && fixed(v->container))
+              {
+                errors.push_back({ line_, declared_as(v) + " and cannot be assigned." });
+                break;
+              }
               if (v && !v->container.empty() && e.incdec.empty() && (e.op == ":=" || e.op == "=" || e.op == "?="))
               {
                 into(e.value, v->container, "'" + v->name + "' is " + shown(v->container));
@@ -1230,6 +1362,11 @@ namespace xc
                                : is(e.target, EK::HashIndex) ? static_cast<const HashIndex*>(e.target)->base
                                                              : nullptr;
             if (!base) { break; }
+            if (fixed(type(base)))
+            {
+              errors.push_back({ line_, fixed_who(base) + ": nothing in it may be written." });
+              break;
+            }
             std::string slot = type(e.target);
             if (slot == UNKNOWN || slot == NONE) { break; }
             std::string who = who_of(base);
@@ -1275,7 +1412,18 @@ namespace xc
           {
             const MethodCall* m = e.method;
             std::string t = type(m->base);
-            if (lc(m->name) == "set" && m->args.size() >= 2 && generic(t) && t[0] == 'H')
+            // THashMap's methods that change it.
+            static const std::unordered_map<std::string, std::string> writers =
+            {
+              { "set", "Set" }, { "del", "Del" }, { "clean", "Clean" }, { "clear", "Clear" }, { "remove", "Remove" },
+            };
+            auto w = writers.find(lc(m->name));
+            if (w != writers.end() && fixed(t))
+            {
+              writes(m->base, w->second);
+              break;
+            }
+            if (lc(m->name) == "set" && m->args.size() >= 2 && generic(t) && kind(t) == 'H')
             {
               std::string who = who_of(m->base);
               into(m->args[0], key_of(t), who, true);

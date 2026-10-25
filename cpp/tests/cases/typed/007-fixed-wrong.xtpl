@@ -1,0 +1,31 @@
+// What a fixed array or hash refuses: being written into, anything it holds
+// written into, its name assigned or passed with '@', no value where it is
+// declared, and going where a writable one is wanted.
+Static saCodes := {"A", "B"} as Array<fixed c>
+
+User Function FixedWrong(aIn as Array<fixed n>)
+  Local aX := {1, 2} as Array<fixed n>
+  Local hX := {"a" => {1}} as Hash<fixed c, Array<n>>
+  Local aNone as Array<fixed>
+  Local aT as Array<n>
+  Local aY
+  aX[1] := 5
+  aX += {3}
+  AAdd(aX, 3)
+  ASort(aX)
+  aX |> ASort()
+  hX{"b"} := {2}
+  hX:Set("c", {})
+  hX:Del("a")
+  AAdd(hX{"a"}, 7)
+  aIn[1] := 0
+  aIn := {}
+  saCodes[1] := "Z"
+  aT := aX
+  aY := aX
+  aY[2] := 0
+  u_Ref(@aX)
+Return Total(aX)
+
+Static Function Total(aV as Array<n>)
+Return Len(aV)

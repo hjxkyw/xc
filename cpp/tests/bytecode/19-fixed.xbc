@@ -1,0 +1,109 @@
+xbc 1
+source 19-fixed.xtpl
+statics 1
+
+function __INIT init 0 0
+  locals
+  line 3
+  str "A"
+  str "B"
+  str "C"
+  array 3
+  setstatic 1
+  nil
+  ret
+end
+
+function U_MAIN user 0 7
+  locals aGrid hRates aCopy nTotal .t1 aRow .t2
+  line 6
+  num 1
+  num 2
+  array 2
+  num 3
+  num 4
+  array 2
+  array 2
+  setlocal 1
+  line 7
+  str "a"
+  num 15
+  array 2
+  array 1
+  call 1 u_xtpl_hnew
+  setlocal 2
+  line 8
+  local 1
+  call 1 AClone
+  setlocal 3
+  line 9
+  num 0
+  setlocal 4
+  line 10
+  local 3
+  num 1
+  index
+  num 1
+  num 9
+  setindex
+  line 11
+  local 1
+  setlocal 5
+  num 1
+  setlocal 7
+  line 11
+  local 7
+  local 5
+  call 1 Len
+  le
+  jumpf 57
+  local 5
+  local 7
+  index
+  setlocal 6
+  local 4
+  local 6
+  num 1
+  index
+  add
+  setlocal 4
+  local 7
+  num 1
+  add
+  setlocal 7
+  jump 36
+  line 12
+  local 4
+  local 1
+  num 1
+  index
+  num 1
+  index
+  local 3
+  num 1
+  index
+  num 1
+  index
+  local 2
+  str "a"
+  call 2 u_xtpl_hget
+  static 1
+  str "B"
+  call 2 AScan
+  static 1
+  call 1 Show
+  call 6 ConOut
+  pop
+  line 13
+  nil
+  ret
+end
+
+function SHOW static 1 1
+  locals aV
+  line 16
+  local 1
+  str "-"
+  call 2 u_xtpl_join
+  ret
+end

@@ -249,7 +249,7 @@ namespace xc
     bool typespec(int& from, std::string& typename_text, Generic* g = nullptr);
     int type_name_end(int p) const;
     int elem_type(int p, std::string& out) const;
-    int type_args(int p, int n, std::vector<std::string>& out) const;
+    int type_args(int p, int n, std::vector<std::string>& out, bool* fixed = nullptr) const;
     Expr* made_empty(const std::string& container);
     bool refused(const std::string& name) const;
     Stmt* ifcallst();

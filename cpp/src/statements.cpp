@@ -2766,8 +2766,9 @@ namespace xc
     {
       d->declared = type_of_name(type_word);
       d->container = gen.container;
-      // A typed array or hash starts empty, not Nil.
-      if (!d->container.empty() && !d->init && d->dims.empty())
+      // A typed array or hash starts empty, not Nil -- a fixed one is given
+      // its value, or refused.
+      if (!d->container.empty() && d->container[0] != '!' && !d->init && d->dims.empty())
       {
         d->init = made_empty(d->container);
         d->init_made = true;
@@ -2923,21 +2924,27 @@ namespace xc
   }
 
   // What a typed array or hash holds: a type's letter -- n, c, l, d, a, h, o,
-  // b, j, f --, 'Array<T>' or 'Hash<K, V>', letter case aside. Where it ends,
-  // or -1; the type as ast.h writes it, in out.
+  // b, j, f --, 'Array<T>' or 'Hash<K, V>', letter case aside; 'fixed' first
+  // makes one fixed, its types then optional: 'Array<fixed>', 'Array<fixed
+  // n>', 'Hash<fixed c, n>'. Where it ends, or -1; the type as ast.h writes
+  // it, in out.
   int Parser::elem_type(int p, std::string& out) const
   {
     std::vector<std::string> args;
+    bool fixed = false;
     if (iword_at(p, "array") && c(p + 5) == '<')
     {
-      int e = type_args(p + 5, 1, args);
-      if (e >= 0) { out = "A<" + args[0] + ">"; }
+      int e = type_args(p + 5, 1, args, &fixed);
+      if (e >= 0) { out = std::string(fixed ? "!" : "") + (args.empty() ? "A" : "A<" + args[0] + ">"); }
       return e;
     }
     if (iword_at(p, "hash") && c(p + 4) == '<')
     {
-      int e = type_args(p + 4, 2, args);
-      if (e >= 0) { out = "H<" + args[0] + "," + args[1] + ">"; }
+      int e = type_args(p + 4, 2, args, &fixed);
+      if (e >= 0)
+      {
+        out = std::string(fixed ? "!" : "") + (args.empty() ? "H" : "H<" + args[0] + "," + args[1] + ">");
+      }
       return e;
     }
     int ch = lower(c(p));
@@ -2950,13 +2957,29 @@ namespace xc
   }
 
   // '<' T [ ',' T ]* '>', n types, blanks around them: where it ends, or -1.
-  int Parser::type_args(int p, int n, std::vector<std::string>& out) const
+  // fixed: 'fixed' may come first, the types then optional.
+  int Parser::type_args(int p, int n, std::vector<std::string>& out, bool* fixed) const
   {
     if (c(p) != '<')
     {
       return -1;
     }
     int q = p + 1;
+    while (is_h(c(q))) { q++; }
+    if (fixed && iword_at(q, "fixed") && !is_w(c(q + 5)))
+    {
+      *fixed = true;
+      q += 5;
+      while (is_h(c(q))) { q++; }
+      if (c(q) == '>')
+      {
+        return q + 1;
+      }
+      if (!is_h(c(q - 1)))
+      {
+        return -1;
+      }
+    }
     for (int i = 0; i < n; i++)
     {
       while (is_h(c(q))) { q++; }

@@ -1,0 +1,16 @@
+// Fixed arrays and hashes: arrays and hashes as any other, read -- that
+// nothing writes into them is xc's to check as it compiles.
+Static saCodes := {"A", "B", "C"} as Array<fixed c>
+
+User Function Main()
+  Local aGrid := {{1, 2}, {3, 4}} as Array<fixed Array<n>>
+  Local hRates := {"a" => 15} as Hash<fixed c, n>
+  Local aCopy := AClone(aGrid)
+  Local nTotal := 0
+  aCopy[1][1] := 9
+  for aRow in aGrid exec nTotal += aRow[1]
+  ConOut(nTotal, aGrid[1][1], aCopy[1][1], hRates{"a"}, AScan(saCodes, "B"), Show(saCodes))
+Return Nil
+
+Static Function Show(aV as Array<fixed c>) as Character
+Return aV |> join("-")

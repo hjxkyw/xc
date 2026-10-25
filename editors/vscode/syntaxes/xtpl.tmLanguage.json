@@ -718,6 +718,10 @@
           "include": "#generic"
         },
         {
+          "name": "storage.modifier.fixed.xtpl",
+          "match": "(?i)\\bfixed\\b"
+        },
+        {
           "name": "storage.type.letter.xtpl",
           "match": "(?i)\\b[nclahdobjf]\\b"
         },

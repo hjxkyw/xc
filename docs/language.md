@@ -1,7 +1,7 @@
 # xtpl, as xc reads it
 
 xtpl is TL++ with extensions: block locals, lambdas, chains with `|>`,
-hashes, typed arrays and hashes, `defer`, `using alias`, string
+hashes, typed and fixed arrays and hashes, `defer`, `using alias`, string
 interpolation and a few operators.
 xc compiles it to plain TL++ for Protheus. This is the reference for the
 language as xc reads it today: what it takes, what it makes of it, and what
@@ -658,6 +658,41 @@ Return {aN, hQtd}
 stock.xtpl:4: 'aN' is an Array<n>: this is Character, not Numeric.
 stock.xtpl:5: 'hQtd' is a Hash<c, n>: this key is Numeric, not Character.
 stock.xtpl:5: warning: 'hQtd' is a Hash<c, n>: xc cannot tell that this is Numeric.
+```
+
+**Fixed.** `fixed` first -- `Array<fixed>`, `Array<fixed n>`, `Hash<fixed>`,
+`Hash<fixed c, n>`, `Array<fixed Array<n>>` -- makes one that nothing writes
+into, nor into anything it holds: no `a[i] := v`, `h{k} := v`, `a[i] += v`;
+no `AAdd()`, `ADel()`, `AIns()`, `ASize()`, `AFill()`, `ASort()` -- it sorts
+in place -- or `ACopy()` into it; no `h:Set()`, `h:Del()`, `h:Clean()`. Its
+name is given its value where it is declared, and is never assigned again
+nor passed with `@`; a parameter declared so promises its function writes
+nothing into what it is given. Reading is free: `Len()`, `AScan()`, `for
+... in`, the runtime's verbs, which give a copy -- and `AClone()`, a copy of
+it all that can be written into.
+
+A fixed one goes only where a fixed one is wanted, or where nothing is said:
+into a typed array or hash, a parameter or a return that is not fixed, it is
+an error; into a name with no type, that name is fixed too -- every name
+that is ever given one. Where xc does not see -- a function whose parameter
+has no type, a method --, nothing is said.
+
+```xtpl
+User Function Prices(cCode as Character)
+  Local aCodes := {"A", "B"} as Array<fixed c>
+  Local hPrice := {"A" => 10} as Hash<fixed c, n>
+  Local aSorted
+  AAdd(aCodes, cCode)
+  hPrice{cCode} := 0
+  aSorted := ASort(AClone(aCodes))
+  aCodes := aSorted
+Return Len(aSorted)
+```
+
+```text
+prices.xtpl:5: 'aCodes' is an Array<fixed c>: AAdd() would write into it.
+prices.xtpl:6: 'hPrice' is a Hash<fixed c, n>: nothing in it may be written.
+prices.xtpl:8: 'aCodes' is an Array<fixed c> (declared on line 2) and cannot be assigned.
 ```
 
 ## Statements
@@ -1882,6 +1917,8 @@ parses, in xtpl's words.
 | a `fallback` around a chain from a source | `'fallback' cannot guard a walk over rows(). ...` |
 | `distinctAdjacent` over `rows()` without a key | `distinctAdjacent over rows() needs a key -- ...` |
 | a value of another type than a typed array or hash holds, going in | `'aN' is an Array<n>: this is Character, not Numeric.` |
+| a fixed array or hash, or anything it holds, written into | `'aX' is an Array<fixed n>: nothing in it may be written.`, `... AAdd() would write into it.` |
+| a fixed one's name with no value, assigned, or passed with `@` | `'aX' is an Array<fixed n>: it takes its value where it is declared.`, `'aX' is an Array<fixed n> (declared on line 3) and cannot be assigned.` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
 comma in a declaration, `?=` in an expression, a chain or a `fallback`
