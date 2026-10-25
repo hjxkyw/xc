@@ -1,0 +1,15 @@
+// Raku's set operators, in ASCII, and the verbs: the runtime's functions.
+// setOf() and bagOf() of other than one argument take them as one array.
+User Function SetOps(aA, aB, cX)
+  Local sA := setof(aA)
+  Local sB := setof("b", "c")
+  Local bW := bagof(cX, cX, "z")
+  Local lIn := cX (elem) sA .And. sA (cont) cX .And. cX in sB .And. sB has cX
+  Local lSub := sA (<=) sB .Or. sA (<) sB .Or. sA (>=) sB .Or. sA (>) sB .Or. sA (==) sB
+  Local sU := sA (|) sB (&) setof(aB) (-) sA (^) sB
+  Local bS := bW (+) bagof(aB) (.) bW
+  Local aAll := sA |> union(sB) |> keys |> sort
+  ConOut(elems(sU), totalof(bS), kxxv(bW) |> join(","), minpairs(bW), maxpairs(bW))
+  ConOut(intersect(sA, sB), minus(sA, sB), symdiff(sA, sB), bagsum(bW, bW), bagprod(bW, bW))
+  ConOut(subset(sA, sB), psubset(sA, sB), superset(sA, sB), psuperset(sA, sB), sameset(sA, sB))
+Return {lIn, lSub, aAll}

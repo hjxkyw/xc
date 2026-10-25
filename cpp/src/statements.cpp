@@ -2880,7 +2880,8 @@ namespace xc
     if (g)
     {
       *g = Generic{};
-      bool hash = iword_at(p_, "hash") && c(p_ + 4) == '<';
+      bool hash = (iword_at(p_, "hash") && c(p_ + 4) == '<') || (iword_at(p_, "set") && c(p_ + 3) == '<')
+                  || (iword_at(p_, "bag") && c(p_ + 3) == '<');
       std::string t;
       if (hash || (iword_at(p_, "array") && c(p_ + 5) == '<'))
       {
@@ -2924,10 +2925,10 @@ namespace xc
   }
 
   // What a typed array or hash holds: a type's letter -- n, c, l, d, a, h, o,
-  // b, j, f --, 'Array<T>' or 'Hash<K, V>', letter case aside; 'fixed' first
-  // makes one fixed, its types then optional: 'Array<fixed>', 'Array<fixed
-  // n>', 'Hash<fixed c, n>'. Where it ends, or -1; the type as ast.h writes
-  // it, in out.
+  // b, j, f --, 'Array<T>', 'Hash<K, V>', 'Set<K>' or 'Bag<K>', letter case
+  // aside; 'fixed' first makes one fixed, its types then optional:
+  // 'Array<fixed>', 'Array<fixed n>', 'Hash<fixed c, n>', 'Set<fixed c>'.
+  // Where it ends, or -1; the type as ast.h writes it, in out.
   int Parser::elem_type(int p, std::string& out) const
   {
     std::vector<std::string> args;
@@ -2945,6 +2946,15 @@ namespace xc
       {
         out = std::string(fixed ? "!" : "") + (args.empty() ? "H" : "H<" + args[0] + "," + args[1] + ">");
       }
+      return e;
+    }
+    // A set, 'S', and a bag, 'M' -- a multiset.
+    bool set = iword_at(p, "set") && c(p + 3) == '<';
+    if (set || (iword_at(p, "bag") && c(p + 3) == '<'))
+    {
+      int e = type_args(p + 3, 1, args, &fixed);
+      std::string k = set ? "S" : "M";
+      if (e >= 0) { out = std::string(fixed ? "!" : "") + (args.empty() ? k : k + "<" + args[0] + ">"); }
       return e;
     }
     int ch = lower(c(p));
@@ -3007,6 +3017,16 @@ namespace xc
   // The empty array or hash a typed one declared with no value starts at.
   Expr* Parser::made_empty(const std::string& container)
   {
+    if (container[0] == 'S' || container[0] == 'M')
+    {
+      auto h = make<HashLit>();
+      h->type = "Object";
+      h->text = "{ => }";
+      h->set_kind = container[0];
+      h->key_type = container.size() > 2 ? container.substr(2, container.size() - 3) : "";
+      h->value_type = container[0] == 'S' ? "L" : "N";
+      return h;
+    }
     if (container[0] == 'H')
     {
       auto h = make<HashLit>();

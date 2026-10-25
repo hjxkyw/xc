@@ -131,7 +131,11 @@ User Function xtpl_amin(aData)
 Return xAcc
 
 // Membership. '$' only searches a string, so an array needs this.
+// xc: a set, a bag or any hash: whether it holds the key.
 User Function xtpl_in(xValue, aData)
+  If ValType(aData) == "O"
+    Return u_xtpl_cont(aData, xValue)
+  EndIf
 Return aScan(aData, xValue) > 0
 
 // xc: a hash read, as an expression -- 'h{k}'. Get fills its by-reference
@@ -416,6 +420,259 @@ User Function xtpl_values(oHash)
     aRes[nX] := aList[nX][2]
   Next
 Return aRes
+
+// -----------------------------------------------------------------------------
+// Sets and bags -- Raku's.
+//
+// xc: a set is a THashMap whose values are .T., what it holds its keys; a bag
+// is one whose values are counts, 1 or more. Where one meets an operation, an
+// array goes in as its elements and any other hash as its keys -- a set,
+// unless a bag is there too. A key a set does not hold reads .F., one a bag
+// does not, 0 (sget, bget); writing .F., or a count below 1, takes it out
+// (sset, bset). The operators are Raku's in ASCII: '(|)' union, '(&)'
+// intersect, '(-)' minus, '(^)' symdiff, '(+)' bagsum, '(.)' bagprod,
+// '(elem)', '(cont)', '(<=)' subset, '(<)' psubset, '(>=)' superset, '(>)'
+// psuperset, '(==)' sameset.
+// -----------------------------------------------------------------------------
+
+// What a key of a set or a bag weighs: a bag's count, 1 for a set's -- and
+// for any other hash's -- and 0 where it is not.
+Static Function xtpl_weight(oHash, xKey)
+  Local xValue := Nil
+  If !oHash:Get(xKey, @xValue)
+    Return 0
+  EndIf
+  If ValType(xValue) == "N"
+    Return xValue
+  EndIf
+Return If(ValType(xValue) == "L" .And. !xValue, 0, 1)
+
+// Whether what is given is a bag: a hash whose values are counts.
+Static Function xtpl_isbag(xFrom)
+  Local aList := {}
+  If ValType(xFrom) != "O"
+    Return .F.
+  EndIf
+  xFrom:List(@aList)
+Return Len(aList) > 0 .And. ValType(aList[1][2]) == "N"
+
+// What is given, as {key, weight} rows: an array's elements, each counted;
+// a hash's keys, weighed; one value, once. lOnes: every weight 1, a set's.
+Static Function xtpl_weights(xFrom, lOnes)
+  Local aOut := {}
+  Local aList := {}
+  Local oAt
+  Local nAt := 0
+  Local nX
+  Local nW
+  If ValType(xFrom) == "A"
+    oAt := THashMap():New()
+    For nX := 1 To Len(xFrom)
+      nAt := 0
+      If oAt:Get(xFrom[nX], @nAt)
+        aOut[nAt][2] := aOut[nAt][2] + 1
+      Else
+        AAdd(aOut, {xFrom[nX], 1})
+        oAt:Set(xFrom[nX], Len(aOut))
+      EndIf
+    Next
+  ElseIf ValType(xFrom) == "O"
+    xFrom:List(@aList)
+    For nX := 1 To Len(aList)
+      nW := xtpl_weight(xFrom, aList[nX][1])
+      If nW > 0
+        AAdd(aOut, {aList[nX][1], nW})
+      EndIf
+    Next
+  ElseIf xFrom != Nil
+    AAdd(aOut, {xFrom, 1})
+  EndIf
+  If lOnes
+    For nX := 1 To Len(aOut)
+      aOut[nX][2] := 1
+    Next
+  EndIf
+Return aOut
+
+// A set, or a bag, of {key, weight} rows: those that weigh 1 or more.
+Static Function xtpl_made(aRows, lBag)
+  Local oOut := THashMap():New()
+  Local nX
+  For nX := 1 To Len(aRows)
+    If aRows[nX][2] >= 1
+      oOut:Set(aRows[nX][1], If(lBag, aRows[nX][2], .T.))
+    EndIf
+  Next
+Return oOut
+
+User Function xtpl_setof(xFrom)
+Return xtpl_made(xtpl_weights(xFrom, .T.), .F.)
+
+User Function xtpl_bagof(xFrom)
+Return xtpl_made(xtpl_weights(xFrom, .F.), .T.)
+
+// Two, key by key: each key of either, the weights it has in each -- 0
+// where it is not --, and what cOp makes of them. A bag where a bag goes in,
+// or for '(+)' and '(.)'; else a set, every weight 1.
+Static Function xtpl_both(xA, xB, cOp)
+  Local lBag := cOp $ "+." .Or. xtpl_isbag(xA) .Or. xtpl_isbag(xB)
+  Local aA := xtpl_weights(xA, !lBag)
+  Local aB := xtpl_weights(xB, !lBag)
+  Local oA := xtpl_made(aA, .T.)
+  Local oB := xtpl_made(aB, .T.)
+  Local aOut := {}
+  Local nX
+  Local nWa
+  Local nWb
+  Local nW
+  For nX := 1 To Len(aB)
+    If xtpl_weight(oA, aB[nX][1]) == 0
+      AAdd(aA, {aB[nX][1], 0})
+    EndIf
+  Next
+  For nX := 1 To Len(aA)
+    nWa := xtpl_weight(oA, aA[nX][1])
+    nWb := xtpl_weight(oB, aA[nX][1])
+    Do Case
+      Case cOp == "|"
+        nW := Max(nWa, nWb)
+      Case cOp == "&"
+        nW := Min(nWa, nWb)
+      Case cOp == "-"
+        nW := nWa - nWb
+      Case cOp == "^"
+        nW := Abs(nWa - nWb)
+      Case cOp == "+"
+        nW := nWa + nWb
+      Otherwise
+        nW := nWa * nWb
+    EndCase
+    AAdd(aOut, {aA[nX][1], nW})
+  Next
+Return xtpl_made(aOut, lBag)
+
+User Function xtpl_union(xA, xB)
+Return xtpl_both(xA, xB, "|")
+
+User Function xtpl_intersect(xA, xB)
+Return xtpl_both(xA, xB, "&")
+
+User Function xtpl_minus(xA, xB)
+Return xtpl_both(xA, xB, "-")
+
+User Function xtpl_symdiff(xA, xB)
+Return xtpl_both(xA, xB, "^")
+
+User Function xtpl_bagsum(xA, xB)
+Return xtpl_both(xA, xB, "+")
+
+User Function xtpl_bagprod(xA, xB)
+Return xtpl_both(xA, xB, ".")
+
+// Whether every key of xA weighs no more in xB -- as sets, every weight 1,
+// unless a bag is there.
+User Function xtpl_subset(xA, xB)
+  Local lBag := xtpl_isbag(xA) .Or. xtpl_isbag(xB)
+  Local aA := xtpl_weights(xA, !lBag)
+  Local oB := xtpl_made(xtpl_weights(xB, !lBag), .T.)
+  Local nX
+  For nX := 1 To Len(aA)
+    If aA[nX][2] > xtpl_weight(oB, aA[nX][1])
+      Return .F.
+    EndIf
+  Next
+Return .T.
+
+User Function xtpl_sameset(xA, xB)
+Return u_xtpl_subset(xA, xB) .And. u_xtpl_subset(xB, xA)
+
+User Function xtpl_psubset(xA, xB)
+Return u_xtpl_subset(xA, xB) .And. !u_xtpl_subset(xB, xA)
+
+User Function xtpl_superset(xA, xB)
+Return u_xtpl_subset(xB, xA)
+
+User Function xtpl_psuperset(xA, xB)
+Return u_xtpl_psubset(xB, xA)
+
+// '(cont)': whether the set holds the key -- 'x in s' and 's has x' too.
+User Function xtpl_cont(oSet, xKey)
+Return xtpl_weight(oSet, xKey) > 0
+
+// How many keys; their weights summed -- a set's, how many.
+User Function xtpl_elems(xFrom)
+Return Len(xtpl_weights(xFrom, .T.))
+
+User Function xtpl_totalof(xFrom)
+  Local aRows := xtpl_weights(xFrom, !xtpl_isbag(xFrom) .And. ValType(xFrom) == "O")
+  Local nTotal := 0
+  Local nX
+  For nX := 1 To Len(aRows)
+    nTotal += aRows[nX][2]
+  Next
+Return nTotal
+
+// Each key as many times as it weighs.
+User Function xtpl_kxxv(xFrom)
+  Local aRows := xtpl_weights(xFrom, .F.)
+  Local aOut := {}
+  Local nX
+  Local nY
+  For nX := 1 To Len(aRows)
+    For nY := 1 To aRows[nX][2]
+      AAdd(aOut, aRows[nX][1])
+    Next
+  Next
+Return aOut
+
+// The {key, value} rows that weigh the least, the most.
+User Function xtpl_minpairs(xFrom)
+Return xtpl_extreme(xFrom, .F.)
+
+User Function xtpl_maxpairs(xFrom)
+Return xtpl_extreme(xFrom, .T.)
+
+Static Function xtpl_extreme(xFrom, lMost)
+  Local aRows := xtpl_weights(xFrom, !xtpl_isbag(xFrom))
+  Local lBag := xtpl_isbag(xFrom)
+  Local aOut := {}
+  Local nBest := 0
+  Local nX
+  For nX := 1 To Len(aRows)
+    If nX == 1 .Or. If(lMost, aRows[nX][2] > nBest, aRows[nX][2] < nBest)
+      nBest := aRows[nX][2]
+    EndIf
+  Next
+  For nX := 1 To Len(aRows)
+    If aRows[nX][2] == nBest
+      AAdd(aOut, {aRows[nX][1], If(lBag, nBest, .T.)})
+    EndIf
+  Next
+Return aOut
+
+// A set's key, a bag's: read -- .F., 0 where it is not --, and written --
+// .F., a count below 1, takes it out. What was written is what they give.
+User Function xtpl_sget(oSet, xKey)
+Return xtpl_weight(oSet, xKey) > 0
+
+User Function xtpl_sset(oSet, xKey, lIn)
+  If ValType(lIn) == "L" .And. lIn
+    oSet:Set(xKey, .T.)
+  Else
+    oSet:Del(xKey)
+  EndIf
+Return lIn
+
+User Function xtpl_bget(oBag, xKey)
+Return xtpl_weight(oBag, xKey)
+
+User Function xtpl_bset(oBag, xKey, nCount)
+  If ValType(nCount) == "N" .And. nCount >= 1
+    oBag:Set(xKey, Int(nCount))
+  Else
+    oBag:Del(xKey)
+  EndIf
+Return nCount
 
 // takewhile stops at the first element that fails and looks no further --
 // which is what separates it from filter. Over an ordered source that is the

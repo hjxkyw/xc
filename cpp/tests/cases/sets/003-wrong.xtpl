@@ -1,0 +1,19 @@
+// What a typed set or bag refuses: keys and values of other types, a
+// fixed one written into, a plain hash where a set is wanted, the array
+// functions.
+User Function SetWrong()
+  Local sC := setof("a") as Set<n>
+  Local sKeys := setof("a", "b") as Set<c>
+  Local bW as Bag<c>
+  Local hPlain as Hash<c, l>
+  Local sFixed := setof("a") as Set<fixed c>
+  sKeys{1} := .T.
+  sKeys{"c"} := 1
+  bW{"x"} := "many"
+  bW{"x"} += .T.
+  hPlain := sKeys
+  sKeys := hPlain
+  sFixed{"b"} := .T.
+  sFixed:Del("a")
+  AAdd(sKeys, "d")
+Return {sC, bW}

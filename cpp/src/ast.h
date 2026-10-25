@@ -106,6 +106,8 @@ namespace xc
     HashIndex() : Expr(EK::HashIndex) {}
     Expr* base = nullptr;
     Expr* key  = nullptr;
+    char set_kind = 0;               // 'S', 'M': a set's, a bag's, as typed.cpp
+                                     // knows it -- read and written so
   };
 
   struct Interval : Expr
@@ -184,8 +186,9 @@ namespace xc
   };
 
   // Types of what an array or a hash holds -- 'Array<n>', 'Hash<c, n>' --
-  // are written as types.h has them: a letter ('N', 'C', 'L', 'D', 'A', 'H',
-  // 'O', 'B', 'J', 'F'), 'A<T>' or 'H<K,V>'; '' where there is none.
+  // are written as typed.cpp has them: a letter ('N', 'C', 'L', 'D', 'A',
+  // 'H', 'O', 'B', 'J', 'F'), 'A<T>', 'H<K,V>', a set's 'S<K>', a bag's
+  // 'M<K>' (a multiset), '!' before a fixed one; '' where there is none.
   struct ArrayLit : Literal
   {
     ArrayLit() : Literal(EK::ArrayLit) {}
@@ -214,6 +217,8 @@ namespace xc
     std::vector<KeyValue*> pairs;
     std::string key_type;            // '{ <n> => <c> }': what its keys are
     std::string value_type;          // and its values
+    char set_kind = 0;               // 'S', 'M': the empty set or bag a
+                                     // 'Set<c>', 'Bag<c>' starts at
   };
 
   struct CodeBlock : Literal

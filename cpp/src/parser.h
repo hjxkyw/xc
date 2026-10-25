@@ -250,6 +250,7 @@ namespace xc
     int type_name_end(int p) const;
     int elem_type(int p, std::string& out) const;
     int type_args(int p, int n, std::vector<std::string>& out, bool* fixed = nullptr) const;
+    int setop_at(int p, std::string& op) const;
     Expr* made_empty(const std::string& container);
     bool refused(const std::string& name) const;
     Stmt* ifcallst();

@@ -19,7 +19,8 @@ namespace xc
 
     // ---- types --------------------------------------------------------------
     // As ast.h writes them: 'N', 'C', 'L', 'D', 'A', 'H', 'O', 'B', 'J', 'F',
-    // 'A<T>', 'H<K,V>', '!' before a fixed one; and here, NIL (fits every
+    // 'A<T>', 'H<K,V>', a set's 'S<K>', a bag's 'M<K>', '!' before a fixed
+    // one; and here, NIL (fits every
     // type), UNKNOWN, '!?' -- what xc cannot tell, read from a fixed one, so
     // fixed if it is an array or a hash -- and NONE -- nothing known yet,
     // while the types of the names are worked out.
@@ -37,12 +38,16 @@ namespace xc
       return t.size() > at + 2 && t[at + 1] == '<';
     }
 
-    // Fixed, if it is an array, a hash, or what xc cannot tell: what is read
-    // from a fixed one.
+    // An array, a hash, a set or a bag: what holds others.
+    bool box(char k) { return k == 'A' || k == 'H' || k == 'S' || k == 'M'; }
+    // A hash, a set or a bag: what is read by its keys.
+    bool keyed(char k) { return k == 'H' || k == 'S' || k == 'M'; }
+
+    // Fixed, if it holds others, or is what xc cannot tell: what is read from
+    // a fixed one.
     std::string fix(const std::string& t)
     {
-      char k = kind(t);
-      return fixed(t) || !(k == 'A' || k == 'H' || t == UNKNOWN) ? t : "!" + t;
+      return fixed(t) || !(box(kind(t)) || t == UNKNOWN) ? t : "!" + t;
     }
 
     // Nothing fixed in it: what AClone() gives.
@@ -89,8 +94,23 @@ namespace xc
       return fixed(t) ? fix(r) : r;
     }
     std::string elem_of(const std::string& t) { return part_of(t, 'A', 0); }
-    std::string key_of(const std::string& t) { return part_of(t, 'H', 0); }
-    std::string value_of(const std::string& t) { return part_of(t, 'H', 1); }
+    // A set's or a bag's keys are its one type; what one reads at a key, a
+    // Logical and a Numeric.
+    std::string key_of(const std::string& t)
+    {
+      char k = kind(t);
+      return k == 'S' || k == 'M' ? part_of(t, k, 0) : part_of(t, 'H', 0);
+    }
+    std::string value_of(const std::string& t)
+    {
+      if (t == NONE) { return NONE; }
+      if (kind(t) == 'S') { return "L"; }
+      if (kind(t) == 'M') { return "N"; }
+      return part_of(t, 'H', 1);
+    }
+
+    // A set or a bag of what each of two holds -- 'S<K>' or 'M<K>'.
+    std::string keys_of(char k, const std::string& a, const std::string& b);
 
     std::string array_of(const std::string& t)
     {
@@ -110,18 +130,24 @@ namespace xc
     std::string show(const std::string& t)
     {
       std::string f = fixed(t) ? "fixed" : "";
+      static const std::unordered_map<char, std::string> boxes =
+      {
+        { 'A', "Array" }, { 'H', "Hash" }, { 'S', "Set" }, { 'M', "Bag" },
+      };
       if (generic(t))
       {
         std::vector<std::string> a = args_of(t);
         std::string pre = f.empty() ? "" : f + " ";
-        return kind(t) == 'A' ? "Array<" + pre + inner(a[0]) + ">"
-                              : "Hash<" + pre + inner(a[0]) + ", " + inner(a[1]) + ">";
+        std::string w = boxes.at(kind(t));
+        if (a.size() > 1) { return w + "<" + pre + inner(a[0]) + ", " + inner(a[1]) + ">"; }
+        return w + "<" + pre + inner(a[0]) + ">";
       }
-      if (!f.empty()) { return kind(t) == 'A' ? "Array<fixed>" : kind(t) == 'H' ? "Hash<fixed>" : "?"; }
+      if (!f.empty()) { return box(kind(t)) ? boxes.at(kind(t)) + "<fixed>" : "?"; }
       static const std::unordered_map<std::string, std::string> names =
       {
         { "N", "Numeric" }, { "C", "Character" }, { "L", "Logical" }, { "D", "Date" }, { "A", "Array" },
-        { "H", "Hash" }, { "O", "Object" }, { "B", "CodeBlock" }, { "J", "JSON" }, { "F", "Decimal" },
+        { "H", "Hash" }, { "S", "Set" }, { "M", "Bag" }, { "O", "Object" }, { "B", "CodeBlock" }, { "J", "JSON" },
+        { "F", "Decimal" },
       };
       auto n = names.find(t);
       return n != names.end() ? n->second : t;
@@ -131,7 +157,7 @@ namespace xc
     std::string shown(const std::string& t)
     {
       if (kind(t) == 'A') { return "an " + show(t); }
-      if (kind(t) == 'H') { return "a " + show(t); }
+      if (keyed(kind(t))) { return "a " + show(t); }
       return show(t);
     }
 
@@ -168,11 +194,19 @@ namespace xc
       if (bare(v) == UNKNOWN || v == NONE) { return Fit::Unknown; }
       char vk = kind(v);
       char sk = kind(slot);
-      bool boxes = (vk == 'A' || vk == 'H') && (sk == 'A' || sk == 'H');
-      if (boxes && fixed(v) && !fixed(slot)) { return Fit::Wrong; }
+      if (box(vk) && box(sk) && fixed(v) && !fixed(slot)) { return Fit::Wrong; }
       if (bare(v) == bare(slot)) { return Fit::Ok; }
-      if (sk == 'O' && vk == 'H') { return Fit::Ok; }          // a THashMap is an object
-      if (vk == 'O' && sk == 'H') { return Fit::Unknown; }     // and an object may be one
+      if (sk == 'O' && keyed(vk)) { return Fit::Ok; }          // a THashMap is an object
+      if (vk == 'O' && keyed(sk)) { return Fit::Unknown; }     // and an object may be one
+      if ((vk == 'S' || vk == 'M') && sk == 'H')
+      {
+        // A set is a hash of Logicals, a bag one of Numerics.
+        if (!generic(slot)) { return Fit::Ok; }
+        Fit k = fits(key_of(v), key_of(slot));
+        Fit x = fits(value_of(v), value_of(slot));
+        return k == Fit::Wrong || x == Fit::Wrong ? Fit::Wrong : k == Fit::Unknown || x == Fit::Unknown ? Fit::Unknown
+                                                                                                        : Fit::Ok;
+      }
       if (vk != sk) { return Fit::Wrong; }
       if (!generic(slot)) { return Fit::Ok; }                  // an array, whatever it holds
       if (!generic(v)) { return Fit::Unknown; }                // what it holds, not known
@@ -198,7 +232,7 @@ namespace xc
       std::string y = bare(b);
       std::string r = UNKNOWN;
       if (x == y) { r = x; }
-      else if (x != UNKNOWN && y != UNKNOWN && x[0] == y[0] && (x[0] == 'A' || x[0] == 'H'))
+      else if (x != UNKNOWN && y != UNKNOWN && x[0] == y[0] && box(x[0]))
       {
         r = std::string(1, x[0]);
       }
@@ -208,7 +242,36 @@ namespace xc
     const std::unordered_set<std::string> LOGICAL =
     {
       "==", "=", "!=", "<>", "#", "<", ">", "<=", ">=", "$", ".and.", ".or.", "!", "in", "has", "%%",
+      "(elem)", "(cont)", "(<=)", "(<)", "(>=)", "(>)", "(==)",
     };
+
+    // What a set built from t has for keys: an array's elements, a hash's,
+    // a set's or a bag's keys, a value itself.
+    std::string member_of(const std::string& t)
+    {
+      if (t == NONE || t.empty()) { return t; }
+      char k = kind(t);
+      std::string m = k == 'A' ? elem_of(t) : keyed(k) ? key_of(t) : bare(t);
+      return bare(m);
+    }
+
+    std::string keys_of(char k, const std::string& a, const std::string& b)
+    {
+      std::string x = member_of(a);
+      std::string y = b == "-" ? x : member_of(b);
+      if (x == NONE || y == NONE) { return NONE; }
+      std::string m = x.empty() ? y : y.empty() || x == y ? x : UNKNOWN;
+      return m.empty() || m == UNKNOWN ? std::string(1, k) : std::string(1, k) + "<" + m + ">";
+    }
+
+    // What a set operation gives: a bag where a bag goes in, else a set; a
+    // bag always from '(+)' and '(.)'.
+    std::string set_op(const std::string& op, const std::string& a, const std::string& b)
+    {
+      if (LOGICAL.count(op)) { return "L"; }
+      bool bag = op == "(+)" || op == "(.)" || kind(a) == 'M' || kind(b) == 'M';
+      return keys_of(bag ? 'M' : 'S', a, b);
+    }
 
     // An operator's result, given its operands'.
     std::string binop(const std::string& op, const std::string& l0, const std::string& r0)
@@ -351,6 +414,7 @@ namespace xc
       std::vector<Scope> scopes_;
       std::unordered_map<const Expr*, Var*> names_;  // what each name is
       std::unordered_map<const Expr*, std::vector<Var*>> block_params_;
+      std::vector<HashIndex*> hashes_;              // every 'h{k}', for its set_kind
       std::vector<Unit> units_;
       std::unordered_map<std::string, std::string> returns_;    // the file's functions
       std::unordered_map<std::string, Function> functions_;
@@ -415,6 +479,12 @@ namespace xc
         {
           if (is(x, EK::ArrayLit) && !static_cast<ArrayLit*>(x)->elem.empty()) { found = true; }
           if (is(x, EK::HashLit) && !static_cast<HashLit*>(x)->key_type.empty()) { found = true; }
+          if (is(x, EK::Binary) && static_cast<Binary*>(x)->op[0] == '(') { found = true; }
+          if (is(x, EK::Call))
+          {
+            std::string n = lc(static_cast<Call*>(x)->name);
+            if (n == "setof" || n == "bagof") { found = true; }
+          }
         });
       };
       auto in_body = [&](const Body& b)
@@ -535,6 +605,12 @@ namespace xc
         function(m->params, m->body, "", m->name, m->line);
       }
       infer();
+      // A set's or a bag's 'h{k}': Raku's reads and writes (lower.cpp).
+      for (HashIndex* h : hashes_)
+      {
+        char k = kind(type(h->base));
+        if (k == 'S' || k == 'M') { h->set_kind = k; }
+      }
       for (const Unit& u : units_) { check(u); }
     }
 
@@ -851,6 +927,10 @@ namespace xc
           event(ev);
           return;
         }
+        case EK::HashIndex:
+          hashes_.push_back(static_cast<HashIndex*>(e));
+          for (Expr* x : subexprs(e)) { expr(x); }
+          return;
         case EK::Pipeline:
         {
           auto p = static_cast<Pipeline*>(e);
@@ -970,6 +1050,11 @@ namespace xc
         case EK::HashLit:
         {
           auto h = static_cast<const HashLit*>(e);
+          if (h->set_kind)
+          {
+            std::string k(1, h->set_kind);
+            return h->key_type.empty() ? k : k + "<" + h->key_type + ">";
+          }
           return h->key_type.empty() ? "H" : "H<" + h->key_type + "," + h->value_type + ">";
         }
         case EK::JsonLit:
@@ -995,6 +1080,7 @@ namespace xc
         {
           auto b = static_cast<const Binary*>(e);
           if (LOGICAL.count(b->op)) { return "L"; }
+          if (b->op[0] == '(') { return set_op(b->op, type(b->left), type(b->right)); }
           return binop(b->op, b->left ? type(b->left) : UNKNOWN, type(b->right));
         }
         case EK::AssignExpr:
@@ -1083,6 +1169,30 @@ namespace xc
       if (name == "asort" || name == "asize" || name == "adel" || name == "ains" || name == "afill") { return arg(0); }
       if (name == "aadd" || name == "acopy") { return arg(1); }
       if (name == "atail") { return elem_of(arg(0)); }
+      // The runtime's verbs: sets and bags.
+      if (name == "setof" || name == "bagof")
+      {
+        char k = name[0] == 's' ? 'S' : 'M';
+        if (args.size() + off == 1) { return keys_of(k, arg(0), "-"); }
+        std::string m = NIL;
+        for (std::size_t i = 0; i < args.size() + off; i++)
+        {
+          std::string t = bare(arg(i));
+          if (t == NONE) { return NONE; }
+          m = m.empty() ? t : t.empty() || t == m ? m : UNKNOWN;
+        }
+        return m.empty() || m == UNKNOWN || box(kind(m)) ? std::string(1, k) : std::string(1, k) + "<" + m + ">";
+      }
+      static const std::unordered_map<std::string, std::string> set_ops =
+      {
+        { "union", "(|)" }, { "intersect", "(&)" }, { "minus", "(-)" }, { "symdiff", "(^)" }, { "bagsum", "(+)" },
+        { "bagprod", "(.)" }, { "subset", "(<=)" }, { "psubset", "(<)" }, { "superset", "(>=)" },
+        { "psuperset", "(>)" }, { "sameset", "(==)" },
+      };
+      if (auto o = set_ops.find(name); o != set_ops.end()) { return set_op(o->second, arg(0), arg(1)); }
+      if (name == "elems" || name == "totalof") { return "N"; }
+      if (name == "kxxv") { return array_of(member_of(arg(0))); }
+      if (name == "minpairs" || name == "maxpairs") { return "A<A>"; }
       // The runtime's verbs.
       std::string s = arg(0);
       // A copy: fixed no more, but for what it holds.
@@ -1265,6 +1375,14 @@ namespace xc
           writes(arg(0), w->second, fed && !fed_expr ? fed : nullptr);
           return;
         }
+        // A hash, a set, a bag, a value known to be no array.
+        if (!t.empty() && t != UNKNOWN && t != NONE && kind(t) != 'A' && kind(t) != 'O')
+        {
+          std::string who = arg(0) && is(arg(0), EK::Name) ? "'" + static_cast<const Name*>(arg(0))->name + "' is "
+                                                            : "this is ";
+          errors.push_back({ line_, who + shown(t) + ": " + w->second + "() takes an array." });
+          return;
+        }
         if ((name == "aadd" || name == "afill") && generic(t) && kind(t) == 'A' && arg(1))
         {
           into(arg(1), elem_of(t), fed && !fed_expr ? "the array is " + shown(t) : who_of(arg(0)));
@@ -1423,7 +1541,7 @@ namespace xc
               writes(m->base, w->second);
               break;
             }
-            if (lc(m->name) == "set" && m->args.size() >= 2 && generic(t) && kind(t) == 'H')
+            if (lc(m->name) == "set" && m->args.size() >= 2 && generic(t) && keyed(kind(t)))
             {
               std::string who = who_of(m->base);
               into(m->args[0], key_of(t), who, true);

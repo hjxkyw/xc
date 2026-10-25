@@ -1,0 +1,18 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Raku's set operators, in ASCII, and the verbs: the runtime's functions.
+// setOf() and bagOf() of other than one argument take them as one array.
+User Function SetOps(aA, aB, cX)
+  Local sA := u_xtpl_setof(aA)
+  Local sB := u_xtpl_setof({"b", "c"})
+  Local bW := u_xtpl_bagof({cX, cX, "z"})
+  Local lIn := u_xtpl_in(cX, sA) .And. u_xtpl_cont(sA, cX) .And. u_xtpl_in(cX, sB) .And. u_xtpl_hhas(sB, cX)
+  Local lSub := u_xtpl_subset(sA, sB) .Or. u_xtpl_psubset(sA, sB) .Or. u_xtpl_superset(sA, sB) .Or. u_xtpl_psuperset(sA, sB) .Or. u_xtpl_sameset(sA, sB)
+  Local sU := u_xtpl_symdiff(u_xtpl_minus(u_xtpl_union(sA, u_xtpl_intersect(sB, u_xtpl_setof(aB))), sA), sB)
+  Local bS := u_xtpl_bagsum(bW, u_xtpl_bagprod(u_xtpl_bagof(aB), bW))
+  Local aAll := u_xtpl_sort(u_xtpl_keys(u_xtpl_union(sA, sB)))
+  ConOut(u_xtpl_elems(sU), u_xtpl_totalof(bS), u_xtpl_join(u_xtpl_kxxv(bW), ","), u_xtpl_minpairs(bW), u_xtpl_maxpairs(bW))
+  ConOut(u_xtpl_intersect(sA, sB), u_xtpl_minus(sA, sB), u_xtpl_symdiff(sA, sB), u_xtpl_bagsum(bW, bW), u_xtpl_bagprod(bW, bW))
+  ConOut(u_xtpl_subset(sA, sB), u_xtpl_psubset(sA, sB), u_xtpl_superset(sA, sB), u_xtpl_psuperset(sA, sB), u_xtpl_sameset(sA, sB))
+Return {lIn, lSub, aAll}

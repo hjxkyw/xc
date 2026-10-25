@@ -206,13 +206,13 @@
         },
         {
           "name": "keyword.other.as.xtpl",
-          "match": "(?i)\\b(as)\\b(?=\\s+(?:array|hash)\\s*<)"
+          "match": "(?i)\\b(as)\\b(?=\\s+(?:array|hash|set|bag)\\s*<)"
         },
         {
           "include": "#generic"
         },
         {
-          "match": "(?i)\\b(as)\\s+(?!(?:array|hash)\\s*<)(numeric|character|logical|date|object|block|codeblock|array|json|variant|integer|decimal|double|variadic|[A-Za-z_]\\w*)\\b",
+          "match": "(?i)\\b(as)\\s+(?!(?:array|hash|set|bag)\\s*<)(numeric|character|logical|date|object|block|codeblock|array|json|variant|integer|decimal|double|variadic|[A-Za-z_]\\w*)\\b",
           "captures": {
             "1": {
               "name": "keyword.other.as.xtpl"
@@ -508,6 +508,10 @@
     "operators": {
       "patterns": [
         {
+          "name": "keyword.operator.set.xtpl",
+          "match": "(?i)\\((?:\\||&|-|\\^|\\+|\\.|<=|<|>=|>|==|elem|cont)\\)"
+        },
+        {
           "match": "(\\|>|(?i:\\bthen\\b))\\s*([A-Za-z_]\\w*)\\b(?!\\s*\\()",
           "captures": {
             "1": {
@@ -698,7 +702,7 @@
       ]
     },
     "generic": {
-      "begin": "(?i)\\b(array|hash)\\s*(<)",
+      "begin": "(?i)\\b(array|hash|set|bag)\\s*(<)",
       "end": ">",
       "beginCaptures": {
         "1": {
@@ -755,7 +759,7 @@
       ]
     },
     "typedliteral": {
-      "begin": "(\\{)\\s*(?=<\\s*(?:(?i:array|hash)\\s*<|(?i:[nclahdobjf])\\s*>))",
+      "begin": "(\\{)\\s*(?=<\\s*(?:(?i:array|hash|set|bag)\\s*<|(?i:[nclahdobjf])\\s*>))",
       "end": "\\}",
       "beginCaptures": {
         "1": {

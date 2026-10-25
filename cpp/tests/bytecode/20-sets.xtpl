@@ -1,0 +1,34 @@
+// Sets and bags, Raku's, on THashMaps: the operators, the verbs, and a
+// set's and a bag's keys read and written -- .F. and 0 where there is
+// nothing, taken out at .F. and below 1. Keys come out sorted: a hash's
+// own order is its own.
+User Function Main()
+  Local sA := setof("a", "b", "c")
+  Local sB := setof({"b", "c", "d"})
+  Local bW := bagof({"x", "y", "x", "z", "x"})
+  Local sE as Set<c>
+  Local bE as Bag<c>
+  ConOut(Show(sA (|) sB), Show(sA (&) sB), Show(sA (-) sB), Show(sA (^) sB))
+  ConOut("b" (elem) sA, "z" (elem) sA, sA (cont) "a", "a" in sA, sA has "q")
+  ConOut(sA (<=) sB, setof("b") (<=) sA, setof("b") (<) sA, sA (>=) setof("a"), sA (==) setof({"c", "b", "a"}))
+  ConOut(sA{"a"}, sA{"q"}, bW{"x"}, bW{"q"}, elems(bW), totalof(bW), elems(sA), totalof(sA))
+  bW{"y"} += 2
+  bW{"x"}--
+  bW{"z"} := 0
+  sA{"a"} := .F.
+  sA{"n"} := .T.
+  ConOut(Show(sA), Weights(bW), totalof(bW))
+  ConOut(Weights(bW (+) bagof({"y", "w"})), Weights(bW (.) bagof({"y", "y"})), Weights(bW (|) bagof({"x", "x", "x"})))
+  ConOut(Weights(bW (&) bagof({"x", "y", "y", "y", "y"})), Weights(bW (-) bagof({"y"})), Weights(bW (^) bagof({"x"})))
+  ConOut(Show(sE), Len(kxxv(bW)), Weights(bE (+) {"k", "k"}), Show({"p", "q", "p"} (|) {"r"}))
+  ConOut(Weights(bagof({"m", "n", "n"}) |> union(setof("o"))), maxpairs(bW)[1][1], minpairs(bW)[1][2])
+  ConOut(setof("x") (<=) bagof({"x", "x"}), bagof({"x", "x"}) (<=) setof("x"), sameset(setof({"a", "a"}), setof("a")))
+Return Nil
+
+Static Function Show(sS)
+Return keys(sS) |> sort |> join(",")
+
+Static Function Weights(bB)
+  Local cOut := ""
+  for cK in keys(bB) |> sort exec cOut += cK + "=" + cValToChar(bB{cK}) + " "
+Return AllTrim(cOut)

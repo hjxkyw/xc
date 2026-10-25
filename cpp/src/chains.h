@@ -25,6 +25,22 @@ namespace xc
   // u_xtpl_<name>.
   bool is_runtime_verb(const std::string& name);
 
+  // A set operator's runtime function: '(|)' is 'u_xtpl_union'; '' for any
+  // other operator.
+  std::string set_function(const std::string& op);
+
+  // A verb's call, its arguments written: setOf() and bagOf() of other than
+  // one argument take them as one array -- 'setof(1, 2)' is
+  // 'u_xtpl_setof({1, 2})'.
+  std::string verb_call(const std::string& name, const std::vector<std::string>& args);
+  bool one_array(const std::string& name, std::size_t args);
+
+  // The runtime's read and write of a key: a hash's, or -- as typed.cpp knows
+  // it -- a set's (.F. where it is not; .F. written takes it out) or a bag's
+  // (0 where it is not; below 1 takes it out).
+  std::string key_reader(const HashIndex* h);
+  std::string key_writer(const HashIndex* h);
+
   // The verbs that take a block, where a bare function name is that
   // function: 'map(alltrim)'.
   bool takes_block(const std::string& lc_name);

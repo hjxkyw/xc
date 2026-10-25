@@ -22,6 +22,8 @@ namespace xc
       "allof", "noneof", "keys", "values", "pairs", "takewhile", "dropwhile", "chunkby", "first",
       "count", "distinctadjacent", "maxby", "minby", "scan", "expand", "tap", "pairwise", "queue",
       "split", "join", "starts", "ends", "contains", "apick", "aroll", "setmaxroll",
+      "setof", "bagof", "union", "intersect", "minus", "symdiff", "bagsum", "bagprod", "subset", "psubset",
+      "superset", "psuperset", "sameset", "elems", "totalof", "minpairs", "maxpairs", "kxxv",
     };
 
     const Set FUSED =
@@ -133,6 +135,44 @@ namespace xc
   }
 
   bool is_runtime_verb(const std::string& name) { return VERBS.count(lc(name)) > 0; }
+
+  std::string set_function(const std::string& op)
+  {
+    static const std::unordered_map<std::string, std::string> fns =
+    {
+      { "(|)", "u_xtpl_union" }, { "(&)", "u_xtpl_intersect" }, { "(-)", "u_xtpl_minus" },
+      { "(^)", "u_xtpl_symdiff" }, { "(+)", "u_xtpl_bagsum" }, { "(.)", "u_xtpl_bagprod" },
+      { "(elem)", "u_xtpl_in" }, { "(cont)", "u_xtpl_cont" }, { "(<=)", "u_xtpl_subset" },
+      { "(<)", "u_xtpl_psubset" }, { "(>=)", "u_xtpl_superset" }, { "(>)", "u_xtpl_psuperset" },
+      { "(==)", "u_xtpl_sameset" },
+    };
+    auto f = fns.find(op);
+    return f != fns.end() ? f->second : "";
+  }
+
+  bool one_array(const std::string& name, std::size_t args)
+  {
+    std::string n = lc(name);
+    return (n == "setof" || n == "bagof") && args != 1;
+  }
+
+  std::string verb_call(const std::string& name, const std::vector<std::string>& args)
+  {
+    std::string list;
+    for (std::size_t i = 0; i < args.size(); i++) { list += (i ? ", " : "") + args[i]; }
+    if (one_array(name, args.size())) { return "u_xtpl_" + lc(name) + "({" + list + "})"; }
+    return "u_xtpl_" + lc(name) + "(" + list + ")";
+  }
+
+  std::string key_reader(const HashIndex* h)
+  {
+    return h->set_kind == 'S' ? "u_xtpl_sget" : h->set_kind == 'M' ? "u_xtpl_bget" : "u_xtpl_hget";
+  }
+
+  std::string key_writer(const HashIndex* h)
+  {
+    return h->set_kind == 'S' ? "u_xtpl_sset" : h->set_kind == 'M' ? "u_xtpl_bset" : "u_xtpl_hset";
+  }
 
   bool takes_block(const std::string& lc_name) { return TAKES_BLOCK.count(lc_name) > 0; }
 

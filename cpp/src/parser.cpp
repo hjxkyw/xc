@@ -29,7 +29,7 @@ namespace xc
     enum : unsigned char { L_EQ = 1, L_BAR = 2, L_DIV = 4, L_SEMI = 8 };
 
     // The levels of the operators, loosest first (see climb).
-    enum { L_ELVIS = 1, L_OR, L_AND, L_NOT, L_CMP, L_RANGE, L_ADD, L_MUL, L_POW };
+    enum { L_ELVIS = 1, L_OR, L_AND, L_NOT, L_CMP, L_SETOR, L_SETAND, L_RANGE, L_ADD, L_MUL, L_POW };
 
     // A trailer's kind.
     enum TK { T_TRANS, T_HASH, T_SCALL, T_SMEM, T_METHOD, T_MEMBER, T_INDEX, T_INALS, T_FIELD };
@@ -400,6 +400,31 @@ namespace xc
     return true;
   }
 
+  // A set operator at p -- Raku's, in ASCII: '(|)' '(&)' '(-)' '(^)' '(+)'
+  // '(.)' '(elem)' '(cont)' '(<=)' '(<)' '(>=)' '(>)' '(==)', letter case
+  // aside -- its length, or 0; op: as it is known, in lower case.
+  int Parser::setop_at(int p, std::string& op) const
+  {
+    if (c(p) != '(')
+    {
+      return 0;
+    }
+    static const char* const ops[] =
+    {
+      "(elem)", "(cont)", "(<=)", "(>=)", "(==)", "(|)", "(&)", "(-)", "(^)", "(+)", "(.)", "(<)", "(>)",
+    };
+    for (const char* o : ops)
+    {
+      std::string_view w(o);
+      if (iword_at(p, w))
+      {
+        op = o;
+        return static_cast<int>(w.size());
+      }
+    }
+    return 0;
+  }
+
   // A chain's operator at p: '|>', or 'then', its word -- the length, or 0.
   int Parser::pipe_at(int p) const
   {
@@ -502,6 +527,11 @@ namespace xc
       case '*': case '/': case '%': case '+': case '-': case '.': case '<': case '>':
       case '=': case '!': case '$': case '#': case '?': case '|': case '^':
         return true;
+      case '(':
+      {
+        std::string op;
+        return setop_at(p_, op) > 0;
+      }
       default:
         break;
     }
@@ -724,8 +754,10 @@ namespace xc
   //   rule orexpr    { <andexpr> [ <?[.]> <orop> <andexpr> ]* }        '.or.'
   //   rule andexpr   { <notexpr> [ <?[.]> <andop> <notexpr> ]* }       '.and.'
   //   rule notexpr   { [ <?[!.]> <negate> ]? <cmpexpr> }               '!' '.not.', before one
-  //   rule cmpexpr   { <rangeexpr> [ <?[=!<>$#iIhH]> <cmptail> ]* }
-  //   rule cmptail   { [ <op=inop> <inrhs> ] || [ <op=cmpop> <rangeexpr> ] }
+  //   rule cmpexpr   { <setor> [ <?[=!<>$#iIhH(]> <cmptail> ]* }
+  //   rule cmptail   { [ <op=inop> <inrhs> ] || [ <op=cmpop> <setor> ] }
+  //   rule setor     { <setand> [ <?[(]> <setorop> <setand> ]* }    '(|)' '(^)' '(+)' '(-)'
+  //   rule setand    { <rangeexpr> [ <?[(]> <setandop> <rangeexpr> ]* }  '(&)' '(.)'
   //   rule rangeexpr { <lo> [ '..' <hi> <?before <.ws> '|>'> ]? }      once; 'in': no '|>'
   //   rule addexpr   { <mulexpr> [ <?[+\-]> <addop> <mulexpr> ]* }
   //   rule mulexpr   { <powexpr> [ <?[*/%]> <mulop> <powexpr> ]* }
@@ -767,6 +799,17 @@ namespace xc
       case '!': return d == '=' ? found("!=", L_CMP) : 0;
       case '$': return found("$", L_CMP);
       case '#': return found("#", L_CMP);
+      case '(':
+      {
+        // Raku's set operators, in ASCII.
+        std::string op;
+        int n = setop_at(p, op);
+        if (n == 0) { return 0; }
+        op_ = op;
+        oplen_ = n;
+        if (op == "(&)" || op == "(.)") { return L_SETAND; }
+        return op == "(|)" || op == "(^)" || op == "(+)" || op == "(-)" ? L_SETOR : L_CMP;
+      }
       default: break;
     }
     if (lower(ch) == 'i' && lower(d) == 'n' && !is_w(c(p + 2)))
@@ -850,7 +893,7 @@ namespace xc
       if (ws())
       {
         if (level == L_ELVIS)    { r = climb(L_ELVIS, nullptr, false); }
-        else if (level == L_CMP) { r = climb(L_RANGE, nullptr, op == "in"); }
+        else if (level == L_CMP) { r = climb(L_SETOR, nullptr, op == "in"); }
         else                     { r = climb(level + 1, nullptr, false); }
       }
       if (!r)
@@ -1504,7 +1547,19 @@ namespace xc
     }
     p_ = e;
     std::vector<Expr*> args;
-    if (!ws() || !call_args(args))
+    if (!ws())
+    {
+      back(start);
+      return nullptr;
+    }
+    // 'x (elem) s': a name and a set operator, no call.
+    std::string op;
+    if (p_ > e && setop_at(p_, op) > 0)
+    {
+      back(start);
+      return nullptr;
+    }
+    if (!call_args(args))
     {
       back(start);
       return nullptr;

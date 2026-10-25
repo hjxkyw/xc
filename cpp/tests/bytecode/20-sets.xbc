@@ -1,0 +1,346 @@
+xbc 1
+source 20-sets.xtpl
+statics 0
+
+function U_MAIN user 0 5
+  locals sA sB bW sE bE
+  line 6
+  str "a"
+  str "b"
+  str "c"
+  array 3
+  call 1 u_xtpl_setof
+  setlocal 1
+  line 7
+  str "b"
+  str "c"
+  str "d"
+  array 3
+  call 1 u_xtpl_setof
+  setlocal 2
+  line 8
+  str "x"
+  str "y"
+  str "x"
+  str "z"
+  str "x"
+  array 5
+  call 1 u_xtpl_bagof
+  setlocal 3
+  line 9
+  new 0 THashMap New
+  setlocal 4
+  line 10
+  new 0 THashMap New
+  setlocal 5
+  line 11
+  local 1
+  local 2
+  call 2 u_xtpl_union
+  call 1 Show
+  local 1
+  local 2
+  call 2 u_xtpl_intersect
+  call 1 Show
+  local 1
+  local 2
+  call 2 u_xtpl_minus
+  call 1 Show
+  local 1
+  local 2
+  call 2 u_xtpl_symdiff
+  call 1 Show
+  call 4 ConOut
+  pop
+  line 12
+  str "b"
+  local 1
+  call 2 u_xtpl_in
+  str "z"
+  local 1
+  call 2 u_xtpl_in
+  local 1
+  str "a"
+  call 2 u_xtpl_cont
+  str "a"
+  local 1
+  call 2 u_xtpl_in
+  local 1
+  str "q"
+  call 2 u_xtpl_hhas
+  call 5 ConOut
+  pop
+  line 13
+  local 1
+  local 2
+  call 2 u_xtpl_subset
+  str "b"
+  call 1 u_xtpl_setof
+  local 1
+  call 2 u_xtpl_subset
+  str "b"
+  call 1 u_xtpl_setof
+  local 1
+  call 2 u_xtpl_psubset
+  local 1
+  str "a"
+  call 1 u_xtpl_setof
+  call 2 u_xtpl_superset
+  local 1
+  str "c"
+  str "b"
+  str "a"
+  array 3
+  call 1 u_xtpl_setof
+  call 2 u_xtpl_sameset
+  call 5 ConOut
+  pop
+  line 14
+  local 1
+  str "a"
+  call 2 u_xtpl_sget
+  local 1
+  str "q"
+  call 2 u_xtpl_sget
+  local 3
+  str "x"
+  call 2 u_xtpl_bget
+  local 3
+  str "q"
+  call 2 u_xtpl_bget
+  local 3
+  call 1 u_xtpl_elems
+  local 3
+  call 1 u_xtpl_totalof
+  local 1
+  call 1 u_xtpl_elems
+  local 1
+  call 1 u_xtpl_totalof
+  call 8 ConOut
+  pop
+  line 15
+  local 3
+  str "y"
+  dup2
+  call 2 u_xtpl_bget
+  num 2
+  add
+  call 3 u_xtpl_bset
+  pop
+  line 16
+  local 3
+  str "x"
+  dup2
+  call 2 u_xtpl_bget
+  num 1
+  sub
+  call 3 u_xtpl_bset
+  pop
+  line 17
+  local 3
+  str "z"
+  num 0
+  call 3 u_xtpl_bset
+  pop
+  line 18
+  local 1
+  str "a"
+  false
+  call 3 u_xtpl_sset
+  pop
+  line 19
+  local 1
+  str "n"
+  true
+  call 3 u_xtpl_sset
+  pop
+  line 20
+  local 1
+  call 1 Show
+  local 3
+  call 1 Weights
+  local 3
+  call 1 u_xtpl_totalof
+  call 3 ConOut
+  pop
+  line 21
+  local 3
+  str "y"
+  str "w"
+  array 2
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_bagsum
+  call 1 Weights
+  local 3
+  str "y"
+  str "y"
+  array 2
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_bagprod
+  call 1 Weights
+  local 3
+  str "x"
+  str "x"
+  str "x"
+  array 3
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_union
+  call 1 Weights
+  call 3 ConOut
+  pop
+  line 22
+  local 3
+  str "x"
+  str "y"
+  str "y"
+  str "y"
+  str "y"
+  array 5
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_intersect
+  call 1 Weights
+  local 3
+  str "y"
+  array 1
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_minus
+  call 1 Weights
+  local 3
+  str "x"
+  array 1
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_symdiff
+  call 1 Weights
+  call 3 ConOut
+  pop
+  line 23
+  local 4
+  call 1 Show
+  local 3
+  call 1 u_xtpl_kxxv
+  call 1 Len
+  local 5
+  str "k"
+  str "k"
+  array 2
+  call 2 u_xtpl_bagsum
+  call 1 Weights
+  str "p"
+  str "q"
+  str "p"
+  array 3
+  str "r"
+  array 1
+  call 2 u_xtpl_union
+  call 1 Show
+  call 4 ConOut
+  pop
+  line 24
+  str "m"
+  str "n"
+  str "n"
+  array 3
+  call 1 u_xtpl_bagof
+  str "o"
+  call 1 u_xtpl_setof
+  call 2 u_xtpl_union
+  call 1 Weights
+  local 3
+  call 1 u_xtpl_maxpairs
+  num 1
+  index
+  num 1
+  index
+  local 3
+  call 1 u_xtpl_minpairs
+  num 1
+  index
+  num 2
+  index
+  call 3 ConOut
+  pop
+  line 25
+  str "x"
+  call 1 u_xtpl_setof
+  str "x"
+  str "x"
+  array 2
+  call 1 u_xtpl_bagof
+  call 2 u_xtpl_subset
+  str "x"
+  str "x"
+  array 2
+  call 1 u_xtpl_bagof
+  str "x"
+  call 1 u_xtpl_setof
+  call 2 u_xtpl_subset
+  str "a"
+  str "a"
+  array 2
+  call 1 u_xtpl_setof
+  str "a"
+  call 1 u_xtpl_setof
+  call 2 u_xtpl_sameset
+  call 3 ConOut
+  pop
+  line 26
+  nil
+  ret
+end
+
+function SHOW static 1 1
+  locals sS
+  line 29
+  local 1
+  call 1 u_xtpl_keys
+  call 1 u_xtpl_sort
+  str ","
+  call 2 u_xtpl_join
+  ret
+end
+
+function WEIGHTS static 1 5
+  locals bB cOut .t1 cK .t2
+  line 32
+  str ""
+  setlocal 2
+  line 33
+  local 1
+  call 1 u_xtpl_keys
+  call 1 u_xtpl_sort
+  setlocal 3
+  num 1
+  setlocal 5
+  line 33
+  local 5
+  local 3
+  call 1 Len
+  le
+  jumpf 39
+  local 3
+  local 5
+  index
+  setlocal 4
+  local 2
+  local 4
+  str "="
+  add
+  local 1
+  local 4
+  call 2 u_xtpl_hget
+  call 1 cValToChar
+  add
+  str " "
+  add
+  add
+  setlocal 2
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 11
+  line 34
+  local 2
+  call 1 AllTrim
+  ret
+end

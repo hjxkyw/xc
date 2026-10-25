@@ -1,0 +1,24 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A set's and a bag's keys, read and written Raku's way where xc knows it
+// is one: a set reads .F. where it holds nothing, a bag 0; .F., or a count
+// below 1, takes a key out. Elsewhere, a hash's.
+User Function SetKeys(cKey as Character, hAny)
+  Local sSeen := THashMap():New() as Object
+  Local bCount := u_xtpl_bagof({"a", "b", "a"})
+  Local hPlain := THashMap():New()
+  Local lWas := u_xtpl_sget(sSeen, cKey)
+  Local nA := u_xtpl_bget(bCount, "a")
+  u_xtpl_sset(sSeen, cKey, .T.)
+  u_xtpl_sset(sSeen, "old", .F.)
+  u_xtpl_bset(bCount, cKey, u_xtpl_bget(bCount, cKey) + (1))
+  u_xtpl_bset(bCount, "a", u_xtpl_bget(bCount, "a") + (2))
+  u_xtpl_bset(bCount, "b", 0)
+  If !u_xtpl_hhas(bCount, cKey)
+    u_xtpl_bset(bCount, cKey, 1)
+  EndIf
+  ConOut(u_xtpl_sget(sSeen, "x"), u_xtpl_bget(bCount, "z"), u_xtpl_bset(bCount, cKey, 5), u_xtpl_sset(sSeen, "y", .T.))
+  hPlain:Set(cKey, u_xtpl_sget(sSeen, cKey))
+  ConOut(u_xtpl_hget(hAny, cKey), u_xtpl_hget(hPlain, "none"))
+Return {lWas, nA}

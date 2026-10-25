@@ -664,7 +664,8 @@ namespace xc
     {
       Lines args{ acc };
       for (const Expr* a : st->args) { args.push_back(block_arg(st->name, a)); }
-      acc = call_name(st->name) + "(" + join(args, ", ") + ")";
+      acc = is_runtime_verb(st->name) ? verb_call(st->name, args)
+                                      : call_name(st->name) + "(" + join(args, ", ") + ")";
     }
     return acc;
   }
@@ -1644,18 +1645,20 @@ namespace xc
       std::string h = expr(t->base);
       std::string key = expr(t->key);
       std::string v = expr(a->value);
+      std::string set = key_writer(t);
+      std::string get = key_reader(t);
       std::string written;
       if (a->op == ":=" || a->op == "=")
       {
-        written = "u_xtpl_hset(" + h + ", " + key + ", " + v + ")";
+        written = set + "(" + h + ", " + key + ", " + v + ")";
       }
       else if (is_expr(t->base, EK::Name) && name_or_literal(t->key))
       {
-        written = "u_xtpl_hset(" + h + ", " + key + ", u_xtpl_hget(" + h + ", " + key + ") " + chop(a->op) + " (" + v + "))";
+        written = set + "(" + h + ", " + key + ", " + get + "(" + h + ", " + key + ") " + chop(a->op) + " (" + v + "))";
       }
       else
       {
-        written = "Eval({|__h, __k, __v| u_xtpl_hset(__h, __k, u_xtpl_hget(__h, __k) " + chop(a->op) + " __v)}, "
+        written = "Eval({|__h, __k, __v| " + set + "(__h, __k, " + get + "(__h, __k) " + chop(a->op) + " __v)}, "
                   + h + ", " + key + ", " + v + ")";
       }
       // 'h{k}++' gives the value before.
@@ -1670,7 +1673,7 @@ namespace xc
       case EK::HashIndex:
       {
         auto h = static_cast<const HashIndex*>(e);
-        return "u_xtpl_hget(" + expr(h->base) + ", " + expr(h->key) + ")";
+        return key_reader(h) + "(" + expr(h->base) + ", " + expr(h->key) + ")";
       }
       case EK::HashLit:
       case EK::JsonLit:
@@ -1711,6 +1714,11 @@ namespace xc
     if (k == EK::Binary)
     {
       auto b = static_cast<const Binary*>(e);
+      // Raku's set operators: the runtime's functions, the sides in order.
+      if (!set_function(b->op).empty())
+      {
+        return set_function(b->op) + "(" + expr(b->left) + ", " + expr(b->right) + ")";
+      }
       if (b->op == "in" || b->op == "has" || b->op == "%%" || b->op == "?:")
       {
         std::string l = expr(b->left);
@@ -1793,7 +1801,7 @@ namespace xc
       {
         args.push_back(i == 0 ? part(c->args[i]) : block_arg(c->name, c->args[i]));
       }
-      return call_name(c->name) + "(" + join(args, ", ") + ")";
+      return verb_call(c->name, args);
     }
     if (k == EK::CodeBlock)
     {
@@ -1846,7 +1854,7 @@ namespace xc
       case EK::Binary:
       {
         const std::string& op = static_cast<const Binary*>(e)->op;
-        return op == "in" || op == "has" || op == "%%" || op == "?:";
+        return op == "in" || op == "has" || op == "%%" || op == "?:" || !set_function(op).empty();
       }
     }
     return false;
@@ -2076,6 +2084,7 @@ namespace xc
   {
     if (!is_expr(a->target, EK::HashIndex)) { return expr(a->target) + " := " + value; }
     auto t = static_cast<const HashIndex*>(a->target);
+    if (t->set_kind) { return key_writer(t) + "(" + expr(t->base) + ", " + expr(t->key) + ", " + value + ")"; }
     return expr(t->base) + ":Set(" + expr(t->key) + ", " + value + ")";
   }
 
@@ -2103,17 +2112,25 @@ namespace xc
     }
     std::string v = expr(a->value);
     Lines out = pre;
+    // A set's or a bag's: the runtime's, which takes a key out for .F., or a
+    // count below 1.
+    auto put = [&](const std::string& x)
+    {
+      return t->set_kind ? key_writer(t) + "(" + h + ", " + key + ", " + x + ")" : h + ":Set(" + key + ", " + x + ")";
+    };
     if (plain)
     {
-      out.push_back(h + ":Set(" + key + ", " + v + ")");
+      out.push_back(put(v));
       return Lowered{ false, out };
     }
     if (a->op == "?=")
     {
-      append(out, { "If u_xtpl_hget(" + h + ", " + key + ") == Nil", "  " + h + ":Set(" + key + ", " + v + ")", "EndIf" });
+      std::string miss = t->set_kind ? "!u_xtpl_hhas(" + h + ", " + key + ")"
+                                     : "u_xtpl_hget(" + h + ", " + key + ") == Nil";
+      append(out, { "If " + miss, "  " + put(v), "EndIf" });
       return Lowered{ pre.empty(), out };
     }
-    out.push_back(h + ":Set(" + key + ", u_xtpl_hget(" + h + ", " + key + ") " + chop(a->op) + " (" + v + "))");
+    out.push_back(put(key_reader(t) + "(" + h + ", " + key + ") " + chop(a->op) + " (" + v + ")"));
     return Lowered{ false, out };
   }
 

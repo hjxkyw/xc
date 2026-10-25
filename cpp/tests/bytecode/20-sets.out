@@ -1,0 +1,44 @@
+exit 0
+--- output
+a,b,c,d
+b,c
+a
+a,d
+.T.
+.F.
+.T.
+.T.
+.F.
+.F.
+.T.
+.T.
+.T.
+.T.
+.T.
+.F.
+3
+0
+3
+5
+3
+3
+b,c,n
+x=2 y=3
+5
+w=1 x=2 y=4
+y=6
+x=3 y=3
+x=1 y=3
+x=2 y=2
+x=1 y=3
+
+5
+k=2
+p,q,r
+m=1 n=2 o=1
+y
+2
+.T.
+.F.
+.T.
+--- errors

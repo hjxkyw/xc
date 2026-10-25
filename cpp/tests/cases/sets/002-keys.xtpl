@@ -1,0 +1,19 @@
+// A set's and a bag's keys, read and written Raku's way where xc knows it
+// is one: a set reads .F. where it holds nothing, a bag 0; .F., or a count
+// below 1, takes a key out. Elsewhere, a hash's.
+User Function SetKeys(cKey as Character, hAny)
+  Local sSeen as Set<c>
+  Local bCount := bagof({"a", "b", "a"})
+  Local hPlain := { => }
+  Local lWas := sSeen{cKey}
+  Local nA := bCount{"a"}
+  sSeen{cKey} := .T.
+  sSeen{"old"} := .F.
+  bCount{cKey}++
+  bCount{"a"} += 2
+  bCount{"b"} := 0
+  bCount{cKey} ?= 1
+  ConOut(sSeen{"x"}, bCount{"z"}, bCount{cKey} := 5, sSeen{"y"} := .T.)
+  hPlain{cKey} := sSeen{cKey}
+  ConOut(hAny{cKey}, hPlain{"none"})
+Return {lWas, nA}

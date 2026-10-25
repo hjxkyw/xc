@@ -1,8 +1,8 @@
 # xtpl, as xc reads it
 
 xtpl is TL++ with extensions: block locals, lambdas, chains with `|>`,
-hashes, typed and fixed arrays and hashes, `defer`, `using alias`, string
-interpolation and a few operators.
+hashes, sets and bags, typed and fixed arrays and hashes, `defer`, `using
+alias`, string interpolation and a few operators.
 xc compiles it to plain TL++ for Protheus. This is the reference for the
 language as xc reads it today: what it takes, what it makes of it, and what
 it refuses.
@@ -614,8 +614,9 @@ User Function Totals(aIn as Array, cName as Character) as Array
 Return aOut
 ```
 
-`Array<T>` and `Hash<K, V>` say what an array or a hash holds: `T`, `K` and
-`V` are a type's letter -- `n`, `c`, `l`, `d`, `a`, `h`, `o`, `b`, `j`, `f`:
+`Array<T>` and `Hash<K, V>` -- and `Set<K>`, `Bag<K>`: [Sets and
+bags](#sets-and-bags) -- say what an array or a hash holds: `T`, `K` and `V`
+are a type's letter -- `n`, `c`, `l`, `d`, `a`, `h`, `o`, `b`, `j`, `f`:
 Numeric, Character, Logical, Date, Array, Hash, Object, CodeBlock, JSON,
 Decimal -- or one of these again, `Array<Array<n>>`, `Hash<c, Array<n>>`. A
 `Local` or a `Static` takes one after `as`, with a value or with none -- it
@@ -1156,7 +1157,9 @@ From the loosest to the tightest:
 | or | `.Or.` |
 | and | `.And.` |
 | not | `!`, `.Not.` |
-| comparison | `==` `!=` `<>` `#` `=` `>=` `<=` `>` `<` `$` `in` `has` |
+| comparison | `==` `!=` `<>` `#` `=` `>=` `<=` `>` `<` `$` `in` `has` `(elem)` `(cont)` `(<=)` `(<)` `(>=)` `(>)` `(==)` |
+| set or | `(\|)` `(^)` `(+)` `(-)` |
+| set and | `(&)` `(.)` |
 | range | `lo..hi` |
 | sum | `+` `-` |
 | product | `*` `/` `%` `%%` |
@@ -1284,6 +1287,69 @@ assignment to a name, `x := h{k}`, is THashMap's own: `x := Nil` and
 `h:Get(k, @x)` -- `Get` leaves `x` as it was when the key is not there
 (tried on 24.3.1.9), and the read has to give Nil. A name declared with a
 type keeps `u_xtpl_hget`: TL++ would not take the Nil written out.
+
+### Sets and bags
+
+```xtpl
+User Function Tags(aTags, aMore, cTag as Character)
+  Local sTags := setof(aTags)
+  Local bWords := bagof(aMore)
+  Local sAll := sTags (|) setof(aMore) (-) setof("draft")
+  bWords{cTag}++
+  sTags{cTag} := .T.
+  ConOut(cTag (elem) sAll, sTags (<=) sAll, bWords{"none"}, totalof(bWords))
+Return sAll
+```
+
+```tlpp
+User Function Tags(aTags, aMore, cTag as Character)
+  Local sTags := u_xtpl_setof(aTags)
+  Local bWords := u_xtpl_bagof(aMore)
+  Local sAll := u_xtpl_minus(u_xtpl_union(sTags, u_xtpl_setof(aMore)), u_xtpl_setof("draft"))
+  u_xtpl_bset(bWords, cTag, u_xtpl_bget(bWords, cTag) + (1))
+  u_xtpl_sset(sTags, cTag, .T.)
+  ConOut(u_xtpl_in(cTag, sAll), u_xtpl_subset(sTags, sAll), u_xtpl_bget(bWords, "none"), u_xtpl_totalof(bWords))
+Return sAll
+```
+
+Raku's sets and bags, on hashes. A set is a `THashMap` whose values are
+`.T.` -- what it holds are its keys --, a bag one whose values are counts,
+1 or more. `setof(x)` and `bagof(x)` make one: of an array's elements -- a
+bag counts them --, of a hash's, a set's or a bag's keys, of one value; of
+other than one argument, of the arguments -- `setof("a", "b")`. (`set()`
+is AdvPL's own `Set()`.) Where an operation meets something else, an array
+goes in as the set of its elements and a hash as the set of its keys.
+
+The operators are Raku's in ASCII:
+
+| | Gives |
+|---|---|
+| `x (elem) s`, `s (cont) x` | whether s holds x -- so do `x in s` and `s has x`, of any hash |
+| `a (\|) b`, `a (&) b` | the union, the intersection: of a bag, the larger and the smaller count |
+| `a (-) b`, `a (^) b` | what a holds and b does not, what one of them holds: of a bag, by count |
+| `a (+) b`, `a (.) b` | a bag of the counts added, multiplied |
+| `a (<=) b`, `a (<) b` | whether b holds all a holds -- of a bag, each count as large --; and more |
+| `a (>=) b`, `a (>) b`, `a (==) b` | the same the other way; whether they hold the same |
+
+A bag where a bag goes in, else a set -- a bag always from `(+)` and `(.)`.
+`(&)` and `(.)` hold tighter than `(|)`, `(^)`, `(+)` and `(-)`, and those
+than the comparisons, the rest among them -- Raku's order. The same as
+verbs: `union`, `intersect`, `minus`, `symdiff`, `bagsum`, `bagprod`,
+`subset`, `psubset`, `superset`, `psuperset`, `sameset`, and `elems(s)` --
+how many keys --, `totalof(b)` -- the counts summed --, `kxxv(b)` -- each
+key as many times as it counts --, `minpairs(b)` and `maxpairs(b)` -- the
+`{key, value}` pairs that count the least, the most. `keys()`, `values()`
+and `pairs()` read them as any hash.
+
+A set's key reads `.T.` or `.F.`, a bag's its count or 0, and writing `.F.`
+-- a count below 1 -- takes the key out; `b{k}++` and `b{k} += n` count --
+where xc knows it is a set or a bag: declared `as Set<c>`, `as Bag<c>`, or a
+name given `setof()`, an operation, and nothing else. Elsewhere it reads and
+writes as a hash, a key it does not hold Nil; `x in s` tells either way.
+`Set<k>` and `Bag<k>` are typed hashes (see [Typed arrays and
+hashes](#typed-arrays-and-hashes)) -- a set a `Hash<k, l>`, a bag a
+`Hash<k, n>`, that go where one is wanted, and not the other way round --,
+`Set<fixed k>` and `Bag<fixed k>` Raku's immutable ones.
 
 ### JSON objects
 
@@ -1609,6 +1675,11 @@ Over hashes and text:
 | `keys(h)`, `values(h)`, `pairs(h)` | the keys, the values, `{k, v}` rows |
 | `split(c, cSep)`, `join(a[, cSep])` | the pieces of a text; a text from pieces |
 | `starts(c, x)`, `ends(c, x)`, `contains(c, x)` | whether the text starts with, ends with, holds x |
+
+Over sets and bags: `setof`, `bagof`, `union`, `intersect`, `minus`,
+`symdiff`, `bagsum`, `bagprod`, `subset`, `psubset`, `superset`,
+`psuperset`, `sameset`, `elems`, `totalof`, `kxxv`, `minpairs`, `maxpairs`
+-- see [Sets and bags](#sets-and-bags).
 
 And `setmaxroll(n)`, the most elements `aroll` gives (1000 to start with;
 it returns the old value), and `queue([n])`, a queue: `:Push(x)`, `:Pop()`,

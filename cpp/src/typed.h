@@ -19,6 +19,12 @@
 // again nor passed with '@'. A fixed one goes only where a fixed one is
 // wanted, or where nothing is said: a name it is given is fixed too.
 //
+// A set, 'Set<k>', is a hash of Logicals, a bag, 'Bag<k>', one of counts
+// (Raku's): setOf(), bagOf() and the set operators make them, and they go
+// where such a hash is wanted. Each 'h{k}' xc knows to be a set's or a bag's
+// is marked so (HashIndex::set_kind), for the back ends to read and write it
+// Raku's way.
+//
 // What xc can tell: literals; a name declared with a type, and a function's
 // Local or Static whose every assignment xc can tell, and the same; what
 // reading a typed array or hash gives; an operator's result; TL++'s common

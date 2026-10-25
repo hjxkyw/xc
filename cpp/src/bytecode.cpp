@@ -644,7 +644,7 @@ namespace xc
           auto h = static_cast<const HashIndex*>(e);
           expr(h->base);
           expr(h->key);
-          call(2, "u_xtpl_hget");
+          call(2, key_reader(h));
           return;
         }
         case EK::Interval:
@@ -877,6 +877,14 @@ namespace xc
         call(2, "u_xtpl_hhas");
         return;
       }
+      if (!set_function(o).empty())
+      {
+        // Raku's set operators: the runtime's functions, the sides in order.
+        expr(b->left);
+        expr(b->right);
+        call(2, set_function(o));
+        return;
+      }
       if (o == "%%")
       {
         expr(b->left);
@@ -944,7 +952,13 @@ namespace xc
         if (verb && i > 0) { block_arg(n, c->args[i]); }
         else { arg(c->args[i]); }
       }
-      call(c->args.size(), verb ? "u_xtpl_" + n : c->name);
+      std::size_t count = c->args.size();
+      if (verb && one_array(n, count))
+      {
+        op("array", std::to_string(count));
+        count = 1;
+      }
+      call(count, verb ? "u_xtpl_" + n : c->name);
     }
 
     // An argument: left out, Nil; '@x', a reference to x.
@@ -1207,7 +1221,13 @@ namespace xc
       for (const Call* st : stages)
       {
         for (const Expr* a : st->args) { block_arg(lc(st->name), a); }
-        call(st->args.size() + 1, is_runtime_verb(st->name) ? "u_xtpl_" + lc(st->name) : st->name);
+        std::size_t n = st->args.size() + 1;
+        if (one_array(st->name, n))
+        {
+          op("array", std::to_string(n));
+          n = 1;
+        }
+        call(n, is_runtime_verb(st->name) ? "u_xtpl_" + lc(st->name) : st->name);
       }
     }
 
@@ -2351,14 +2371,14 @@ namespace xc
                            expr(h->base);
                            expr(h->key);
                          },
-                         [this]
+                         [this, h]
                          {
                            op("dup2");
-                           call(2, "u_xtpl_hget");
+                           call(2, key_reader(h));
                          },
-                         [this]
+                         [this, h]
                          {
-                           call(3, "u_xtpl_hset");
+                           call(3, key_writer(h));
                            op("pop");
                          } };
         }

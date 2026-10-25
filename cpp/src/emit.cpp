@@ -224,7 +224,8 @@ namespace xc
   {
     if (s->kind != SK::Assignment) { return false; }
     auto a = static_cast<const Assignment*>(s);
-    return (a->op == ":=" || a->op == "=") && is_expr(a->target, EK::Name) && is_expr(a->value, EK::HashIndex);
+    return (a->op == ":=" || a->op == "=") && is_expr(a->target, EK::Name) && is_expr(a->value, EK::HashIndex)
+           && !static_cast<const HashIndex*>(a->value)->set_kind;
   }
 
   bool needs_lowering(const Stmt* s)

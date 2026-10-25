@@ -1,0 +1,9 @@
+003-wrong.xtpl:5: 'sC' is a Set<n>: this is a Set<c>, not a Set<n>.
+003-wrong.xtpl:10: 'sKeys' is a Set<c>: this key is Numeric, not Character.
+003-wrong.xtpl:11: 'sKeys' is a Set<c>: this is Numeric, not Logical.
+003-wrong.xtpl:12: 'bW' is a Bag<c>: this is Character, not Numeric.
+003-wrong.xtpl:13: 'bW' is a Bag<c>: this is Logical, and '+=' makes no Numeric of it.
+003-wrong.xtpl:15: 'sKeys' is a Set<c>: this is a Hash<c, l>, not a Set<c>.
+003-wrong.xtpl:16: 'sFixed' is a Set<fixed c>: nothing in it may be written.
+003-wrong.xtpl:17: 'sFixed' is a Set<fixed c>: Del() would write into it.
+003-wrong.xtpl:18: 'sKeys' is a Set<c>: AAdd() takes an array.
