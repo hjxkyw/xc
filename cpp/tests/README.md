@@ -57,7 +57,8 @@ member; `decimal/`, Decimals written with
 the `DEC_` functions, and the numbers refused where they meet one;
 `defer/`, what a `defer` cannot be written as yet; `data-value/`, the
 warning for a `Data`'s `default` or `init` value, which the AppServer
-ignores.
+ignores; `oneline/`, the one-line forms -- `if c exec s, s else s` and the
+rest --, and what is refused of them.
 
 A case holds the whole of what came out -- not, as a test in `t/` did, what
 it looks for --, so a change to the output shows in every case it touches. After a change

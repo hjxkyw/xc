@@ -1,0 +1,20 @@
+#include "totvs.ch"
+
+// Each one-line form, the block it stands for.
+User Function Forms(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nI := 0
+  Local nSum := 0
+  Local lBig := .F.
+  if nSum > 100 exec lBig := .T., nOk++
+  if lBig exec nOk++ else nErr++, conout("error")  // a comment
+  while nI < 10 exec nI++, nSum += nI
+  do while nI > 0 exec nI--
+  for oItem in aItems exec nSum += oItem:nValue
+  for oItem, nPos in aItems exec conout(nPos), conout(oItem:cName)
+  for 3 times exec conout("line")
+  for len(aItems) times exec nSum++
+  for nJ in 1..5 exec nSum += nJ
+  for nJ, nK in nI..nSum exec nSum += nJ * nK
+Return nSum

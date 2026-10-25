@@ -2946,6 +2946,161 @@ namespace xc
     return d;
   }
 
+  // ---- one-line forms -------------------------------------------------------
+  // 'if c exec s, s [else s, s]', 'while c exec s, s', 'for x [, i] in a exec
+  // s, s', 'for n times exec s, s': the block on one line. A branch is
+  // statements between commas -- simple ones, or groups in parentheses -- up
+  // to 'else', the ')' of its group or the end of the line. A one-line form
+  // inside another's branch goes in a group, and takes the rest of it; one
+  // that is not is read, bare, for the checks to refuse.
+
+  // token exec { :i 'exec' >> }
+  bool Parser::exec_at() const
+  {
+    return iword_at(p_, "exec") && !is_w(c(p_ + 4));
+  }
+
+  // Where the code from 'from' ends, before 'to': without a comment, and the
+  // blanks and a line's ';' before it.
+  int Parser::code_end_at(int from, int to) const
+  {
+    int q = from;
+    int end = from;
+    while (q < to)
+    {
+      int ch = c(q);
+      if (ch == '"' || ch == '\'')
+      {
+        int e = q + 1;
+        while (e < to && c(e) != ch)
+        {
+          e++;
+        }
+        q = std::min(e + 1, to);
+        end = q;
+        continue;
+      }
+      if ((ch == '/' && (c(q + 1) == '/' || c(q + 1) == '*')) || (ch == '&' && c(q + 1) == '&'))
+      {
+        break;
+      }
+      if (!(is_h(ch) || ch == ';' || ch == '\r' || ch == '\n'))
+      {
+        end = q + 1;
+      }
+      q++;
+    }
+    return end;
+  }
+
+  // After a group: a ',', the ')' of the group around it, 'else', or the end
+  // of the line -- else the parentheses were the statement's own,
+  // '(cAlias)->(DbSkip())'.
+  bool Parser::oneline_item_ends()
+  {
+    int at = p_;
+    bool ok = ws() && (c(p_) == ',' || c(p_) == ')' || (iword_at(p_, "else") && !is_w(c(p_ + 4))) || eol(false));
+    p_ = at;
+    return ok;
+  }
+
+  // A one-line form where a branch's statement starts: none, for a block's.
+  Stmt* Parser::oneline_form()
+  {
+    int start = p_;
+    int e = name_end(p_);
+    if (e < 0)
+    {
+      return nullptr;
+    }
+    std::string w = lc(src_.substr(p_, e - p_));
+    Stmt* s = nullptr;
+    if (w == "if")
+    {
+      s = ifst();
+    }
+    else if (w == "while" || w == "do")
+    {
+      s = whilest();
+    }
+    else if (w == "for")
+    {
+      s = forinst();
+      if (!s)
+      {
+        s = fortimesst();
+      }
+    }
+    if (!s || !s->oneline)
+    {
+      p_ = start;
+      return nullptr;
+    }
+    s->from = start;
+    s->to = code_end_at(start, p_);
+    return s;
+  }
+
+  bool Parser::oneline_branch(Body& out, bool in_group)
+  {
+    for (;;)
+    {
+      if (!ws())
+      {
+        return false;
+      }
+      int start = p_;
+      bool took = false;
+      if (c(p_) == '(')
+      {
+        p_++;
+        Body inner;
+        if (oneline_branch(inner, true) && ws() && c(p_) == ')')
+        {
+          p_++;
+          if (oneline_item_ends())
+          {
+            out.insert(out.end(), inner.begin(), inner.end());
+            took = true;
+          }
+        }
+        if (!took)
+        {
+          p_ = start;
+        }
+      }
+      if (!took)
+      {
+        if (Stmt* f = oneline_form())
+        {
+          f->bare = !in_group;
+          out.push_back(f);
+          took = true;
+        }
+      }
+      if (!took)
+      {
+        Stmt* x = simple();
+        if (!x)
+        {
+          p_ = start;
+          return false;
+        }
+        x->from = start;
+        x->to = code_end_at(start, p_);
+        out.push_back(x);
+      }
+      int at = p_;
+      if (ws() && c(p_) == ',')
+      {
+        p_++;
+        continue;
+      }
+      p_ = at;
+      return true;
+    }
+  }
+
   // rule ifst
   // {
   //   :i 'if' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
@@ -2989,7 +3144,38 @@ namespace xc
       return fail();
     }
     Expr* first = cond();
-    if (!first || !ws() || !nl() || !ws())
+    if (!first || !ws())
+    {
+      return fail();
+    }
+    if (exec_at())
+    {
+      // On one line: 'if c exec s, s [else s, s]'.
+      p_ += 4;
+      auto ob = make<Branch>();
+      ob->cond = first;
+      if (s->header_decl || !oneline_branch(ob->body, false))
+      {
+        return fail();
+      }
+      s->branches.push_back(ob);
+      int at = p_;
+      if (ws() && iword_at(p_, "else") && !is_w(c(p_ + 4)))
+      {
+        p_ += 4;
+        if (!oneline_branch(s->otherwise, false))
+        {
+          return fail();
+        }
+      }
+      else
+      {
+        p_ = at;
+      }
+      s->oneline = true;
+      return s;
+    }
+    if (!nl() || !ws())
     {
       return fail();
     }
@@ -3095,7 +3281,22 @@ namespace xc
       return fail();
     }
     s->cond = cond();
-    if (!s->cond || !ws() || !nl() || !ws())
+    if (!s->cond || !ws())
+    {
+      return fail();
+    }
+    if (exec_at())
+    {
+      // On one line: 'while c exec s, s'.
+      p_ += 4;
+      if (s->header_decl || !oneline_branch(s->body, false))
+      {
+        return fail();
+      }
+      s->oneline = true;
+      return s;
+    }
+    if (!nl() || !ws())
     {
       return fail();
     }
@@ -3308,7 +3509,22 @@ namespace xc
         }
       }
     }
-    if (!ws() || !nl() || !ws())
+    if (!ws())
+    {
+      return fail();
+    }
+    if (exec_at())
+    {
+      // On one line: 'for x [, i] in a exec s, s'.
+      p_ += 4;
+      if (!oneline_branch(s->body, false))
+      {
+        return fail();
+      }
+      s->oneline = true;
+      return s;
+    }
+    if (!nl() || !ws())
     {
       return fail();
     }
@@ -3386,7 +3602,22 @@ namespace xc
     auto s = make<ForTimesStmt>();
     s->line = line(start);
     s->count = expr();
-    if (!s->count || !ws() || !ilit("times") || !ws() || !nl() || !ws())
+    if (!s->count || !ws() || !ilit("times") || !ws())
+    {
+      return fail();
+    }
+    if (exec_at())
+    {
+      // On one line: 'for n times exec s, s'.
+      p_ += 4;
+      if (!oneline_branch(s->body, false))
+      {
+        return fail();
+      }
+      s->oneline = true;
+      return s;
+    }
+    if (!nl() || !ws())
     {
       return fail();
     }
@@ -4266,7 +4497,7 @@ namespace xc
         auto it = trans_.find(p_);
         trans = it != trans_.end() && it->second > p_;
       }
-      if (trans || modkw(p_) < 0 || if_call(p_))
+      if ((trans || modkw(p_) < 0 || if_call(p_)) && !(iword_at(p_, "else") && !is_w(c(p_ + 4))))
       {
         if (Expr* g = guardexpr())
         {
@@ -4320,7 +4551,8 @@ namespace xc
       }
       p_ = save;
     }
-    b->value = guardexpr();
+    // 'else' ends it, in a one-line form: 'if lBad exec break else nI++'.
+    b->value = iword_at(p_, "else") && !is_w(c(p_ + 4)) ? nullptr : guardexpr();
     if (!b->value)
     {
       p_ = save;

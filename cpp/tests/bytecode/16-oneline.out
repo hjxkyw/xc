@@ -1,0 +1,20 @@
+exit 1
+--- output
+21
+3
+big
+12
+big!!!
+2
+7
+4
+9
+19
+25
+-1
+0
+1
+4
+28
+--- errors
+xc-vm: error: type mismatch on +  (U_MAIN, line 28)

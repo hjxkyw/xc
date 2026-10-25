@@ -261,6 +261,7 @@ namespace xc
     std::vector<ExprEdit> expr_edits(const std::vector<Expr*>& exprs);
     Lowered lower(const Stmt* s);
     Lines lower_inner(const Stmt* s);
+    Lines oneline_lines(const Stmt* s);
 
     // ---- chains -------------------------------------------------------------
     Stream stream(const Expr* chain, bool collect);

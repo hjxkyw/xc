@@ -237,6 +237,11 @@ namespace xc
     int type_name_end(int p) const;
     bool refused(const std::string& name) const;
     Stmt* ifcallst();
+    bool exec_at() const;
+    bool oneline_branch(Body& out, bool in_group);
+    bool oneline_item_ends() ;
+    Stmt* oneline_form();
+    int code_end_at(int from, int to) const;
     Stmt* ifst();
     Stmt* whilest();
     Stmt* forst();

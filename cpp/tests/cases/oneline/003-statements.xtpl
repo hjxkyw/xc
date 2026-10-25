@@ -1,0 +1,16 @@
+#include "totvs.ch"
+
+// What a branch may hold: any simple statement -- xtpl's, which lower, a
+// 'return' that runs the defers first, 'break', a call through an area.
+User Function Bodies(aItems, cAlias)
+  Local hSeen := { => }
+  Local xVal
+  Local nI := 0
+  Local nSum := 0
+  defer conout("bye")
+  if Empty(aItems) exec return -1 else nI := 1
+  while nI < 5 exec nI++, (if nI == 3 exec break else nSum++)
+  if nSum > 0 exec xVal ?= 7, hSeen{"k"} := nSum, nSum := aItems |> map([x] x * 2) |> asum
+  if !Empty(cAlias) exec (cAlias)->(DbSkip()), nSum++
+  for 2 times exec aItems |> tap([x] conout(x))
+Return nSum

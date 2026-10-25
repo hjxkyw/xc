@@ -1,0 +1,16 @@
+#include "totvs.ch"
+
+// A one-line form inside another, in parentheses: it takes the rest of
+// them, and an 'else' goes with the 'if' it is in.
+User Function Nested(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nI := 0
+  Local nSum := 0
+  Local lBig := .T.
+  if lBig exec (if nOk > 1 exec nOk-- else nErr++), nSum++ else nSum--
+  for oItem in aItems exec (if oItem:lOk exec nOk++, nSum++ else nErr++), nSum++
+  while nI > 0 exec nI--, (if nI == 5 exec exit)
+  for 2 times exec (for oItem in aItems exec (if oItem:lOk exec nOk++))
+  if nOk == 0 exec return 0 else (if nErr > 0 exec return -1 else nOk++)
+Return nSum

@@ -1,0 +1,66 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Each one-line form, the block it stands for.
+User Function Forms(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nI := 0
+  Local nSum := 0
+  Local lBig := .F.
+  Local s_0_0  // a slot: the block locals 'oItem', 'nJ'
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local s_0_1  // a slot: the block locals 'nPos', 'nK'
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... times'
+  Local fi_0_2  // the counter of a 'for ... times'
+  Local fn_0_0  // the count of a 'for ... times'
+  Local fi_0_3  // the counter of a 'for ... in'
+  Local fi_0_4  // the counter of a 'for ... in'
+  If nSum > 100
+    lBig := .T.
+    nOk++
+  EndIf
+  If lBig                                          // a comment
+    nOk++
+  Else
+    nErr++
+    conout("error")
+  EndIf
+  While nI < 10
+    nI++
+    nSum += nI
+  EndDo
+  While nI > 0
+    nI--
+  EndDo
+  fs_0_0 := aItems
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[fi_0_0]
+    nSum += s_0_0:nValue
+  Next
+  fs_0_1 := aItems
+  For s_0_1 := 1 To Len(fs_0_1)
+    s_0_0 := fs_0_1[s_0_1]
+    conout(s_0_1)
+    conout(s_0_0:cName)
+  Next
+  For fi_0_1 := 1 To 3
+    conout("line")
+  Next
+  fn_0_0 := len(aItems)
+  For fi_0_2 := 1 To fn_0_0
+    nSum++
+  Next
+  For fi_0_3 := 1 To 5
+    s_0_0 := fi_0_3
+    nSum += s_0_0
+  Next
+  s_0_1 := 0
+  For fi_0_4 := nI To nSum
+    s_0_0 := fi_0_4
+    s_0_1++
+    nSum += s_0_0 * s_0_1
+  Next
+Return nSum

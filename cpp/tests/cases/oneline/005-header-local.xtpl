@@ -1,0 +1,7 @@
+#include "totvs.ch"
+
+// A one-line form takes no 'local' in its header: the block does.
+User Function HeaderLocal()
+  Local nSum := 0
+  if local nX := 3, nX > 1 exec nSum++
+Return nSum

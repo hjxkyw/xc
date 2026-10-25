@@ -1,0 +1,254 @@
+xbc 1
+source 16-oneline.xtpl
+statics 0
+
+function U_MAIN user 0 14
+  locals aNums nSum nOdd nI cOut .t1 nX .t2 .t3 .t4 nX nPos nX .t5
+  line 6
+  num 4
+  num 7
+  num 1
+  num 9
+  array 4
+  setlocal 1
+  line 7
+  num 0
+  setlocal 2
+  line 8
+  num 0
+  setlocal 3
+  line 9
+  num 0
+  setlocal 4
+  line 10
+  str ""
+  setlocal 5
+  line 12
+  local 1
+  setlocal 6
+  num 1
+  setlocal 8
+  line 12
+  local 8
+  local 6
+  call 1 Len
+  le
+  jumpf 54
+  local 6
+  local 8
+  index
+  setlocal 7
+  local 2
+  local 7
+  add
+  setlocal 2
+  local 7
+  num 2
+  mod
+  num 1
+  exact
+  jumpf 49
+  local 3
+  num 1
+  add
+  setlocal 3
+  local 8
+  num 1
+  add
+  setlocal 8
+  jump 25
+  line 13
+  local 2
+  local 3
+  call 2 ConOut
+  pop
+  line 14
+  local 2
+  num 20
+  gt
+  jumpf 67
+  str "big"
+  setlocal 5
+  jump 69
+  str "small"
+  setlocal 5
+  line 15
+  local 5
+  call 1 ConOut
+  pop
+  line 16
+  local 4
+  num 10
+  lt
+  jumpf 83
+  local 4
+  num 3
+  add
+  setlocal 4
+  jump 73
+  line 17
+  local 4
+  call 1 ConOut
+  pop
+  line 18
+  num 1
+  setlocal 9
+  line 18
+  local 9
+  num 3
+  le
+  jumpf 104
+  local 5
+  str "!"
+  add
+  setlocal 5
+  local 9
+  num 1
+  add
+  setlocal 9
+  jump 90
+  line 19
+  local 5
+  call 1 ConOut
+  pop
+  line 20
+  local 1
+  setlocal 10
+  num 1
+  setlocal 12
+  line 20
+  local 12
+  local 10
+  call 1 Len
+  le
+  jumpf 141
+  local 10
+  local 12
+  index
+  setlocal 11
+  local 11
+  num 5
+  gt
+  jumpf 132
+  local 12
+  local 11
+  call 2 ConOut
+  pop
+  jump 136
+  local 2
+  num 1
+  sub
+  setlocal 2
+  local 12
+  num 1
+  add
+  setlocal 12
+  jump 113
+  line 21
+  local 2
+  call 1 ConOut
+  pop
+  line 22
+  num 1
+  setlocal 14
+  line 22
+  local 14
+  num 20
+  le
+  jumpf 169
+  local 14
+  setlocal 13
+  local 13
+  num 3
+  gt
+  jumpf 160
+  jump 169
+  local 2
+  local 13
+  add
+  setlocal 2
+  local 14
+  num 1
+  add
+  setlocal 14
+  jump 148
+  line 23
+  local 2
+  call 1 ConOut
+  pop
+  line 24
+  num 5
+  neg
+  call 1 Sign
+  num 0
+  call 1 Sign
+  num 2
+  call 1 Sign
+  call 3 ConOut
+  pop
+  line 25
+  num 0
+  setlocal 4
+  line 26
+  true
+  jumpf 204
+  local 4
+  num 1
+  add
+  setlocal 4
+  local 4
+  num 4
+  ge
+  jumpf 199
+  jump 204
+  jump 203
+  local 2
+  num 1
+  add
+  setlocal 2
+  jump 186
+  line 27
+  local 4
+  local 2
+  call 2 ConOut
+  pop
+  line 28
+  local 2
+  num 0
+  gt
+  jumpf 220
+  num 0
+  setlocal 3
+  local 2
+  str "x"
+  add
+  setlocal 2
+  line 29
+  local 2
+  ret
+end
+
+function SIGN static 1 1
+  locals nX
+  line 32
+  local 1
+  num 0
+  lt
+  jumpf 10
+  num 1
+  neg
+  ret
+  jump 19
+  local 1
+  num 0
+  exact
+  jumpf 17
+  num 0
+  ret
+  jump 19
+  num 1
+  ret
+  line 33
+  nil
+  ret
+end

@@ -749,6 +749,67 @@ of the line. `return if lSkip` returns nothing when `lSkip` -- the `if` is a
 modifier, not the value. `exec expression` marks an expression as a
 statement, and only exists with a modifier.
 
+### One-line forms
+
+An `if`, a `while`, a `for ... in` and a `for ... times` may be written on
+one line, the condition first and the statements after `exec`:
+
+```xtpl
+User Function OneLine(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nSum := 0
+  if Empty(aItems) exec return 0
+  for oItem in aItems exec (if oItem:lOk exec nOk++ else nErr++), nSum += oItem:nValue
+  while nSum > 100 exec nSum -= 100
+  if nErr > 0 exec conout("errors: " + cValToChar(nErr)) else conout("ok")
+Return nSum
+```
+
+```tlpp
+User Function OneLine(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nSum := 0
+  Local oItem  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  If Empty(aItems)
+    return 0
+  EndIf
+  fs_0_0 := aItems
+  For fi_0_0 := 1 To Len(fs_0_0)
+    oItem := fs_0_0[fi_0_0]
+    If oItem:lOk
+      nOk++
+    Else
+      nErr++
+    EndIf
+    nSum += oItem:nValue
+  Next
+  While nSum > 100
+    nSum -= 100
+  EndDo
+  If nErr > 0
+    conout("errors: " + cValToChar(nErr))
+  Else
+    conout("ok")
+  EndIf
+Return nSum
+```
+
+`if c exec s, s else s, s`, `while c exec s, s`, `for x [, i] in source exec
+s, s` and `for n times exec s, s` are the blocks they stand for. A branch is
+statements between commas -- the simple statements a modifier takes --,
+and runs to its `else`, to the `)` of its group, or to the end of the line:
+the commas are always the innermost form's. A group, `( ... )`, holds
+statements of the branch it is in; a one-line form inside another's branch
+goes in one, and takes the rest of it, so that an `else` has one `if` to go
+with: `if a exec (if b exec x else y), z`. One that is not in parentheses
+is refused. A one-line form takes no `local` in its header, and a `for ...
+in lines()` is a block, which closes the file on every way out. The
+statements share the line: an error in one is on it.
+
 ### defer
 
 ```xtpl

@@ -132,6 +132,7 @@ function files(dir)
     ['  for oItem, nPos in aItems', 'in', 'keyword.control'],
     ['  for oItem, nPos in aItems', 'nPos', 'variable.other'],
     ['  for 3 times', 'times', 'keyword.control'],
+    ['  if lOk exec nOk++ else nErr++', 'exec', 'keyword.control'],
     ['  Return nTotal', 'Return', 'keyword.control'],
     ['  defer conout("bye")', 'defer', 'keyword.control'],
     ['  using alias SA1 order 1 do', 'alias', 'keyword.control'],

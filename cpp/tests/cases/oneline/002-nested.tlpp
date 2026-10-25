@@ -1,0 +1,63 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A one-line form inside another, in parentheses: it takes the rest of
+// them, and an 'else' goes with the 'if' it is in.
+User Function Nested(aItems)
+  Local nOk := 0
+  Local nErr := 0
+  Local nI := 0
+  Local nSum := 0
+  Local lBig := .T.
+  Local oItem  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... times'
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_2  // the counter of a 'for ... in'
+  If lBig
+    If nOk > 1
+      nOk--
+    Else
+      nErr++
+    EndIf
+    nSum++
+  Else
+    nSum--
+  EndIf
+  fs_0_0 := aItems
+  For fi_0_0 := 1 To Len(fs_0_0)
+    oItem := fs_0_0[fi_0_0]
+    If oItem:lOk
+      nOk++
+      nSum++
+    Else
+      nErr++
+    EndIf
+    nSum++
+  Next
+  While nI > 0
+    nI--
+    If nI == 5
+      exit
+    EndIf
+  EndDo
+  For fi_0_1 := 1 To 2
+    fs_0_1 := aItems
+    For fi_0_2 := 1 To Len(fs_0_1)
+      oItem := fs_0_1[fi_0_2]
+      If oItem:lOk
+        nOk++
+      EndIf
+    Next
+  Next
+  If nOk == 0
+    return 0
+  Else
+    If nErr > 0
+      return -1
+    Else
+      nOk++
+    EndIf
+  EndIf
+Return nSum

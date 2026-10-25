@@ -1,0 +1,10 @@
+#include "totvs.ch"
+
+// A one-line form inside another's branch with no parentheses -- which 'if'
+// would an 'else' go with? -- and one over lines(), a block's.
+User Function Refused(aItems)
+  Local nSum := 0
+  if nSum > 1 exec if nSum > 2 exec nSum++ else nSum--
+  for oItem in aItems exec nSum++, for 2 times exec nSum++
+  for cLine in lines("x.txt") exec nSum++
+Return nSum

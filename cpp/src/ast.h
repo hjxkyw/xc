@@ -250,6 +250,11 @@ namespace xc
     int line = 0;
     int from = -1;
     int to   = -1;
+    // An 'if', 'while', 'for ... in' or 'for ... times' written on one line,
+    // its bodies after 'exec' -- and bare: one inside another's branch not in
+    // parentheses, which the checks refuse.
+    bool oneline = false;
+    bool bare = false;
   };
 
   using Body = std::vector<Stmt*>;

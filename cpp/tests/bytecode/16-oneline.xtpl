@@ -1,0 +1,33 @@
+// Statements on one line -- 'if c exec s, s else s', 'while c exec s',
+// 'for x in a exec s', 'for n times exec s', a one-line form inside another
+// in parentheses --, each the block it stands for, and an error in one: on
+// its line.
+User Function Main()
+  Local aNums := {4, 7, 1, 9}
+  Local nSum := 0
+  Local nOdd := 0
+  Local nI := 0
+  Local cOut := ""
+
+  for nX in aNums exec nSum += nX, (if nX % 2 == 1 exec nOdd++)
+  ConOut(nSum, nOdd)
+  if nSum > 20 exec cOut := "big" else cOut := "small"
+  ConOut(cOut)
+  while nI < 10 exec nI += 3
+  ConOut(nI)
+  for 3 times exec cOut += "!"
+  ConOut(cOut)
+  for nX, nPos in aNums exec (if nX > 5 exec ConOut(nPos, nX) else nSum--)
+  ConOut(nSum)
+  for nX in 1..20 exec (if nX > 3 exec exit), nSum += nX
+  ConOut(nSum)
+  ConOut(Sign(-5), Sign(0), Sign(2))
+  nI := 0
+  while .T. exec nI++, (if nI >= 4 exec exit else nSum++)
+  ConOut(nI, nSum)
+  if nSum > 0 exec nOdd := 0, nSum := nSum + "x"
+Return nSum
+
+Static Function Sign(nX)
+  if nX < 0 exec return -1 else (if nX == 0 exec return 0 else return 1)
+Return Nil

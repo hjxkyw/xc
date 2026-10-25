@@ -1185,6 +1185,24 @@ namespace xc
       if (s->line) { line_ = s->line; }
       sources_ok_.clear();
       chains_ok_.clear();
+      if (s->oneline)
+      {
+        // A one-line form inside another's branch is in parentheses, so that
+        // an 'else' has one 'if' to go with; one over lines() is a block,
+        // which closes the file on every way out.
+        const char* kw = s->kind == SK::IfStmt ? "if" : s->kind == SK::WhileStmt ? "while" : "for";
+        if (s->bare)
+        {
+          problem(std::string("a one-line '") + kw + "' inside another goes in parentheses: 'if a exec (if b exec x "
+                  "else y), z'.");
+        }
+        if (s->kind == SK::ForInStmt && is(static_cast<ForInStmt*>(s)->source, EK::Call)
+            && source_kind(static_cast<ForInStmt*>(s)->source) == "lines")
+        {
+          problem("a 'for ... in lines()' on one line is refused: write the block, which closes the file on every way "
+                  "out.");
+        }
+      }
       // The rule for rows(), lines() and 'lo..hi': where a chain from one may
       // be, and the source alone.
       std::vector<Expr*> whole;

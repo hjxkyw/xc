@@ -499,9 +499,9 @@ namespace xc
       {
         expressions(exprs_of(s));
       }
-      // A Modified is lowered whole, with what it holds. A loop's body is
-      // marked, so an 'exit' in it knows what it leaves.
-      if (!bodies_of(s).empty() && !(k == SK::Modified || walked))
+      // A Modified is lowered whole, with what it holds, and so is a one-line
+      // form. A loop's body is marked, so an 'exit' in it knows what it leaves.
+      if (!bodies_of(s).empty() && !(k == SK::Modified || s->oneline || walked))
       {
         bool loop = k == SK::WhileStmt || k == SK::ForStmt || k == SK::ForInStmt || k == SK::ForTimesStmt;
         if (loop) { closers_.push_back(Closer{ "loop", {} }); }
@@ -1363,6 +1363,7 @@ namespace xc
   // The lowered lines of a statement, and whether they open a block.
   Emitter::Lowered Emitter::lower(const Stmt* s)
   {
+    if (s->oneline) { return Lowered{ true, oneline_lines(s) }; }
     switch (s->kind)
     {
       case SK::Modified:
@@ -1476,6 +1477,110 @@ namespace xc
     if (s->kind == SK::ReturnStmt) { out = return_exits(s); }
     else if (s->kind == SK::ExitStmt || s->kind == SK::LoopStmt) { out = jump_exits(); }
     append(out, lines_of(with_edits(s, exprs_of(s))));
+    return out;
+  }
+
+  // A one-line form as the block it is: its header as the block's, then each
+  // statement of its bodies as lower_inner() has it -- a one-line form in
+  // one as this --, with the block locals of its header renamed in them.
+  Lines Emitter::oneline_lines(const Stmt* s)
+  {
+    Lines out;
+    Map saved = subst_;
+    const Renames* r = nullptr;
+    if (auto it = renames_.find(s); it != renames_.end()) { r = &it->second; }
+    auto body = [&](const Body& b, std::size_t i, bool loop)
+    {
+      subst_ = saved;
+      if (r)
+      {
+        for (const auto& [k, v] : r->head) { subst_[k] = v; }
+        if (i < r->bodies.size())
+        {
+          for (const auto& [k, v] : r->bodies[i]) { subst_[k] = v; }
+        }
+      }
+      if (loop) { closers_.push_back(Closer{ "loop", {} }); }
+      for (const Stmt* x : b)
+      {
+        for (const std::string& l : x->oneline ? oneline_lines(x) : lower_inner(x)) { out.push_back("  " + l); }
+      }
+      if (loop) { closers_.pop_back(); }
+      subst_ = saved;
+    };
+    switch (s->kind)
+    {
+      case SK::IfStmt:
+      {
+        auto i = static_cast<const IfStmt*>(s);
+        out.push_back("If " + expr(i->branches[0]->cond));
+        body(i->branches[0]->body, 0, false);
+        if (!i->otherwise.empty())
+        {
+          out.push_back("Else");
+          body(i->otherwise, 1, false);
+        }
+        out.push_back("EndIf");
+        break;
+      }
+      case SK::WhileStmt:
+      {
+        out.push_back("While " + expr(static_cast<const WhileStmt*>(s)->cond));
+        body(static_cast<const WhileStmt*>(s)->body, 0, true);
+        out.push_back("EndDo");
+        break;
+      }
+      case SK::ForTimesStmt:
+      {
+        auto f = static_cast<const ForTimesStmt*>(s);
+        std::string ctr = gen("fi", "the counter of a 'for ... times'");
+        if (is_numeric_literal(f->count))
+        {
+          out.push_back("For " + ctr + " := 1 To " + expr(f->count));
+        }
+        else
+        {
+          std::string n = gen("fn", "the count of a 'for ... times'");
+          append(out, { n + " := " + expr(f->count), "For " + ctr + " := 1 To " + n });
+        }
+        body(f->body, 0, true);
+        out.push_back("Next");
+        break;
+      }
+      case SK::ForInStmt:
+      {
+        // As the block's: a count over a range, else the source read once.
+        auto f = static_cast<const ForInStmt*>(s);
+        std::string el = nm(s, f->elem);
+        std::optional<std::string> ix;
+        if (f->index) { ix = nm(s, *f->index); }
+        hoist(el, "a block local");
+        if (ix) { hoist(*ix, "a block local"); }
+        Lines tail;
+        if (is_expr(f->source, EK::Interval))
+        {
+          auto iv = static_cast<const Interval*>(f->source);
+          std::string lo = range_end(iv->lo, "flo", "the low end of a range", out);
+          std::string hi = range_end(iv->hi, "fhi", "the high end of a range", out);
+          std::string fi = gen("fi", "the counter of a 'for ... in'");
+          if (ix) { out.push_back(*ix + " := 0"); }
+          append(out, { "For " + fi + " := " + lo + " To " + hi, "  " + el + " := " + fi });
+          if (ix) { out.push_back("  " + *ix + "++"); }
+        }
+        else
+        {
+          std::string src = gen("fs", "the source of a 'for ... in'");
+          std::string ctr = ix ? *ix : gen("fi", "the counter of a 'for ... in'");
+          append(out, { src + " := " + expr(f->source), "For " + ctr + " := 1 To Len(" + src + ")",
+                        "  " + el + " := " + src + "[" + ctr + "]" });
+        }
+        body(f->body, 0, true);
+        out.push_back("Next");
+        break;
+      }
+      default:
+        break;
+    }
     return out;
   }
 

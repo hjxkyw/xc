@@ -1,0 +1,55 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// What a branch may hold: any simple statement -- xtpl's, which lower, a
+// 'return' that runs the defers first, 'break', a call through an area.
+User Function Bodies(aItems, cAlias)
+  Local hSeen := THashMap():New()
+  Local xVal
+  Local nI := 0
+  Local nSum := 0
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local fi_0_1  // the counter of a 'for ... times'
+  Local fi_0_2  // the position in the array walked
+  Local fv_0_1  // the element walked
+  If Empty(aItems)
+    conout("bye")
+    return -1
+  Else
+    nI := 1
+  EndIf
+  While nI < 5
+    nI++
+    If nI == 3
+      break
+    Else
+      nSum++
+    EndIf
+  EndDo
+  If nSum > 0
+    If xVal == Nil
+      xVal := 7
+    EndIf
+    hSeen:Set("k", nSum)
+    fo_0_0 := 0
+    For fi_0_0 := 1 To Len(aItems)
+      fv_0_0 := aItems[fi_0_0]
+      fv_0_0 := fv_0_0 * 2
+      fo_0_0 := fo_0_0 + fv_0_0
+    Next
+    nSum := fo_0_0
+  EndIf
+  If !Empty(cAlias)
+    (cAlias)->(DbSkip())
+    nSum++
+  EndIf
+  For fi_0_1 := 1 To 2
+    For fi_0_2 := 1 To Len(aItems)
+      fv_0_1 := aItems[fi_0_2]
+      conout(fv_0_1)
+    Next
+  Next
+  conout("bye")
+Return nSum

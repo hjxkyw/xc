@@ -293,7 +293,7 @@
         },
         {
           "name": "keyword.control.xtpl",
-          "match": "(?i)\\b(if|elseif|else|endif|while|enddo|for|to|step|next|exit|loop|return|do|case|otherwise|endcase|begin|sequence|recover|using|break|try|catch|finally|endtry|transaction|end|times|default)\\b"
+          "match": "(?i)\\b(if|elseif|else|endif|while|enddo|for|to|step|next|exit|loop|return|do|case|otherwise|endcase|begin|sequence|recover|using|break|try|catch|finally|endtry|transaction|end|times|default|exec)\\b"
         }
       ]
     },

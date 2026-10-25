@@ -229,6 +229,7 @@ namespace xc
 
   bool needs_lowering(const Stmt* s)
   {
+    if (s->oneline) { return true; }
     switch (s->kind)
     {
       case SK::Modified:
