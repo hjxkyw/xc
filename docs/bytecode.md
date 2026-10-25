@@ -566,7 +566,9 @@ It runs what it loads as the loop is fastest at it:
   strings --, XC its cells, XT the module's statics, XO Self, and X1, X2,
   ... values kept on the way. What the run pushes and takes again is an
   expression, never stored; a value is kept first when something is set
-  before it is used, and what is subscripted is a variable, as in the loop.
+  before it is used; a subscript is `u_xbcidx()`'s or `u_xbcset()`'s, the
+  interpreter's -- in a macro's block the AppServer words an error of one
+  `array out of bounds ( 2 of 0 )`, not `[2] of [0]` as of a Local.
   The block is made for the stack's height the run first meets; at
   another, and when a call turns out to be a module's function or the
   macro compiler refuses the block, the run is the loop's. An error in it

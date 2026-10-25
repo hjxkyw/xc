@@ -1882,8 +1882,8 @@ Return .T.
 // run pushes and takes again is an expression, never stored; what it
 // leaves goes where it would be, and the condition of the jump that ends
 // it is what the block gives. A value is kept before anything is set --
-// one read before, or a call --, and what is subscripted is a variable, as
-// in the loop. A call that turns out to be a module's, or a block the
+// one read before, or a call --, and a subscript is u_xbcidx()'s or
+// u_xbcset()'s. A call that turns out to be a module's, or a block the
 // macro compiler refuses, leaves the run to the loop. On xc-vm, the block
 // is u_xbcjit()'s, from the module jitdump=FILE wrote.
 Method Jit(aF, aIns, nSp) Class XbcVM
@@ -1980,18 +1980,13 @@ Method Jit(aF, aIns, nSp) Class XbcVM
     Case nOp == OP_INDEX
       aE := XjPop(aJ)
       aA := XjPop(aJ)
-      If aA[2] == 2 .Or. XjCalls(aJ)
-        XjPush(aJ, aA[1], aA[2])
-        XjSettle(aJ)
-        aA := XjPop(aJ)
-      EndIf
-      XjPush(aJ, XjVar(aJ, aA) + "[" + aE[1] + "]", Max(1, aE[2]))
+      XjPush(aJ, "u_xbcidx(" + aA[1] + ", " + aE[1] + ")", Max(1, Max(aA[2], aE[2])))
     Case nOp == OP_SETINDEX
       aX := XjPop(aJ)
       aE := XjPop(aJ)
       aA := XjPop(aJ)
       XjSettle(aJ)
-      AAdd(aJ[J_OUT], XjVar(aJ, aA) + "[" + aE[1] + "] := " + aX[1])
+      AAdd(aJ[J_OUT], "u_xbcset(" + aA[1] + ", " + aE[1] + ", " + aX[1] + ")")
     Case nOp == OP_NEG .Or. nOp == OP_NOT
       aE := XjPop(aJ)
       XjPush(aJ, "(" + If(nOp == OP_NEG, "-", "!") + aE[1] + ")", aE[2])
@@ -2051,6 +2046,16 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   aIns[I_E] := nTop + Len(aJ[J_STACK])
   aIns[I_K] := 1
 Return Nil
+
+// A subscript in a block of the JIT's, of a Local as in the loop: in a
+// macro's block the AppServer words an error of one 'array out of bounds
+// ( 2 of 0 )', not '[2] of [0]' (04-flow, on 24.3.1.9).
+User Function xbcidx(xArray, xIndex)
+Return xArray[xIndex]
+
+User Function xbcset(xArray, xIndex, xValue)
+  xArray[xIndex] := xValue
+Return xValue
 
 // With jitdump=FILE: the blocks the JIT could not make, as a module whose
 // u_xbcjit(cText) gives the block of each -- for xc-vm, which has no macro
