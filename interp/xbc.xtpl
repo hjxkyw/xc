@@ -165,7 +165,9 @@
 #define K_SLOW    9
 
 // A function: {name, kind, parameters, locals, module, instructions, the
-// most its stack holds, its number in the machine's list of them}.
+// most its stack holds, its number in the machine's list of them, what its
+// code blocks run instead of it -- .F. for none, Nil before the first is
+// made (JitWhole())}.
 #define FN_NAME    1
 #define FN_KIND    2
 #define FN_PARAMS  3
@@ -174,6 +176,7 @@
 #define FN_CODE    6
 #define FN_STACK   7
 #define FN_ID      8
+#define FN_FAST    9
 
 // A module: {source, statics, NAME => function, namespace, usings, its
 // functions in order, the namespaces a plain name is looked for in}.
@@ -232,6 +235,7 @@
 #define J_BASE   5
 #define J_BELOW  6
 #define J_READS  7
+#define J_WHOLE  8
 
 // What a reference and an error on its way are: arrays no program makes,
 // their first element one of these.
@@ -246,6 +250,9 @@ Static scNone
 // The machine running, which the program's code blocks run in
 // (XbcMakeBlock()).
 Static sxVM
+// The number of the function a code block of the JIT's whole is running
+// for, 0 for none: where an error in it is (XbcMakeFast(), OnError()).
+Static snFast
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
@@ -262,6 +269,7 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   scErr := Chr(1) + "xbc error"
   scNone := Chr(1) + "xbc none"
   sxBroke := scNone
+  snFast := 0
   for xArg in {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16}
     Local cArg := If(ValType(xArg) == "C", xArg, "")
     Local cOpt := If(Left(cArg, 2) == "--", SubStr(cArg, 3), cArg)
@@ -373,6 +381,8 @@ Class XbcVM
   Public Method Classify(aIns, xFound, aArgs)
   Public Method JitCallable(cName)
   Public Method Jit(aF, aIns, nSp)
+  Public Method JitOps(aJ, aMod, aRun)
+  Public Method JitWhole(aFn)
   Public Method JitDump()
   Public Method CallNative(cName, aArgs)
   Public Method Native(cWhat, cName, cMethod, xObj, aArgs)
@@ -591,7 +601,7 @@ Method Load(cPath) Class XbcVM
       nI++
       ::hClasses{aCls[C_NAME]} := aCls
     Case cWord == "function"
-      aFn := {aWords[2], aWords[3], Val(aWords[4]), Val(aWords[5]), aMod, {}, 0, Len(::aFns) + 1}
+      aFn := {aWords[2], aWords[3], Val(aWords[4]), Val(aWords[5]), aMod, {}, 0, Len(::aFns) + 1, Nil}
       AAdd(::aFns, aFn)
       nLine := 0
       While nI <= Len(aLines) .And. !(aLines[nI] == "end")
@@ -1571,7 +1581,12 @@ Method Run(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            ::JitWhole(aFn) if aFn[FN_FAST] == Nil
+            If ValType(aFn[FN_FAST]) == "L"
+              aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            Else
+              aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
+            EndIf
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -1937,19 +1952,75 @@ Return .T.
 // macro compiler refuses, leaves the run to the loop. On xc-vm, the block
 // is u_xbcjit()'s, from the module jitdump=FILE wrote.
 Method Jit(aF, aIns, nSp) Class XbcVM
-  Local aJ := {{}, {}, {}, 0, nSp, 0, .F.}
-  Local aE
-  Local aA
-  Local aX
-  Local aArgs
+  Local aJ := {{}, {}, {}, 0, nSp, 0, .F., Nil}
   Local cText
   Local cCond := ""
   Local cTemps := ""
   Local bBlock := Nil
   Local nTop
-  Local nOp
   aIns[I_K] := 2
-  for aOne in aIns[I_X]
+  Return Nil if !::JitOps(aJ, aF[F_FN][FN_MOD], aIns[I_X])
+  If aIns[I_N] == 1 .Or. aIns[I_N] == 2
+    cCond := XjPop(aJ)[1]
+  EndIf
+  // What it leaves, where it would be -- each kept first when one reads
+  // the stack below the run, which they go over.
+  nTop := aJ[J_BASE] - aJ[J_BELOW]
+  If aJ[J_READS] .And. !Empty(aJ[J_STACK])
+    XjPush(aJ, cCond, 1) if !Empty(cCond)
+    XjSettle(aJ)
+    cCond := XjPop(aJ)[1] if !Empty(cCond)
+  EndIf
+  for aEach, nK in aJ[J_STACK]
+    cText := "XL[${nTop + nK}]"
+    AAdd(aJ[J_OUT], cText + " := " + aEach[1]) if !(aEach[1] == cText)
+  next
+  AAdd(aJ[J_OUT], If(Empty(cCond), "Nil", cCond))
+  For local nT := 1 To aJ[J_TEMPS]
+    cTemps += ", X${nT}"
+  Next
+  cText := "{|XL, XK, XC, XT, XO${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
+  If ::lHost
+    bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
+  Else
+    bBlock := XbcJitBlock(cText)
+  EndIf
+  If ValType(bBlock) != "B"
+    ::hJitDump{cText} := .T. if !Empty(::cJitDump)
+    Return Nil
+  EndIf
+  aIns[I_C] := bBlock
+  aIns[I_S2] := aJ[J_CONSTS]
+  aIns[I_D] := nSp
+  aIns[I_E] := nTop + Len(aJ[J_STACK])
+  aIns[I_K] := 1
+Return Nil
+
+// The JIT's block, by the AppServer's macro compiler: Nil for one it cannot
+// make. Here, not in Jit() -- no code block is made where the machine's
+// arrays are in reach (XbcMakeBlock()).
+Static Function XbcJitBlock(cText)
+  Local bOld := ErrorBlock({|e| Break(e)})
+  Local bBlock
+  Begin Sequence
+    bBlock := &(cText)
+  Recover
+    bBlock := Nil
+  End Sequence
+  ErrorBlock(bOld)
+Return bBlock
+
+// A run's instructions, the JIT's way, into aJ: .F. for one the JIT cannot
+// have -- a call that turns out to be a module's function; in a whole, a
+// cell of its own.
+Method JitOps(aJ, aMod, aRun) Class XbcVM
+  Local aE
+  Local aA
+  Local aX
+  Local aArgs
+  Local cText
+  Local nOp
+  for aOne in aRun
     nOp := aOne[I_OP]
     Do Case
     Case nOp == OP_NIL
@@ -1967,8 +2038,9 @@ Method Jit(aF, aIns, nSp) Class XbcVM
     Case nOp == OP_STR
       XjPush(aJ, XjConst(aJ, aOne[I_S]), 0)
     Case nOp == OP_LOCAL
-      XjPush(aJ, "XL[${aOne[I_A]}]", 1)
+      XjPush(aJ, XjLocal(aJ, aOne[I_A]), 1)
     Case nOp == OP_CELL
+      Return .F. if aJ[J_WHOLE] != Nil
       XjPush(aJ, "XL[${aOne[I_A]}][1]", 1)
     Case nOp == OP_UPVAL
       XjPush(aJ, "XC[${aOne[I_A]}][1]", 1)
@@ -1981,8 +2053,9 @@ Method Jit(aF, aIns, nSp) Class XbcVM
       XjSettle(aJ)
       Do Case
       Case nOp == OP_SETLOCAL
-        cText := "XL[${aOne[I_A]}]"
+        cText := XjLocal(aJ, aOne[I_A])
       Case nOp == OP_SETCELL
+        Return .F. if aJ[J_WHOLE] != Nil
         cText := "XL[${aOne[I_A]}][1]"
       Case nOp == OP_SETUPVAL
         cText := "XC[${aOne[I_A]}][1]"
@@ -2043,37 +2116,54 @@ Method Jit(aF, aIns, nSp) Class XbcVM
       aE := XjPop(aJ)
       XjPush(aJ, "(ValType(" + aE[1] + ") == " + XjConst(aJ, "U") + ")", aE[2])
     Case nOp == OP_CALL
-      Return Nil if ValType(::Resolve(aF[F_FN][FN_MOD], aOne[I_S], .F.)) == "A" .Or. !::JitCallable(aOne[I_S])
+      Return .F. if ValType(::Resolve(aMod, aOne[I_S], .F.)) == "A" .Or. !::JitCallable(aOne[I_S])
       aArgs := XjPops(aJ, aOne[I_A])
       XjPush(aJ, aOne[I_S] + "(" + XjTexts(aArgs) + ")", 2)
     Otherwise
       cText := XjOperator(nOp)
-      Return Nil if Empty(cText)
+      Return .F. if Empty(cText)
       aE := XjPop(aJ)
       aA := XjPop(aJ)
       XjPush(aJ, "(" + aA[1] + " " + cText + " " + aE[1] + ")", Max(aA[2], aE[2]))
     EndCase
   next
-  If aIns[I_N] == 1 .Or. aIns[I_N] == 2
-    cCond := XjPop(aJ)[1]
-  EndIf
-  // What it leaves, where it would be -- each kept first when one reads
-  // the stack below the run, which they go over.
-  nTop := aJ[J_BASE] - aJ[J_BELOW]
-  If aJ[J_READS] .And. !Empty(aJ[J_STACK])
-    XjPush(aJ, cCond, 1) if !Empty(cCond)
-    XjSettle(aJ)
-    cCond := XjPop(aJ)[1] if !Empty(cCond)
-  EndIf
-  for aEach, nK in aJ[J_STACK]
-    cText := "XL[${nTop + nK}]"
-    AAdd(aJ[J_OUT], cText + " := " + aEach[1]) if !(aEach[1] == cText)
-  next
-  AAdd(aJ[J_OUT], If(Empty(cCond), "Nil", cCond))
-  For local nT := 1 To aJ[J_TEMPS]
-    cTemps += ", X${nT}"
+Return .T.
+
+// A code block's function that is one run of the JIT's and its 'ret' --
+// most of a program's, '[x] x * 3', '{|x| nSum += x}' -- is one block the
+// macro compiler makes, the first time a block of it is made, that the
+// program's block runs itself, with no frame and no loop (XbcMakeFast()):
+//
+//   {|XC, XK, XT, XO, P1, ..., L1, ..., X1, ...| statement, ..., value}
+//
+// P its parameters -- as many as the block passes, none, one, two or 12
+// --, L its other locals, then what a run's block has. A run that leaves
+// other than one value, or reads below it, is not one.
+Method JitWhole(aFn) Class XbcVM
+  Local aCode := aFn[FN_CODE]
+  Local aIns := aCode[1]
+  Local nP := aFn[FN_PARAMS]
+  Local nSlots := If(nP <= 2, nP, 12)
+  Local aJ
+  Local cText := ""
+  Local bBlock
+  Local lStatics := .F.
+  aFn[FN_FAST] := .F.
+  Return Nil if nP > 12 .Or. !(aIns[I_OP] == OP_JIT .And. aIns[I_N] == 0 .And. aIns[I_A] <= Len(aCode))
+  Return Nil if !(aCode[aIns[I_A]][I_OP] == OP_RET)
+  aJ := {{}, {}, {}, 0, aFn[FN_NLOCALS], 0, .F., nP}
+  Return Nil if !::JitOps(aJ, aFn[FN_MOD], aIns[I_X]) .Or. !(Len(aJ[J_STACK]) == 1) .Or. aJ[J_READS]
+  For local nK := 1 To nSlots
+    cText += ", P${nK}"
   Next
-  cText := "{|XL, XK, XC, XT, XO${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
+  For local nK := nP + 1 To aFn[FN_NLOCALS]
+    cText += ", L${nK}"
+  Next
+  For local nT := 1 To aJ[J_TEMPS]
+    cText += ", X${nT}"
+  Next
+  AAdd(aJ[J_OUT], aJ[J_STACK][1][1])
+  cText := "{|XC, XK, XT, XO${cText}| " + (aJ[J_OUT] |> join(", ")) + "}"
   If ::lHost
     bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
   Else
@@ -2083,26 +2173,17 @@ Method Jit(aF, aIns, nSp) Class XbcVM
     ::hJitDump{cText} := .T. if !Empty(::cJitDump)
     Return Nil
   EndIf
-  aIns[I_C] := bBlock
-  aIns[I_S2] := aJ[J_CONSTS]
-  aIns[I_D] := nSp
-  aIns[I_E] := nTop + Len(aJ[J_STACK])
-  aIns[I_K] := 1
+  for aOne in aIns[I_X]
+    lStatics := .T. if aOne[I_OP] == OP_STATIC .Or. aOne[I_OP] == OP_SETSTATIC
+  next
+  aFn[FN_FAST] := {bBlock, aJ[J_CONSTS], If(lStatics, aFn[FN_MOD][M_STATICS], Nil), aFn[FN_ID], nSlots}
 Return Nil
 
-// The JIT's block, by the AppServer's macro compiler: Nil for one it cannot
-// make. Here, not in Jit() -- no code block is made where the machine's
-// arrays are in reach (XbcMakeBlock()).
-Static Function XbcJitBlock(cText)
-  Local bOld := ErrorBlock({|e| Break(e)})
-  Local bBlock
-  Begin Sequence
-    bBlock := &(cText)
-  Recover
-    bBlock := Nil
-  End Sequence
-  ErrorBlock(bOld)
-Return bBlock
+// A local, in a run: of the frame's locals and stack; in a whole, one of
+// the block's parameters, P for one of the function's, L for another.
+Static Function XjLocal(aJ, nLocal)
+  Return "XL[${nLocal}]" if aJ[J_WHOLE] == Nil
+Return If(nLocal <= aJ[J_WHOLE], "P", "L") + cValToChar(nLocal)
 
 // A subscript in a block of the JIT's, of a Local as in the loop: in a
 // macro's block the AppServer words an error of one 'array out of bounds
@@ -2587,9 +2668,17 @@ Return Nil
 Method OnError(oErr) Class XbcVM
   Local aAt
   Local cAt
-  // Where: the frame running, at the instruction it called from -- the loop
+  Local aFn
+  Local aF := ATail(::aFrames)
+  // Where: the function of a whole of the JIT's running, at its line;
+  // else the frame running, at the instruction it called from -- the loop
   // running it puts the line of the one it ran last (Run()).
-  If local aF := ATail(::aFrames), aF != Nil
+  If snFast > 0
+    aFn := ::aFns[snFast]
+    snFast := 0
+    ::aErrAt := Nil
+    ::cWhere := "${aFn[FN_NAME]}, line ${aFn[FN_CODE][1][I_LINE]}"
+  ElseIf aF != Nil
     ::aErrAt := aF
     ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aF[F_FN][FN_CODE][Max(aF[F_PC] - 1, 1)][I_LINE]}"
   EndIf
@@ -3010,6 +3099,28 @@ Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
         If(sxVM:nRuns % 4 == 1, sxVM:Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
         If(sxVM:nRuns % 4 == 2, sxVM:Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
                                 sxVM:Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12))))}
+
+// The program's code block whose function is a whole of the JIT's
+// (JitWhole()): one of the AppServer's that runs that block, with the
+// cells, the constants, the statics -- for one that has some -- and the
+// object, and what it was given. snFast says, while it runs, whose it is:
+// an error in it is on the function's line (OnError()). Its closure holds
+// no array of the machine's either (XbcMakeBlock()).
+Static Function XbcMakeFast(aFast, aCells, xSelf)
+  Local bFast := aFast[1]
+  Local aK := aFast[2]
+  Local aT := aFast[3]
+  Local nFn := aFast[4]
+  Do Case
+  Case aFast[5] == 0
+    Return {|r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf), snFast := 0, r}
+  Case aFast[5] == 1
+    Return {|p1, r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf, p1), snFast := 0, r}
+  Case aFast[5] == 2
+    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aCells, aK, aT, xSelf, p1, p2), snFast := 0, r}
+  EndCase
+Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
+        r := Eval(bFast, aCells, aK, aT, xSelf, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
 
 // A block run: its frame, its parameters from what it was given, in Run() --
 // Enter1() in Run1(), and so on.
@@ -3527,7 +3638,12 @@ Method Run1(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            ::JitWhole(aFn) if aFn[FN_FAST] == Nil
+            If ValType(aFn[FN_FAST]) == "L"
+              aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            Else
+              aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
+            EndIf
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -4222,7 +4338,12 @@ Method Run2(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            ::JitWhole(aFn) if aFn[FN_FAST] == Nil
+            If ValType(aFn[FN_FAST]) == "L"
+              aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            Else
+              aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
+            EndIf
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -4917,7 +5038,12 @@ Method Run3(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            ::JitWhole(aFn) if aFn[FN_FAST] == Nil
+            If ValType(aFn[FN_FAST]) == "L"
+              aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
+            Else
+              aSt[nSp] := XbcMakeFast(aFn[FN_FAST], xA, aF[F_SELF])
+            EndIf
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
