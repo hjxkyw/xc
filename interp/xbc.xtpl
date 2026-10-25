@@ -27,8 +27,9 @@
 // functions, the classes, the variables; the instructions and the frames
 // are arrays, which the loop reads by position. What it loads becomes what
 // the loop runs fastest (Load(), XbcFused()), and the loop makes the calls
-// it can itself (Run()). The loop keeps TL++'s own forms; the rest is
-// xtpl's.
+// it can itself (Run()). The loop keeps TL++'s own forms -- what it does is
+// what it costs --, but for xtpl's one-line ones, which are the same blocks;
+// the rest is xtpl's. A block of one statement is a one-line form.
 // -----------------------------------------------------------------------------
 
 // ---- instructions -----------------------------------------------------------
@@ -318,9 +319,7 @@ Return ValType(xValue) == "A" .And. Len(xValue) == 3 .And. ValType(xValue[1]) ==
 // XbcMakeBlock()).
 Static Function XbcAnyRef(aArgs)
   Local nI
-  For nI := 1 To Len(aArgs)
-    Return .T. if XbcIsRef(aArgs[nI])
-  Next
+  for nI := 1 to Len(aArgs) exec (if XbcIsRef(aArgs[nI]) exec Return .T.)
 Return .F.
 
 Static Function XbcIsErr(xValue)
@@ -504,9 +503,7 @@ Method Start(aFiles, cEntry) Class XbcVM
   defer sxVM := oWas
   defer ErrorBlock(bOld)
   Begin Sequence
-    for cFile in aFiles
-      ::Load(cFile)
-    next
+    for cFile in aFiles exec ::Load(cFile)
     for aMod in ::aMods
       If local aInit := aMod[M_FNS]{"__INIT"}, aInit != Nil
         ::Push(aInit, {}, Nil, Nil)
@@ -560,9 +557,7 @@ Return Nil
 // Lines, each ended. A loop, not a lambda (XbcMakeBlock()).
 Static Function XbcJoined(aLines)
   Local cText := ""
-  for cLine in aLines
-    cText += cLine + Chr(10)
-  next
+  for cLine in aLines exec cText += cLine + Chr(10)
 Return cText
 
 // ---- loading ----------------------------------------------------------------
@@ -714,9 +709,7 @@ Static Function XbcDepth(aCode)
   Local nAfter
   Local aIns
   Local nOp
-  For nI := 1 To Len(aCode)
-    AAdd(aBodies, aCode[nI][I_B]) if aCode[nI][I_OP] == OP_DEFER
-  Next
+  for nI := 1 to Len(aCode) exec (if aCode[nI][I_OP] == OP_DEFER exec AAdd(aBodies, aCode[nI][I_B]))
   XbcReach(aAt, aWork, 1, 0)
   While !Empty(aWork)
     nI := ATail(aWork)
@@ -743,9 +736,7 @@ Static Function XbcDepth(aCode)
     Case nOp == OP_RUNDEFERS
       If nD > nDefers
         nDefers := nD
-        for nBody in aBodies
-          XbcReach(aAt, aWork, nBody, nD)
-        next
+        for nBody in aBodies exec XbcReach(aAt, aWork, nBody, nD)
       EndIf
       XbcReach(aAt, aWork, nI + 1, nD)
     Case nOp != OP_RET .And. nOp != OP_ENDDEFER
@@ -816,11 +807,7 @@ Static Function XbcFused(aCode, oJit)
   Local aIns
   Local aNew
   // Without 'line': what went to one goes to the instruction after it.
-  For nI := 1 To Len(aCode)
-    If aCode[nI][I_OP] != OP_LINE
-      AAdd(aOne, aCode[nI])
-    EndIf
-  Next
+  for nI := 1 to Len(aCode) exec (if aCode[nI][I_OP] != OP_LINE exec AAdd(aOne, aCode[nI]))
   nNext := Len(aOne) + 1
   For nI := Len(aCode) To 1 Step -1
     nNext-- if aCode[nI][I_OP] != OP_LINE
@@ -872,9 +859,7 @@ Static Function XbcFused(aCode, oJit)
       nTake := 2
     EndCase
     AAdd(aOut, aNew)
-    For local nK := nI To nI + nTake - 1
-      aMap[nK] := Len(aOut)
-    Next
+    for local nK := nI to nI + nTake - 1 exec aMap[nK] := Len(aOut)
     nI += nTake
   EndDo
   aMap[Len(aOne) + 1] := Len(aOut) + 1
@@ -885,16 +870,12 @@ Return aOut
 Static Function XbcTargets(aCode)
   Local aTo := Array(Len(aCode) + 1)
   Local nTo
-  For local nI := 1 To Len(aTo)
-    aTo[nI] := .F.
-  Next
+  for local nI := 1 to Len(aTo) exec aTo[nI] := .F.
   for aJump in aCode
     nTo := XbcTarget(aJump)
     aTo[nTo] := .T. if nTo > 0 .And. nTo <= Len(aTo)
     // A JIT's run ends at a jump: where that goes too.
-    If aJump[I_OP] == OP_JIT .And. aJump[I_B] > 0 .And. aJump[I_B] <= Len(aTo)
-      aTo[aJump[I_B]] := .T.
-    EndIf
+    if aJump[I_OP] == OP_JIT .And. aJump[I_B] > 0 .And. aJump[I_B] <= Len(aTo) exec aTo[aJump[I_B]] := .T.
   next
 Return aTo
 
@@ -921,9 +902,7 @@ Static Function XbcRotate(aCode, oJit)
         nK++
       EndDo
       If nK > nTest .And. nK < nI .And. aCode[nK][I_OP] == OP_JUMPF .And. aCode[nK][I_A] == nI + 1 .And. !aTo[nK]
-        For local nC := nTest To nK - 1
-          AAdd(aOut, aClone(aCode[nC]))
-        Next
+        for local nC := nTest to nK - 1 exec AAdd(aOut, aClone(aCode[nC]))
         AAdd(aOut, XbcIns(OP_JUMPT, nK + 1, 0, 0, aCode[nK][I_LINE]))
         Loop
       EndIf
@@ -968,9 +947,7 @@ Static Function XbcJitRuns(aCode, oJit)
     EndIf
     If nCalls > 0 .Or. nEnd - nI + If(nTerm > 0, 1, 0) >= 3
       aRun := {}
-      For local nK := nI To nEnd - 1
-        AAdd(aRun, aCode[nK])
-      Next
+      for local nK := nI to nEnd - 1 exec AAdd(aRun, aCode[nK])
       AAdd(aOut, {OP_JIT, nEnd + If(nTerm > 0, 1, 0), If(nTerm > 0, aCode[nEnd][I_A], 0), "", Nil, nTerm, Nil, ;
                   nLine, 0, aRun, 0, 0, Nil, Nil})
       aMap[nI] := Len(aOut)
@@ -1055,15 +1032,9 @@ Return 0
 Static Function XbcRetarget(aCode, aMap)
   for aIns in aCode
     Local nTo := XbcTarget(aIns)
-    If aIns[I_OP] == OP_JIT .And. aIns[I_B] > 0 .And. aIns[I_B] <= Len(aMap)
-      aIns[I_B] := aMap[aIns[I_B]]
-    EndIf
+    if aIns[I_OP] == OP_JIT .And. aIns[I_B] > 0 .And. aIns[I_B] <= Len(aMap) exec aIns[I_B] := aMap[aIns[I_B]]
     Loop if nTo <= 0 .Or. nTo > Len(aMap)
-    If aIns[I_OP] == OP_DEFER
-      aIns[I_B] := aMap[nTo]
-    Else
-      aIns[I_A] := aMap[nTo]
-    EndIf
+    if aIns[I_OP] == OP_DEFER exec aIns[I_B] := aMap[nTo] else aIns[I_A] := aMap[nTo]
   next
 Return Nil
 
@@ -1254,9 +1225,7 @@ Method Run(nBase) Class XbcVM
               xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
               nAt := nSp - nN
               nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-              For nK := 1 To nI
-                xA[nK] := aSt[nAt + nK]
-              Next
+              for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
               aF[F_SP] := nAt
               aF[F_PC] := nPc
               ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -1289,9 +1258,7 @@ Method Run(nBase) Class XbcVM
               aSt[nSp] := xA
             Else
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN
               Do Case
               Case nK == K_SYS
@@ -1338,9 +1305,7 @@ Method Run(nBase) Class XbcVM
               EndCase
             EndIf
           Case nOp == OP_JUMPF
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           Case nOp == OP_ADD
             nSp--
@@ -1376,39 +1341,25 @@ Method Run(nBase) Class XbcVM
             aLoc[aIns[I_A]] := aSt[nSp - 1] + aSt[nSp]
             nSp -= 2
           Case nOp == OP_LEJF
-            If !(aSt[nSp - 1] <= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] <= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_LTJF
-            If !(aSt[nSp - 1] < aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] < aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GEJF
-            If !(aSt[nSp - 1] >= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] >= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GTJF
-            If !(aSt[nSp - 1] > aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] > aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EXACTJF
-            If !(aSt[nSp - 1] == aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] == aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_NEJF
-            If !(aSt[nSp - 1] != aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] != aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EQJF
-            If !(aSt[nSp - 1] = aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] = aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           EndCase
         ElseIf nOp <= OP_FALSE
@@ -1479,9 +1430,7 @@ Method Run(nBase) Class XbcVM
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-                For nK := 1 To nI
-                  xA[nK] := aSt[nAt + nK]
-                Next
+                for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
                 aF[F_SP] := nAt - 1
                 aF[F_PC] := nPc
                 ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -1494,15 +1443,11 @@ Method Run(nBase) Class XbcVM
                 nPc := 1
               Else
                 aArgs := Array(nN)
-                For nI := 1 To nN
-                  aArgs[nI] := aSt[nSp - nN + nI]
-                Next
+                for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
                 nSp -= nN + 1
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
-                If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
-                EndIf
+                if aIns[I_K] == 0 .And. !lTrace exec aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
                 aCode := aF[F_FN][FN_CODE]
@@ -1515,9 +1460,7 @@ Method Run(nBase) Class XbcVM
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
@@ -1540,9 +1483,7 @@ Method Run(nBase) Class XbcVM
               // A module's class: the place of the data, found once for the
               // class it sees.
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               aSt[nSp] := xA:aProps[aIns[I_C][2]]
             Else
               aSt[nSp] := ::MemberOf(xA, aIns[I_S])
@@ -1551,9 +1492,7 @@ Method Run(nBase) Class XbcVM
             xA := aSt[nSp - 1]
             If ValType(xA) == "O" .And. AttIsMemberOf(xA, "xbcCls")
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               xA:aProps[aIns[I_C][2]] := aSt[nSp]
             Else
               ::SetMemberOf(xA, aIns[I_S], aSt[nSp])
@@ -1611,21 +1550,11 @@ Method Run(nBase) Class XbcVM
             nSp--
             aSt[nSp] := (aSt[nSp] >= aSt[nSp + 1])
           Case nOp == OP_ANDJUMP
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_ORJUMP
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_JUMPT
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           EndCase
         ElseIf nOp <= OP_CONTAINS
@@ -1633,9 +1562,7 @@ Method Run(nBase) Class XbcVM
           Case nOp == OP_ARRAY
             nN := aIns[I_A]
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI]
             nSp := nSp - nN + 1
             aSt[nSp] := xA
           Case nOp == OP_DUP
@@ -1668,15 +1595,11 @@ Method Run(nBase) Class XbcVM
             aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
           Case nOp == OP_BLOCK
             nN := aIns[I_B]
-            If aIns[I_C] == Nil
-              aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
-            EndIf
+            if aIns[I_C] == Nil exec aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
             aFn := aIns[I_C]
             ::Fail("no block function ${aIns[I_S]}") if aFn == Nil
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI][2]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI][2]
             nSp := nSp - nN + 1
             ::JitWhole(aFn) if aFn[FN_FAST] == Nil
             If ValType(aFn[FN_FAST]) == "L"
@@ -1767,9 +1690,7 @@ Method Rare(aF, aIns) Class XbcVM
   Local nAt
   If nOp == OP_NEW .Or. nOp == OP_CALLX .Or. nOp == OP_SUPER
     aArgs := Array(aIns[I_A])
-    For local nI := 1 To aIns[I_A]
-      aArgs[nI] := aSt[nSp - aIns[I_A] + nI]
-    Next
+    for local nI := 1 to aIns[I_A] exec aArgs[nI] := aSt[nSp - aIns[I_A] + nI]
     nSp -= aIns[I_A]
   EndIf
   Do Case
@@ -1905,9 +1826,7 @@ Return oVM:Run3(nBase)
 Static Function XbcDefer(aF, nId, nAt)
   Local aMore := XbcMore(aF)
   aMore[X_DEFERS] ?= {}
-  for aD in aMore[X_DEFERS]
-    Return Nil if aD[1] == nId
-  next
+  for aD in aMore[X_DEFERS] exec (if aD[1] == nId exec Return Nil)
   AAdd(aMore[X_DEFERS], {nId, nAt})
 Return Nil
 
@@ -1918,9 +1837,7 @@ Static Function XbcNextDefer(aF)
   Local aDefers := aF[F_MORE][X_DEFERS]
   Local nTop := 1
   Local nAt
-  For local nK := 2 To Len(aDefers)
-    nTop := nK if aDefers[nK][1] > aDefers[nTop][1]
-  Next
+  for local nK := 2 to Len(aDefers) exec (if aDefers[nK][1] > aDefers[nTop][1] exec nTop := nK)
   nAt := aDefers[nTop][2]
   ADel(aDefers, nTop)
   ASize(aDefers, Len(aDefers) - 1)
@@ -2059,9 +1976,7 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   Local nTop
   aIns[I_K] := 2
   Return Nil if !::JitOps(aJ, aF[F_FN][FN_MOD], aIns[I_X])
-  If aIns[I_N] == 1 .Or. aIns[I_N] == 2
-    cCond := XjPop(aJ)[1]
-  EndIf
+  if aIns[I_N] == 1 .Or. aIns[I_N] == 2 exec cCond := XjPop(aJ)[1]
   // What it leaves, where it would be -- each kept first when one reads
   // the stack below the run, which they go over.
   nTop := aJ[J_BASE] - aJ[J_BELOW]
@@ -2076,9 +1991,7 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   next
   AAdd(aJ[J_OUT], If(Empty(cCond), "Nil", cCond))
   XjFirstLine(aJ)
-  For local nT := 1 To aJ[J_TEMPS]
-    cTemps += ", X${nT}"
-  Next
+  for local nT := 1 to aJ[J_TEMPS] exec cTemps += ", X${nT}"
   cText := "{|XL, XK, XC, XT, XO, XI${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
   If ::lHost
     bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
@@ -2283,15 +2196,9 @@ Method JitWhole(aFn) Class XbcVM
   Return Nil if !(aCode[aIns[I_A]][I_OP] == OP_RET)
   aJ := {{}, {}, {}, 0, aFn[FN_NLOCALS], 0, .F., nP, {}}
   Return Nil if !::JitOps(aJ, aFn[FN_MOD], aIns[I_X]) .Or. !(Len(aJ[J_STACK]) == 1) .Or. aJ[J_READS]
-  For local nK := 1 To nSlots
-    cText += ", P${nK}"
-  Next
-  For local nK := nP + 1 To aFn[FN_NLOCALS]
-    cText += ", L${nK}"
-  Next
-  For local nT := 1 To aJ[J_TEMPS]
-    cText += ", X${nT}"
-  Next
+  for local nK := 1 to nSlots exec cText += ", P${nK}"
+  for local nK := nP + 1 to aFn[FN_NLOCALS] exec cText += ", L${nK}"
+  for local nT := 1 to aJ[J_TEMPS] exec cText += ", X${nT}"
   AAdd(aJ[J_OUT], aJ[J_STACK][1][1])
   XjFirstLine(aJ)
   cText := "{|XC, XK, XT, XO, XI${cText}| " + (aJ[J_OUT] |> join(", ")) + "}"
@@ -2304,9 +2211,7 @@ Method JitWhole(aFn) Class XbcVM
     ::hJitDump{cText} := .T. if !Empty(::cJitDump)
     Return Nil
   EndIf
-  for aOne in aIns[I_X]
-    lStatics := .T. if aOne[I_OP] == OP_STATIC .Or. aOne[I_OP] == OP_SETSTATIC
-  next
+  for aOne in aIns[I_X] exec (if aOne[I_OP] == OP_STATIC .Or. aOne[I_OP] == OP_SETSTATIC exec lStatics := .T.)
   aFn[FN_FAST] := {bBlock, aJ[J_CONSTS], If(lStatics, aFn[FN_MOD][M_STATICS], Nil), aFn[FN_ID], nSlots, ;
                    If(Len(aJ[J_LINES]) > 1, {1}, Nil), If(Len(aJ[J_LINES]) > 1, aJ[J_LINES], Nil)}
 Return Nil
@@ -2392,9 +2297,7 @@ Method JitDump() Class XbcVM
                 "User Function xbcjit(cText)" + cNl + "  Do Case" + cNl + ;
                 "  Case cText == " + Chr(34) + Chr(34) + cNl + "    Return Nil" + cNl
   ASort(aTexts)
-  for cText in aTexts
-    cSrc += "  Case cText == " + Chr(34) + cText + Chr(34) + cNl + "    Return " + cText + cNl
-  next
+  for cText in aTexts exec cSrc += "  Case cText == " + Chr(34) + cText + Chr(34) + cNl + "    Return " + cText + cNl
   MemoWrite(::cJitDump, cSrc + "  EndCase" + cNl + "Return Nil" + cNl)
 Return Nil
 
@@ -2418,9 +2321,7 @@ Return aE
 // The top N, in the order they were pushed.
 Static Function XjPops(aJ, nN)
   Local aEs := Array(nN)
-  For local nK := nN To 1 Step -1
-    aEs[nK] := XjPop(aJ)
-  Next
+  for local nK := nN to 1 step -1 exec aEs[nK] := XjPop(aJ)
 Return aEs
 
 Static Function XjTexts(aEs)
@@ -2574,9 +2475,7 @@ Static Function XbcChain(oVM, aCls)
   for cSuper in aCls[C_SUPERS]
     Local aK := oVM:ClassNamed(aCls[C_MOD], cSuper)
     Loop if aK == Nil
-    for aUp in XbcChain(oVM, aK)
-      AAdd(aChain, aUp)
-    next
+    for aUp in XbcChain(oVM, aK) exec AAdd(aChain, aUp)
   next
   AAdd(aChain, aCls)
 Return aChain
@@ -2639,18 +2538,14 @@ Return xResult
 // Values as a trace shows them, between commas.
 Static Function XbcShownAll(aVals)
   Local cText := ""
-  for xVal, nI in aVals
-    cText += If(nI > 1, ", ", "") + XbcShown(xVal)
-  next
+  for xVal, nI in aVals exec cText += If(nI > 1, ", ", "") + XbcShown(xVal)
 Return cText
 
 // ':N' for each argument by reference, in order -- a loop, not a lambda
 // (XbcMakeBlock()).
 Static Function XbcRefsKey(aRefs)
   Local cKey := ""
-  for nK in aRefs
-    cKey += ":" + cValToChar(nK)
-  next
+  for nK in aRefs exec cKey += ":" + cValToChar(nK)
 Return cKey
 
 // &(text), run here, not in a method of the machine's: what it makes may
@@ -2674,9 +2569,7 @@ Method MacroOf(cWhat, cName, cMethod, nArgs, aRefs) Class XbcVM
     Next
     cCall := If(cWhat == "f", cName, If(cWhat == "m", "o:", cName + "():") + cMethod)
     cList := "r := ${cCall}(${cList})"
-    for nK in aRefs
-      cList += ", a[${nK}] := p${nK}"
-    next
+    for nK in aRefs exec cList += ", a[${nK}] := p${nK}"
     ::hCache{cKey} := XbcMacroRun("{|a, o${cParams}, r| ${cList}, r}")
   EndIf
 Return ::hCache{cKey}
@@ -2746,9 +2639,7 @@ Return ::Native("n", cClass, cName, Nil, aArgs)
 
 // A member of an object: a module's class's data, or the AppServer's.
 Method MemberOf(xObj, cName) Class XbcVM
-  If ValType(xObj) == "O" .And. XbcIsObj(xObj)
-    Return xObj:aProps[::SlotOf(xObj:xbcCls, cName)]
-  EndIf
+  if ValType(xObj) == "O" .And. XbcIsObj(xObj) exec Return xObj:aProps[::SlotOf(xObj:xbcCls, cName)]
   If local nSys := ::hSys{"g:" + Upper(cName)}, nSys != Nil
     Return Eval(::aSys[nSys], xObj)
   EndIf
@@ -3318,9 +3209,7 @@ Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
 // above nAt -- of a method's, with its Self.
 Static Function XbcWhole(aFast, aSt, nAt, nN, xSelf)
   Local aA := Array(12)
-  For local nK := 1 To nN
-    aA[nK] := aSt[nAt + nK]
-  Next
+  for local nK := 1 to nN exec aA[nK] := aSt[nAt + nK]
 Return Eval(aFast[1], Nil, aFast[2], aFast[3], xSelf, aFast[6], aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], ;
             aA[8], aA[9], aA[10], aA[11], aA[12])
 
@@ -3463,9 +3352,7 @@ Method Run1(nBase) Class XbcVM
               xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
               nAt := nSp - nN
               nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-              For nK := 1 To nI
-                xA[nK] := aSt[nAt + nK]
-              Next
+              for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
               aF[F_SP] := nAt
               aF[F_PC] := nPc
               ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -3498,9 +3385,7 @@ Method Run1(nBase) Class XbcVM
               aSt[nSp] := xA
             Else
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN
               Do Case
               Case nK == K_SYS
@@ -3547,9 +3432,7 @@ Method Run1(nBase) Class XbcVM
               EndCase
             EndIf
           Case nOp == OP_JUMPF
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           Case nOp == OP_ADD
             nSp--
@@ -3585,39 +3468,25 @@ Method Run1(nBase) Class XbcVM
             aLoc[aIns[I_A]] := aSt[nSp - 1] + aSt[nSp]
             nSp -= 2
           Case nOp == OP_LEJF
-            If !(aSt[nSp - 1] <= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] <= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_LTJF
-            If !(aSt[nSp - 1] < aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] < aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GEJF
-            If !(aSt[nSp - 1] >= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] >= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GTJF
-            If !(aSt[nSp - 1] > aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] > aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EXACTJF
-            If !(aSt[nSp - 1] == aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] == aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_NEJF
-            If !(aSt[nSp - 1] != aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] != aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EQJF
-            If !(aSt[nSp - 1] = aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] = aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           EndCase
         ElseIf nOp <= OP_FALSE
@@ -3688,9 +3557,7 @@ Method Run1(nBase) Class XbcVM
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-                For nK := 1 To nI
-                  xA[nK] := aSt[nAt + nK]
-                Next
+                for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
                 aF[F_SP] := nAt - 1
                 aF[F_PC] := nPc
                 ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -3703,15 +3570,11 @@ Method Run1(nBase) Class XbcVM
                 nPc := 1
               Else
                 aArgs := Array(nN)
-                For nI := 1 To nN
-                  aArgs[nI] := aSt[nSp - nN + nI]
-                Next
+                for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
                 nSp -= nN + 1
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
-                If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
-                EndIf
+                if aIns[I_K] == 0 .And. !lTrace exec aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
                 aCode := aF[F_FN][FN_CODE]
@@ -3724,9 +3587,7 @@ Method Run1(nBase) Class XbcVM
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
@@ -3749,9 +3610,7 @@ Method Run1(nBase) Class XbcVM
               // A module's class: the place of the data, found once for the
               // class it sees.
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               aSt[nSp] := xA:aProps[aIns[I_C][2]]
             Else
               aSt[nSp] := ::MemberOf(xA, aIns[I_S])
@@ -3760,9 +3619,7 @@ Method Run1(nBase) Class XbcVM
             xA := aSt[nSp - 1]
             If ValType(xA) == "O" .And. AttIsMemberOf(xA, "xbcCls")
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               xA:aProps[aIns[I_C][2]] := aSt[nSp]
             Else
               ::SetMemberOf(xA, aIns[I_S], aSt[nSp])
@@ -3820,21 +3677,11 @@ Method Run1(nBase) Class XbcVM
             nSp--
             aSt[nSp] := (aSt[nSp] >= aSt[nSp + 1])
           Case nOp == OP_ANDJUMP
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_ORJUMP
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_JUMPT
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           EndCase
         ElseIf nOp <= OP_CONTAINS
@@ -3842,9 +3689,7 @@ Method Run1(nBase) Class XbcVM
           Case nOp == OP_ARRAY
             nN := aIns[I_A]
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI]
             nSp := nSp - nN + 1
             aSt[nSp] := xA
           Case nOp == OP_DUP
@@ -3877,15 +3722,11 @@ Method Run1(nBase) Class XbcVM
             aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
           Case nOp == OP_BLOCK
             nN := aIns[I_B]
-            If aIns[I_C] == Nil
-              aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
-            EndIf
+            if aIns[I_C] == Nil exec aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
             aFn := aIns[I_C]
             ::Fail("no block function ${aIns[I_S]}") if aFn == Nil
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI][2]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI][2]
             nSp := nSp - nN + 1
             ::JitWhole(aFn) if aFn[FN_FAST] == Nil
             If ValType(aFn[FN_FAST]) == "L"
@@ -4065,9 +3906,7 @@ Method Run2(nBase) Class XbcVM
               xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
               nAt := nSp - nN
               nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-              For nK := 1 To nI
-                xA[nK] := aSt[nAt + nK]
-              Next
+              for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
               aF[F_SP] := nAt
               aF[F_PC] := nPc
               ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -4100,9 +3939,7 @@ Method Run2(nBase) Class XbcVM
               aSt[nSp] := xA
             Else
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN
               Do Case
               Case nK == K_SYS
@@ -4149,9 +3986,7 @@ Method Run2(nBase) Class XbcVM
               EndCase
             EndIf
           Case nOp == OP_JUMPF
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           Case nOp == OP_ADD
             nSp--
@@ -4187,39 +4022,25 @@ Method Run2(nBase) Class XbcVM
             aLoc[aIns[I_A]] := aSt[nSp - 1] + aSt[nSp]
             nSp -= 2
           Case nOp == OP_LEJF
-            If !(aSt[nSp - 1] <= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] <= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_LTJF
-            If !(aSt[nSp - 1] < aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] < aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GEJF
-            If !(aSt[nSp - 1] >= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] >= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GTJF
-            If !(aSt[nSp - 1] > aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] > aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EXACTJF
-            If !(aSt[nSp - 1] == aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] == aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_NEJF
-            If !(aSt[nSp - 1] != aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] != aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EQJF
-            If !(aSt[nSp - 1] = aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] = aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           EndCase
         ElseIf nOp <= OP_FALSE
@@ -4290,9 +4111,7 @@ Method Run2(nBase) Class XbcVM
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-                For nK := 1 To nI
-                  xA[nK] := aSt[nAt + nK]
-                Next
+                for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
                 aF[F_SP] := nAt - 1
                 aF[F_PC] := nPc
                 ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -4305,15 +4124,11 @@ Method Run2(nBase) Class XbcVM
                 nPc := 1
               Else
                 aArgs := Array(nN)
-                For nI := 1 To nN
-                  aArgs[nI] := aSt[nSp - nN + nI]
-                Next
+                for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
                 nSp -= nN + 1
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
-                If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
-                EndIf
+                if aIns[I_K] == 0 .And. !lTrace exec aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
                 aCode := aF[F_FN][FN_CODE]
@@ -4326,9 +4141,7 @@ Method Run2(nBase) Class XbcVM
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
@@ -4351,9 +4164,7 @@ Method Run2(nBase) Class XbcVM
               // A module's class: the place of the data, found once for the
               // class it sees.
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               aSt[nSp] := xA:aProps[aIns[I_C][2]]
             Else
               aSt[nSp] := ::MemberOf(xA, aIns[I_S])
@@ -4362,9 +4173,7 @@ Method Run2(nBase) Class XbcVM
             xA := aSt[nSp - 1]
             If ValType(xA) == "O" .And. AttIsMemberOf(xA, "xbcCls")
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               xA:aProps[aIns[I_C][2]] := aSt[nSp]
             Else
               ::SetMemberOf(xA, aIns[I_S], aSt[nSp])
@@ -4422,21 +4231,11 @@ Method Run2(nBase) Class XbcVM
             nSp--
             aSt[nSp] := (aSt[nSp] >= aSt[nSp + 1])
           Case nOp == OP_ANDJUMP
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_ORJUMP
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_JUMPT
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           EndCase
         ElseIf nOp <= OP_CONTAINS
@@ -4444,9 +4243,7 @@ Method Run2(nBase) Class XbcVM
           Case nOp == OP_ARRAY
             nN := aIns[I_A]
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI]
             nSp := nSp - nN + 1
             aSt[nSp] := xA
           Case nOp == OP_DUP
@@ -4479,15 +4276,11 @@ Method Run2(nBase) Class XbcVM
             aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
           Case nOp == OP_BLOCK
             nN := aIns[I_B]
-            If aIns[I_C] == Nil
-              aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
-            EndIf
+            if aIns[I_C] == Nil exec aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
             aFn := aIns[I_C]
             ::Fail("no block function ${aIns[I_S]}") if aFn == Nil
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI][2]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI][2]
             nSp := nSp - nN + 1
             ::JitWhole(aFn) if aFn[FN_FAST] == Nil
             If ValType(aFn[FN_FAST]) == "L"
@@ -4667,9 +4460,7 @@ Method Run3(nBase) Class XbcVM
               xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
               nAt := nSp - nN
               nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-              For nK := 1 To nI
-                xA[nK] := aSt[nAt + nK]
-              Next
+              for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
               aF[F_SP] := nAt
               aF[F_PC] := nPc
               ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -4702,9 +4493,7 @@ Method Run3(nBase) Class XbcVM
               aSt[nSp] := xA
             Else
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN
               Do Case
               Case nK == K_SYS
@@ -4751,9 +4540,7 @@ Method Run3(nBase) Class XbcVM
               EndCase
             EndIf
           Case nOp == OP_JUMPF
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           Case nOp == OP_ADD
             nSp--
@@ -4789,39 +4576,25 @@ Method Run3(nBase) Class XbcVM
             aLoc[aIns[I_A]] := aSt[nSp - 1] + aSt[nSp]
             nSp -= 2
           Case nOp == OP_LEJF
-            If !(aSt[nSp - 1] <= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] <= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_LTJF
-            If !(aSt[nSp - 1] < aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] < aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GEJF
-            If !(aSt[nSp - 1] >= aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] >= aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_GTJF
-            If !(aSt[nSp - 1] > aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] > aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EXACTJF
-            If !(aSt[nSp - 1] == aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] == aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_NEJF
-            If !(aSt[nSp - 1] != aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] != aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           Case nOp == OP_EQJF
-            If !(aSt[nSp - 1] = aSt[nSp])
-              nPc := aIns[I_A]
-            EndIf
+            if !(aSt[nSp - 1] = aSt[nSp]) exec nPc := aIns[I_A]
             nSp -= 2
           EndCase
         ElseIf nOp <= OP_FALSE
@@ -4892,9 +4665,7 @@ Method Run3(nBase) Class XbcVM
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
-                For nK := 1 To nI
-                  xA[nK] := aSt[nAt + nK]
-                Next
+                for nK := 1 to nI exec xA[nK] := aSt[nAt + nK]
                 aF[F_SP] := nAt - 1
                 aF[F_PC] := nPc
                 ::Fail("stack overflow") if Len(aFrames) > 4000
@@ -4907,15 +4678,11 @@ Method Run3(nBase) Class XbcVM
                 nPc := 1
               Else
                 aArgs := Array(nN)
-                For nI := 1 To nN
-                  aArgs[nI] := aSt[nSp - nN + nI]
-                Next
+                for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
                 nSp -= nN + 1
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
-                If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
-                EndIf
+                if aIns[I_K] == 0 .And. !lTrace exec aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
                 aCode := aF[F_FN][FN_CODE]
@@ -4928,9 +4695,7 @@ Method Run3(nBase) Class XbcVM
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
               aArgs := Array(nN)
-              For nI := 1 To nN
-                aArgs[nI] := aSt[nSp - nN + nI]
-              Next
+              for nI := 1 to nN exec aArgs[nI] := aSt[nSp - nN + nI]
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
@@ -4953,9 +4718,7 @@ Method Run3(nBase) Class XbcVM
               // A module's class: the place of the data, found once for the
               // class it sees.
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               aSt[nSp] := xA:aProps[aIns[I_C][2]]
             Else
               aSt[nSp] := ::MemberOf(xA, aIns[I_S])
@@ -4964,9 +4727,7 @@ Method Run3(nBase) Class XbcVM
             xA := aSt[nSp - 1]
             If ValType(xA) == "O" .And. AttIsMemberOf(xA, "xbcCls")
               aCls := xA:xbcCls
-              If aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls)
-                aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
-              EndIf
+              if aIns[I_C] == Nil .Or. !(aIns[I_C][1] == aCls) exec aIns[I_C] := {aCls, ::SlotOf(aCls, aIns[I_S])}
               xA:aProps[aIns[I_C][2]] := aSt[nSp]
             Else
               ::SetMemberOf(xA, aIns[I_S], aSt[nSp])
@@ -5024,21 +4785,11 @@ Method Run3(nBase) Class XbcVM
             nSp--
             aSt[nSp] := (aSt[nSp] >= aSt[nSp + 1])
           Case nOp == OP_ANDJUMP
-            If !aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if !aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_ORJUMP
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            Else
-              nSp--
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A] else nSp--
           Case nOp == OP_JUMPT
-            If aSt[nSp]
-              nPc := aIns[I_A]
-            EndIf
+            if aSt[nSp] exec nPc := aIns[I_A]
             nSp--
           EndCase
         ElseIf nOp <= OP_CONTAINS
@@ -5046,9 +4797,7 @@ Method Run3(nBase) Class XbcVM
           Case nOp == OP_ARRAY
             nN := aIns[I_A]
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI]
             nSp := nSp - nN + 1
             aSt[nSp] := xA
           Case nOp == OP_DUP
@@ -5081,15 +4830,11 @@ Method Run3(nBase) Class XbcVM
             aSt[nSp] := {scRef, aF[F_CELLS][aIns[I_A]], 1}
           Case nOp == OP_BLOCK
             nN := aIns[I_B]
-            If aIns[I_C] == Nil
-              aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
-            EndIf
+            if aIns[I_C] == Nil exec aIns[I_C] := aF[F_FN][FN_MOD][M_FNS]{Upper(aIns[I_S])}
             aFn := aIns[I_C]
             ::Fail("no block function ${aIns[I_S]}") if aFn == Nil
             xA := Array(nN)
-            For nI := 1 To nN
-              xA[nI] := aSt[nSp - nN + nI][2]
-            Next
+            for nI := 1 to nN exec xA[nI] := aSt[nSp - nN + nI][2]
             nSp := nSp - nN + 1
             ::JitWhole(aFn) if aFn[FN_FAST] == Nil
             If ValType(aFn[FN_FAST]) == "L"
