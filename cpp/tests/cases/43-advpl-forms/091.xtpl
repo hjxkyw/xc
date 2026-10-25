@@ -1,0 +1,7 @@
+// TL++ takes no type after dimensions ("C2003 Syntax Error", 24.3.1.9):
+// the 'as' is left out.
+User Function DimsTyped(n)
+  Local aDados[10] as Array, nQtd := 0
+  Local aGrade[n][2] as Array
+  aDados[1] := aGrade
+return Len(aDados) + nQtd

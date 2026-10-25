@@ -407,7 +407,9 @@ block: no code block or lambda names it, and no `defer` reads it.
 The output keeps them as a comment.
 
 **Dimensions** after the name make an array of that size, its elements Nil:
-`Local aDados[10]`, `Private aTela[0][0]`.
+`Local aDados[10]`, `Private aTela[0][0]`. TL++ takes no type after them --
+`Local aDados[10] as Array` is "C2003 Syntax Error" (tried on 24.3.1.9) --,
+so xc leaves the `as` out.
 
 **Default**, from `totvs.ch`: `Default nQtd := 1, cTipo := "A"` gives each
 its value when it is Nil. It is a statement, and passes through.

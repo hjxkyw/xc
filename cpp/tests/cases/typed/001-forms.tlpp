@@ -15,7 +15,7 @@ User Function Forms(aIn as Array, cKey as Character) as Array
   Local aNN := {{1}, {2, 3}} as Array
   Local aOut := {"x"} as Array
   Local aH := {}
-  Local aGrid[2] as Array
+  Local aGrid[2]
   Local s_0_0  // a slot: the block locals 'aT', 'aB'
   AAdd(aN, Len(aIn))
   AAdd(aC, cKey + "!")

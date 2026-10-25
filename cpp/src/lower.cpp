@@ -1417,7 +1417,7 @@ namespace xc
           std::string x = v->name;
           for (const Expr* dim : v->dims) { x += "[" + expr(dim) + "]"; }
           if (v->init) { x += " := " + expr(v->init); }
-          if (v->typespec_text) { x += " " + *v->typespec_text; }
+          if (v->typespec_text && v->dims.empty()) { x += " " + *v->typespec_text; }
           ds.push_back(x);
         }
         return Lowered{ false, { kw + " " + join(ds, ", ") } };

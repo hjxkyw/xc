@@ -242,7 +242,13 @@ namespace xc
       case SK::Declaration:
         for (const Declarator* d : static_cast<const Declaration*>(s)->declarators)
         {
-          if (d->type_first || !d->attributes.empty() || !d->container.empty()) { return true; }
+          // TL++ takes no type after dimensions: 'Local aX[10] as Array' is
+          // "C2003 Syntax Error" (tried on 24.3.1.9).
+          if (d->type_first || !d->attributes.empty() || !d->container.empty()
+              || (!d->dims.empty() && d->typespec_text))
+          {
+            return true;
+          }
         }
         return false;
       default:
