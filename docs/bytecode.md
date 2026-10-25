@@ -548,6 +548,19 @@ It runs what it loads as the loop is fastest at it:
   `cpp/tests/loop-copies.cmake` writes `Run1()` to `Run3()` and `Enter1()`
   to `Enter3()` from `Run()` and `Enter()`, and ctest's `interp` checks
   them;
+- a code block of the program's is one of the AppServer's whose closure
+  holds little: the function's number in the machine's list, its cells,
+  its object -- the machine is a static. When a function that made a code
+  block returns, the AppServer walks every array its Locals reach
+  (`tLocalEnv::checkCircularArray()` on 24.3.1.9), and the walk took
+  longer the more blocks had been made: with a function's record in reach
+  -- the whole program --, a block took 76 us to make at first, 3 ms half
+  a minute later (bench6); with arrays that lead back to one another, the
+  walk did not end in minutes (probe xeh2). So the interpreter makes no
+  code block where its arrays are in reach: not in the loop, not in a
+  method of the machine's, not with a frame or a function's record in a
+  Local -- its lambdas are loops, and what a macro makes is made in a
+  function of its own;
 - a run of instructions on one line, that nothing jumps into, is one code
   block the AppServer's macro compiler makes the first time it runs -- the
   JIT; `jit=off` makes none. Its instructions are locals, statics, cells,

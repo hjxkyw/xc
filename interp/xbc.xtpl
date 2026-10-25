@@ -165,7 +165,7 @@
 #define K_SLOW    9
 
 // A function: {name, kind, parameters, locals, module, instructions, the
-// most its stack holds}.
+// most its stack holds, its number in the machine's list of them}.
 #define FN_NAME    1
 #define FN_KIND    2
 #define FN_PARAMS  3
@@ -173,6 +173,7 @@
 #define FN_MOD     5
 #define FN_CODE    6
 #define FN_STACK   7
+#define FN_ID      8
 
 // A module: {source, statics, NAME => function, namespace, usings, its
 // functions in order, the namespaces a plain name is looked for in}.
@@ -242,6 +243,9 @@ Static scErr
 // assigns (probes xdp, xdq).
 Static sxBroke
 Static scNone
+// The machine running, which the program's code blocks run in
+// (XbcMakeBlock()).
+Static sxVM
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
@@ -283,12 +287,22 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   nExit := oVM:Start(aFiles, cEntry)
   oVM:Report(cOut, nExit) if !Empty(cOut)
   oVM:JitDump() if !Empty(oVM:cJitDump)
-  MemoWrite(cTrace, oVM:aTrace |> map([l] l + Chr(10)) |> join) if !Empty(cTrace)
+  MemoWrite(cTrace, XbcJoined(oVM:aTrace)) if !Empty(cTrace)
 Return nExit
 
 // Is it a reference, an error on its way.
 Static Function XbcIsRef(xValue)
 Return ValType(xValue) == "A" .And. Len(xValue) == 3 .And. ValType(xValue[1]) == "C" .And. xValue[1] == scRef
+
+// Is one of them a reference. A loop, not a lambda: no code block is made
+// where the machine's arrays are in reach (the AppServer's walk, at
+// XbcMakeBlock()).
+Static Function XbcAnyRef(aArgs)
+  Local nI
+  For nI := 1 To Len(aArgs)
+    Return .T. if XbcIsRef(aArgs[nI])
+  Next
+Return .F.
 
 Static Function XbcIsErr(xValue)
 Return ValType(xValue) == "A" .And. Len(xValue) == 2 .And. ValType(xValue[1]) == "C" .And. xValue[1] == scErr
@@ -312,6 +326,7 @@ Return If(ValType(xValue) == "C" .And. xValue == scNone, Nil, xValue)
 // ---- the machine ------------------------------------------------------------
 Class XbcVM
   Public Data aMods
+  Public Data aFns
   Public Data hOps
   Public Data hEvery
   Public Data hGlobals
@@ -430,6 +445,7 @@ Method New() Class XbcVM
     ::hSys{aCall[1]} := Len(::aSys)
   next
   ::aMods := {}
+  ::aFns := {}
   ::hEvery := { => }
   ::hGlobals := { => }
   ::hClasses := { => }
@@ -454,13 +470,19 @@ Return Self
 // Loads the modules, runs their __INITs, then the entry: what the process
 // exits with.
 Method Start(aFiles, cEntry) Class XbcVM
-  Local bOld := ErrorBlock({|oErr| ::OnError(oErr)})
+  Local oWas := sxVM
+  Local bOld
   Local nExit := 0
   Local xCaught
   Local aFn
+  sxVM := Self
+  bOld := ErrorBlock(XbcOnError())
+  defer sxVM := oWas
   defer ErrorBlock(bOld)
   Begin Sequence
-    aFiles |> tap([c] ::Load(c))
+    for cFile in aFiles
+      ::Load(cFile)
+    next
     for aMod in ::aMods
       If local aInit := aMod[M_FNS]{"__INIT"}, aInit != Nil
         ::Push(aInit, {}, Nil, Nil)
@@ -498,12 +520,26 @@ Method Start(aFiles, cEntry) Class XbcVM
   ::aErr |> tap(ConOut) if !::lCapture
 Return nExit
 
+// The error block of the program's run: made here, not in Start() -- no
+// code block is made where the machine's arrays are in reach (the
+// AppServer's walk, at XbcMakeBlock()).
+Static Function XbcOnError()
+Return {|oErr| sxVM:OnError(oErr)}
+
 // What ran, as xc-vm prints it: its exit code, its output, its errors.
 Method Report(cFile, nExit) Class XbcVM
   Local cNl := Chr(10)
-  MemoWrite(cFile, "exit ${nExit}" + cNl + "--- output" + cNl + (::aOut |> map([l] l + cNl) |> join) + ;
-                   "--- errors" + cNl + (::aErr |> map([l] l + cNl) |> join))
+  MemoWrite(cFile, "exit ${nExit}" + cNl + "--- output" + cNl + XbcJoined(::aOut) + ;
+                   "--- errors" + cNl + XbcJoined(::aErr))
 Return Nil
+
+// Lines, each ended. A loop, not a lambda (XbcMakeBlock()).
+Static Function XbcJoined(aLines)
+  Local cText := ""
+  for cLine in aLines
+    cText += cLine + Chr(10)
+  next
+Return cText
 
 // ---- loading ----------------------------------------------------------------
 // A .xbc: its header, its classes, its functions; each instruction parsed
@@ -555,7 +591,8 @@ Method Load(cPath) Class XbcVM
       nI++
       ::hClasses{aCls[C_NAME]} := aCls
     Case cWord == "function"
-      aFn := {aWords[2], aWords[3], Val(aWords[4]), Val(aWords[5]), aMod, {}, 0}
+      aFn := {aWords[2], aWords[3], Val(aWords[4]), Val(aWords[5]), aMod, {}, 0, Len(::aFns) + 1}
+      AAdd(::aFns, aFn)
       nLine := 0
       While nI <= Len(aLines) .And. !(aLines[nI] == "end")
         Local cIns := aLines[nI++]
@@ -581,7 +618,7 @@ Method Load(cPath) Class XbcVM
   lJit := ::aTrace == Nil .And. ::lJit .And. (!::lHost .Or. !Empty(::cJitDump) .Or. FindFunction("U_XBCJIT"))
   for aOne in aMod[M_LIST]
     aOne[FN_STACK] := XbcDepth(aOne[FN_CODE]) + 2
-    aOne[FN_CODE] := XbcFused(aOne[FN_CODE], If(lJit, {|c| ::JitCallable(c)}, Nil)) if ::aTrace == Nil
+    aOne[FN_CODE] := XbcFused(aOne[FN_CODE], If(lJit, Self, Nil)) if ::aTrace == Nil
   next
   // Where a plain name is looked for: the namespace, then those it uses.
   aMod[M_SEARCH] := If(Empty(aMod[M_NS]), {}, {Upper(aMod[M_NS])})
@@ -741,7 +778,7 @@ Return 0
 // 'num n, add' ADDNUM n; 'add, setlocal a' ADDSET a; a comparison and
 // 'jumpf a' LEJF a, LTJF a, ... -- never over an instruction something
 // jumps to. What jumped to an instruction jumps to the one it is in now.
-Static Function XbcFused(aCode, bCall)
+Static Function XbcFused(aCode, oJit)
   Local aMap := Array(Len(aCode))
   Local aOne := {}
   Local aOut := {}
@@ -765,7 +802,7 @@ Static Function XbcFused(aCode, bCall)
     aMap[nI] := nNext
   Next
   XbcRetarget(aOne, aMap)
-  aOne := XbcJitRuns(aOne, bCall) if bCall != Nil
+  aOne := XbcJitRuns(aOne, oJit) if oJit != Nil
   aTo := XbcTargets(aOne)
   aMap := Array(Len(aOne) + 1)
   aMap[Len(aOne) + 1] := Len(aOne) + 1
@@ -838,9 +875,10 @@ Return aTo
 // once its block is made; what jumped to the run's first instruction jumps
 // to the JIT. A run is on one line, and nothing jumps into it: locals,
 // statics, cells, constants, operators, arrays, the AppServer's functions
-// bCall takes -- and a jump that ends it, whose condition the block gives.
+// the machine's JitCallable() takes -- and a jump that ends it, whose
+// condition the block gives.
 // It is worth it from three instructions, or with a call.
-Static Function XbcJitRuns(aCode, bCall)
+Static Function XbcJitRuns(aCode, oJit)
   Local aTo := XbcTargets(aCode)
   Local aOut := {}
   Local aMap := Array(Len(aCode) + 1)
@@ -856,7 +894,7 @@ Static Function XbcJitRuns(aCode, bCall)
     nEnd := nI
     nCalls := 0
     While nEnd <= Len(aCode) .And. (nEnd == nI .Or. (!aTo[nEnd] .And. aCode[nEnd][I_LINE] == nLine)) .And. ;
-          XbcJitOp(aCode[nEnd], bCall)
+          XbcJitOp(aCode[nEnd], oJit)
       nCalls++ if aCode[nEnd][I_OP] == OP_CALL
       nEnd++
     EndDo
@@ -893,11 +931,11 @@ Static Function XbcJitRuns(aCode, bCall)
 Return aOut
 
 // Can the JIT have it in a run.
-Static Function XbcJitOp(aIns, bCall)
+Static Function XbcJitOp(aIns, oJit)
   Local nOp := aIns[I_OP]
   Do Case
   Case nOp == OP_CALL
-    Return Eval(bCall, aIns[I_S])
+    Return oJit:JitCallable(aIns[I_S])
   Case nOp == OP_NIL .Or. nOp == OP_TRUE .Or. nOp == OP_FALSE .Or. nOp == OP_NUM .Or. nOp == OP_STR .Or. ;
        nOp == OP_LOCAL .Or. nOp == OP_SETLOCAL .Or. nOp == OP_CELL .Or. nOp == OP_SETCELL .Or. nOp == OP_UPVAL .Or. ;
        nOp == OP_SETUPVAL .Or. nOp == OP_STATIC .Or. nOp == OP_SETSTATIC .Or. nOp == OP_SELF .Or. nOp == OP_POP .Or. ;
@@ -1356,7 +1394,7 @@ Method Run(nBase) Class XbcVM
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
                 If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(aArgs |> anyof([x] XbcIsRef(x)), K_SLOW, K_FN)
+                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
@@ -1376,7 +1414,7 @@ Method Run(nBase) Class XbcVM
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
-                If !(aArgs |> anyof([x] XbcIsRef(x)))
+                If !XbcAnyRef(aArgs)
                   nAt := ::hSys{"m:" + aIns[I_S2] + "/" + cValToChar(nN)}
                   aIns[I_X] := ::aSys[nAt] if nAt != Nil
                 EndIf
@@ -1533,7 +1571,7 @@ Method Run(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
+            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -1758,16 +1796,26 @@ Return oVM:Run3(nBase)
 Static Function XbcDefer(aF, nId, nAt)
   Local aMore := XbcMore(aF)
   aMore[X_DEFERS] ?= {}
-  AAdd(aMore[X_DEFERS], {nId, nAt}) if !(aMore[X_DEFERS] |> anyof([d] d[1] == nId))
+  for aD in aMore[X_DEFERS]
+    Return Nil if aD[1] == nId
+  next
+  AAdd(aMore[X_DEFERS], {nId, nAt})
 Return Nil
 
 // The deferred code to run now -- the highest number first, the last one
-// written --, forgotten: where it is.
+// written --, forgotten: where it is. Loops, not lambdas: the frame is in
+// reach (XbcMakeBlock()).
 Static Function XbcNextDefer(aF)
-  Local aMore := aF[F_MORE]
-  Local aNext := aMore[X_DEFERS] |> maxby([d] d[1])
-  aMore[X_DEFERS] := aMore[X_DEFERS] |> reject([d] d[1] == aNext[1])
-Return aNext[2]
+  Local aDefers := aF[F_MORE][X_DEFERS]
+  Local nTop := 1
+  Local nAt
+  For local nK := 2 To Len(aDefers)
+    nTop := nK if aDefers[nK][1] > aDefers[nTop][1]
+  Next
+  nAt := aDefers[nTop][2]
+  ADel(aDefers, nTop)
+  ASize(aDefers, Len(aDefers) - 1)
+Return nAt
 
 // What few frames have, made the first time a frame needs some of it.
 Static Function XbcMore(aF)
@@ -1800,7 +1848,7 @@ Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
     xResult := aF[F_ARGC]
   Case xFound == "BREAK"
     XbcBreak(If(Empty(aArgs), Nil, aArgs[1]))
-  Case xFound == "EVAL" .And. !Empty(aArgs) .And. ValType(aArgs[1]) == "B" .And. !(aArgs |> anyof([x] XbcIsRef(x)))
+  Case xFound == "EVAL" .And. !Empty(aArgs) .And. ValType(aArgs[1]) == "B" .And. !XbcAnyRef(aArgs)
     xResult := XbcEvalArgs(aArgs[1], aArgs)
   Case xFound == "ERRORBLOCK"
     xResult := ::bProgErr
@@ -1823,7 +1871,7 @@ Return .F.
 Method Classify(aIns, xFound, aArgs) Class XbcVM
   Local nSys
   aIns[I_K] := K_SLOW
-  Return Nil if aArgs |> anyof([x] XbcIsRef(x))
+  Return Nil if XbcAnyRef(aArgs)
   Do Case
   Case ValType(xFound) == "A"
     aIns[I_K] := K_FN
@@ -1861,13 +1909,15 @@ Method JitCallable(cName) Class XbcVM
                 cUp == "AEVAL" .Or. cUp == "ASCAN" .Or. cUp == "ASORT" .Or. cUp == "DBEVAL"
   Return .F. if (cUp == "CONOUT" .Or. cUp == "QOUT") .And. ::lCapture
   If Left(cUp, 2) == "U_"
-    Return AScan({"U_XTPL_ASUM", "U_XTPL_APROD", "U_XTPL_AMAX", "U_XTPL_AMIN", "U_XTPL_IN", "U_XTPL_HGET", ;
-                  "U_XTPL_HSET", "U_XTPL_HHAS", "U_XTPL_HNEW", "U_XTPL_JNEW", "U_XTPL_TAKE", "U_XTPL_DROP", ;
-                  "U_XTPL_DISTINCT", "U_XTPL_SEEN", "U_XTPL_REVERSE", "U_XTPL_FLATTEN", "U_XTPL_ENUMERATE", ;
-                  "U_XTPL_CHUNKS", "U_XTPL_ZIP", "U_XTPL_PAIRS", "U_XTPL_KEYS", "U_XTPL_VALUES", ;
-                  "U_XTPL_PAIRWISE", "U_XTPL_SPLIT", "U_XTPL_JOIN", "U_XTPL_STARTS", "U_XTPL_ENDS", ;
-                  "U_XTPL_CONTAINS", "U_XTPL_QUEUE", "U_XTPL_APICK", "U_XTPL_AROLL", "U_XTPL_SETMAXROLL"}, ;
-                 {|c| c == cUp}) > 0
+    for cOk in {"U_XTPL_ASUM", "U_XTPL_APROD", "U_XTPL_AMAX", "U_XTPL_AMIN", "U_XTPL_IN", "U_XTPL_HGET", ;
+                "U_XTPL_HSET", "U_XTPL_HHAS", "U_XTPL_HNEW", "U_XTPL_JNEW", "U_XTPL_TAKE", "U_XTPL_DROP", ;
+                "U_XTPL_DISTINCT", "U_XTPL_SEEN", "U_XTPL_REVERSE", "U_XTPL_FLATTEN", "U_XTPL_ENUMERATE", ;
+                "U_XTPL_CHUNKS", "U_XTPL_ZIP", "U_XTPL_PAIRS", "U_XTPL_KEYS", "U_XTPL_VALUES", ;
+                "U_XTPL_PAIRWISE", "U_XTPL_SPLIT", "U_XTPL_JOIN", "U_XTPL_STARTS", "U_XTPL_ENDS", ;
+                "U_XTPL_CONTAINS", "U_XTPL_QUEUE", "U_XTPL_APICK", "U_XTPL_AROLL", "U_XTPL_SETMAXROLL"}
+      Return .T. if cOk == cUp
+    next
+    Return .F.
   EndIf
 Return .T.
 
@@ -1896,7 +1946,6 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   Local cCond := ""
   Local cTemps := ""
   Local bBlock := Nil
-  Local bOld
   Local nTop
   Local nOp
   aIns[I_K] := 2
@@ -2028,13 +2077,7 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   If ::lHost
     bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
   Else
-    bOld := ErrorBlock({|e| Break(e)})
-    Begin Sequence
-      bBlock := &(cText)
-    Recover
-      bBlock := Nil
-    End Sequence
-    ErrorBlock(bOld)
+    bBlock := XbcJitBlock(cText)
   EndIf
   If ValType(bBlock) != "B"
     ::hJitDump{cText} := .T. if !Empty(::cJitDump)
@@ -2046,6 +2089,20 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   aIns[I_E] := nTop + Len(aJ[J_STACK])
   aIns[I_K] := 1
 Return Nil
+
+// The JIT's block, by the AppServer's macro compiler: Nil for one it cannot
+// make. Here, not in Jit() -- no code block is made where the machine's
+// arrays are in reach (XbcMakeBlock()).
+Static Function XbcJitBlock(cText)
+  Local bOld := ErrorBlock({|e| Break(e)})
+  Local bBlock
+  Begin Sequence
+    bBlock := &(cText)
+  Recover
+    bBlock := Nil
+  End Sequence
+  ErrorBlock(bOld)
+Return bBlock
 
 // A subscript in a block of the JIT's, of a Local as in the loop: in a
 // macro's block the AppServer words an error of one 'array out of bounds
@@ -2218,10 +2275,12 @@ Method Instance(aCls) Class XbcVM
   Local oObj
   If aCls[C_SLOTS] == Nil
     aCls[C_SLOTS] := { => }
-    for cData in aChain |> expand([k] k[C_DATA])
-      Loop if aCls[C_SLOTS] has Upper(cData)
-      aCls[C_NSLOTS]++
-      aCls[C_SLOTS]{Upper(cData)} := aCls[C_NSLOTS]
+    for aK in aChain
+      for cData in aK[C_DATA]
+        Loop if aCls[C_SLOTS] has Upper(cData)
+        aCls[C_NSLOTS]++
+        aCls[C_SLOTS]{Upper(cData)} := aCls[C_NSLOTS]
+      next
     next
   EndIf
   oObj := XbcObj():New(aCls, aCls[C_NSLOTS])
@@ -2242,11 +2301,16 @@ Method SlotOf(aCls, cName) Class XbcVM
 Return nSlot
 
 // The classes above a class, the topmost first, and it.
+// Loops, not lambdas: the class is in reach (XbcMakeBlock()).
 Static Function XbcChain(oVM, aCls)
-  Local aChain := aCls[C_SUPERS] ;
-                    |> map([s] oVM:ClassNamed(aCls[C_MOD], s)) ;
-                    |> filter([k] k != Nil) ;
-                    |> expand([k] XbcChain(oVM, k))
+  Local aChain := {}
+  for cSuper in aCls[C_SUPERS]
+    Local aK := oVM:ClassNamed(aCls[C_MOD], cSuper)
+    Loop if aK == Nil
+    for aUp in XbcChain(oVM, aK)
+      AAdd(aChain, aUp)
+    next
+  next
   AAdd(aChain, aCls)
 Return aChain
 
@@ -2282,7 +2346,7 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
     EndIf
   next
   nSys := ::hSys{cWhat + ":" + If(cWhat == "m", "", Upper(cName) + If(cWhat == "n", ":", "")) + Upper(cMethod) + ;
-                 "/" + cValToChar(Len(aVals)) + If(Empty(aRefs), "", aRefs |> map([k] ":${k}") |> join)}
+                 "/" + cValToChar(Len(aVals)) + XbcRefsKey(aRefs)}
   If nSys != Nil
     xResult := Eval(::aSys[nSys], xObj, aVals)
   ElseIf ::lHost
@@ -2299,18 +2363,40 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
   EndIf
   If ::aTrace != Nil
     ::Note("  the AppServer's ${cWhat}:${cName}:${cMethod}" + If(nSys != Nil, " #${nSys}", "") + "(" + ;
-           (aVals |> map([x] XbcShown(x)) |> join(", ")) + ;
+           XbcShownAll(aVals) + ;
                    ") -> " + XbcShown(xResult))
   EndIf
   aRefs |> tap([k] aArgs[k][2][aArgs[k][3]] := aVals[k])
 Return xResult
+
+// Values as a trace shows them, between commas.
+Static Function XbcShownAll(aVals)
+  Local cText := ""
+  for xVal, nI in aVals
+    cText += If(nI > 1, ", ", "") + XbcShown(xVal)
+  next
+Return cText
+
+// ':N' for each argument by reference, in order -- a loop, not a lambda
+// (XbcMakeBlock()).
+Static Function XbcRefsKey(aRefs)
+  Local cKey := ""
+  for nK in aRefs
+    cKey += ":" + cValToChar(nK)
+  next
+Return cKey
+
+// &(text), run here, not in a method of the machine's: what it makes may
+// be a code block (XbcMakeBlock()).
+Static Function XbcMacroRun(cText)
+Return &(cText)
 
 // The block a macro makes once for a call of the AppServer's not in the
 // table -- for its name, number of arguments and references --, each
 // argument a parameter of its own: {|a, o, p1, p2, r| r := F(p1, @p2), a[2]
 // := p2, r}.
 Method MacroOf(cWhat, cName, cMethod, nArgs, aRefs) Class XbcVM
-  Local cKey := "${cWhat}:${cName}:${cMethod}:${nArgs}" + (aRefs |> map([k] ":${k}") |> join)
+  Local cKey := "${cWhat}:${cName}:${cMethod}:${nArgs}" + XbcRefsKey(aRefs)
   Local cParams := ""
   Local cList := ""
   Local cCall
@@ -2320,8 +2406,11 @@ Method MacroOf(cWhat, cName, cMethod, nArgs, aRefs) Class XbcVM
       cList += If(nK > 1, ", ", "") + If(nK in aRefs, "@", "") + "p${nK}"
     Next
     cCall := If(cWhat == "f", cName, If(cWhat == "m", "o:", cName + "():") + cMethod)
-    cList := "r := ${cCall}(${cList})" + (aRefs |> map([k] ", a[${k}] := p${k}") |> join)
-    ::hCache{cKey} := &("{|a, o${cParams}, r| ${cList}, r}")
+    cList := "r := ${cCall}(${cList})"
+    for nK in aRefs
+      cList += ", a[${nK}] := p${nK}"
+    next
+    ::hCache{cKey} := XbcMacroRun("{|a, o${cParams}, r| ${cList}, r}")
   EndIf
 Return ::hCache{cKey}
 
@@ -2397,7 +2486,7 @@ Method MemberOf(xObj, cName) Class XbcVM
     Return Eval(::aSys[nSys], xObj)
   EndIf
   Return XBC_MEMBER(xObj, cName) if ::lHost
-  ::hCache{"g:" + cName} ?= &("{|o| o:${cName}}")
+  ::hCache{"g:" + cName} ?= XbcMacroRun("{|o| o:${cName}}")
 Return Eval(::hCache{"g:" + cName}, xObj)
 
 Method SetMemberOf(xObj, cName, xValue) Class XbcVM
@@ -2408,7 +2497,7 @@ Method SetMemberOf(xObj, cName, xValue) Class XbcVM
   ElseIf ::lHost
     XBC_SETMEMBER(xObj, cName, xValue)
   Else
-    ::hCache{"s:" + cName} ?= &("{|o, v| o:${cName} := v}")
+    ::hCache{"s:" + cName} ?= XbcMacroRun("{|o, v| o:${cName} := v}")
     Eval(::hCache{"s:" + cName}, xObj, xValue)
   EndIf
 Return Nil
@@ -2447,11 +2536,12 @@ Method PrivCell(cName, lFresh) Class XbcVM
   Local aCell
   ::hPrivs{cName} := aStack
   aMore[X_PRIVS] ?= {}
-  If aMore[X_PRIVS] |> anyof([n] n == cName)
+  for cHad in aMore[X_PRIVS]
+    Loop if !(cHad == cName)
     aCell := ATail(aStack)
     aCell[1] := Nil if ValType(lFresh) == "L" .And. lFresh
     Return aCell
-  EndIf
+  next
   aCell := {Nil}
   AAdd(aStack, aCell)
   AAdd(aMore[X_PRIVS], cName)
@@ -2466,7 +2556,7 @@ Method Macro(cText) Class XbcVM
     Return aCell[1]
   EndIf
   ::Fail("xc-vm runs no macro but a variable's name: &(${cText})") if ::lHost
-Return &(cText)
+Return XbcMacroRun(cText)
 
 Method SetMacro(cText, xValue) Class XbcVM
   Local cName := Upper(AllTrim(cText))
@@ -2898,21 +2988,33 @@ Return aT
 // -- every block of the program ran as the last one made (02-blocks,
 // 09-classes on 24.3.1.9).
 //
+// What its closure holds is small: the function's number in the machine's
+// list, its cells, its object -- and the machine is sxVM. A function that
+// made a code block has, when it returns, every array its Locals reach
+// walked by the AppServer, and the walk took longer the more blocks had
+// been made (tLocalEnv::checkCircularArray(); bench6, xeh2 on 24.3.1.9). A
+// function's record reaches the whole program -- its code, the functions
+// its calls found, its module and every function in it --: with it here,
+// a block took 76 us to make at first, 3 ms half a minute later. So no
+// code block is made where the machine's arrays are in reach: not in the
+// loop, not in a method of the machine's, not with a frame or a function's
+// record in a Local.
+//
 // It runs in the copy of the loop after the one running, through the copy
 // of Enter() that goes with it -- no function between that a block run
 // inside it would enter again (the loop's copies, below).
-Static Function XbcMakeBlock(oVM, aFn, aCells, xSelf)
-  Local aClo := {aFn, aCells, xSelf}
+Static Function XbcMakeBlock(nFn, aCells, xSelf)
+  Local aClo := {nFn, aCells, xSelf}
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
-        If(oVM:nRuns % 4 == 0, oVM:Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
-        If(oVM:nRuns % 4 == 1, oVM:Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
-        If(oVM:nRuns % 4 == 2, oVM:Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
-                               oVM:Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12))))}
+        If(sxVM:nRuns % 4 == 0, sxVM:Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+        If(sxVM:nRuns % 4 == 1, sxVM:Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+        If(sxVM:nRuns % 4 == 2, sxVM:Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+                                sxVM:Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12))))}
 
 // A block run: its frame, its parameters from what it was given, in Run() --
 // Enter1() in Run1(), and so on.
 Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
-  Local aFn := aClo[1]
+  Local aFn := ::aFns[aClo[1]]
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
@@ -3248,7 +3350,7 @@ Method Run1(nBase) Class XbcVM
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
                 If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(aArgs |> anyof([x] XbcIsRef(x)), K_SLOW, K_FN)
+                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
@@ -3268,7 +3370,7 @@ Method Run1(nBase) Class XbcVM
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
-                If !(aArgs |> anyof([x] XbcIsRef(x)))
+                If !XbcAnyRef(aArgs)
                   nAt := ::hSys{"m:" + aIns[I_S2] + "/" + cValToChar(nN)}
                   aIns[I_X] := ::aSys[nAt] if nAt != Nil
                 EndIf
@@ -3425,7 +3527,7 @@ Method Run1(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
+            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -3631,7 +3733,7 @@ Method Run1(nBase) Class XbcVM
 Return xResult
 
 Method Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
-  Local aFn := aClo[1]
+  Local aFn := ::aFns[aClo[1]]
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
@@ -3943,7 +4045,7 @@ Method Run2(nBase) Class XbcVM
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
                 If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(aArgs |> anyof([x] XbcIsRef(x)), K_SLOW, K_FN)
+                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
@@ -3963,7 +4065,7 @@ Method Run2(nBase) Class XbcVM
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
-                If !(aArgs |> anyof([x] XbcIsRef(x)))
+                If !XbcAnyRef(aArgs)
                   nAt := ::hSys{"m:" + aIns[I_S2] + "/" + cValToChar(nN)}
                   aIns[I_X] := ::aSys[nAt] if nAt != Nil
                 EndIf
@@ -4120,7 +4222,7 @@ Method Run2(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
+            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -4326,7 +4428,7 @@ Method Run2(nBase) Class XbcVM
 Return xResult
 
 Method Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
-  Local aFn := aClo[1]
+  Local aFn := ::aFns[aClo[1]]
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
@@ -4638,7 +4740,7 @@ Method Run3(nBase) Class XbcVM
                 aF[F_SP] := nSp
                 aF[F_PC] := nPc
                 If aIns[I_K] == 0 .And. !lTrace
-                  aIns[I_K] := If(aArgs |> anyof([x] XbcIsRef(x)), K_SLOW, K_FN)
+                  aIns[I_K] := If(XbcAnyRef(aArgs), K_SLOW, K_FN)
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
@@ -4658,7 +4760,7 @@ Method Run3(nBase) Class XbcVM
               nSp -= nN + 1
               If aIns[I_X] == Nil .And. !lTrace
                 aIns[I_X] := .F.
-                If !(aArgs |> anyof([x] XbcIsRef(x)))
+                If !XbcAnyRef(aArgs)
                   nAt := ::hSys{"m:" + aIns[I_S2] + "/" + cValToChar(nN)}
                   aIns[I_X] := ::aSys[nAt] if nAt != Nil
                 EndIf
@@ -4815,7 +4917,7 @@ Method Run3(nBase) Class XbcVM
               xA[nI] := aSt[nSp - nN + nI][2]
             Next
             nSp := nSp - nN + 1
-            aSt[nSp] := XbcMakeBlock(Self, aFn, xA, aF[F_SELF])
+            aSt[nSp] := XbcMakeBlock(aFn[FN_ID], xA, aF[F_SELF])
           Case nOp == OP_NEW
             // 'Name():M(...)': an object of the class, M run on it -- the
             // object what the caller gets; a static M, what it returns.
@@ -5021,7 +5123,7 @@ Method Run3(nBase) Class XbcVM
 Return xResult
 
 Method Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
-  Local aFn := aClo[1]
+  Local aFn := ::aFns[aClo[1]]
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
