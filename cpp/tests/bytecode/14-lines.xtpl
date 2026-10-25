@@ -1,0 +1,45 @@
+// Runs of the JIT's over more than one line, and loops turned round, so
+// that a time round is one run: what they give, and an error in one -- on
+// its own line, in the copy of a loop's test too.
+User Function Main()
+  Local nSum := 0
+  Local nI
+  Local nN := 5
+  Local nStep := 1
+  Local oErr
+
+  For nI := 1 To nN
+    nSum += nI % 3
+    nSum += Twice(nI)
+  Next
+  ConOut(nSum)
+  nI := 0
+  While nI < 10
+    nI += 3
+  EndDo
+  ConOut(nI)
+  For nI := 10 To 1 Step -3
+    nSum -= nI
+  Next
+  ConOut(nSum, nI)
+  Try
+    nSum := 1
+    nSum := nSum + "x"
+  Catch oErr
+    ConOut("caught: " + oErr:Description)
+  EndTry
+  Try
+    ConOut(Twice("y"))
+  Catch oErr
+    ConOut("caught: " + oErr:Description)
+  EndTry
+  nI := 0
+  While nI + nStep <= 10
+    nI += nStep
+    nStep := If(nI == 4, "x", nStep)
+  EndDo
+Return nI
+
+Static Function Twice(nX)
+  Local nY := nX * 2
+Return nY

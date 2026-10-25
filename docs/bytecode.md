@@ -566,10 +566,10 @@ It runs what it loads as the loop is fastest at it:
   method of the machine's, not with a frame or a function's record in a
   Local -- its lambdas are loops, and what a macro makes is made in a
   function of its own;
-- a run of instructions on one line, that nothing jumps into, is one code
-  block the AppServer's macro compiler makes the first time it runs -- the
-  JIT; `jit=off` makes none. Its instructions are locals, statics, cells,
-  Self, constants, operators, arrays, subscripts and the AppServer's
+- a run of instructions that nothing jumps into, 64 at the most, is one
+  code block the AppServer's macro compiler makes the first time it runs
+  -- the JIT; `jit=off` makes none. Its instructions are locals, statics,
+  cells, Self, constants, operators, arrays, subscripts and the AppServer's
   functions -- not one that runs code blocks (`Eval()`, `aEval()`,
   `aScan()`, `aSort()`, the runtime's verbs): in a macro's block, `Eval()`
   of a block of the program's gave back its argument, not its value -- and
@@ -577,16 +577,29 @@ It runs what it loads as the loop is fastest at it:
 
   ```text
   local 2, local 3, num 7, mod, num 2, mul, add, setlocal 2
-    {|XL, XK, XC, XT, XO| XL[2] := (XL[2] + ((XL[3] % (7)) * (2))), Nil}
+    {|XL, XK, XC, XT, XO, XI| XL[2] := (XL[2] + ((XL[3] % (7)) * (2))), Nil}
   ```
 
   XL is the frame's locals and stack, XK the run's constants -- its
-  strings --, XC its cells, XT the module's statics, XO Self, and X1, X2,
-  ... values kept on the way. What the run pushes and takes again is an
-  expression, never stored; a value is kept first when something is set
-  before it is used; a subscript is `u_xbcidx()`'s or `u_xbcset()`'s, the
-  interpreter's -- in a macro's block the AppServer words an error of one
-  `array out of bounds ( 2 of 0 )`, not `[2] of [0]` as of a Local.
+  strings --, XC its cells, XT the module's statics, XO Self, XI where
+  the block is, and X1, X2, ... values kept on the way. A run goes on over
+  lines: where it starts another, what it has pending is kept first, and
+  the block says so, `XI[1] := 2` -- an error in it is on that line. A
+  loop is turned round when it is loaded: the `jump` back to its test --
+  a run the JIT can have, then a `jumpf` out -- is a copy of the test and
+  a `jumpt` back in, so that a time round the loop is one run, its end and
+  its test:
+
+  ```text
+  {|XL, XK, XC, XT, XO, XI| XI[1] := 1, XL[1] := (XL[1] + ((XL[2] % (7)) * (2))),
+     XL[2] := (XL[2] + (1)), XI[1] := 2, (XL[2] <= XL[3])}
+  ```
+
+  What the run pushes and takes again is an expression, never stored; a
+  value is kept first when something is set before it is used; a
+  subscript is `u_xbcidx()`'s or `u_xbcset()`'s, the interpreter's -- in
+  a macro's block the AppServer words an error of one `array out of
+  bounds ( 2 of 0 )`, not `[2] of [0]` as of a Local.
   The block is made for the stack's height the run first meets; at
   another, and when a call turns out to be a module's function or the
   macro compiler refuses the block, the run is the loop's. An error in it
@@ -605,13 +618,14 @@ It runs what it loads as the loop is fastest at it:
 
   ```text
   upval 1, local 1, add, dup, setupval 1, ret
-    {|XC, XK, XT, XO, P1, X1| X1 := (XC[1][1] + P1), XC[1][1] := X1, X1}
+    {|XC, XK, XT, XO, XI, P1, X1| X1 := (XC[1][1] + P1), XC[1][1] := X1, X1}
   ```
 
   P1, P2, ... are its parameters -- none, one, two or 12 of them, as many
   as a block or a call passes it --, L its other locals, and the last
-  expression what it gives. An error in it is on the function's line, as
-  in the loop (`cpp/tests/bytecode/13-whole`).
+  expression what it gives -- a function of more than one line too. An
+  error in it is on its line, as in the loop (`cpp/tests/bytecode/13-whole`,
+  `14-lines`).
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.

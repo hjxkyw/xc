@@ -1,0 +1,165 @@
+xbc 1
+source 14-lines.xtpl
+statics 0
+
+function U_MAIN user 0 5
+  locals nSum nI nN nStep oErr
+  line 5
+  num 0
+  setlocal 1
+  line 7
+  num 5
+  setlocal 3
+  line 8
+  num 1
+  setlocal 4
+  line 11
+  num 1
+  setlocal 2
+  line 11
+  local 2
+  local 3
+  le
+  jumpf 36
+  line 12
+  local 1
+  local 2
+  num 3
+  mod
+  add
+  setlocal 1
+  line 13
+  local 1
+  local 2
+  call 1 Twice
+  add
+  setlocal 1
+  local 2
+  num 1
+  add
+  setlocal 2
+  jump 13
+  line 15
+  local 1
+  call 1 ConOut
+  pop
+  line 16
+  num 0
+  setlocal 2
+  line 17
+  local 2
+  num 10
+  lt
+  jumpf 54
+  line 18
+  local 2
+  num 3
+  add
+  setlocal 2
+  jump 43
+  line 20
+  local 2
+  call 1 ConOut
+  pop
+  line 21
+  num 10
+  setlocal 2
+  line 21
+  local 2
+  num 1
+  ge
+  jumpf 77
+  line 22
+  local 1
+  local 2
+  sub
+  setlocal 1
+  local 2
+  num 3
+  neg
+  add
+  setlocal 2
+  jump 61
+  line 24
+  local 1
+  local 2
+  call 2 ConOut
+  pop
+  line 25
+  try 94
+  line 26
+  num 1
+  setlocal 1
+  line 27
+  local 1
+  str "x"
+  add
+  setlocal 1
+  endseq
+  jump 102
+  setlocal 5
+  line 29
+  str "caught: "
+  local 5
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 31
+  try 111
+  line 32
+  str "y"
+  call 1 Twice
+  call 1 ConOut
+  pop
+  endseq
+  jump 119
+  setlocal 5
+  line 34
+  str "caught: "
+  local 5
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 36
+  num 0
+  setlocal 2
+  line 37
+  local 2
+  local 4
+  add
+  num 10
+  le
+  jumpf 144
+  line 38
+  local 2
+  local 4
+  add
+  setlocal 2
+  line 39
+  local 2
+  num 4
+  exact
+  jumpf 141
+  str "x"
+  jump 142
+  local 4
+  setlocal 4
+  jump 122
+  line 41
+  local 2
+  ret
+end
+
+function TWICE static 1 2
+  locals nX nY
+  line 44
+  local 1
+  num 2
+  mul
+  setlocal 2
+  line 45
+  local 2
+  ret
+end

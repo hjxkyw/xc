@@ -139,7 +139,9 @@
 // instructions after it, I_X, as one block -- a where it ends, b where the
 // jump that ends it goes, n which jump (1 jumpf, 2 jumpt, 3 jump, 0 none);
 // the block I_C, its constants I_S2, the stack's height it was made for
-// I_D and the height after it I_E; I_K 0 not made yet, 1 made, 2 not to be.
+// I_D and the height after it I_E; I_K 0 not made yet, 1 made, 2 not to be;
+// for a run over more than one line, the lines I_LINES, and I_PART, {the
+// one the block is on} (XbcLineOf()).
 #define I_OP   1
 #define I_A    2
 #define I_B    3
@@ -152,6 +154,8 @@
 #define I_X    10
 #define I_D    11
 #define I_E    12
+#define I_PART  13
+#define I_LINES 14
 
 // What a call is, found the first time it runs -- an argument by reference
 // at a call is there every time: K_FN a function of a module, I_X; K_SYS
@@ -241,6 +245,7 @@
 #define J_BELOW  6
 #define J_READS  7
 #define J_WHOLE  8
+#define J_LINES  9
 
 // What a reference and an error on its way are: arrays no program makes,
 // their first element one of these.
@@ -818,7 +823,10 @@ Static Function XbcFused(aCode, oJit)
     aMap[nI] := nNext
   Next
   XbcRetarget(aOne, aMap)
-  aOne := XbcJitRuns(aOne, oJit) if oJit != Nil
+  If oJit != Nil
+    aOne := XbcRotate(aOne, oJit)
+    aOne := XbcJitRuns(aOne, oJit)
+  EndIf
   aTo := XbcTargets(aOne)
   aMap := Array(Len(aOne) + 1)
   aMap[Len(aOne) + 1] := Len(aOne) + 1
@@ -886,14 +894,50 @@ Static Function XbcTargets(aCode)
   next
 Return aTo
 
+// Loops turned round, for the JIT: a 'jump' back to a test -- a run the JIT
+// can have, then a 'jumpf' out to just after the 'jump' -- becomes a copy
+// of the test and a 'jumpt' back into the loop, so that one run each time
+// round has the loop's end and its test (XbcJitRuns()). What jumped to the
+// 'jump' goes to the copy.
+Static Function XbcRotate(aCode, oJit)
+  Local aTo := XbcTargets(aCode)
+  Local aOut := {}
+  Local aMap := Array(Len(aCode) + 1)
+  Local aIns
+  Local nTest
+  Local nK
+  For local nI := 1 To Len(aCode)
+    aIns := aCode[nI]
+    aMap[nI] := Len(aOut) + 1
+    If aIns[I_OP] == OP_JUMP .And. aIns[I_A] < nI
+      nTest := aIns[I_A]
+      nK := nTest
+      While nK < nI .And. nK - nTest < 16 .And. (nK == nTest .Or. !aTo[nK]) .And. ;
+            !(aCode[nK][I_OP] == OP_JUMPF) .And. XbcJitOp(aCode[nK], oJit)
+        nK++
+      EndDo
+      If nK > nTest .And. nK < nI .And. aCode[nK][I_OP] == OP_JUMPF .And. aCode[nK][I_A] == nI + 1 .And. !aTo[nK]
+        For local nC := nTest To nK - 1
+          AAdd(aOut, aClone(aCode[nC]))
+        Next
+        AAdd(aOut, XbcIns(OP_JUMPT, nK + 1, 0, 0, aCode[nK][I_LINE]))
+        Loop
+      EndIf
+    EndIf
+    AAdd(aOut, aIns)
+  Next
+  aMap[Len(aCode) + 1] := Len(aOut) + 1
+  XbcRetarget(aOut, aMap)
+Return aOut
+
 // The runs of instructions the JIT is to make one code block of, the first
 // time each runs: each a JIT instruction before it, which jumps over it
 // once its block is made; what jumped to the run's first instruction jumps
-// to the JIT. A run is on one line, and nothing jumps into it: locals,
-// statics, cells, constants, operators, arrays, the AppServer's functions
-// the machine's JitCallable() takes -- and a jump that ends it, whose
-// condition the block gives.
-// It is worth it from three instructions, or with a call.
+// to the JIT. Nothing jumps into a run, and it has 64 instructions at the
+// most, over one line or more: locals, statics, cells, constants,
+// operators, arrays, the AppServer's functions the machine's
+// JitCallable() takes -- and a jump that ends it, whose condition the
+// block gives. It is worth it from three instructions, or with a call.
 Static Function XbcJitRuns(aCode, oJit)
   Local aTo := XbcTargets(aCode)
   Local aOut := {}
@@ -909,13 +953,12 @@ Static Function XbcJitRuns(aCode, oJit)
     nLine := aCode[nI][I_LINE]
     nEnd := nI
     nCalls := 0
-    While nEnd <= Len(aCode) .And. (nEnd == nI .Or. (!aTo[nEnd] .And. aCode[nEnd][I_LINE] == nLine)) .And. ;
-          XbcJitOp(aCode[nEnd], oJit)
+    While nEnd <= Len(aCode) .And. nEnd - nI < 64 .And. (nEnd == nI .Or. !aTo[nEnd]) .And. XbcJitOp(aCode[nEnd], oJit)
       nCalls++ if aCode[nEnd][I_OP] == OP_CALL
       nEnd++
     EndDo
     nTerm := 0
-    If nEnd > nI .And. nEnd <= Len(aCode) .And. !aTo[nEnd] .And. aCode[nEnd][I_LINE] == nLine
+    If nEnd > nI .And. nEnd <= Len(aCode) .And. !aTo[nEnd]
       nOp := aCode[nEnd][I_OP]
       nTerm := If(nOp == OP_JUMPF, 1, If(nOp == OP_JUMPT, 2, If(nOp == OP_JUMP, 3, 0)))
     EndIf
@@ -925,7 +968,7 @@ Static Function XbcJitRuns(aCode, oJit)
         AAdd(aRun, aCode[nK])
       Next
       AAdd(aOut, {OP_JIT, nEnd + If(nTerm > 0, 1, 0), If(nTerm > 0, aCode[nEnd][I_A], 0), "", Nil, nTerm, Nil, ;
-                  nLine, 0, aRun, 0, 0})
+                  nLine, 0, aRun, 0, 0, Nil, Nil})
       aMap[nI] := Len(aOut)
       nEnd++ if nTerm > 0
       For local nK := nI To nEnd - 1
@@ -1170,7 +1213,7 @@ Method Run(nBase) Class XbcVM
             // then; at another height the run is interpreted.
             ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
             If aIns[I_K] == 1 .And. aIns[I_D] == nSp
-              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF], aIns[I_PART])
               nSp := aIns[I_E]
               Do Case
               Case aIns[I_N] == 0
@@ -1228,11 +1271,11 @@ Method Run(nBase) Class XbcVM
               snFast := xB[4]
               Do Case
               Case nN == 0 .Or. xB[5] == 0
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6])
               Case nN == 1 .Or. xB[5] == 1
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1])
               Case nN == 2 .Or. xB[5] == 2
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1], aSt[nAt + 2])
               Otherwise
                 xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
               EndCase
@@ -1652,7 +1695,7 @@ Method Run(nBase) Class XbcVM
       // An error in the frame this was running: the line of the instruction
       // it ran last.
       If ::aErrAt != Nil .And. ::aErrAt == aF
-        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aCode[Max(nPc - 1, 1)][I_LINE]}"
+        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${XbcLineOf(aCode[Max(nPc - 1, 1)])}"
         ::aErrAt := Nil
       EndIf
       ::lInErr := .F.
@@ -1978,7 +2021,7 @@ Return .T.
 // macro compiler refuses, leaves the run to the loop. On xc-vm, the block
 // is u_xbcjit()'s, from the module jitdump=FILE wrote.
 Method Jit(aF, aIns, nSp) Class XbcVM
-  Local aJ := {{}, {}, {}, 0, nSp, 0, .F., Nil}
+  Local aJ := {{}, {}, {}, 0, nSp, 0, .F., Nil, {}}
   Local cText
   Local cCond := ""
   Local cTemps := ""
@@ -2002,10 +2045,11 @@ Method Jit(aF, aIns, nSp) Class XbcVM
     AAdd(aJ[J_OUT], cText + " := " + aEach[1]) if !(aEach[1] == cText)
   next
   AAdd(aJ[J_OUT], If(Empty(cCond), "Nil", cCond))
+  XjFirstLine(aJ)
   For local nT := 1 To aJ[J_TEMPS]
     cTemps += ", X${nT}"
   Next
-  cText := "{|XL, XK, XC, XT, XO${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
+  cText := "{|XL, XK, XC, XT, XO, XI${cTemps}| " + (aJ[J_OUT] |> join(", ")) + "}"
   If ::lHost
     bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
   Else
@@ -2019,6 +2063,10 @@ Method Jit(aF, aIns, nSp) Class XbcVM
   aIns[I_S2] := aJ[J_CONSTS]
   aIns[I_D] := nSp
   aIns[I_E] := nTop + Len(aJ[J_STACK])
+  If Len(aJ[J_LINES]) > 1
+    aIns[I_PART] := {1}
+    aIns[I_LINES] := aJ[J_LINES]
+  EndIf
   aIns[I_K] := 1
 Return Nil
 
@@ -2038,7 +2086,9 @@ Return bBlock
 
 // A run's instructions, the JIT's way, into aJ: .F. for one the JIT cannot
 // have -- a call that turns out to be a module's function; in a whole, a
-// cell of its own.
+// cell of its own. Where the run goes on to another line, what it has
+// pending is kept first, and the block says it is there: 'XI[1] := 2'
+// (XbcLineOf()).
 Method JitOps(aJ, aMod, aRun) Class XbcVM
   Local aE
   Local aA
@@ -2047,6 +2097,18 @@ Method JitOps(aJ, aMod, aRun) Class XbcVM
   Local cText
   Local nOp
   for aOne in aRun
+    If Empty(aJ[J_LINES])
+      AAdd(aJ[J_LINES], aOne[I_LINE])
+    ElseIf !(aOne[I_LINE] == ATail(aJ[J_LINES]))
+      XjSettle(aJ)
+      AAdd(aJ[J_LINES], aOne[I_LINE])
+      // A line that left nothing written says nothing: the next one does.
+      If !Empty(aJ[J_OUT]) .And. Left(ATail(aJ[J_OUT]), 6) == "XI[1] "
+        aJ[J_OUT][Len(aJ[J_OUT])] := "XI[1] := ${Len(aJ[J_LINES])}"
+      Else
+        AAdd(aJ[J_OUT], "XI[1] := ${Len(aJ[J_LINES])}")
+      EndIf
+    EndIf
     nOp := aOne[I_OP]
     Do Case
     Case nOp == OP_NIL
@@ -2162,7 +2224,7 @@ Return .T.
 // that the program's block runs itself (XbcMakeFast()), and the call
 // (K_WHOLE), with no frame and no loop:
 //
-//   {|XC, XK, XT, XO, P1, ..., L1, ..., X1, ...| statement, ..., value}
+//   {|XC, XK, XT, XO, XI, P1, ..., L1, ..., X1, ...| statement, ..., value}
 //
 // P its parameters -- as many as a block or a call passes it, none, one,
 // two or 12 --, L its other locals, then what a run's block has. A run
@@ -2180,7 +2242,7 @@ Method JitWhole(aFn) Class XbcVM
   aFn[FN_FAST] := .F.
   Return Nil if nP > 12 .Or. !(aIns[I_OP] == OP_JIT .And. aIns[I_N] == 0 .And. aIns[I_A] <= Len(aCode))
   Return Nil if !(aCode[aIns[I_A]][I_OP] == OP_RET)
-  aJ := {{}, {}, {}, 0, aFn[FN_NLOCALS], 0, .F., nP}
+  aJ := {{}, {}, {}, 0, aFn[FN_NLOCALS], 0, .F., nP, {}}
   Return Nil if !::JitOps(aJ, aFn[FN_MOD], aIns[I_X]) .Or. !(Len(aJ[J_STACK]) == 1) .Or. aJ[J_READS]
   For local nK := 1 To nSlots
     cText += ", P${nK}"
@@ -2192,7 +2254,8 @@ Method JitWhole(aFn) Class XbcVM
     cText += ", X${nT}"
   Next
   AAdd(aJ[J_OUT], aJ[J_STACK][1][1])
-  cText := "{|XC, XK, XT, XO${cText}| " + (aJ[J_OUT] |> join(", ")) + "}"
+  XjFirstLine(aJ)
+  cText := "{|XC, XK, XT, XO, XI${cText}| " + (aJ[J_OUT] |> join(", ")) + "}"
   If ::lHost
     bBlock := u_xbcjit(cText) if FindFunction("U_XBCJIT")
   Else
@@ -2205,7 +2268,8 @@ Method JitWhole(aFn) Class XbcVM
   for aOne in aIns[I_X]
     lStatics := .T. if aOne[I_OP] == OP_STATIC .Or. aOne[I_OP] == OP_SETSTATIC
   next
-  aFn[FN_FAST] := {bBlock, aJ[J_CONSTS], If(lStatics, aFn[FN_MOD][M_STATICS], Nil), aFn[FN_ID], nSlots}
+  aFn[FN_FAST] := {bBlock, aJ[J_CONSTS], If(lStatics, aFn[FN_MOD][M_STATICS], Nil), aFn[FN_ID], nSlots, ;
+                   If(Len(aJ[J_LINES]) > 1, {1}, Nil), If(Len(aJ[J_LINES]) > 1, aJ[J_LINES], Nil)}
 Return Nil
 
 // A local, in a run: of the frame's locals and stack; in a whole, one of
@@ -2213,6 +2277,21 @@ Return Nil
 Static Function XjLocal(aJ, nLocal)
   Return "XL[${nLocal}]" if aJ[J_WHOLE] == Nil
 Return If(nLocal <= aJ[J_WHOLE], "P", "L") + cValToChar(nLocal)
+
+// A run over more than one line says first that it is on the first.
+Static Function XjFirstLine(aJ)
+  If Len(aJ[J_LINES]) > 1 .And. !(Left(aJ[J_OUT][1], 6) == "XI[1] ")
+    ASize(aJ[J_OUT], Len(aJ[J_OUT]) + 1)
+    AIns(aJ[J_OUT], 1)
+    aJ[J_OUT][1] := "XI[1] := 1"
+  EndIf
+Return Nil
+
+// The line of an instruction: of a JIT's run over more than one line, the
+// one its block is on, or was on when an error stopped it.
+Static Function XbcLineOf(aIns)
+  Return aIns[I_LINES][aIns[I_PART][1]] if aIns[I_OP] == OP_JIT .And. aIns[I_LINES] != Nil
+Return aIns[I_LINE]
 
 // A subscript in a block of the JIT's, of a Local as in the loop: in a
 // macro's block the AppServer words an error of one 'array out of bounds
@@ -2706,10 +2785,11 @@ Method OnError(oErr) Class XbcVM
     aFn := ::aFns[snFast]
     snFast := 0
     ::aErrAt := Nil
-    ::cWhere := "${aFn[FN_NAME]}, line ${aFn[FN_CODE][1][I_LINE]}"
+    ::cWhere := "${aFn[FN_NAME]}, line ${If(aFn[FN_FAST][7] == Nil, aFn[FN_CODE][1][I_LINE], ;
+                                             aFn[FN_FAST][7][aFn[FN_FAST][6][1]])}"
   ElseIf aF != Nil
     ::aErrAt := aF
-    ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aF[F_FN][FN_CODE][Max(aF[F_PC] - 1, 1)][I_LINE]}"
+    ::cWhere := "${aF[F_FN][FN_NAME]}, line ${XbcLineOf(aF[F_FN][FN_CODE][Max(aF[F_PC] - 1, 1)])}"
   EndIf
   ::Note("  error: " + ::MemberOf(oErr, "Description")) if ::aTrace != Nil
   If ::bProgErr != Nil .And. !::lInErr
@@ -3142,18 +3222,19 @@ Static Function XbcMakeFast(aFast, aCells, xSelf)
   Local aK := aFast[2]
   Local aT := aFast[3]
   Local nFn := aFast[4]
+  Local aI := aFast[6]
   Local aC := aCells
   Local xO := xSelf
   Do Case
   Case aFast[5] == 0
-    Return {|r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO), snFast := 0, r}
+    Return {|r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI), snFast := 0, r}
   Case aFast[5] == 1
-    Return {|p1, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, p1), snFast := 0, r}
+    Return {|p1, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1), snFast := 0, r}
   Case aFast[5] == 2
-    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, p1, p2), snFast := 0, r}
+    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2), snFast := 0, r}
   EndCase
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
-        r := Eval(bFast, aC, aK, aT, xO, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
+        r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
 
 // A call of a whole of the JIT's with three to 12 arguments, from the stack
 // above nAt.
@@ -3162,8 +3243,8 @@ Static Function XbcWhole(aFast, aSt, nAt, nN)
   For local nK := 1 To nN
     aA[nK] := aSt[nAt + nK]
   Next
-Return Eval(aFast[1], Nil, aFast[2], aFast[3], Nil, aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], aA[8], ;
-            aA[9], aA[10], aA[11], aA[12])
+Return Eval(aFast[1], Nil, aFast[2], aFast[3], Nil, aFast[6], aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], ;
+            aA[8], aA[9], aA[10], aA[11], aA[12])
 
 // A block run: its frame, its parameters from what it was given, in Run() --
 // Enter1() in Run1(), and so on.
@@ -3264,7 +3345,7 @@ Method Run1(nBase) Class XbcVM
             // then; at another height the run is interpreted.
             ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
             If aIns[I_K] == 1 .And. aIns[I_D] == nSp
-              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF], aIns[I_PART])
               nSp := aIns[I_E]
               Do Case
               Case aIns[I_N] == 0
@@ -3322,11 +3403,11 @@ Method Run1(nBase) Class XbcVM
               snFast := xB[4]
               Do Case
               Case nN == 0 .Or. xB[5] == 0
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6])
               Case nN == 1 .Or. xB[5] == 1
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1])
               Case nN == 2 .Or. xB[5] == 2
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1], aSt[nAt + 2])
               Otherwise
                 xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
               EndCase
@@ -3746,7 +3827,7 @@ Method Run1(nBase) Class XbcVM
       // An error in the frame this was running: the line of the instruction
       // it ran last.
       If ::aErrAt != Nil .And. ::aErrAt == aF
-        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aCode[Max(nPc - 1, 1)][I_LINE]}"
+        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${XbcLineOf(aCode[Max(nPc - 1, 1)])}"
         ::aErrAt := Nil
       EndIf
       ::lInErr := .F.
@@ -3841,7 +3922,7 @@ Method Run2(nBase) Class XbcVM
             // then; at another height the run is interpreted.
             ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
             If aIns[I_K] == 1 .And. aIns[I_D] == nSp
-              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF], aIns[I_PART])
               nSp := aIns[I_E]
               Do Case
               Case aIns[I_N] == 0
@@ -3899,11 +3980,11 @@ Method Run2(nBase) Class XbcVM
               snFast := xB[4]
               Do Case
               Case nN == 0 .Or. xB[5] == 0
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6])
               Case nN == 1 .Or. xB[5] == 1
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1])
               Case nN == 2 .Or. xB[5] == 2
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1], aSt[nAt + 2])
               Otherwise
                 xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
               EndCase
@@ -4323,7 +4404,7 @@ Method Run2(nBase) Class XbcVM
       // An error in the frame this was running: the line of the instruction
       // it ran last.
       If ::aErrAt != Nil .And. ::aErrAt == aF
-        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aCode[Max(nPc - 1, 1)][I_LINE]}"
+        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${XbcLineOf(aCode[Max(nPc - 1, 1)])}"
         ::aErrAt := Nil
       EndIf
       ::lInErr := .F.
@@ -4418,7 +4499,7 @@ Method Run3(nBase) Class XbcVM
             // then; at another height the run is interpreted.
             ::Jit(aF, aIns, nSp) if aIns[I_K] == 0
             If aIns[I_K] == 1 .And. aIns[I_D] == nSp
-              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF])
+              xA := Eval(aIns[I_C], aLoc, aIns[I_S2], aF[F_CELLS], aF[F_FN][FN_MOD][M_STATICS], aF[F_SELF], aIns[I_PART])
               nSp := aIns[I_E]
               Do Case
               Case aIns[I_N] == 0
@@ -4476,11 +4557,11 @@ Method Run3(nBase) Class XbcVM
               snFast := xB[4]
               Do Case
               Case nN == 0 .Or. xB[5] == 0
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil)
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6])
               Case nN == 1 .Or. xB[5] == 1
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1])
               Case nN == 2 .Or. xB[5] == 2
-                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, aSt[nAt + 1], aSt[nAt + 2])
+                xA := Eval(xB[1], Nil, xB[2], xB[3], Nil, xB[6], aSt[nAt + 1], aSt[nAt + 2])
               Otherwise
                 xA := XbcWhole(xB, aSt, nAt, Min(nN, 12))
               EndCase
@@ -4900,7 +4981,7 @@ Method Run3(nBase) Class XbcVM
       // An error in the frame this was running: the line of the instruction
       // it ran last.
       If ::aErrAt != Nil .And. ::aErrAt == aF
-        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${aCode[Max(nPc - 1, 1)][I_LINE]}"
+        ::cWhere := "${aF[F_FN][FN_NAME]}, line ${XbcLineOf(aCode[Max(nPc - 1, 1)])}"
         ::aErrAt := Nil
       EndIf
       ::lInErr := .F.
