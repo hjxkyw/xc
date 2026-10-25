@@ -107,8 +107,8 @@ the runtime's bytecode. It checks that the interpreter's table has the
 runtime's functions as `runtime/xtpl_runtime.tlpp` declares them; after a
 change of theirs, `cmake -DROOT=. -DUPDATE=1 -P cpp/tests/runtime-calls.cmake`
 writes them again. It checks too that the copies of the interpreter's loop
-are the loop; after a change of `Run()`, `cmake -DROOT=. -DUPDATE=1 -P
-cpp/tests/loop-copies.cmake` writes them again. `ctest -LE slow` leaves out
+are the loop; after a change of `Run()` or `Enter()`, `cmake -DROOT=.
+-DUPDATE=1 -P cpp/tests/loop-copies.cmake` writes them again. `ctest -LE slow` leaves out
 `interp-xc`, which takes tens of seconds.
 
 ## selftests

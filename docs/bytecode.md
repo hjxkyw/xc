@@ -542,8 +542,12 @@ It runs what it loads as the loop is fastest at it:
   already running further down at a cost that grows with its size, some
   45 us for the loop, where calling it costs 5 (probes xea, xeb on
   24.3.1.9). There are four, and a run goes to the copy after the one
-  running; `cpp/tests/loop-copies.cmake` writes `Run1()` to `Run3()` from
-  `Run()`, and ctest's `interp` checks them.
+  running -- a block through the copy of `Enter()` that goes with it, and
+  `Eval()` of one with up to two arguments is made in the loop itself, so
+  that no function between is entered again either;
+  `cpp/tests/loop-copies.cmake` writes `Run1()` to `Run3()` and `Enter1()`
+  to `Enter3()` from `Run()` and `Enter()`, and ctest's `interp` checks
+  them.
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.

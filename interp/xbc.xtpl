@@ -342,6 +342,9 @@ Class XbcVM
   Public Method Trace(aF, nPc, aIns, nSp, aSt)
   Public Method Note(cLine)
   Public Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+  Public Method Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+  Public Method Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+  Public Method Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
   Public Method Macro(cText)
   Public Method SetMacro(cText, xValue)
   Public Method FieldOf(cAlias, cName)
@@ -1024,7 +1027,19 @@ Method Run(nBase) Class XbcVM
                 nSp++
                 aSt[nSp] := aF[F_ARGC]
               Case nK == K_EVAL .And. ValType(aArgs[1]) == "B"
-                xA := XbcEvalArgs(aArgs[1], aArgs)
+                // Here, for the few arguments a block has as a rule: a
+                // function between would be entered again by a block that
+                // runs Eval() inside an Eval().
+                Do Case
+                Case nN == 1
+                  xA := Eval(aArgs[1])
+                Case nN == 2
+                  xA := Eval(aArgs[1], aArgs[2])
+                Case nN == 3
+                  xA := Eval(aArgs[1], aArgs[2], aArgs[3])
+                Otherwise
+                  xA := XbcEvalArgs(aArgs[1], aArgs)
+                EndCase
                 nSp++
                 aSt[nSp] := xA
               Case nK == K_MACRO
@@ -2405,12 +2420,20 @@ Return aT
 // again, every block the AppServer made saw the parameter of the last call
 // -- every block of the program ran as the last one made (02-blocks,
 // 09-classes on 24.3.1.9).
+//
+// It runs in the copy of the loop after the one running, through the copy
+// of Enter() that goes with it -- no function between that a block run
+// inside it would enter again (the loop's copies, below).
 Static Function XbcMakeBlock(oVM, aFn, aCells, xSelf)
   Local aClo := {aFn, aCells, xSelf}
 Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12| ;
-        oVM:Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)}
+        If(oVM:nRuns % 4 == 0, oVM:Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+        If(oVM:nRuns % 4 == 1, oVM:Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+        If(oVM:nRuns % 4 == 2, oVM:Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+                               oVM:Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12))))}
 
-// A block run: its frame, its parameters from what it was given.
+// A block run: its frame, its parameters from what it was given, in Run() --
+// Enter1() in Run1(), and so on.
 Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
   Local aFn := aClo[1]
   Local nP := aFn[FN_PARAMS]
@@ -2434,7 +2457,7 @@ Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcV
   EndIf
   ::Fail("stack overflow") if Len(::aFrames) > 4000
   AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
-  xResult := XbcRun(Self, Len(::aFrames))
+  xResult := ::Run(Len(::aFrames))
   ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 
@@ -2457,9 +2480,10 @@ Return Self
 // a cost that grows with its size: some 45 us for the loop, where calling
 // it costs 5 (probes xea, xeb). A run inside a run -- a code block of the
 // program's that the AppServer runs, the values an object's data starts
-// with -- is the next copy instead (XbcRun()): Run() three times again,
-// under other names. cpp/tests/loop-copies.cmake writes them, and ctest's
-// interp checks them.
+// with -- is the next copy instead (XbcRun(), XbcMakeBlock()): Run() three
+// times again under other names, and Enter() with each, to run the block in
+// it. cpp/tests/loop-copies.cmake writes them, and ctest's interp checks
+// them.
 // >>> the loop's copies
 Method Run1(nBase) Class XbcVM
   Local aFrames := ::aFrames
@@ -2555,7 +2579,19 @@ Method Run1(nBase) Class XbcVM
                 nSp++
                 aSt[nSp] := aF[F_ARGC]
               Case nK == K_EVAL .And. ValType(aArgs[1]) == "B"
-                xA := XbcEvalArgs(aArgs[1], aArgs)
+                // Here, for the few arguments a block has as a rule: a
+                // function between would be entered again by a block that
+                // runs Eval() inside an Eval().
+                Do Case
+                Case nN == 1
+                  xA := Eval(aArgs[1])
+                Case nN == 2
+                  xA := Eval(aArgs[1], aArgs[2])
+                Case nN == 3
+                  xA := Eval(aArgs[1], aArgs[2], aArgs[3])
+                Otherwise
+                  xA := XbcEvalArgs(aArgs[1], aArgs)
+                EndCase
                 nSp++
                 aSt[nSp] := xA
               Case nK == K_MACRO
@@ -3097,6 +3133,33 @@ Method Run1(nBase) Class XbcVM
     EndIf
   EndDo
   ::nRuns--
+Return xResult
+
+Method Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
+  Local aFn := aClo[1]
+  Local nP := aFn[FN_PARAMS]
+  Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
+  Local xResult
+  If nP > 0
+    aLoc[1] := p1
+    aLoc[2] := p2 if nP > 1
+    aLoc[3] := p3 if nP > 2
+    If nP > 3
+      aLoc[4] := p4
+      aLoc[5] := p5 if nP > 4
+      aLoc[6] := p6 if nP > 5
+      aLoc[7] := p7 if nP > 6
+      aLoc[8] := p8 if nP > 7
+      aLoc[9] := p9 if nP > 8
+      aLoc[10] := p10 if nP > 9
+      aLoc[11] := p11 if nP > 10
+      aLoc[12] := p12 if nP > 11
+    EndIf
+  EndIf
+  ::Fail("stack overflow") if Len(::aFrames) > 4000
+  AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
+  xResult := ::Run1(Len(::aFrames))
+  ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 
 Method Run2(nBase) Class XbcVM
@@ -3193,7 +3256,19 @@ Method Run2(nBase) Class XbcVM
                 nSp++
                 aSt[nSp] := aF[F_ARGC]
               Case nK == K_EVAL .And. ValType(aArgs[1]) == "B"
-                xA := XbcEvalArgs(aArgs[1], aArgs)
+                // Here, for the few arguments a block has as a rule: a
+                // function between would be entered again by a block that
+                // runs Eval() inside an Eval().
+                Do Case
+                Case nN == 1
+                  xA := Eval(aArgs[1])
+                Case nN == 2
+                  xA := Eval(aArgs[1], aArgs[2])
+                Case nN == 3
+                  xA := Eval(aArgs[1], aArgs[2], aArgs[3])
+                Otherwise
+                  xA := XbcEvalArgs(aArgs[1], aArgs)
+                EndCase
                 nSp++
                 aSt[nSp] := xA
               Case nK == K_MACRO
@@ -3737,6 +3812,33 @@ Method Run2(nBase) Class XbcVM
   ::nRuns--
 Return xResult
 
+Method Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
+  Local aFn := aClo[1]
+  Local nP := aFn[FN_PARAMS]
+  Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
+  Local xResult
+  If nP > 0
+    aLoc[1] := p1
+    aLoc[2] := p2 if nP > 1
+    aLoc[3] := p3 if nP > 2
+    If nP > 3
+      aLoc[4] := p4
+      aLoc[5] := p5 if nP > 4
+      aLoc[6] := p6 if nP > 5
+      aLoc[7] := p7 if nP > 6
+      aLoc[8] := p8 if nP > 7
+      aLoc[9] := p9 if nP > 8
+      aLoc[10] := p10 if nP > 9
+      aLoc[11] := p11 if nP > 10
+      aLoc[12] := p12 if nP > 11
+    EndIf
+  EndIf
+  ::Fail("stack overflow") if Len(::aFrames) > 4000
+  AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
+  xResult := ::Run2(Len(::aFrames))
+  ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
+Return xResult
+
 Method Run3(nBase) Class XbcVM
   Local aFrames := ::aFrames
   Local aF
@@ -3831,7 +3933,19 @@ Method Run3(nBase) Class XbcVM
                 nSp++
                 aSt[nSp] := aF[F_ARGC]
               Case nK == K_EVAL .And. ValType(aArgs[1]) == "B"
-                xA := XbcEvalArgs(aArgs[1], aArgs)
+                // Here, for the few arguments a block has as a rule: a
+                // function between would be entered again by a block that
+                // runs Eval() inside an Eval().
+                Do Case
+                Case nN == 1
+                  xA := Eval(aArgs[1])
+                Case nN == 2
+                  xA := Eval(aArgs[1], aArgs[2])
+                Case nN == 3
+                  xA := Eval(aArgs[1], aArgs[2], aArgs[3])
+                Otherwise
+                  xA := XbcEvalArgs(aArgs[1], aArgs)
+                EndCase
                 nSp++
                 aSt[nSp] := xA
               Case nK == K_MACRO
@@ -4373,5 +4487,32 @@ Method Run3(nBase) Class XbcVM
     EndIf
   EndDo
   ::nRuns--
+Return xResult
+
+Method Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
+  Local aFn := aClo[1]
+  Local nP := aFn[FN_PARAMS]
+  Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
+  Local xResult
+  If nP > 0
+    aLoc[1] := p1
+    aLoc[2] := p2 if nP > 1
+    aLoc[3] := p3 if nP > 2
+    If nP > 3
+      aLoc[4] := p4
+      aLoc[5] := p5 if nP > 4
+      aLoc[6] := p6 if nP > 5
+      aLoc[7] := p7 if nP > 6
+      aLoc[8] := p8 if nP > 7
+      aLoc[9] := p9 if nP > 8
+      aLoc[10] := p10 if nP > 9
+      aLoc[11] := p11 if nP > 10
+      aLoc[12] := p12 if nP > 11
+    EndIf
+  EndIf
+  ::Fail("stack overflow") if Len(::aFrames) > 4000
+  AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
+  xResult := ::Run3(Len(::aFrames))
+  ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 // <<< the loop's copies
