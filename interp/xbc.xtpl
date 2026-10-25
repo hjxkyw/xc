@@ -199,8 +199,8 @@
 
 // A class: {name, module, classes above, data, init, NAME => {function's
 // name, static, {function, static} once found}, the init's function, NAME
-// => the place of a data in an object's, how many} -- the last two made
-// with its first object.
+// => the place of a data in an object's, how many -- the last two made
+// with its first object --, its number in the machine's list of them}.
 #define C_NAME    1
 #define C_MOD     2
 #define C_SUPERS  3
@@ -210,6 +210,7 @@
 #define C_INITFN  7
 #define C_SLOTS   8
 #define C_NSLOTS  9
+#define C_ID     10
 
 // A frame: what a call has while it runs -- an array of few elements: the
 // AppServer takes longer to make a longer one. Its locals and its stack are
@@ -345,6 +346,7 @@ Return If(ValType(xValue) == "C" .And. xValue == scNone, Nil, xValue)
 Class XbcVM
   Public Data aMods
   Public Data aFns
+  Public Data aClasses
   Public Data hOps
   Public Data hEvery
   Public Data hGlobals
@@ -467,6 +469,7 @@ Method New() Class XbcVM
   next
   ::aMods := {}
   ::aFns := {}
+  ::aClasses := {}
   ::hEvery := { => }
   ::hGlobals := { => }
   ::hClasses := { => }
@@ -595,7 +598,8 @@ Method Load(cPath) Class XbcVM
       AAdd(aMod[M_USINGS], aWords[2])
     Case cWord == "class"
       // class NAME / from ... / data ... / init F / method N F / static N F / end
-      aCls := {aWords[2], aMod, {}, {}, "", { => }, Nil, Nil, 0}
+      aCls := {aWords[2], aMod, {}, {}, "", { => }, Nil, Nil, 0, Len(::aClasses) + 1}
+      AAdd(::aClasses, aCls)
       While nI <= Len(aLines) .And. !(aLines[nI] == "end")
         aWords := XbcWords(aLines[nI++])
         Do Case With local cLine := aWords[1]
@@ -1002,7 +1006,8 @@ Static Function XbcJitOp(aIns, oJit)
        nOp == OP_ADD .Or. nOp == OP_SUB .Or. nOp == OP_MUL .Or. nOp == OP_DIV .Or. nOp == OP_MOD .Or. ;
        nOp == OP_POW .Or. nOp == OP_NEG .Or. nOp == OP_NOT .Or. nOp == OP_ISNIL .Or. nOp == OP_EQ .Or. ;
        nOp == OP_EXACT .Or. nOp == OP_NE .Or. ;
-       nOp == OP_LT .Or. nOp == OP_GT .Or. nOp == OP_LE .Or. nOp == OP_GE .Or. nOp == OP_CONTAINS
+       nOp == OP_LT .Or. nOp == OP_GT .Or. nOp == OP_LE .Or. nOp == OP_GE .Or. nOp == OP_CONTAINS .Or. ;
+       nOp == OP_MEMBER .Or. nOp == OP_SETMEMBER
     Return .T.
   EndCase
 Return .F.
@@ -1447,10 +1452,30 @@ Method Run(nBase) Class XbcVM
               Else
                 aM := ::MethodOf(aCls, aIns[I_S2])
                 ::Fail("no method ${aIns[I_S]} of ${aCls[C_NAME]}") if aM == Nil
-                aIns[I_C] := {aCls, aM}
+                ::JitWhole(aM[1]) if aM[1][FN_FAST] == Nil
+                aIns[I_C] := {aCls, aM, If(ValType(aM[1][FN_FAST]) == "A", aM[1][FN_FAST], Nil)}
               EndIf
               aFn := aM[1]
-              If aIns[I_K] == K_FN
+              If aIns[I_K] == K_FN .And. aIns[I_C][3] != Nil
+                // A method that is a whole of the JIT's: its block, with Self
+                // and the arguments, and no frame (JitWhole()).
+                aM := aIns[I_C][3]
+                nAt := nSp - nN
+                snFast := aM[4]
+                Do Case
+                Case nN == 0 .Or. aM[5] == 0
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6])
+                Case nN == 1 .Or. aM[5] == 1
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1])
+                Case nN == 2 .Or. aM[5] == 2
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1], aSt[nAt + 2])
+                Otherwise
+                  xA := XbcWhole(aM, aSt, nAt, Min(nN, 12), xB)
+                EndCase
+                snFast := 0
+                nSp := nAt
+                aSt[nSp] := xA
+              ElseIf aIns[I_K] == K_FN
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
@@ -1462,6 +1487,11 @@ Method Run(nBase) Class XbcVM
                 ::Fail("stack overflow") if Len(aFrames) > 4000
                 aF := {aFn, xA, aFn[FN_NLOCALS], 1, nN, Nil, xB, Nil}
                 AAdd(aFrames, aF)
+                aCode := aFn[FN_CODE]
+                aLoc := xA
+                aSt := xA
+                nSp := aFn[FN_NLOCALS]
+                nPc := 1
               Else
                 aArgs := Array(nN)
                 For nI := 1 To nN
@@ -1475,12 +1505,12 @@ Method Run(nBase) Class XbcVM
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
+                aCode := aF[F_FN][FN_CODE]
+                aLoc := aF[F_LOCALS]
+                aSt := aF[F_LOCALS]
+                nSp := aF[F_SP]
+                nPc := aF[F_PC]
               EndIf
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
             Else
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
@@ -2197,6 +2227,15 @@ Method JitOps(aJ, aMod, aRun) Class XbcVM
       aA := XjPop(aJ)
       XjSettle(aJ)
       AAdd(aJ[J_OUT], "u_xbcset(" + aA[1] + ", " + aE[1] + ", " + aX[1] + ")")
+    Case nOp == OP_MEMBER
+      aE := XjPop(aJ)
+      XjPush(aJ, XjMember(aJ, aE[1], aOne[I_S], Nil), 2)
+    Case nOp == OP_SETMEMBER
+      aX := XjPop(aJ)
+      aE := XjPop(aJ)
+      XjSettle(aJ)
+      aX := {XjVar(aJ, aX), 0} if aE[1] == "XO" .And. "(" $ aX[1]
+      AAdd(aJ[J_OUT], XjMember(aJ, aE[1], aOne[I_S], aX[1]))
     Case nOp == OP_NEG .Or. nOp == OP_NOT
       aE := XjPop(aJ)
       XjPush(aJ, "(" + If(nOp == OP_NEG, "-", "!") + aE[1] + ")", aE[2])
@@ -2278,6 +2317,19 @@ Static Function XjLocal(aJ, nLocal)
   Return "XL[${nLocal}]" if aJ[J_WHOLE] == Nil
 Return If(nLocal <= aJ[J_WHOLE], "P", "L") + cValToChar(nLocal)
 
+// A data of an object, read -- cValue Nil -- or set: of Self, from its
+// place, when it is of the class the site saw last; else, and of another
+// object, u_xbcget()'s and u_xbcput()'s. The site is one of the run's
+// constants: {the class's number, the place, the name}.
+Static Function XjMember(aJ, cObj, cName, cValue)
+  Local cSite := XjConst(aJ, {0, 0, cName})
+  If cObj == "XO"
+    Return "If(XO:xbcId == ${cSite}[1], XO:aProps[${cSite}[2]], u_xbcget(XO, ${cSite}))" if cValue == Nil
+    Return "If(XO:xbcId == ${cSite}[1], XO:aProps[${cSite}[2]] := ${cValue}, u_xbcput(XO, ${cSite}, ${cValue}))"
+  EndIf
+  Return "u_xbcget(${cObj}, ${cSite})" if cValue == Nil
+Return "u_xbcput(${cObj}, ${cSite}, ${cValue})"
+
 // A run over more than one line says first that it is on the first.
 Static Function XjFirstLine(aJ)
   If Len(aJ[J_LINES]) > 1 .And. !(Left(aJ[J_OUT][1], 6) == "XI[1] ")
@@ -2301,6 +2353,32 @@ Return xArray[xIndex]
 
 User Function xbcset(xArray, xIndex, xValue)
   xArray[xIndex] := xValue
+Return xValue
+
+// A data of an object, in a block of the JIT's: of a module's class, from
+// its place, which aSite keeps for the class it saw last -- {the class's
+// number, the place, the name} --; of another object, by its name, as the
+// loop has it (MemberOf(), SetMemberOf()).
+User Function xbcget(oObj, aSite)
+  If ValType(oObj) == "O" .And. AttIsMemberOf(oObj, "xbcId")
+    If !(oObj:xbcId == aSite[1])
+      aSite[2] := sxVM:SlotOf(oObj:xbcCls, aSite[3])
+      aSite[1] := oObj:xbcId
+    EndIf
+    Return oObj:aProps[aSite[2]]
+  EndIf
+Return sxVM:MemberOf(oObj, aSite[3])
+
+User Function xbcput(oObj, aSite, xValue)
+  If ValType(oObj) == "O" .And. AttIsMemberOf(oObj, "xbcId")
+    If !(oObj:xbcId == aSite[1])
+      aSite[2] := sxVM:SlotOf(oObj:xbcCls, aSite[3])
+      aSite[1] := oObj:xbcId
+    EndIf
+    oObj:aProps[aSite[2]] := xValue
+    Return xValue
+  EndIf
+  sxVM:SetMemberOf(oObj, aSite[3], xValue)
 Return xValue
 
 // With jitdump=FILE: the blocks the JIT could not make, as a module whose
@@ -3237,13 +3315,13 @@ Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
         r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
 
 // A call of a whole of the JIT's with three to 12 arguments, from the stack
-// above nAt.
-Static Function XbcWhole(aFast, aSt, nAt, nN)
+// above nAt -- of a method's, with its Self.
+Static Function XbcWhole(aFast, aSt, nAt, nN, xSelf)
   Local aA := Array(12)
   For local nK := 1 To nN
     aA[nK] := aSt[nAt + nK]
   Next
-Return Eval(aFast[1], Nil, aFast[2], aFast[3], Nil, aFast[6], aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], ;
+Return Eval(aFast[1], Nil, aFast[2], aFast[3], xSelf, aFast[6], aA[1], aA[2], aA[3], aA[4], aA[5], aA[6], aA[7], ;
             aA[8], aA[9], aA[10], aA[11], aA[12])
 
 // A block run: its frame, its parameters from what it was given, in Run() --
@@ -3276,16 +3354,20 @@ Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcV
 Return xResult
 
 // ---- objects ----------------------------------------------------------------
-// An object of a module's class: its class, and its data -- each in the
-// place its class gives its name.
+// An object of a module's class: its class, its class's number -- what a
+// block of the JIT's compares, holding no array of the machine's
+// (u_xbcget()) --, and its data, each in the place its class gives its
+// name.
 Class XbcObj
   Public Data xbcCls
+  Public Data xbcId
   Public Data aProps
   Public Method New(aCls, nSlots) Constructor
 EndClass
 
 Method New(aCls, nSlots) Class XbcObj
   ::xbcCls := aCls
+  ::xbcId := aCls[C_ID]
   ::aProps := Array(nSlots)
 Return Self
 
@@ -3579,10 +3661,30 @@ Method Run1(nBase) Class XbcVM
               Else
                 aM := ::MethodOf(aCls, aIns[I_S2])
                 ::Fail("no method ${aIns[I_S]} of ${aCls[C_NAME]}") if aM == Nil
-                aIns[I_C] := {aCls, aM}
+                ::JitWhole(aM[1]) if aM[1][FN_FAST] == Nil
+                aIns[I_C] := {aCls, aM, If(ValType(aM[1][FN_FAST]) == "A", aM[1][FN_FAST], Nil)}
               EndIf
               aFn := aM[1]
-              If aIns[I_K] == K_FN
+              If aIns[I_K] == K_FN .And. aIns[I_C][3] != Nil
+                // A method that is a whole of the JIT's: its block, with Self
+                // and the arguments, and no frame (JitWhole()).
+                aM := aIns[I_C][3]
+                nAt := nSp - nN
+                snFast := aM[4]
+                Do Case
+                Case nN == 0 .Or. aM[5] == 0
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6])
+                Case nN == 1 .Or. aM[5] == 1
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1])
+                Case nN == 2 .Or. aM[5] == 2
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1], aSt[nAt + 2])
+                Otherwise
+                  xA := XbcWhole(aM, aSt, nAt, Min(nN, 12), xB)
+                EndCase
+                snFast := 0
+                nSp := nAt
+                aSt[nSp] := xA
+              ElseIf aIns[I_K] == K_FN
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
@@ -3594,6 +3696,11 @@ Method Run1(nBase) Class XbcVM
                 ::Fail("stack overflow") if Len(aFrames) > 4000
                 aF := {aFn, xA, aFn[FN_NLOCALS], 1, nN, Nil, xB, Nil}
                 AAdd(aFrames, aF)
+                aCode := aFn[FN_CODE]
+                aLoc := xA
+                aSt := xA
+                nSp := aFn[FN_NLOCALS]
+                nPc := 1
               Else
                 aArgs := Array(nN)
                 For nI := 1 To nN
@@ -3607,12 +3714,12 @@ Method Run1(nBase) Class XbcVM
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
+                aCode := aF[F_FN][FN_CODE]
+                aLoc := aF[F_LOCALS]
+                aSt := aF[F_LOCALS]
+                nSp := aF[F_SP]
+                nPc := aF[F_PC]
               EndIf
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
             Else
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
@@ -4156,10 +4263,30 @@ Method Run2(nBase) Class XbcVM
               Else
                 aM := ::MethodOf(aCls, aIns[I_S2])
                 ::Fail("no method ${aIns[I_S]} of ${aCls[C_NAME]}") if aM == Nil
-                aIns[I_C] := {aCls, aM}
+                ::JitWhole(aM[1]) if aM[1][FN_FAST] == Nil
+                aIns[I_C] := {aCls, aM, If(ValType(aM[1][FN_FAST]) == "A", aM[1][FN_FAST], Nil)}
               EndIf
               aFn := aM[1]
-              If aIns[I_K] == K_FN
+              If aIns[I_K] == K_FN .And. aIns[I_C][3] != Nil
+                // A method that is a whole of the JIT's: its block, with Self
+                // and the arguments, and no frame (JitWhole()).
+                aM := aIns[I_C][3]
+                nAt := nSp - nN
+                snFast := aM[4]
+                Do Case
+                Case nN == 0 .Or. aM[5] == 0
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6])
+                Case nN == 1 .Or. aM[5] == 1
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1])
+                Case nN == 2 .Or. aM[5] == 2
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1], aSt[nAt + 2])
+                Otherwise
+                  xA := XbcWhole(aM, aSt, nAt, Min(nN, 12), xB)
+                EndCase
+                snFast := 0
+                nSp := nAt
+                aSt[nSp] := xA
+              ElseIf aIns[I_K] == K_FN
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
@@ -4171,6 +4298,11 @@ Method Run2(nBase) Class XbcVM
                 ::Fail("stack overflow") if Len(aFrames) > 4000
                 aF := {aFn, xA, aFn[FN_NLOCALS], 1, nN, Nil, xB, Nil}
                 AAdd(aFrames, aF)
+                aCode := aFn[FN_CODE]
+                aLoc := xA
+                aSt := xA
+                nSp := aFn[FN_NLOCALS]
+                nPc := 1
               Else
                 aArgs := Array(nN)
                 For nI := 1 To nN
@@ -4184,12 +4316,12 @@ Method Run2(nBase) Class XbcVM
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
+                aCode := aF[F_FN][FN_CODE]
+                aLoc := aF[F_LOCALS]
+                aSt := aF[F_LOCALS]
+                nSp := aF[F_SP]
+                nPc := aF[F_PC]
               EndIf
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
             Else
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.
@@ -4733,10 +4865,30 @@ Method Run3(nBase) Class XbcVM
               Else
                 aM := ::MethodOf(aCls, aIns[I_S2])
                 ::Fail("no method ${aIns[I_S]} of ${aCls[C_NAME]}") if aM == Nil
-                aIns[I_C] := {aCls, aM}
+                ::JitWhole(aM[1]) if aM[1][FN_FAST] == Nil
+                aIns[I_C] := {aCls, aM, If(ValType(aM[1][FN_FAST]) == "A", aM[1][FN_FAST], Nil)}
               EndIf
               aFn := aM[1]
-              If aIns[I_K] == K_FN
+              If aIns[I_K] == K_FN .And. aIns[I_C][3] != Nil
+                // A method that is a whole of the JIT's: its block, with Self
+                // and the arguments, and no frame (JitWhole()).
+                aM := aIns[I_C][3]
+                nAt := nSp - nN
+                snFast := aM[4]
+                Do Case
+                Case nN == 0 .Or. aM[5] == 0
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6])
+                Case nN == 1 .Or. aM[5] == 1
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1])
+                Case nN == 2 .Or. aM[5] == 2
+                  xA := Eval(aM[1], Nil, aM[2], aM[3], xB, aM[6], aSt[nAt + 1], aSt[nAt + 2])
+                Otherwise
+                  xA := XbcWhole(aM, aSt, nAt, Min(nN, 12), xB)
+                EndCase
+                snFast := 0
+                nSp := nAt
+                aSt[nSp] := xA
+              ElseIf aIns[I_K] == K_FN
                 xA := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
                 nAt := nSp - nN
                 nI := If(nN < aFn[FN_PARAMS], nN, aFn[FN_PARAMS])
@@ -4748,6 +4900,11 @@ Method Run3(nBase) Class XbcVM
                 ::Fail("stack overflow") if Len(aFrames) > 4000
                 aF := {aFn, xA, aFn[FN_NLOCALS], 1, nN, Nil, xB, Nil}
                 AAdd(aFrames, aF)
+                aCode := aFn[FN_CODE]
+                aLoc := xA
+                aSt := xA
+                nSp := aFn[FN_NLOCALS]
+                nPc := 1
               Else
                 aArgs := Array(nN)
                 For nI := 1 To nN
@@ -4761,12 +4918,12 @@ Method Run3(nBase) Class XbcVM
                 EndIf
                 ::Push(aFn, aArgs, Nil, xB)
                 aF := aFrames[Len(aFrames)]
+                aCode := aF[F_FN][FN_CODE]
+                aLoc := aF[F_LOCALS]
+                aSt := aF[F_LOCALS]
+                nSp := aF[F_SP]
+                nPc := aF[F_PC]
               EndIf
-              aCode := aF[F_FN][FN_CODE]
-              aLoc := aF[F_LOCALS]
-              aSt := aF[F_LOCALS]
-              nSp := aF[F_SP]
-              nPc := aF[F_PC]
             Else
               // The AppServer's: the table's block for the method, found the
               // first time, when the call has no reference.

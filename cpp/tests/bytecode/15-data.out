@@ -1,0 +1,17 @@
+exit 1
+--- output
+8
+10
+5
+12
+13
+56
+18
+52
+41
+11
+caught: type mismatch on + 
+12
+13
+--- errors
+xc-vm: error: type mismatch on +  (KID:BAD, line 96)

@@ -1,0 +1,363 @@
+xbc 1
+source 15-data.xtpl
+statics 0
+
+class PAIR
+  data NA NB
+  method NEW PAIR:NEW
+  method ADD PAIR:ADD
+  method SUM PAIR:SUM
+  method CHAIN PAIR:CHAIN
+end
+
+class OTHER
+  data NB
+  method NEW OTHER:NEW
+end
+
+class KID
+  from PAIR
+  data NC
+  method NEW KID:NEW
+  method SCALED KID:SCALED
+  method BAD KID:BAD
+end
+
+function U_MAIN user 0 8
+  locals oA oB oK aObjs aArgs nI nSum oErr
+  box 3
+  line 6
+  num 1
+  num 2
+  new 2 Pair New
+  setlocal 1
+  line 7
+  num 10
+  new 1 Other New
+  setlocal 2
+  line 8
+  num 3
+  num 4
+  num 5
+  new 3 Kid New
+  setcell 3
+  line 10
+  num 1
+  num 2
+  str "z"
+  array 3
+  setlocal 5
+  line 12
+  num 0
+  setlocal 7
+  line 15
+  num 1
+  setlocal 6
+  line 15
+  local 6
+  num 3
+  le
+  jumpf 49
+  line 16
+  local 1
+  local 6
+  method 1 Add
+  pop
+  line 17
+  cell 3
+  local 6
+  method 1 Add
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 29
+  line 19
+  local 1
+  member nB
+  cell 3
+  member nB
+  cell 3
+  member nC
+  call 3 ConOut
+  pop
+  line 20
+  num 1
+  setlocal 6
+  line 20
+  local 6
+  num 3
+  le
+  jumpf 78
+  line 21
+  local 1
+  local 1
+  member nB
+  num 1
+  add
+  setmember nB
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 61
+  line 23
+  local 1
+  method 0 Sum
+  cell 3
+  method 0 Sum
+  cell 3
+  num 2
+  num 3
+  num 4
+  method 3 Scaled
+  cell 3
+  num 1
+  num 1
+  num 1
+  method 3 Scaled
+  call 4 ConOut
+  pop
+  line 24
+  local 1
+  local 2
+  cell 3
+  local 2
+  local 1
+  array 5
+  setlocal 4
+  line 25
+  num 1
+  setlocal 6
+  line 25
+  local 6
+  local 4
+  call 1 Len
+  le
+  jumpf 125
+  line 26
+  local 7
+  local 4
+  local 6
+  index
+  call 1 Bee
+  add
+  setlocal 7
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 106
+  line 28
+  local 7
+  call 1 ConOut
+  pop
+  line 29
+  local 1
+  num 1
+  method 1 Chain
+  num 2
+  method 1 Chain
+  member nB
+  call 1 ConOut
+  pop
+  line 30
+  num 1
+  num 2
+  num 3
+  array 3
+  refcell 3
+  block U_MAIN#1 1
+  call 2 aEval
+  pop
+  line 31
+  cell 3
+  member nC
+  call 1 ConOut
+  pop
+  line 32
+  try 167
+  line 33
+  local 2
+  str "q"
+  setmember nB
+  line 34
+  local 2
+  call 1 Bee
+  num 1
+  add
+  call 1 ConOut
+  pop
+  endseq
+  jump 175
+  setlocal 8
+  line 36
+  str "caught: "
+  local 8
+  member Description
+  add
+  call 1 ConOut
+  pop
+  line 38
+  num 1
+  setlocal 6
+  line 38
+  local 6
+  num 3
+  le
+  jumpf 196
+  line 39
+  cell 3
+  local 5
+  local 6
+  index
+  method 1 Bad
+  call 1 ConOut
+  pop
+  local 6
+  num 1
+  add
+  setlocal 6
+  jump 178
+  line 41
+  local 7
+  ret
+end
+
+function U_MAIN#1 block 1 2
+  locals x .t1
+  upvals oK
+  line 30
+  upval 1
+  dup
+  member nC
+  local 1
+  add
+  dup
+  setlocal 2
+  setmember nC
+  local 2
+  ret
+end
+
+function BEE static 1 1
+  locals oObj
+  line 44
+  local 1
+  member nB
+  ret
+end
+
+function PAIR:NEW method 2 2
+  locals nA nB
+  line 56
+  self
+  local 1
+  setmember nA
+  line 57
+  self
+  local 2
+  setmember nB
+  line 58
+  self
+  ret
+end
+
+function PAIR:ADD method 1 1
+  locals nBy
+  line 61
+  self
+  dup
+  member nB
+  local 1
+  add
+  setmember nB
+  line 62
+  self
+  ret
+end
+
+function PAIR:SUM method 0 0
+  locals
+  line 65
+  self
+  member nA
+  self
+  member nB
+  add
+  ret
+end
+
+function PAIR:CHAIN method 1 1
+  locals nBy
+  line 68
+  self
+  dup
+  member nB
+  local 1
+  num 10
+  mul
+  add
+  setmember nB
+  line 69
+  self
+  ret
+end
+
+function OTHER:NEW method 1 1
+  locals nB
+  line 77
+  self
+  local 1
+  setmember nB
+  line 78
+  self
+  ret
+end
+
+function KID:NEW method 3 3
+  locals nA nB nC
+  line 88
+  local 1
+  local 2
+  super 2 New
+  pop
+  line 89
+  self
+  local 3
+  setmember nC
+  line 90
+  self
+  ret
+end
+
+function KID:SCALED method 3 3
+  locals nX nY nZ
+  line 93
+  self
+  member nA
+  local 1
+  mul
+  self
+  member nB
+  local 2
+  mul
+  add
+  self
+  member nC
+  local 3
+  mul
+  add
+  ret
+end
+
+function KID:BAD method 1 1
+  locals xBy
+  line 96
+  self
+  member nC
+  local 1
+  add
+  ret
+end

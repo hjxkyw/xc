@@ -1,0 +1,96 @@
+// The data of a module's class in runs of the JIT's -- Self's from its
+// place, another object's through u_xbcget() and u_xbcput() --, methods
+// that are one run, with no frame, a place a class above another keeps, a
+// site that sees objects of other classes, and an error in a method.
+User Function Main()
+  Local oA := Pair():New(1, 2)
+  Local oB := Other():New(10)
+  Local oK := Kid():New(3, 4, 5)
+  Local aObjs
+  Local aArgs := {1, 2, "z"}
+  Local nI
+  Local nSum := 0
+  Local oErr
+
+  For nI := 1 To 3
+    oA:Add(nI)
+    oK:Add(nI)
+  Next
+  ConOut(oA:nB, oK:nB, oK:nC)
+  For nI := 1 To 3
+    oA:nB := oA:nB + 1
+  Next
+  ConOut(oA:Sum(), oK:Sum(), oK:Scaled(2, 3, 4), oK:Scaled(1, 1, 1))
+  aObjs := {oA, oB, oK, oB, oA}
+  For nI := 1 To Len(aObjs)
+    nSum += Bee(aObjs[nI])
+  Next
+  ConOut(nSum)
+  ConOut(oA:Chain(1):Chain(2):nB)
+  aEval({1, 2, 3}, {|x| oK:nC += x})
+  ConOut(oK:nC)
+  Try
+    oB:nB := "q"
+    ConOut(Bee(oB) + 1)
+  Catch oErr
+    ConOut("caught: " + oErr:Description)
+  EndTry
+  For nI := 1 To 3
+    ConOut(oK:Bad(aArgs[nI]))
+  Next
+Return nSum
+
+Static Function Bee(oObj)
+Return oObj:nB
+
+Class Pair
+  Public Data nA
+  Public Data nB
+  Public Method New(nA, nB) Constructor
+  Public Method Add(nBy)
+  Public Method Sum()
+  Public Method Chain(nBy)
+EndClass
+
+Method New(nA, nB) Class Pair
+  ::nA := nA
+  ::nB := nB
+Return Self
+
+Method Add(nBy) Class Pair
+  ::nB += nBy
+Return Self
+
+Method Sum() Class Pair
+Return ::nA + ::nB
+
+Method Chain(nBy) Class Pair
+  ::nB += nBy * 10
+Return Self
+
+Class Other
+  Public Data nB
+  Public Method New(nB) Constructor
+EndClass
+
+Method New(nB) Class Other
+  ::nB := nB
+Return Self
+
+Class Kid From Pair
+  Public Data nC
+  Public Method New(nA, nB, nC) Constructor
+  Public Method Scaled(nX, nY, nZ)
+  Public Method Bad(xBy)
+EndClass
+
+Method New(nA, nB, nC) Class Kid
+  _Super:New(nA, nB)
+  ::nC := nC
+Return Self
+
+Method Scaled(nX, nY, nZ) Class Kid
+Return ::nA * nX + ::nB * nY + ::nC * nZ
+
+Method Bad(xBy) Class Kid
+Return ::nC + xBy

@@ -569,8 +569,8 @@ It runs what it loads as the loop is fastest at it:
 - a run of instructions that nothing jumps into, 64 at the most, is one
   code block the AppServer's macro compiler makes the first time it runs
   -- the JIT; `jit=off` makes none. Its instructions are locals, statics,
-  cells, Self, constants, operators, arrays, subscripts and the AppServer's
-  functions -- not one that runs code blocks (`Eval()`, `aEval()`,
+  cells, Self, constants, operators, arrays, subscripts, the data of
+  objects and the AppServer's functions -- not one that runs code blocks (`Eval()`, `aEval()`,
   `aScan()`, `aSort()`, the runtime's verbs): in a macro's block, `Eval()`
   of a block of the program's gave back its argument, not its value -- and
   a jump that ends the run, whose condition the block gives:
@@ -599,7 +599,20 @@ It runs what it loads as the loop is fastest at it:
   value is kept first when something is set before it is used; a
   subscript is `u_xbcidx()`'s or `u_xbcset()`'s, the interpreter's -- in
   a macro's block the AppServer words an error of one `array out of
-  bounds ( 2 of 0 )`, not `[2] of [0]` as of a Local.
+  bounds ( 2 of 0 )`, not `[2] of [0]` as of a Local. A data of Self is
+  read from its place when Self is of the class the place was found for
+  -- each object has its class's number, and the run's constants have the
+  site's, `{class, place, name}` --, and through `u_xbcget()` otherwise,
+  which finds the place again; another object's data is `u_xbcget()`'s
+  and `u_xbcput()`'s, which do as the loop does with an object of the
+  AppServer's:
+
+  ```text
+  self, dup, member nTotal, local 1, add, setmember nTotal, self, ret
+    {|XC, XK, XT, XO, XI, P1, X1| XI[1] := 1, X1 := (If(XO:xbcId == XK[1][1],
+       XO:aProps[XK[1][2]], u_xbcget(XO, XK[1])) + P1), If(XO:xbcId ==
+       XK[2][1], XO:aProps[XK[2][2]] := X1, u_xbcput(XO, XK[2], X1)), XI[1] := 2, XO}
+  ```
   The block is made for the stack's height the run first meets; at
   another, and when a call turns out to be a module's function or the
   macro compiler refuses the block, the run is the loop's. An error in it
@@ -610,11 +623,12 @@ It runs what it loads as the loop is fastest at it:
   did without.
 
   A function that is one such run and its `ret` -- most of a program's
-  code blocks, `[x] x * 3`, `{|x| nSum += x}`, and small functions,
-  `Return nA + nB` -- is one block of the macro compiler's whole, made the
-  first time a block of it is made or a call finds it, and the program's
-  block runs that itself, and so does the call from its second time: no
-  frame, no copy of the loop, no `Enter()`:
+  code blocks, `[x] x * 3`, `{|x| nSum += x}`, small functions, `Return
+  nA + nB`, and methods, `::nTotal += nBy` -- is one block of the macro
+  compiler's whole, made the first time a block of it is made or a call
+  finds it, and the program's block runs that itself, and so does the call
+  from its second time -- a method's with its object, XO: no frame, no
+  copy of the loop, no `Enter()`:
 
   ```text
   upval 1, local 1, add, dup, setupval 1, ret
@@ -625,7 +639,7 @@ It runs what it loads as the loop is fastest at it:
   as a block or a call passes it --, L its other locals, and the last
   expression what it gives -- a function of more than one line too. An
   error in it is on its line, as in the loop (`cpp/tests/bytecode/13-whole`,
-  `14-lines`).
+  `14-lines`, `15-data`).
 
 With `trace=FILE`, it runs the instructions as they are in the file, one
 by one, so that the trace shows them as written.
