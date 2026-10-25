@@ -446,9 +446,12 @@ output`, its lines, `--- errors`, its lines.
 It is the machine of this page, and the AppServer is the rest:
 
 - a function no module has is the AppServer's: a well-known one -- some 150
-  functions, methods, constructors and members, each with each number of
-  arguments it takes, in the interpreter's own table (`XbcSyscalls()`) --
-  is called by its number there, as compiled code; any other through a code
+  functions, methods, constructors and members of the AppServer's, and the
+  runtime's own, its user functions and its classes' public methods and
+  constructors, each with each number of arguments it takes, in the
+  interpreter's own table (`XbcSyscalls()`; `cpp/tests/runtime-calls.cmake`
+  writes the runtime's there, and checks them) -- is called by its number
+  there, as compiled code; any other through a code
   block a macro makes once for that name, number of arguments and
   references -- `{|a, o, p1, p2, r| r := Upper(p1, @p2), a[2] := p2, r}`
   --; a method or a member of the AppServer's objects, and `Name():M()` of a
@@ -485,8 +488,9 @@ and its `XBC_CALL`, `XBC_METHOD`, `XBC_MEMBER`, `XBC_SETMEMBER` and
 `XBC_NEW` call, read and write by name instead --
 `FindFunction("XBC_CALL")` tells the interpreter where it is. ctest's
 `interp` has xc-vm run the interpreter on each case of `cpp/tests/bytecode`
-and on xtpl's self-test, the runtime interpreted too, and what it writes
-has to be what xc-vm does running them itself; `interp-xc` the same for
+and on xtpl's self-test, the runtime interpreted too -- and the self-test
+again without the runtime's bytecode, its calls of the runtime the table's
+--, and what it writes has to be what xc-vm does running them itself; `interp-xc` the same for
 xc's self-test, slowly -- labelled `slow` (`cpp/tests/interp.cmake`).
 `rakupp run-protheus.raku --interp` does it on an AppServer.
 

@@ -1458,6 +1458,17 @@ namespace
     const Value& o = deref(o0);
     auto obj = std::get_if<std::shared_ptr<Object>>(&o.v);
     std::string m = upper(name);
+    // An object of a module's class -- the interpreter's XBC_METHOD on one
+    // the runtime made, as the AppServer runs a method of the RPO's: run
+    // here, to its end.
+    if (obj && (*obj)->kind == Object::Instance)
+    {
+      const Function* fn = method_of((*obj)->cls, m);
+      if (!fn) { fail("no method " + name + " of " + (*obj)->cls->name); }
+      Value self = o;
+      push_frame(fn, args, nullptr, self);
+      return run(frames_.size() - 1);
+    }
     if (obj && m == "NEW") { return o; }
     if (obj && (*obj)->kind == Object::Hash)
     {

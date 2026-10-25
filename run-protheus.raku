@@ -36,7 +36,8 @@
 # Then the AppServer runs the interpreter on each --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xbc
 # -- and what it writes is compared with NAME.out, what xc-vm does; a
-# self-test has to end with its total and no check failed. The AppServer
+# self-test has to end with its total and no check failed, and runs again
+# without the runtime's bytecode, its calls of the runtime the RPO's. The AppServer
 # reads and writes files under the environment's RootPath only -- a path with
 # a drive letter fails --, so the .xbc go to xbc/ in the RootPath, and what
 # the cases read by a relative name (08-chains.txt) to its StartPath, where a
@@ -383,7 +384,7 @@ if $interp
       say "\n  $_";
       exit 1;
     }
-    say "\nxc: the runtime, {+@cases} cases and the self-tests as bytecode, into {shown($xbc)}";
+    say "\nxc: the runtime, {+@cases} cases and xtpl's self-test as bytecode, into {shown($xbc)}";
     mkdir $xbc;
     my @sources = ($root.add('runtime/xtpl_runtime.tlpp') => 'xtpl_runtime',
                    |@cases.map({ ($cases.add("$_.xtpl").e ?? $cases.add("$_.xtpl") !! $cases.add("$_.prw")) => $_ }),
@@ -451,21 +452,26 @@ if $interp
       say "          {' ' x ($i + 1).chars}  got      {@g[$i] // '(nothing)'}";
     }
   }
-  for @selftests -> %t
+  # Each self-test twice: with the runtime's bytecode, and without it -- its
+  # calls of the runtime then the RPO's, through the interpreter's table.
+  for @selftests.map({ |(%(|$_, with => True), %(|$_, with => False)) }) -> %t
   {
-    my $got = interpret(%t<name>, "run={%t<run>}", on-server('xtpl_runtime.xbc'), on-server(%t<name> ~ '.xbc'));
+    my $as = %t<with> ?? %t<name> !! "{%t<name>}-rpo";
+    my @runtime = %t<with> ?? on-server('xtpl_runtime.xbc') !! ();
+    my $got = interpret($as, "run={%t<run>}", |@runtime, on-server(%t<name> ~ '.xbc'));
     my $total = $got.lines.first({ $_ ~~ %t<total> });
+    my $how = %t<with> ?? '' !! " (the runtime's calls the RPO's)";
     if $total.defined && $got.starts-with("exit 0\n")
     {
-      say "    ok    {%t<name>}: $total";
+      say "    ok    {%t<name>}: $total$how";
       next;
     }
-    @bad.push(%t<name>);
-    say "    FAIL  {%t<name>}";
+    @bad.push($as);
+    say "    FAIL  {%t<name>}$how";
     say "          $_" for $got.lines;
   }
   .key.IO.unlink for @data;
-  say "\n  {@bad ?? "{+@bad} of {@cases + @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
+  say "\n  {@bad ?? "{+@bad} of {@cases + 2 * @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
   exit(@bad ?? 1 !! 0);
 }
 

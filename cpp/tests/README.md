@@ -102,8 +102,12 @@ wrong in the interpreter on the AppServer --, which `run-protheus.raku
 Nothing to keep either: xc-vm runs `interp/xbc.xtpl`, compiled to bytecode,
 and the interpreter runs xtpl's runtime and each case of `bytecode/` that
 has a `NAME.out` -- what it writes has to be that `NAME.out`, what xc-vm does
-running the case itself --, then the self-tests. `ctest -LE slow` leaves out
-`interp-xc`, which takes tens of seconds.
+running the case itself --, then the self-tests, and xtpl's again without
+the runtime's bytecode. It checks that the interpreter's table has the
+runtime's functions as `runtime/xtpl_runtime.tlpp` declares them; after a
+change of theirs, `cmake -DROOT=. -DUPDATE=1 -P cpp/tests/runtime-calls.cmake`
+writes them again. `ctest -LE slow` leaves out `interp-xc`, which takes tens
+of seconds.
 
 ## selftests
 

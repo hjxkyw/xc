@@ -9,10 +9,17 @@
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DROOT=. -DWORK=cpp/build/interp -P cpp/tests/interp.cmake
 #
+# xtpl's self-test runs a second time without the runtime's bytecode: the
+# runtime's calls are the AppServer's then -- the interpreter's table of
+# them, on xc-vm its own runtime. And the table has to have each of the
+# runtime's functions (runtime-calls.cmake).
+#
 # CMake runs it as a test (ctest), 'interp' and 'interp-xc'. "\r\n" is read
 # as "\n".
 
 cmake_policy(SET CMP0012 NEW)
+cmake_policy(SET CMP0054 NEW)
+cmake_policy(SET CMP0007 NEW)
 foreach(v XC VM ROOT WORK)
   get_filename_component(${v} "${${v}}" ABSOLUTE)
 endforeach()
@@ -60,15 +67,17 @@ execute_process(COMMAND ${XC} --check ${ROOT}/interp/xbc.xtpl
 if(NOT code EQUAL 0 OR said MATCHES "warning")
   message(FATAL_ERROR "  interp/xbc.xtpl, as TL++:\n${said}")
 endif()
+include(${CMAKE_CURRENT_LIST_DIR}/runtime-calls.cmake)
 compile(${ROOT}/interp/xbc.xtpl xbc)
 compile(${ROOT}/runtime/xtpl_runtime.tlpp xtpl_runtime)
 set(failed "")
 set(count 0)
 
 if(MODE STREQUAL "xc")
-  set(selftests "protheus/xc_selftest.xtpl|xc_selftest|U_XC_SELFTEST|xc_selftest: [0-9]+ ok, 0 failed")
+  set(selftests "protheus/xc_selftest.xtpl|xc_selftest|U_XC_SELFTEST|xc_selftest: [0-9]+ ok, 0 failed|runtime")
 else()
-  set(selftests "xtpl/tests/54_selftest.xtpl|54_selftest|U_SELFTEST|selftest: [0-9]+ ok, 0 falhas")
+  set(selftests "xtpl/tests/54_selftest.xtpl|54_selftest|U_SELFTEST|selftest: [0-9]+ ok, 0 falhas|runtime"
+                "xtpl/tests/54_selftest.xtpl|54_selftest|U_SELFTEST|selftest: [0-9]+ ok, 0 falhas|")
   file(GLOB outs RELATIVE ${CASES} ${CASES}/*.out)
   list(SORT outs)
   foreach(o ${outs})
@@ -102,15 +111,25 @@ foreach(test ${selftests})
   list(GET parts 1 name)
   list(GET parts 2 entry)
   list(GET parts 3 total)
+  list(LENGTH parts nparts)
+  set(runtime "")
+  set(how " (its calls of the runtime the AppServer's)")
+  if(nparts GREATER 4)
+    list(GET parts 4 with)
+    if(with STREQUAL "runtime")
+      set(runtime ${WORK}/xtpl_runtime.xbc)
+      set(how "")
+    endif()
+  endif()
   math(EXPR count "${count} + 1")
   compile(${ROOT}/${source} ${name})
-  interpret(${name} got --run=${entry} ${WORK}/xtpl_runtime.xbc ${WORK}/${name}.xbc)
+  interpret(${name} got --run=${entry} ${runtime} ${WORK}/${name}.xbc)
   if(got MATCHES "^exit 0\n--- output\n.*${total}\n--- errors\n$")
     string(REGEX MATCH "${total}" last "${got}")
-    message("  ${last}")
+    message("  ${last}${how}")
   else()
     list(APPEND failed ${name})
-    message("  FAIL  ${name}\n${got}")
+    message("  FAIL  ${name}${how}\n${got}")
   endif()
 endforeach()
 
