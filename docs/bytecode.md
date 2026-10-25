@@ -509,6 +509,33 @@ lines. It is how a difference on the AppServer is looked into:
 `rakupp run-protheus.raku --interp --trace` keeps one for each case, in
 `build/logs/interp/`.
 
+It runs what it loads as the loop is fastest at it:
+
+- each instruction has its line, and `line` goes; an error is on the line
+  of the instruction the frame ran last -- the last `line` before it in
+  the function, as xc-vm has it too;
+- a few runs of instructions that programs have again and again are one:
+  `local a, local b`; `local a, num n, index` and `local a, local b,
+  index`, an array's element; `num n, index`; `local a, num n, add,
+  setlocal a`, `x += n`; `num n, add`; `add, setlocal a`; a comparison and
+  the `jumpf` after it -- never over an instruction something jumps to;
+- a function's frame has one array for its locals and its stack, as big as
+  the most its stack holds, worked out when it is loaded;
+- the instructions are numbered by how often programs run them, and the
+  loop asks for the most frequent first;
+- a call finds what it calls the first time it runs, and keeps it: a
+  function of a module, one of the AppServer's in the table, `PCount()`,
+  `Eval()` of a block -- with no argument by reference -- are then made by
+  the loop itself, a frame pushed or the table's block run, with no method
+  between; a method of a module's class, and of the AppServer's objects,
+  the same way;
+- an object of a module's class keeps its data in an array, each at the
+  place its class gives its name; `member` and `setmember` find the place
+  once for the class they see.
+
+With `trace=FILE`, it runs the instructions as they are in the file, one
+by one, so that the trace shows them as written.
+
 Its speed is measured with `interp/bench.xtpl`: parts that each do one
 thing over and over -- a loop, calls of the program's functions and of the
 AppServer's, an array's elements, a string, methods and data of the
@@ -528,7 +555,8 @@ the modules, runs each one's `__INIT` in the order given, then NAME --
 function of the last module -- with the ARGs after `--`, strings, as its
 arguments. What `ConOut()` is given goes to its output, a line for each
 argument; an error nothing catches goes to its errors, with the function and
-the line, and the exit code is 1. With `--profile=FILE`, FILE gets how many
+the line -- the last `line` before the instruction it ran last --, and the
+exit code is 1. With `--profile=FILE`, FILE gets how many
 instructions ran, in all, by function, by function and line, by instruction
 and by instruction and the one before it, and how many times each of the
 AppServer's functions was called -- the most first.

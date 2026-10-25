@@ -535,6 +535,7 @@ namespace
     double n = 0;
     std::string s;
     std::string s2;
+    long line = 0;                        // the last 'line' before it, or it
   };
 
   struct Function
@@ -565,7 +566,6 @@ namespace
     std::vector<Value> locals;
     std::vector<Value> stack;
     std::size_t pc = 0;
-    long line = 0;
     std::size_t argc = 0;
     std::shared_ptr<Closure> closure;
     Value self;
@@ -781,6 +781,7 @@ namespace
       fn->nlocals = to_long(w[4], where(i));
       fn->mod = mod.get();
       i++;
+      long line = 0;
       for (;;)
       {
         std::string t = next();
@@ -842,6 +843,8 @@ namespace
             default: break;
           }
         }
+        if (ins.op == Op::Line) { line = ins.a; }
+        ins.line = line;
         fn->code.push_back(std::move(ins));
       }
       // What an instruction names is there: a local, a static, a target.
@@ -889,7 +892,12 @@ namespace
   {
     if (!frames_.empty())
     {
-      where_ = frames_.back()->fn->name + ", line " + std::to_string(frames_.back()->line);
+      // The line of the instruction it ran last: the last 'line' before it in
+      // the function, as the interpreter has it.
+      const Frame& f = *frames_.back();
+      std::size_t at = f.pc > 0 ? f.pc - 1 : 0;
+      long line = at < f.fn->code.size() ? f.fn->code[at].line : 0;
+      where_ = f.fn->name + ", line " + std::to_string(line);
     }
     Value e = error_object(description);
     if (!is_nil(error_block_) && !in_error_block_)
@@ -1561,7 +1569,7 @@ namespace
       const Ins& in = f.fn->code[f.pc++];
       if (!profile_.empty())
       {
-        run_lines_[{ f.fn, f.line }]++;
+        run_lines_[{ f.fn, in.line }]++;
         run_ops_[{ last_op_, static_cast<int>(in.op) }]++;
         last_op_ = static_cast<int>(in.op);
       }
@@ -1958,7 +1966,7 @@ namespace
           st.push_back(**c);
           break;
         }
-        case Op::Line: f.line = in.a; break;
+        case Op::Line: break;
         case Op::Seq:
         case Op::Try:
           f.regions.push_back(Frame::Region{ in.op == Op::Try, static_cast<std::size_t>(in.a - 1), st.size(),
@@ -2707,9 +2715,9 @@ namespace
   }
 
   // The profile, most first: the instructions run, in all and by function,
-  // then by function and line -- the line the last 'line' gave --, then by
-  // instruction, then by instruction and the one run before it; then the
-  // AppServer's functions called.
+  // then by function and line -- the last 'line' before the instruction --,
+  // then by instruction, then by instruction and the one run before it; then
+  // the AppServer's functions called.
   void VM::write_profile() const
   {
     if (profile_.empty()) { return; }
