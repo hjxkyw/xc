@@ -1,0 +1,21 @@
+// A min-heap, the runtime's: the smallest out first -- by its key, with a
+// block --, of equal ones the first pushed; heapOf() from an array in one
+// pass; Drain() all of it, in order.
+User Function Main()
+  Local oNums := heap()
+  Local oJobs := heap([j] j[2])
+  Local oWords
+  Local aOut := {}
+  for nX in {5, 3, 8, 1, 9, 2, 7} exec oNums:Push(nX)
+  ConOut(oNums:Count(), oNums:Peek(), oNums:Pop(), oNums:Pop(), oNums:Count())
+  oNums:Push(0):Push(4)
+  while !oNums:IsEmpty() exec AAdd(aOut, oNums:Pop())
+  ConOut(aOut |> map([n] cValToChar(n)) |> join(","), oNums:Pop() == Nil, oNums:Peek() == Nil)
+  oJobs:Push({"backup", 3}):Push({"mail", 1}):Push({"report", 2}):Push({"alert", 1}):Push({"index", 3})
+  ConOut(oJobs:Drain() |> map([j] j[1]) |> join(","), oJobs:Count())
+  oWords := {"pear", "fig", "banana", "kiwi", "apple", "date"} |> heapof([w] Len(w))
+  ConOut(oWords:Count(), oWords:Drain() |> join(","))
+  oWords:PushAll({"z", "yy", "x"}):Push("www")
+  ConOut(oWords:Drain() |> join(","))
+  ConOut(heapof({3, 1, 2}):Drain() |> map([n] cValToChar(n)) |> join(","))
+Return Nil

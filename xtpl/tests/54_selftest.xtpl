@@ -24,6 +24,7 @@ user function selftest()
   local aPal := {"beta", "alfa", "gama"}
   local hCfg := {"taxa" => 5, "limite" => 10}
   local oFila
+  local oMonte
   local aTmp := {}
   local nTmp := 0
   local cTmp := ""
@@ -179,6 +180,19 @@ user function selftest()
   oFila:Pop()
   check("fila vazia", oFila:IsEmpty(), 0, @nOk, @nBad)
   check("pop vazio da Nil", oFila:Pop() == Nil, 0, @nOk, @nBad)
+
+  // ---- heap -----------------------------------------------------------------
+  // O menor sai primeiro; pela chave, quando ha bloco; empates na ordem em
+  // que entraram.
+  oMonte := heap()
+  oMonte:Push(5)
+  oMonte:Push(1)
+  oMonte:Push(3)
+  check("heap conta", oMonte:Count() == 3, oMonte:Count(), @nOk, @nBad)
+  check("heap da o menor", oMonte:Pop() == 1, 0, @nOk, @nBad)
+  check("heap espia", oMonte:Peek() == 3, 0, @nOk, @nBad)
+  aTmp := heapof({"bb", "a", "cc", "ddd"}, [c] len(c)):Drain()
+  check("heapof por chave", aTmp[1] == "a" .and. aTmp[2] == "bb" .and. aTmp[4] == "ddd", aTmp[1], @nOk, @nBad)
 
   // ---- escopo de bloco e reciclagem de slot ------------------------------
   nTmp := 0

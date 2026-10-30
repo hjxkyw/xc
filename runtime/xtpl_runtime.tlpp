@@ -1055,6 +1055,161 @@ Return Self
 User Function xtpl_queue(nSize)
 Return XtplQueue():New(nSize)
 
+// xc: 'heap([bKey])' -- a min-heap: Pop() gives the smallest of what was
+// pushed, by its key when there is a block ('heap([o] o:nPrio)'), and of
+// equal ones the first pushed. A binary heap in aBuf, from 1, of {key, n,
+// item} rows -- n counts the pushes, for the ties. 'heapof(a[, bKey])' is
+// one holding a's elements, made in one pass.
+Class XtplHeap
+  Public Data aBuf
+  Public Data nUsed
+  Public Data nPushed
+  Public Data bKey
+
+  Public Method New(bKey) Constructor
+  Public Method Push(xItem)
+  Public Method PushAll(aItems)
+  Public Method Pop()
+  Public Method Peek()
+  Public Method Count()
+  Public Method IsEmpty()
+  Public Method Drain()
+  Method Row(xItem)
+  Method Less(nA, nB)
+  Method Up(nAt)
+  Method Down(nAt)
+EndClass
+
+Method New(bKey) Class XtplHeap
+  ::aBuf    := {}
+  ::nUsed   := 0
+  ::nPushed := 0
+  ::bKey    := bKey
+Return Self
+
+// The row an item is kept in: its key, worked out once.
+Method Row(xItem) Class XtplHeap
+  ::nPushed++
+Return {Iif(::bKey == Nil, xItem, Eval(::bKey, xItem)), ::nPushed, xItem}
+
+Method Push(xItem) Class XtplHeap
+  ::nUsed++
+  If ::nUsed > Len(::aBuf)
+    AAdd(::aBuf, Nil)
+  EndIf
+  ::aBuf[::nUsed] := ::Row(xItem)
+  ::Up(::nUsed)
+Return Self
+
+// All of them at once: added at the end, then each parent sifted down from
+// the last -- linear, where pushing one by one is n log n.
+Method PushAll(aItems) Class XtplHeap
+  Local nX
+  For nX := 1 To Len(aItems)
+    ::nUsed++
+    If ::nUsed > Len(::aBuf)
+      AAdd(::aBuf, Nil)
+    EndIf
+    ::aBuf[::nUsed] := ::Row(aItems[nX])
+  Next
+  For nX := Int(::nUsed / 2) To 1 Step -1
+    ::Down(nX)
+  Next
+Return Self
+
+// Nil when there is nothing to take, as a queue's.
+Method Pop() Class XtplHeap
+  Local xItem
+  If ::nUsed == 0
+    Return Nil
+  EndIf
+  xItem := ::aBuf[1][3]
+  ::aBuf[1] := ::aBuf[::nUsed]
+  // Released, or the buffer keeps the item alive after it has been taken.
+  ::aBuf[::nUsed] := Nil
+  ::nUsed--
+  If ::nUsed > 1
+    ::Down(1)
+  EndIf
+Return xItem
+
+Method Peek() Class XtplHeap
+  If ::nUsed == 0
+    Return Nil
+  EndIf
+Return ::aBuf[1][3]
+
+Method Count() Class XtplHeap
+Return ::nUsed
+
+Method IsEmpty() Class XtplHeap
+Return ::nUsed == 0
+
+// Everything, smallest first, and the heap empty.
+Method Drain() Class XtplHeap
+  Local aOut := {}
+  While ::nUsed > 0
+    AAdd(aOut, ::Pop())
+  EndDo
+Return aOut
+
+// Whether the row at nA comes out before the one at nB: a smaller key, or
+// the same one pushed first.
+Method Less(nA, nB) Class XtplHeap
+  Local aA := ::aBuf[nA]
+  Local aB := ::aBuf[nB]
+  If aA[1] == aB[1]
+    Return aA[2] < aB[2]
+  EndIf
+Return aA[1] < aB[1]
+
+Method Up(nAt) Class XtplHeap
+  Local nUp
+  Local aRow
+  While nAt > 1
+    nUp := Int(nAt / 2)
+    If !::Less(nAt, nUp)
+      Exit
+    EndIf
+    aRow := ::aBuf[nAt]
+    ::aBuf[nAt] := ::aBuf[nUp]
+    ::aBuf[nUp] := aRow
+    nAt := nUp
+  EndDo
+Return Self
+
+Method Down(nAt) Class XtplHeap
+  Local nLeast
+  Local nKid
+  Local aRow
+  While .T.
+    nLeast := nAt
+    nKid := nAt * 2
+    If nKid <= ::nUsed .And. ::Less(nKid, nLeast)
+      nLeast := nKid
+    EndIf
+    If nKid + 1 <= ::nUsed .And. ::Less(nKid + 1, nLeast)
+      nLeast := nKid + 1
+    EndIf
+    If nLeast == nAt
+      Exit
+    EndIf
+    aRow := ::aBuf[nAt]
+    ::aBuf[nAt] := ::aBuf[nLeast]
+    ::aBuf[nLeast] := aRow
+    nAt := nLeast
+  EndDo
+Return Self
+
+User Function xtpl_heap(bKey)
+Return XtplHeap():New(bKey)
+
+// TL++ takes nothing after 'Class():New()' (C2003): the object goes in a
+// variable first.
+User Function xtpl_heapof(aItems, bKey)
+  Local oHeap := XtplHeap():New(bKey)
+Return oHeap:PushAll(aItems)
+
 // -----------------------------------------------------------------------------
 // the end
 

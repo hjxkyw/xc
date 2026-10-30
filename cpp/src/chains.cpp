@@ -23,7 +23,8 @@ namespace xc
       "count", "distinctadjacent", "maxby", "minby", "scan", "expand", "tap", "pairwise", "queue",
       "split", "join", "starts", "ends", "contains", "apick", "aroll", "setmaxroll",
       "setof", "bagof", "union", "intersect", "minus", "symdiff", "bagsum", "bagprod", "subset", "psubset",
-      "superset", "psuperset", "sameset", "elems", "totalof", "minpairs", "maxpairs", "kxxv",
+      "superset", "psuperset", "sameset", "elems", "totalof", "minpairs", "maxpairs", "kxxv", "heap",
+      "heapof",
     };
 
     const Set FUSED =

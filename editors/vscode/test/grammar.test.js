@@ -135,6 +135,8 @@ function files(dir)
     ['  Local bW as Bag<c>', 'Bag', 'storage.type'],
     ['  Local sK := setof(aA) as Set<fixed c>', 'Set', 'storage.type'],
     ['  sAll := sA (|) sB (&) sC', '(|)', 'keyword.operator.set'],
+    ['  oJobs := heapof(aJobs, [j] j:nPrio)', 'heapof', 'support.function'],
+    ['  sA := setof(aCodes)', 'setof', 'support.function'],
     ['  sAll := sA (|) sB (&) sC', '(&)', 'keyword.operator.set'],
     ['  l := cX (elem) sA .And. sA (<=) sB', '(elem)', 'keyword.operator.set'],
     ['  l := cX (elem) sA .And. sA (<=) sB', '(<=)', 'keyword.operator.set'],

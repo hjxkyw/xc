@@ -1,0 +1,224 @@
+xbc 1
+source 21-heap.xtpl
+statics 0
+
+function U_MAIN user 0 7
+  locals oNums oJobs oWords aOut .t1 nX .t2
+  line 5
+  call 0 u_xtpl_heap
+  setlocal 1
+  line 6
+  block U_MAIN#1 0
+  call 1 u_xtpl_heap
+  setlocal 2
+  line 8
+  array 0
+  setlocal 4
+  line 9
+  num 5
+  num 3
+  num 8
+  num 1
+  num 9
+  num 2
+  num 7
+  array 7
+  setlocal 5
+  num 1
+  setlocal 7
+  line 9
+  local 7
+  local 5
+  call 1 Len
+  le
+  jumpf 42
+  local 5
+  local 7
+  index
+  setlocal 6
+  local 1
+  local 6
+  method 1 Push
+  pop
+  local 7
+  num 1
+  add
+  setlocal 7
+  jump 23
+  line 10
+  local 1
+  method 0 Count
+  local 1
+  method 0 Peek
+  local 1
+  method 0 Pop
+  local 1
+  method 0 Pop
+  local 1
+  method 0 Count
+  call 5 ConOut
+  pop
+  line 11
+  local 1
+  num 0
+  method 1 Push
+  num 4
+  method 1 Push
+  pop
+  line 12
+  local 1
+  method 0 IsEmpty
+  not
+  jumpf 73
+  local 4
+  local 1
+  method 0 Pop
+  call 2 AAdd
+  pop
+  jump 62
+  line 13
+  local 4
+  block U_MAIN#2 0
+  call 2 u_xtpl_map
+  str ","
+  call 2 u_xtpl_join
+  local 1
+  method 0 Pop
+  nil
+  exact
+  local 1
+  method 0 Peek
+  nil
+  exact
+  call 3 ConOut
+  pop
+  line 14
+  local 2
+  str "backup"
+  num 3
+  array 2
+  method 1 Push
+  str "mail"
+  num 1
+  array 2
+  method 1 Push
+  str "report"
+  num 2
+  array 2
+  method 1 Push
+  str "alert"
+  num 1
+  array 2
+  method 1 Push
+  str "index"
+  num 3
+  array 2
+  method 1 Push
+  pop
+  line 15
+  local 2
+  method 0 Drain
+  block U_MAIN#3 0
+  call 2 u_xtpl_map
+  str ","
+  call 2 u_xtpl_join
+  local 2
+  method 0 Count
+  call 2 ConOut
+  pop
+  line 16
+  str "pear"
+  str "fig"
+  str "banana"
+  str "kiwi"
+  str "apple"
+  str "date"
+  array 6
+  block U_MAIN#4 0
+  call 2 u_xtpl_heapof
+  setlocal 3
+  line 17
+  local 3
+  method 0 Count
+  local 3
+  method 0 Drain
+  str ","
+  call 2 u_xtpl_join
+  call 2 ConOut
+  pop
+  line 18
+  local 3
+  str "z"
+  str "yy"
+  str "x"
+  array 3
+  method 1 PushAll
+  str "www"
+  method 1 Push
+  pop
+  line 19
+  local 3
+  method 0 Drain
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 20
+  num 3
+  num 1
+  num 2
+  array 3
+  call 1 u_xtpl_heapof
+  method 0 Drain
+  block U_MAIN#5 0
+  call 2 u_xtpl_map
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 21
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals j
+  line 6
+  local 1
+  num 2
+  index
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals n
+  line 13
+  local 1
+  call 1 cValToChar
+  ret
+end
+
+function U_MAIN#3 block 1 1
+  locals j
+  line 15
+  local 1
+  num 1
+  index
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals w
+  line 16
+  local 1
+  call 1 Len
+  ret
+end
+
+function U_MAIN#5 block 1 1
+  locals n
+  line 20
+  local 1
+  call 1 cValToChar
+  ret
+end

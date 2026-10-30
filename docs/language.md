@@ -1685,6 +1685,32 @@ And `setmaxroll(n)`, the most elements `aroll` gives (1000 to start with;
 it returns the old value), and `queue([n])`, a queue: `:Push(x)`, `:Pop()`,
 `:Peek()`, `:Count()`, `:IsEmpty()`.
 
+`heap([bKey])` is a min-heap: `:Pop()` gives the smallest of what was
+pushed -- by its key, when there is a block --, and of equal ones the first
+pushed. `:Push(x)` and `:PushAll(a)` give the heap back; `:Pop()` and
+`:Peek()` give Nil when it is empty; `:Count()`, `:IsEmpty()`, and
+`:Drain()` -- all of it, smallest first, the heap left empty.
+`heapof(a[, bKey])` is one holding a's elements, made in one pass. A
+max-heap is a min-heap of the key turned round: `heap([n] -n)`.
+
+```xtpl
+User Function NextJobs(aJobs)
+  Local oJobs := aJobs |> heapof([j] j:nPriority)
+  Local oUrgent := heap([j] -j:nPriority)
+  while !oJobs:IsEmpty() exec oUrgent:Push(oJobs:Pop())
+Return oUrgent:Peek()
+```
+
+```tlpp
+User Function NextJobs(aJobs)
+  Local oJobs := u_xtpl_heapof(aJobs, {|j| j:nPriority})
+  Local oUrgent := u_xtpl_heap({|j| -j:nPriority})
+  While !oJobs:IsEmpty()
+    oUrgent:Push(oJobs:Pop())
+  EndDo
+Return oUrgent:Peek()
+```
+
 AdvPL's own one-argument functions need nothing: `cName |> alltrim |>
 upper`.
 
@@ -2055,7 +2081,8 @@ xc: a new xc may call a function an old runtime does not have.
 They are `User Function`s, so the names the output calls carry the `u_`:
 
 - the verbs: `u_xtpl_map`, `u_xtpl_filter`, ... -- one for each name in
-  [The verbs](#the-verbs), and `u_xtpl_queue` with its class, `XtplQueue`;
+  [The verbs](#the-verbs), and `u_xtpl_queue` and `u_xtpl_heap` with their
+  classes, `XtplQueue` and `XtplHeap`;
 - `u_xtpl_in`, for `in`;
 - `u_xtpl_elvis`, for a `?:` where no Local can hold its left side;
 - `u_xtpl_hget`, `u_xtpl_hset`, `u_xtpl_hhas`, `u_xtpl_hnew`, for hashes;

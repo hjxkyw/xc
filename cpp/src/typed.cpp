@@ -1191,6 +1191,7 @@ namespace xc
       };
       if (auto o = set_ops.find(name); o != set_ops.end()) { return set_op(o->second, arg(0), arg(1)); }
       if (name == "elems" || name == "totalof") { return "N"; }
+      if (name == "heap" || name == "heapof" || name == "queue") { return "O"; }
       if (name == "kxxv") { return array_of(member_of(arg(0))); }
       if (name == "minpairs" || name == "maxpairs") { return "A<A>"; }
       // The runtime's verbs.
