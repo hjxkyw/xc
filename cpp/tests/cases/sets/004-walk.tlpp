@@ -1,0 +1,60 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'for k in h' walks a hash's, a set's, a bag's, a JSON object's keys,
+// 'for k, v in h' what each holds too -- where xc knows the source is one.
+// A parameter with no type is walked as an array.
+User Function Walk(hAny, hTyped as Object)
+  Local hRates := u_xtpl_hnew({{"a", 1}, {"b", 2}})
+  Local sTags := u_xtpl_setof({"x", "y"})
+  Local jCfg := JsonObject():New()
+  Local hNew := THashMap():New()
+  Local nSum := 0
+  Local aC := {}
+  Local s_0_0  // a slot: the block locals 'cKey', 'cTag', 'cName', 'xKey', 'xItem'
+  Local s_0_1  // a slot: the block locals 'nRate', 'xValue', 'nV', 'nAt'
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... in'
+  Local fs_0_2  // the source of a 'for ... in'
+  Local fi_0_2  // the counter of a 'for ... in'
+  Local fs_0_3  // the source of a 'for ... in'
+  Local fi_0_3  // the counter of a 'for ... in'
+  Local fs_0_4  // the source of a 'for ... in'
+  Local fi_0_4  // the counter of a 'for ... in'
+  Local fs_0_5  // the source of a 'for ... in'
+  fs_0_0 := u_xtpl_pairs(hRates)
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[fi_0_0][1]
+    s_0_1 := fs_0_0[fi_0_0][2]
+    nSum += s_0_1
+  Next
+  fs_0_1 := u_xtpl_pairs(sTags)
+  For fi_0_1 := 1 To Len(fs_0_1)
+    s_0_0 := fs_0_1[fi_0_1][1]
+    AAdd(aC, s_0_0)
+  next
+  fs_0_2 := u_xtpl_pairs(jCfg)
+  For fi_0_2 := 1 To Len(fs_0_2)
+    s_0_0 := fs_0_2[fi_0_2][1]
+    s_0_1 := fs_0_2[fi_0_2][2]
+    conout(s_0_0, s_0_1)
+  Next
+  fs_0_3 := u_xtpl_pairs(hNew)
+  For fi_0_3 := 1 To Len(fs_0_3)
+    s_0_0 := fs_0_3[fi_0_3][1]
+    conout(s_0_0)
+  Next
+  fs_0_4 := u_xtpl_pairs(hTyped)
+  For fi_0_4 := 1 To Len(fs_0_4)
+    s_0_0 := fs_0_4[fi_0_4][1]
+    s_0_1 := fs_0_4[fi_0_4][2]
+    AAdd(aC, s_0_0)
+  Next
+  fs_0_5 := hAny
+  For s_0_1 := 1 To Len(fs_0_5)
+    s_0_0 := fs_0_5[s_0_1]
+    conout(s_0_0, s_0_1)
+  Next
+Return nSum

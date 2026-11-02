@@ -1,0 +1,340 @@
+xbc 1
+source 22-walk.xtpl
+statics 0
+
+function U_MAIN user 0 31
+  locals hRates sTags bWords jCfg aOut nSum .t1 cK nV .t2 .t3 cT .t4 .t5 cW nN .t6 .t7 cName xVal .t8 .t9 cK nV .t10 .t11 cK .t12 .t13 nX nAt
+  line 5
+  str "b"
+  num 2
+  array 2
+  str "a"
+  num 1
+  array 2
+  str "c"
+  num 3
+  array 2
+  array 3
+  call 1 u_xtpl_hnew
+  setlocal 1
+  line 6
+  str "x"
+  str "y"
+  array 2
+  call 1 u_xtpl_setof
+  setlocal 2
+  line 7
+  str "p"
+  str "q"
+  str "p"
+  array 3
+  call 1 u_xtpl_bagof
+  setlocal 3
+  line 8
+  new 0 JsonObject New
+  setlocal 4
+  line 9
+  array 0
+  setlocal 5
+  line 10
+  num 0
+  setlocal 6
+  line 11
+  local 4
+  str "host"
+  str "db"
+  setindex
+  line 12
+  local 4
+  str "port"
+  num 5432
+  setindex
+  line 13
+  local 1
+  call 1 u_xtpl_pairs
+  setlocal 7
+  num 1
+  setlocal 10
+  line 13
+  local 10
+  local 7
+  call 1 Len
+  le
+  jumpf 81
+  local 7
+  local 10
+  index
+  dup
+  num 2
+  index
+  setlocal 9
+  num 1
+  index
+  setlocal 8
+  local 6
+  local 9
+  add
+  setlocal 6
+  local 5
+  local 8
+  call 2 AAdd
+  pop
+  local 10
+  num 1
+  add
+  setlocal 10
+  jump 52
+  line 14
+  local 6
+  local 5
+  call 1 u_xtpl_sort
+  str ","
+  call 2 u_xtpl_join
+  call 2 ConOut
+  pop
+  line 15
+  array 0
+  setlocal 5
+  line 16
+  local 2
+  call 1 u_xtpl_pairs
+  setlocal 11
+  num 1
+  setlocal 13
+  line 16
+  local 13
+  local 11
+  call 1 Len
+  le
+  jumpf 119
+  local 11
+  local 13
+  index
+  num 1
+  index
+  setlocal 12
+  local 5
+  local 12
+  call 2 AAdd
+  pop
+  local 13
+  num 1
+  add
+  setlocal 13
+  jump 98
+  line 17
+  local 5
+  call 1 u_xtpl_sort
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 18
+  array 0
+  setlocal 5
+  line 19
+  local 3
+  call 1 u_xtpl_pairs
+  setlocal 14
+  num 1
+  setlocal 17
+  line 19
+  local 17
+  local 14
+  call 1 Len
+  le
+  jumpf 166
+  local 14
+  local 17
+  index
+  dup
+  num 2
+  index
+  setlocal 16
+  num 1
+  index
+  setlocal 15
+  line 20
+  local 5
+  local 15
+  str "="
+  add
+  local 16
+  call 1 cValToChar
+  add
+  call 2 AAdd
+  pop
+  local 17
+  num 1
+  add
+  setlocal 17
+  jump 135
+  line 22
+  local 5
+  call 1 u_xtpl_sort
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 23
+  array 0
+  setlocal 5
+  line 24
+  local 4
+  call 1 u_xtpl_pairs
+  setlocal 18
+  num 1
+  setlocal 21
+  line 24
+  local 21
+  local 18
+  call 1 Len
+  le
+  jumpf 212
+  local 18
+  local 21
+  index
+  dup
+  num 2
+  index
+  setlocal 20
+  num 1
+  index
+  setlocal 19
+  local 5
+  local 19
+  str ":"
+  add
+  local 20
+  call 1 cValToChar
+  add
+  call 2 AAdd
+  pop
+  local 21
+  num 1
+  add
+  setlocal 21
+  jump 182
+  line 25
+  local 5
+  call 1 u_xtpl_sort
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 26
+  num 0
+  setlocal 6
+  line 27
+  local 1
+  call 1 u_xtpl_pairs
+  setlocal 22
+  num 1
+  setlocal 25
+  line 27
+  local 25
+  local 22
+  call 1 Len
+  le
+  jumpf 261
+  local 22
+  local 25
+  index
+  dup
+  num 2
+  index
+  setlocal 24
+  num 1
+  index
+  setlocal 23
+  line 28
+  local 24
+  num 2
+  exact
+  jumpf 251
+  line 29
+  jump 256
+  line 31
+  local 6
+  local 24
+  add
+  setlocal 6
+  local 25
+  num 1
+  add
+  setlocal 25
+  jump 228
+  line 33
+  local 6
+  call 1 ConOut
+  pop
+  line 34
+  num 0
+  setlocal 6
+  line 35
+  local 1
+  call 1 u_xtpl_pairs
+  setlocal 26
+  num 1
+  setlocal 28
+  line 35
+  local 28
+  local 26
+  call 1 Len
+  le
+  jumpf 300
+  local 26
+  local 28
+  index
+  num 1
+  index
+  setlocal 27
+  local 6
+  num 1
+  add
+  setlocal 6
+  local 6
+  num 2
+  exact
+  jumpf 295
+  jump 300
+  local 28
+  num 1
+  add
+  setlocal 28
+  jump 274
+  line 36
+  local 6
+  call 1 ConOut
+  pop
+  line 37
+  num 10
+  num 20
+  array 2
+  setlocal 29
+  num 1
+  setlocal 31
+  line 37
+  local 31
+  local 29
+  call 1 Len
+  le
+  jumpf 331
+  local 29
+  local 31
+  index
+  setlocal 30
+  local 30
+  local 31
+  mul
+  call 1 ConOut
+  pop
+  local 31
+  num 1
+  add
+  setlocal 31
+  jump 311
+  line 38
+  nil
+  ret
+end

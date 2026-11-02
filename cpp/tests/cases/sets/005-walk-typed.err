@@ -1,0 +1,3 @@
+005-walk-typed.xtpl:6: 'aNames' is an Array<n>: this is Character, not Numeric.
+005-walk-typed.xtpl:6: 'aCodes' is an Array<c>: this is Numeric, not Character.
+005-walk-typed.xtpl:7: 'aNames' is an Array<n>: this is Character, not Numeric.

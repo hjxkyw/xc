@@ -826,6 +826,58 @@ the advance -- walk an area with a chain, or write the `While` yourself.
 
 `for n times` runs its body n times; n is any expression.
 
+**Over a hash, a set, a bag, a JSON object**, `for k in h` walks its keys,
+and `for k, v in h` gives what each holds too -- a bag's count, a set's
+`.T.`: the keys and values `pairs()` reads, in the hash's own order. That
+is where xc knows the source is one -- a hash literal, `THashMap():New()`,
+`JsonObject():New()`, `setof()`, `bagof()`, an operation on sets, a name
+declared as one ([Typed arrays and hashes](#typed-arrays-and-hashes)), or
+given only those. Anything else is walked as an array: a parameter with no
+type, here.
+
+```xtpl
+User Function Walk(aWords, hAny)
+  Local bCount := bagof(aWords)
+  Local hRates := {"a" => 1.5, "b" => 2}
+  Local nSum := 0
+  for cWord, nTimes in bCount exec conout(cWord + ": " + cValToChar(nTimes))
+  for cKey in hRates exec nSum += hRates{cKey}
+  for xItem in hAny exec conout(xItem)
+Return nSum
+```
+
+```tlpp
+User Function Walk(aWords, hAny)
+  Local bCount := u_xtpl_bagof(aWords)
+  Local hRates := u_xtpl_hnew({{"a", 1.5}, {"b", 2}})
+  Local nSum := 0
+  Local s_0_0  // a slot: the block locals 'cWord', 'cKey', 'xItem'
+  Local nTimes  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fs_0_1  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... in'
+  Local fs_0_2  // the source of a 'for ... in'
+  Local fi_0_2  // the counter of a 'for ... in'
+  fs_0_0 := u_xtpl_pairs(bCount)
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_0 := fs_0_0[fi_0_0][1]
+    nTimes := fs_0_0[fi_0_0][2]
+    conout(s_0_0 + ": " + cValToChar(nTimes))
+  Next
+  fs_0_1 := u_xtpl_pairs(hRates)
+  For fi_0_1 := 1 To Len(fs_0_1)
+    s_0_0 := fs_0_1[fi_0_1][1]
+    nSum += u_xtpl_hget(hRates, s_0_0)
+  Next
+  fs_0_2 := hAny
+  For fi_0_2 := 1 To Len(fs_0_2)
+    s_0_0 := fs_0_2[fi_0_2]
+    conout(s_0_0)
+  Next
+Return nSum
+```
+
 ### Postfix modifiers
 
 A simple statement may end in `if condition` or `while condition`:

@@ -3120,11 +3120,15 @@ namespace xc
       }
       else
       {
+        // Over a hash, a set, a bag, a JSON object (typed.cpp knows it): its
+        // {key, value} pairs -- the element each key, the index what it holds.
         int src = temp();
         expr(s->source);
+        if (s->keyed) { call(1, "u_xtpl_pairs"); }
         on_local("setlocal", src);
         int el = declare(s->elem);
-        int ctr = s->index ? declare(*s->index) : temp();
+        int ix = s->keyed && s->index ? declare(*s->index) : -1;
+        int ctr = s->index && !s->keyed ? declare(*s->index) : temp();
         num(1);
         on_local("setlocal", ctr);
         loop_top(top, s->line);
@@ -3136,6 +3140,18 @@ namespace xc
         on_local("local", src);
         on_local("local", ctr);
         op("index");
+        if (s->keyed)
+        {
+          if (ix >= 0)
+          {
+            op("dup");
+            num(2);
+            op("index");
+            on_local("setlocal", ix);
+          }
+          num(1);
+          op("index");
+        }
         on_local("setlocal", el);
         f_->loops.push_back(Loop{ end, cont, f_->exits.size() });
         block_body(s->body);

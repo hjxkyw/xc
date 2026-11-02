@@ -1,0 +1,8 @@
+// What 'for k, v in h' gives its names is what the hash holds: its keys'
+// type, its values'.
+User Function WalkTyped(hPrices as Hash<c, n>)
+  Local aNames := { <n> }
+  Local aCodes := { <c> }
+  for cCode, nPrice in hPrices exec AAdd(aNames, cCode), AAdd(aCodes, nPrice)
+  for cTag in setof("a", "b") exec AAdd(aNames, cTag)
+Return {aNames, aCodes}

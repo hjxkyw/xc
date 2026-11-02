@@ -1,0 +1,19 @@
+// 'for k in h' walks a hash's, a set's, a bag's, a JSON object's keys,
+// 'for k, v in h' what each holds too -- where xc knows the source is one.
+// A parameter with no type is walked as an array.
+User Function Walk(hAny, hTyped as Hash<c, n>)
+  Local hRates := {"a" => 1, "b" => 2}
+  Local sTags := setof("x", "y")
+  Local jCfg := JsonObject():New()
+  Local hNew := THashMap():New()
+  Local nSum := 0
+  Local aC := { <c> }
+  for cKey, nRate in hRates exec nSum += nRate
+  for cTag in sTags
+    AAdd(aC, cTag)
+  next
+  for cName, xValue in jCfg exec conout(cName, xValue)
+  for xKey in hNew exec conout(xKey)
+  for cKey, nV in hTyped exec AAdd(aC, cKey)
+  for xItem, nAt in hAny exec conout(xItem, nAt)
+Return nSum

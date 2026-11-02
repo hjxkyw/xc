@@ -415,6 +415,7 @@ namespace xc
       std::unordered_map<const Expr*, Var*> names_;  // what each name is
       std::unordered_map<const Expr*, std::vector<Var*>> block_params_;
       std::vector<HashIndex*> hashes_;              // every 'h{k}', for its set_kind
+      std::vector<ForInStmt*> walks_;               // every 'for ... in', for keyed
       std::vector<Unit> units_;
       std::unordered_map<std::string, std::string> returns_;    // the file's functions
       std::unordered_map<std::string, Function> functions_;
@@ -567,9 +568,11 @@ namespace xc
     }
 
     // ---- the walk -----------------------------------------------------------
+    // Every file: what a 'for ... in' walks and a 'h{k}' reads is worked out
+    // anyway; what is wrong is said of a file that types an array or a hash.
     void Typer::run()
     {
-      if (!any_typed()) { return; }
+      bool typed = any_typed();
       for (const FunctionDef* f : p_->functions)
       {
         std::string name = called_as(f);
@@ -611,6 +614,13 @@ namespace xc
         char k = kind(type(h->base));
         if (k == 'S' || k == 'M') { h->set_kind = k; }
       }
+      // 'for k in h', 'for k, v in h': its keys, and what each holds.
+      for (ForInStmt* f : walks_)
+      {
+        char k = kind(type(f->source));
+        f->keyed = keyed(k) || k == 'J';
+      }
+      if (!typed) { return; }
       for (const Unit& u : units_) { check(u); }
     }
 
@@ -739,6 +749,7 @@ namespace xc
         case SK::ForInStmt:
         {
           auto f = static_cast<ForInStmt*>(s);
+          walks_.push_back(f);
           expr(f->source);
           scopes_.emplace_back();
           Event e;
@@ -996,9 +1007,21 @@ namespace xc
                 give(e.var, "N");
                 break;
               case Event::ForIn:
+              {
+                // Over a hash, a set, a bag, a JSON object: each key, and
+                // what it holds there.
+                std::string t = type(e.value);
+                char k = kind(t);
+                if (keyed(k) || k == 'J')
+                {
+                  give(e.var, k == 'J' ? "C" : bare(key_of(t)));
+                  give(e.index, k == 'J' ? UNKNOWN : value_of(t));
+                  break;
+                }
                 give(e.var, elem_in(e.value));
                 give(e.index, "N");
                 break;
+              }
               case Event::Unknown:
               case Event::Ref:
                 give(e.var, UNKNOWN);

@@ -262,6 +262,7 @@ namespace xc
     Lowered lower(const Stmt* s);
     Lines lower_inner(const Stmt* s);
     Lines oneline_lines(const Stmt* s);
+    Lines walk_lines(const ForInStmt* f, const std::string& el, const std::optional<std::string>& ix);
 
     // ---- chains -------------------------------------------------------------
     Stream stream(const Expr* chain, bool collect);

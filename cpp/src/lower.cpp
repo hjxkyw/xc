@@ -387,10 +387,7 @@ namespace xc
         if (f->index) { ix = nm(s, *f->index); }
         hoist(el, "a block local");
         if (ix) { hoist(*ix, "a block local"); }
-        std::string src = gen("fs", "the source of a 'for ... in'");
-        std::string ctr = ix ? *ix : gen("fi", "the counter of a 'for ... in'");
-        header(s, f->source, 1, { src + " := " + expr(f->source), "For " + ctr + " := 1 To Len(" + src + ")",
-                                  "  " + el + " := " + src + "[" + ctr + "]" });
+        header(s, f->source, 1, walk_lines(f, el, ix));
         if (f->endname_from >= 0) { drop_endname(f->endname_from, f->endname_to); }
       }
       else if (k == SK::ForTimesStmt)
@@ -1484,6 +1481,26 @@ namespace xc
   // A one-line form as the block it is: its header as the block's, then each
   // statement of its bodies as lower_inner() has it -- a one-line form in
   // one as this --, with the block locals of its header renamed in them.
+  // The head of a 'for ... in' over what is not a range nor lines(): the
+  // source read once, and the counter -- the index, when it is named. Over a
+  // hash, a set, a bag, a JSON object (typed.cpp knows it), its {key, value}
+  // pairs: the element each key, the index what it holds.
+  Lines Emitter::walk_lines(const ForInStmt* f, const std::string& el, const std::optional<std::string>& ix)
+  {
+    std::string src = gen("fs", "the source of a 'for ... in'");
+    if (f->keyed)
+    {
+      std::string ctr = gen("fi", "the counter of a 'for ... in'");
+      Lines out{ src + " := u_xtpl_pairs(" + expr(f->source) + ")", "For " + ctr + " := 1 To Len(" + src + ")",
+                 "  " + el + " := " + src + "[" + ctr + "][1]" };
+      if (ix) { out.push_back("  " + *ix + " := " + src + "[" + ctr + "][2]"); }
+      return out;
+    }
+    std::string ctr = ix ? *ix : gen("fi", "the counter of a 'for ... in'");
+    return { src + " := " + expr(f->source), "For " + ctr + " := 1 To Len(" + src + ")",
+             "  " + el + " := " + src + "[" + ctr + "]" };
+  }
+
   Lines Emitter::oneline_lines(const Stmt* s)
   {
     Lines out;
@@ -1582,10 +1599,7 @@ namespace xc
         }
         else
         {
-          std::string src = gen("fs", "the source of a 'for ... in'");
-          std::string ctr = ix ? *ix : gen("fi", "the counter of a 'for ... in'");
-          append(out, { src + " := " + expr(f->source), "For " + ctr + " := 1 To Len(" + src + ")",
-                        "  " + el + " := " + src + "[" + ctr + "]" });
+          append(out, walk_lines(f, el, ix));
         }
         body(f->body, 0, true);
         out.push_back("Next");

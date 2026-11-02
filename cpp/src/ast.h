@@ -373,6 +373,9 @@ namespace xc
     ForInStmt() : Stmt(SK::ForInStmt) {}
     std::string elem;
     OptStr index;
+    bool keyed = false;              // over a hash, a set, a bag, a JSON object,
+                                     // as typed.cpp knows it: its keys, and what
+                                     // each holds
     Expr* source = nullptr;
     Body body;
     int endname_from = -1;

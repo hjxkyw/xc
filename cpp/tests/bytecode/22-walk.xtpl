@@ -1,0 +1,38 @@
+// 'for k in h', 'for k, v in h': a hash's, a set's, a bag's, a JSON
+// object's keys and what each holds -- in a hash's own order, so what is
+// shown here is sorted. And a 'loop' and an 'exit' in such a walk.
+User Function Main()
+  Local hRates := {"b" => 2, "a" => 1, "c" => 3}
+  Local sTags := setof("x", "y")
+  Local bWords := bagof({"p", "q", "p"})
+  Local jCfg := JsonObject():New()
+  Local aOut := {}
+  Local nSum := 0
+  jCfg["host"] := "db"
+  jCfg["port"] := 5432
+  for cK, nV in hRates exec nSum += nV, AAdd(aOut, cK)
+  ConOut(nSum, aOut |> sort |> join(","))
+  aOut := {}
+  for cT in sTags exec AAdd(aOut, cT)
+  ConOut(aOut |> sort |> join(","))
+  aOut := {}
+  for cW, nN in bWords
+    AAdd(aOut, cW + "=" + cValToChar(nN))
+  next
+  ConOut(aOut |> sort |> join(","))
+  aOut := {}
+  for cName, xVal in jCfg exec AAdd(aOut, cName + ":" + cValToChar(xVal))
+  ConOut(aOut |> sort |> join(","))
+  nSum := 0
+  for cK, nV in hRates
+    if nV == 2
+      loop
+    endif
+    nSum += nV
+  next
+  ConOut(nSum)
+  nSum := 0
+  for cK in hRates exec nSum++, (if nSum == 2 exec exit)
+  ConOut(nSum)
+  for nX, nAt in {10, 20} exec ConOut(nX * nAt)
+Return Nil

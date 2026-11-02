@@ -398,8 +398,19 @@ Return aRes
 // be the other way round, this is the only function to correct.
 // -----------------------------------------------------------------------------
 
+// xc: a JSON object's too -- what 'for k, v in j' walks: its names, and what
+// each holds.
 User Function xtpl_pairs(oHash)
   Local aList := {}
+  Local aNames
+  Local nX
+  If ValType(oHash) == "J"
+    aNames := oHash:GetNames()
+    For nX := 1 To Len(aNames)
+      AAdd(aList, {aNames[nX], oHash[aNames[nX]]})
+    Next
+    Return aList
+  EndIf
   oHash:List(@aList)
 Return aList
 

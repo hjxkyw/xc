@@ -23,7 +23,10 @@
 // (Raku's): setOf(), bagOf() and the set operators make them, and they go
 // where such a hash is wanted. Each 'h{k}' xc knows to be a set's or a bag's
 // is marked so (HashIndex::set_kind), for the back ends to read and write it
-// Raku's way.
+// Raku's way. So is each 'for ... in' over a hash, a set, a bag or a JSON
+// object (ForInStmt::keyed), which walks its keys -- worked out in every
+// file, though what is wrong is said only of one that types an array or a
+// hash.
 //
 // What xc can tell: literals; a name declared with a type, and a function's
 // Local or Static whose every assignment xc can tell, and the same; what
@@ -43,5 +46,6 @@
 namespace xc
 {
   // The errors and warnings: nothing, for a file with no typed array or hash.
+  // Marks the tree as it goes (HashIndex::set_kind, ForInStmt::keyed).
   Checked typed_problems(const Program* p, const Dictionary& dictionary);
 }

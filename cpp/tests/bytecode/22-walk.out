@@ -1,0 +1,12 @@
+exit 0
+--- output
+6
+a,b,c
+x,y
+p=2,q=1
+host:db,port:5432
+4
+2
+10
+40
+--- errors
