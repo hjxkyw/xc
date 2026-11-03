@@ -48,4 +48,10 @@ namespace xc
   // Nothing is done for a text that brings no directive.
   UserSpans user_spans(std::string_view text, const std::optional<std::string>& dir,
                        const std::vector<std::string>& dirs);
+
+  // The '#define' lines of the include files a text brings, found as
+  // user_spans() finds them, in the order read: what the bytecode takes
+  // from them (TOTVS' compressed ones are not read).
+  std::vector<std::string> include_defines(std::string_view text, const std::optional<std::string>& dir,
+                                           const std::vector<std::string>& dirs);
 }

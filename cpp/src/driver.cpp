@@ -197,7 +197,9 @@ namespace xc
 
     // What xtpl refuses although it parses, and what it warns about.
     int nlines = static_cast<int>(lines_of(src).size());
-    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl, o.bytecode);
+    std::vector<std::string> defines = include_defines(src, folder_of(path), o.includes);
+    Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl, o.bytecode,
+                                defines);
     for (const Finding& f : checked.warnings)
     {
       c.said += in + ":" + std::to_string(f.line) + ": warning: " + said(f.message) + "\n";
@@ -214,7 +216,7 @@ namespace xc
       if (o.bytecode)
       {
         std::size_t cut = path.find_last_of(WINDOWS ? "\\/:" : "/");
-        c.output = bytecode(prog, src, advpl, cut == std::string::npos ? path : path.substr(cut + 1));
+        c.output = bytecode(prog, src, advpl, cut == std::string::npos ? path : path.substr(cut + 1), defines);
       }
       else
       {

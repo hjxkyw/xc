@@ -53,9 +53,11 @@ namespace xc
   // 'advpl': the source is AdvPL's (.prw), and what it makes stays AdvPL --
   // TL++'s own rules do not hold. 'bytecode': it becomes bytecode, which xc's
   // machines run, not the AppServer -- what the AppServer gets wrong at run
-  // time is not said.
+  // time is not said. defines: the '#define' lines of its include files
+  // (commands.h), whose names are not variables.
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source, bool advpl = false, bool bytecode = false);
+                    std::optional<std::string_view> source, bool advpl = false, bool bytecode = false,
+                    const std::vector<std::string>& defines = {});
 
   // The names a program declares that xc keeps for itself -- for a file
   // read again with any name allowed.

@@ -26,6 +26,7 @@ add_library(xclib STATIC
   src/commands.cpp
   src/decimal.cpp
   src/driver.cpp
+  src/dump.cpp
   src/emit.cpp
   src/lower.cpp
   src/parser.cpp
@@ -38,12 +39,15 @@ add_library(xclib STATIC
 # xc, the compiler; xc-outputs, which holds xc to the TL++ kept beside
 # xtpl's sources; xc-cases, xc's tests as data (cpp/tests/cases);
 # xc-doc, which holds docs/language.md to what xc makes of its examples;
-# xc-vm, which runs the bytecode 'xc --bytecode' writes (docs/bytecode.md).
+# xc-vm, which runs the bytecode 'xc --bytecode' writes (docs/bytecode.md);
+# xc-ast, the tree a source is read into, which the parser written in xtpl
+# (selfhost/) is held to.
 add_executable(xc src/xc.cpp)
 add_executable(xc-outputs src/outputs.cpp)
 add_executable(xc-cases src/cases.cpp)
 add_executable(xc-doc src/doc.cpp)
 add_executable(xc-vm src/vm.cpp)
+add_executable(xc-ast src/ast.cpp)
 target_link_libraries(xc PRIVATE xclib)
 
 # 'xc --version': the commit it is built from, in version.h, written at each
@@ -57,6 +61,7 @@ target_include_directories(xc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version)
 target_link_libraries(xc-outputs PRIVATE xclib)
 target_link_libraries(xc-cases PRIVATE xclib)
 target_link_libraries(xc-doc PRIVATE xclib)
+target_link_libraries(xc-ast PRIVATE xclib)
 
 # ctest --test-dir cpp/build
 enable_testing()
@@ -86,11 +91,15 @@ add_test(NAME interp-xc
          COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/interp-xc -DMODE=xc -P ${PROJECT_SOURCE_DIR}/tests/interp.cmake)
 set_tests_properties(interp-xc PROPERTIES LABELS slow TIMEOUT 1500)
+add_test(NAME selfhost
+         COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DAST=$<TARGET_FILE:xc-ast>
+                 -DROOT=${PROJECT_SOURCE_DIR}/.. -DWORK=${CMAKE_CURRENT_BINARY_DIR}/selfhost
+                 -P ${PROJECT_SOURCE_DIR}/tests/selfhost.cmake)
 add_test(NAME selftests
          COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/selftests -P ${PROJECT_SOURCE_DIR}/tests/selftests.cmake)
 
-foreach(t xclib xc xc-outputs xc-cases xc-doc xc-vm)
+foreach(t xclib xc xc-outputs xc-cases xc-doc xc-vm xc-ast)
   if(MSVC)
     target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8 /MP)
   else()

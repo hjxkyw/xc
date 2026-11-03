@@ -1,0 +1,37 @@
+xbc 1
+source 25-include.xtpl
+statics 0
+
+function U_MAIN user 0 1
+  locals aRow
+  line 11
+  num 2
+  call 1 Array
+  setlocal 1
+  line 12
+  local 1
+  num 1
+  str "row"
+  setindex
+  line 13
+  local 1
+  num 2
+  num 2
+  num 10
+  mul
+  setindex
+  line 14
+  local 1
+  num 1
+  index
+  local 1
+  num 2
+  index
+  local 1
+  call 1 Len
+  call 3 ConOut
+  pop
+  line 15
+  nil
+  ret
+end

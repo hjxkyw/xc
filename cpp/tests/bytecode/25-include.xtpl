@@ -1,0 +1,15 @@
+// A '#define' of an include file xc can read -- beside the source, or in an
+// include folder -- is a constant, as the source's own are: the bytecode
+// has its value where its name is read. The source's own come after, and
+// one of the same name is the source's.
+#include "totvs.ch"
+#include "25-include.ch"
+
+#define K_LABEL "row"
+
+User Function Main()
+  Local aRow := Array(K_COUNT)
+  aRow[K_NAME] := K_LABEL
+  aRow[K_COUNT] := K_WIDTH
+  ConOut(aRow[K_NAME], aRow[K_COUNT], Len(aRow))
+Return Nil

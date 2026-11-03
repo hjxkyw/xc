@@ -427,6 +427,7 @@ namespace xc
       }
 
       std::vector<Finding> found;
+      std::vector<std::string> include_defines;  // the include files' '#define' lines
       std::vector<Finding> warned;
 
       void program(const Program* p);
@@ -711,8 +712,11 @@ namespace xc
                                     + "declare, so the AppServer takes it for a regular function: " + REGULAR });
       }
       std::sort(ends_.begin(), ends_.end());
-      // '#define NAME': m:i/ ^ '#' \h* 'define' \h+ (\w+) /
-      for (const std::string& d : p->directives)
+      // '#define NAME': m:i/ ^ '#' \h* 'define' \h+ (\w+) / -- the
+      // source's, and its include files'.
+      std::vector<std::string> directives = include_defines;
+      directives.insert(directives.end(), p->directives.begin(), p->directives.end());
+      for (const std::string& d : directives)
       {
         std::size_t i = 0;
         if (d.empty() || d[0] != '#') { continue; }
@@ -2241,9 +2245,11 @@ namespace xc
   }
 
   Checked check_all(const Program* p, int lines, const Dictionary& dictionary, bool strict,
-                    std::optional<std::string_view> source, bool advpl, bool bytecode)
+                    std::optional<std::string_view> source, bool advpl, bool bytecode,
+                    const std::vector<std::string>& defines)
   {
     Checker c(lines, dictionary, strict, source, advpl, bytecode);
+    c.include_defines = defines;
     c.program(p);
     for (Finding& f : decimal_problems(p, source, advpl)) { c.found.push_back(std::move(f)); }
     Checked typed = typed_problems(p, dictionary);

@@ -82,6 +82,12 @@ xtpl's runtime compiled to bytecode first, and the self-tests too.
 (`appserver -run=u_xbc -env=NAME module.xbc ...`); xc-vm runs it too, and
 `rakupp run-protheus.raku --interp` runs it on an AppServer.
 
+`selfhost/` is xc again, written in xtpl, a part at a time: what turns a
+source into bytecode, for an AppServer to compile xtpl and run it with the
+interpreter, with no compile into the RPO. For now it reads a source into
+xc's tree, which has to be the one `xc-ast --bare` writes (ctest's
+`selfhost`).
+
 ## Running the tests
 
 ```sh
@@ -101,6 +107,7 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | `bytecode` | sources, each with its bytecode, the messages, and what `xc-vm` does running it |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` |
 | `interp`, `interp-xc` | the interpreter written in xtpl, run by `xc-vm`, does what `xc-vm` does: the bytecode cases, the self-tests (`interp-xc`: xc's, slowly) |
+| `selfhost` | the compiler written in xtpl, run by `xc-vm`, reads each source into the tree `xc-ast` writes |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:
@@ -195,6 +202,7 @@ It runs under rakupp 5.3.0, and under Rakudo as well.
 | `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples --, and the bytecode's, `bytecode.md` |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
+| `selfhost/` | xc written in xtpl, a part at a time: the parser so far (`selfhost.cmake` holds it to `xc-ast`) |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, each with the `.tlpp` xc makes of it, and xc's example `saldo` -- see `xtpl/README.md` |
 | `run-protheus.raku` | xc's output compiled and run by an AppServer |

@@ -1,0 +1,603 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// parse.xtpl -- a source read into a tree (xcb.ch), as the C++ xc's parser
+// reads it (cpp/src/parser.cpp, statements.cpp): the same routines, by the
+// same names, the same nodes, the same spans. A routine that does not read
+// its form gives Nil (or .F.) and leaves the cursor where it was.
+//
+// The source is the C++ parser's: bytes of windows-1252, offsets from 0.
+// aC holds each byte's code -- C(p) reads it, -1 outside the source --,
+// cSrc the text, for what a node keeps of it. The parser's state is the
+// file's statics: one source at a time.
+//
+// The source's own commands and translations ('#xcommand', '#xtranslate')
+// are not looked for: xc-ast --bare reads a source so, and is what this one
+// is held to (cpp/tests/selfhost.cmake).
+// -----------------------------------------------------------------------------
+
+// ---- the characters ---------------------------------------------------------
+// What Raku's classes say of each byte (cpp/src/chars.cpp's CHAR_CLASS), one
+// list a class: \w, \h, \v, \N, \d, '\n' in a class, \s, what .trim takes.
+Static aIsW := Nil
+Static aIsH
+Static aIsV
+Static aIsNN
+Static aIsD
+Static aIsNL
+Static aIsS
+Static aIsTrim
+
+// ---- the parser's state -----------------------------------------------------
+Static cSrc := ""
+Static aC := {}
+Static nN := 0
+Static nP := 0                 // the cursor
+Static lUserOn := .F.
+Static nFurthest := 0
+Static lPastPrologue := .F.    // the body's declarations are over
+Static lMemvarOk := .F.        // a Private's names: 'M->' may come before one
+Static lGenericOk := .F.       // 'as Array<n>' may type the name
+Static lTopLevel := .F.        // in a function's own body, not a block's
+Static aRows := {}             // where each line starts, as Raku's .lines splits them
+Static lInWith := .F.          // inside 'with object': ':x' is the subject's
+Static nInBlock := 0           // in a lambda or a code block: no '|>', no 'fallback'
+Static nInDq := 0              // in a '"' string's '${ }': no '"' string
+Static nInSq := 0
+Static nInExp := 0             // in '%exp:...%': a '%' is its end
+Static lAnyName := .F.         // no declared name is refused
+Static lGeneratedOk := .F.     // a name of xc's shape may be declared
+// The lines -- where each starts, where it ends, what it holds that Sees()
+// looks for, its last ';' carrying it on (-2: not yet known) -- by their
+// number from 1; the one LineOf() found last.
+Static aLs := {}
+Static aLe := {}
+Static aLf := {}
+Static aLq := {}
+Static nLk := 1
+// The operator OpAt() found.
+Static cOp := ""
+Static nOpLen := 0
+
+// What a line holds that Sees() looks for: flags, added.
+#define L_EQ    1
+#define L_BAR   2
+#define L_DIV   4
+#define L_SEMI  8
+
+// The whole source, its text and its bytes' codes: the tree, or Nil when
+// it does not read.
+User Function xcb_parse(cText, aCodes)
+  Local aProg
+  Local nSave
+  Start(cText, aCodes)
+  nP := 0
+  nFurthest := 0
+  lInWith := .F.
+  nInBlock := 0
+  nInDq := 0
+  nInSq := 0
+  nInExp := 0
+  lPastPrologue := .F.
+  lTopLevel := .F.
+  aProg := u_xcb_new(NK_PROGRAM)
+  Ws()
+  Gap()
+  Ws()
+  nFurthest := Max(nFurthest, nP)
+  Ws()
+  While .T.
+    nSave := nP
+    If !TopLevel(aProg)
+      nP := nSave
+      Exit
+    EndIf
+    Ws()
+    Gap()
+    Ws()
+    nFurthest := Max(nFurthest, nP)
+    Ws()
+  EndDo
+  Ws()
+Return If(nP == nN, aProg, Nil)
+
+// How far a parse that failed got: the end of the furthest line end it
+// took.
+User Function xcb_furthest()
+Return nFurthest
+
+// The codes of a text's bytes, read a piece at a time: a long text is not
+// copied for each byte.
+User Function xcb_codes(cText)
+  Local aOut := {}
+  Local nAt := 1
+  Local nI
+  Local cPart
+  While nAt <= Len(cText)
+    cPart := SubStr(cText, nAt, 4096)
+    For nI := 1 To Len(cPart)
+      AAdd(aOut, Asc(SubStr(cPart, nI, 1)))
+    Next
+    nAt += 4096
+  EndDo
+Return aOut
+
+// ---- the source -------------------------------------------------------------
+// The text, its lines as Raku's .lines splits them -- at "\n", "\r\n" and
+// "\r" -- for the line a node is on, and the lines, with what each holds
+// that Sees() looks for. A "\r\n" is one line end.
+Static Function Start(cText, aCodes)
+  Local nI
+  Local nCh
+  Local nF := 0
+  Classes()
+  cSrc := cText
+  aC := If(aCodes == Nil, u_xcb_codes(cText), aCodes)
+  nN := Len(aC)
+  lUserOn := .F.
+  aRows := {0}
+  For nI := 0 To nN - 1
+    nCh := aC[nI + 1]
+    If nCh == 13 .And. C(nI + 1) == 10
+      nI++
+      AAdd(aRows, nI + 1)
+    ElseIf nCh == 10 .Or. nCh == 13
+      AAdd(aRows, nI + 1)
+    EndIf
+  Next
+  If ATail(aRows) != nN
+    AAdd(aRows, nN)             // the end of the text: a row of its own
+  EndIf
+  aLs := {0}
+  aLe := {}
+  aLf := {}
+  For nI := 0 To nN - 1
+    nCh := aC[nI + 1]
+    If nCh >= 10 .And. nCh <= 13
+      AAdd(aLe, nI)
+      AAdd(aLf, nF)
+      If nCh == 13 .And. C(nI + 1) == 10
+        nI++
+      EndIf
+      AAdd(aLs, nI + 1)
+      nF := 0
+    ElseIf nCh == 61                                     // '='
+      nF := Flagged(nF, L_EQ)
+    ElseIf nCh == 124 .Or. ((nCh == 116 .Or. nCh == 84) .And. ThenAt(nI))   // '|', 'then'
+      nF := Flagged(nF, L_BAR)
+    ElseIf nCh == 47                                     // '/'
+      nF := Flagged(nF, L_DIV)
+    ElseIf nCh == 59                                     // ';'
+      nF := Flagged(nF, L_SEMI)
+    EndIf
+  Next
+  AAdd(aLe, nN)
+  AAdd(aLf, nF)
+  aLq := {}
+  For nI := 1 To Len(aLs)
+    AAdd(aLq, -2)
+  Next
+  nLk := 1
+Return Nil
+
+// A flag among others, added once.
+Static Function Flagged(nFlags, nFlag)
+Return If(HasFlag(nFlags, nFlag), nFlags, nFlags + nFlag)
+
+Static Function HasFlag(nFlags, nFlag)
+Return Int(nFlags / nFlag) % 2 == 1
+
+// The classes of each byte, from the C++ xc's table.
+Static Function Classes()
+  Local aTable
+  Local nI
+  Local nF
+  If aIsW != Nil
+    Return Nil
+  EndIf
+  aTable := { ;
+      8,   8,   8,   8,   8,   8,   8,   8,   8, 202, 228, 228, 228, 228,   8,   8, ;
+      8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8, ;
+    202,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8, ;
+     25,  25,  25,  25,  25,  25,  25,  25,  25,  25,   8,   8,   8,   8,   8,   8, ;
+      8,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9, ;
+      9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   8,   8,   8,   8,   9, ;
+      8,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9, ;
+      9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   8,   8,   8,   8,   8, ;
+      8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   9,   8,   9,   8,   9,   8, ;
+      8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   9,   8,   9,   8,   9,   9, ;
+    202,   8,   8,   8,   8,   8,   8,   8,   8,   8,   9,   8,   8,   8,   8,   8, ;
+      8,   8,   8,   8,   8,   9,   8,   8,   8,   8,   9,   8,   8,   8,   8,   8, ;
+      9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9, ;
+      9,   9,   9,   9,   9,   9,   9,   8,   9,   9,   9,   9,   9,   9,   9,   9, ;
+      9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9, ;
+      9,   9,   9,   9,   9,   9,   9,   8,   9,   9,   9,   9,   9,   9,   9,   9  }
+  aIsW := Array(256)
+  aIsH := Array(256)
+  aIsV := Array(256)
+  aIsNN := Array(256)
+  aIsD := Array(256)
+  aIsNL := Array(256)
+  aIsS := Array(256)
+  aIsTrim := Array(256)
+  For nI := 1 To 256
+    nF := aTable[nI]
+    aIsW[nI] := HasFlag(nF, 1)
+    aIsH[nI] := HasFlag(nF, 2)
+    aIsV[nI] := HasFlag(nF, 4)
+    aIsNN[nI] := HasFlag(nF, 8)
+    aIsD[nI] := HasFlag(nF, 16)
+    aIsNL[nI] := HasFlag(nF, 32)
+    aIsS[nI] := HasFlag(nF, 64)
+    aIsTrim[nI] := HasFlag(nF, 128)
+  Next
+Return Nil
+
+// The byte at p, or -1 outside the source.
+Static Function C(nAt)
+Return If(nAt >= 0 .And. nAt < nN, aC[nAt + 1], -1)
+
+// The text from one offset to another.
+Static Function Text(nFrom, nTo)
+Return SubStr(cSrc, nFrom + 1, nTo - nFrom)
+
+// A byte -- or -1 -- of each class.
+Static Function IsW(nCh)
+Return nCh >= 0 .And. aIsW[nCh + 1]
+
+Static Function IsH(nCh)
+Return nCh >= 0 .And. aIsH[nCh + 1]
+
+Static Function IsV(nCh)
+Return nCh >= 0 .And. aIsV[nCh + 1]
+
+Static Function IsNN(nCh)
+Return nCh >= 0 .And. aIsNN[nCh + 1]
+
+Static Function IsD(nCh)
+Return nCh >= 0 .And. aIsD[nCh + 1]
+
+Static Function IsS(nCh)
+Return nCh >= 0 .And. aIsS[nCh + 1]
+
+Static Function IsAlpha(nCh)
+Return (nCh >= 97 .And. nCh <= 122) .Or. (nCh >= 65 .And. nCh <= 90) .Or. nCh == 95
+
+// A letter in lower case, as the C++ lower(): ASCII's alone.
+Static Function CLower(nCh)
+Return If(nCh >= 65 .And. nCh <= 90, nCh + 32, nCh)
+
+// Raku's .lc for the bytes of a source (cpp/src/chars.cpp): the letters
+// beyond ASCII too, as windows-1252 places them.
+Static Function Lc(cS)
+  Local cOut := ""
+  Local nI
+  Local nB
+  For nI := 1 To Len(cS)
+    nB := Asc(SubStr(cS, nI, 1))
+    If (nB >= 65 .And. nB <= 90) .Or. (nB >= 192 .And. nB <= 222 .And. nB != 215)
+      nB += 32
+    ElseIf nB == 138 .Or. nB == 140 .Or. nB == 142
+      nB += 16
+    ElseIf nB == 159
+      nB := 255
+    EndIf
+    cOut += Chr(nB)
+  Next
+Return cOut
+
+// How many of a list of offsets, in order, are at or before p: the place of
+// the first one after it, from 0.
+Static Function UpperBound(aList, nAt)
+  Local nLo := 1
+  Local nHi := Len(aList) + 1
+  Local nMid
+  While nLo < nHi
+    nMid := Int((nLo + nHi) / 2)
+    If aList[nMid] <= nAt
+      nLo := nMid + 1
+    Else
+      nHi := nMid
+    EndIf
+  EndDo
+Return nLo - 1
+
+// ---- whitespace -------------------------------------------------------------
+// <.ws>: blanks, comments, and a ';' that carries the line on. Not between
+// two word characters: there it does not match, and what wants it fails.
+Static Function Ws()
+  Local nAt := nP
+  Local nCh := C(nAt)
+  Local nQ
+  If !(nCh == 32 .Or. nCh == 9 .Or. nCh == 59 .Or. nCh == 47 .Or. nCh == 38 .Or. IsH(nCh))
+    Return !(nAt > 0 .And. IsW(nCh) .And. IsW(C(nAt - 1)))
+  EndIf
+  While .T.
+    nCh := C(nAt)
+    If IsH(nCh)
+      nAt++
+    ElseIf nCh == 59
+      nQ := LineCont(nAt)
+      If nQ < 0
+        Exit
+      EndIf
+      nAt := nQ
+    ElseIf (nCh == 47 .Or. nCh == 38) .And. C(nAt + 1) == nCh
+      nAt := LineEnd(nAt + 2)
+    ElseIf nCh == 47 .And. C(nAt + 1) == 42
+      nQ := BlockEnd(nAt)
+      If nQ < 0
+        Exit
+      EndIf
+      nAt := nQ
+    Else
+      Exit
+    EndIf
+  EndDo
+  nP := nAt
+Return .T.
+
+// '\N*' from p: where the line ends.
+Static Function LineEnd(nAt)
+Return aLe[LineOf(nAt)]
+
+// The line p is on, from 1: the one found last, the next, or a search.
+Static Function LineOf(nAt)
+  Local nK := nLk
+  If aLs[nK] <= nAt .And. nAt <= aLe[nK]
+    Return nK
+  EndIf
+  nK++
+  If nK <= Len(aLs) .And. aLs[nK] <= nAt .And. nAt <= aLe[nK]
+    nLk := nK
+    Return nK
+  EndIf
+  nLk := Max(UpperBound(aLs, nAt), 1)
+Return nLk
+
+// '/*' .*? '*/' at p: where it ends, or -1.
+Static Function BlockEnd(nAt)
+  Local nK := nAt + 2
+  While nK + 1 < nN
+    If aC[nK + 1] == 42 .And. aC[nK + 2] == 47
+      Return nK + 2
+    EndIf
+    nK++
+  EndDo
+Return -1
+
+// ';' \h* [ <linecomment> || <blockcomment> ]? \h* \v at p: where it ends,
+// or -1.
+Static Function LineCont(nAt)
+  Local nQ := nAt + 1
+  Local nCh
+  Local nE
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+  nCh := C(nQ)
+  If (nCh == 47 .Or. nCh == 38) .And. C(nQ + 1) == nCh
+    nQ := LineEnd(nQ + 2)
+  ElseIf nCh == 47 .And. C(nQ + 1) == 42
+    nE := BlockEnd(nQ)
+    If nE >= 0
+      nQ := nE
+    EndIf
+  EndIf
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+  If !IsV(C(nQ))
+    Return -1
+  EndIf
+Return If(C(nQ) == 13 .And. C(nQ + 1) == 10, nQ + 2, nQ + 1)
+
+// ---- small pieces -----------------------------------------------------------
+// Where a name starting at p ends ('<[A..Za..z_]> \w*'), or -1.
+Static Function NameEnd(nAt)
+  Local nQ
+  If !IsAlpha(C(nAt))
+    Return -1
+  EndIf
+  nQ := nAt + 1
+  While IsW(C(nQ))
+    nQ++
+  EndDo
+Return nQ
+
+// Whether the text at p is the word (in lower case), letter case aside.
+Static Function IWordAt(nAt, cWord)
+  Local nI
+  For nI := 1 To Len(cWord)
+    If CLower(C(nAt + nI - 1)) != Asc(SubStr(cWord, nI, 1))
+      Return .F.
+    EndIf
+  Next
+Return .T.
+
+// The word 'then' at p, letter case aside, with no word character on
+// either side.
+Static Function ThenAt(nAt)
+Return IWordAt(nAt, "then") .And. !IsW(C(nAt + 4)) .And. !(nAt > 0 .And. IsW(C(nAt - 1)))
+
+// ---- the small pieces of a line ---------------------------------------------
+// The line an offset is on, as XC::Source counts them.
+Static Function Line(nAt)
+  Local nRow := UpperBound(aRows, nAt) - 1
+  Local nLast := Max(1, Len(aRows) - 1)
+Return Min(Max(nRow, 0) + 1, nLast)
+
+// ':i word': the word, letter case aside (the word in lower case).
+Static Function ILit(cWord)
+  If !IWordAt(nP, cWord)
+    Return .F.
+  EndIf
+  nP += Len(cWord)
+Return .T.
+
+Static Function Lit(cS)
+  If nP + Len(cS) > nN .Or. !(Text(nP, nP + Len(cS)) == cS)
+    Return .F.
+  EndIf
+  nP += Len(cS)
+Return .T.
+
+// '>>': a word ends here.
+Static Function WordEnd()
+Return nP > 0 .And. IsW(C(nP - 1)) .And. !IsW(C(nP))
+
+// '<!ww>': not between two word characters.
+Static Function NotWithinWord()
+Return !(nP > 0 .And. IsW(C(nP - 1)) .And. IsW(C(nP)))
+
+Static Function LineStart(nAt)
+Return nAt == 0 .Or. C(nAt - 1) == 10
+
+// '\v' at p: its length ("\r\n" is one), or 0.
+Static Function VChar(nAt)
+  If !IsV(C(nAt))
+    Return 0
+  EndIf
+Return If(C(nAt) == 13 .And. C(nAt + 1) == 10, 2, 1)
+
+// '\n' at p, as Raku takes it: "\n", "\r\n" or "\r" -- its length, or 0.
+Static Function NlChar(nAt)
+  If C(nAt) == 13
+    Return If(C(nAt + 1) == 10, 2, 1)
+  EndIf
+Return If(C(nAt) == 10, 1, 0)
+
+// <linecomment> at p: '//' or '&&' to the end of the line -- where it
+// ends, or -1.
+Static Function LineComment(nAt)
+  Local nCh := C(nAt)
+  Local nQ
+  If (nCh == 47 .Or. nCh == 38) .And. C(nAt + 1) == nCh
+    nQ := nAt + 2
+    While IsNN(C(nQ))
+      nQ++
+    EndDo
+    Return nQ
+  EndIf
+Return -1
+
+// token eol: the end of a line, or a ';' with more after it on the line.
+// lConsume: move past it, or only look.
+Static Function Eol(lConsume)
+  Local nQ := nP
+  Local nK
+  Local nE
+  Local nV
+  Local nR
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+  nK := LineComment(nQ)
+  If nK >= 0
+    nQ := nK
+  ElseIf C(nQ) == 47 .And. C(nQ + 1) == 42
+    nE := BlockEnd(nQ)
+    If nE >= 0
+      nQ := nE
+    EndIf
+  EndIf
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+  nV := VChar(nQ)
+  If nV > 0
+    nQ += nV
+  ElseIf nQ == nN
+  ElseIf C(nQ) == 59
+    nR := nQ + 1
+    While IsH(C(nR))
+      nR++
+    EndDo
+    nE := LineComment(nR)
+    If nE >= 0
+      nR := nE
+    ElseIf C(nR) == 47 .And. C(nR + 1) == 42
+      nE := BlockEnd(nR)
+      If nE >= 0
+        nR := nE
+      EndIf
+    EndIf
+    While IsH(C(nR))
+      nR++
+    EndDo
+    If VChar(nR) > 0 .Or. nR == nN
+      Return .F.                 // a ';' at the end of a line carries it on
+    EndIf
+    nQ++
+  Else
+    Return .F.
+  EndIf
+  If lConsume
+    nP := nQ
+  EndIf
+Return .T.
+
+// token gap: blank lines, comment lines -- a line starting with '*' too --
+// and the indentation, before the next statement.
+Static Function Gap()
+  Local nCh
+  Local nQ
+  Local nK
+  Local nE
+  While .T.
+    nCh := C(nP)
+    If LineStart(nP)
+      nQ := nP
+      While IsH(C(nQ))
+        nQ++
+      EndDo
+      If C(nQ) == 42
+        While IsNN(C(nQ))
+          nQ++
+        EndDo
+        nP := nQ
+        Loop
+      EndIf
+    EndIf
+    If IsS(nCh)
+      nP++
+      Loop
+    EndIf
+    If nCh == 59
+      nQ := LineCont(nP)
+      If nQ >= 0
+        nP := nQ
+        Loop
+      EndIf
+      Exit
+    EndIf
+    nK := LineComment(nP)
+    If nK >= 0
+      nP := nK
+      Loop
+    EndIf
+    If nCh == 47 .And. C(nP + 1) == 42
+      nE := BlockEnd(nP)
+      If nE >= 0
+        nP := nE
+        Loop
+      EndIf
+    EndIf
+    Exit
+  EndDo
+Return Nil
+
+// token nl { <.eol> <.gap> }: and how far the parse got.
+Static Function Nl()
+  If !Eol(.T.)
+    Return .F.
+  EndIf
+  Gap()
+  nFurthest := Max(nFurthest, nP)
+Return .T.
+
+// ---- the file ---------------------------------------------------------------
+// rule toplevel: a function, a class, a method, a directive, ... -- none
+// yet: the routines come over from the C++ xc a part at a time.
+Static Function TopLevel(aProg)
+Return .F.

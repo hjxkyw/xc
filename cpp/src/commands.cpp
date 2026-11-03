@@ -620,12 +620,12 @@ namespace xc
       return true;
     }
 
-    // The rules of a text and of every include file found -- beside the
-    // source, then in each include folder -- each file once.
-    std::vector<Rule> rules_with_includes(std::string_view text, const std::optional<std::string>& dir,
-                                          const std::vector<std::string>& dirs)
+    // Every include file found -- beside the source, then in each include
+    // folder --, each once, the text of each given to found().
+    template <class F>
+    void each_include(std::string_view text, const std::optional<std::string>& dir, const std::vector<std::string>& dirs,
+                      F found)
     {
-      std::vector<Rule> rules = rules_of(text);
       std::unordered_set<std::string> seen;
       std::vector<std::string> todo = includes_of(text);
       std::size_t next = 0;
@@ -656,14 +656,25 @@ namespace xc
           std::string t;
           if (text_of(p, t))
           {
-            std::vector<Rule> more = rules_of(t);
-            rules.insert(rules.end(), more.begin(), more.end());
+            found(t);
             std::vector<std::string> inc = includes_of(t);
             todo.insert(todo.end(), inc.begin(), inc.end());
           }
           break;
         }
       }
+    }
+
+    // The rules of a text and of every include file found.
+    std::vector<Rule> rules_with_includes(std::string_view text, const std::optional<std::string>& dir,
+                                          const std::vector<std::string>& dirs)
+    {
+      std::vector<Rule> rules = rules_of(text);
+      each_include(text, dir, dirs, [&](const std::string& t)
+      {
+        std::vector<Rule> more = rules_of(t);
+        rules.insert(rules.end(), more.begin(), more.end());
+      });
       return rules;
     }
 
@@ -1059,6 +1070,25 @@ namespace xc
       }
       return false;
     }
+  }
+
+  std::vector<std::string> include_defines(std::string_view text, const std::optional<std::string>& dir,
+                                           const std::vector<std::string>& dirs)
+  {
+    std::vector<std::string> out;
+    each_include(text, dir, dirs, [&](const std::string& t)
+    {
+      for (std::string_view l : lines_of(t, false))
+      {
+        std::size_t k = 0;
+        while (is_h(at(l, k))) { k++; }
+        if (at(l, k) != '#') { continue; }
+        std::size_t w = k + 1;
+        while (is_h(at(l, w))) { w++; }
+        if (iprefix(l, w, "define") && is_h(at(l, w + 6))) { out.emplace_back(l.substr(k)); }
+      }
+    });
+    return out;
   }
 
   UserSpans user_spans(std::string_view text, const std::optional<std::string>& dir,

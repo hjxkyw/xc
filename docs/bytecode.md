@@ -349,8 +349,10 @@ where TL++ starts it -- in a `.prw`, at Nil: a `Numeric` at 0, a
 `Character` at `""`, a `Logical` at `.F.`, a `Date` at 31 December 1899.
 A `Static` is a static, a `Private` and a `Public` memvars, a name nothing
 declares a `memvar`. A `#define` of the
-file is its value, wherever its name is used; `CRLF`, which `totvs.ch`
-defines, is `Chr(13) + Chr(10)`.
+file is its value, wherever its name is used -- and one of an include file
+xc can read, beside the source or in an include folder, the source's own of
+the same name before it; `CRLF`, which `totvs.ch` defines, is `Chr(13) +
+Chr(10)`.
 
 `If`, `Do Case`, `Do While`, `For` and xtpl's `for ... in` and `for N times`
 are jumps. A `For`'s `To` and `Step` are evaluated each time round, as
@@ -424,7 +426,8 @@ xc says so, and writes no `.xbc`:
   with parameters;
 - `@` before what is not a variable: `@aCampos[nX][8]`, `@::x`.
 
-A `#define` from an include file is not seen: its name is a memvar.
+A `#define` from an include file xc cannot read -- TOTVS' are compressed
+-- is not seen: its name is a memvar.
 
 ## The interpreter
 

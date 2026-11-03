@@ -1,0 +1,499 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// dump.xtpl -- the tree as text, as the C++ xc-ast writes it (cpp/src/dump.h):
+// every node by its kind's name, then each of its fields in the order ast.h
+// declares them, indented two more. Held to xc-ast's by cpp/tests/selfhost.
+// -----------------------------------------------------------------------------
+
+Static aOut := {}
+Static aExprKinds := {"Literal", "Name", "UserTrans", "Call", "Binary", "Index", "SelfRef", "SubjectRef", ;
+                      "Member", "SafeMember", "HashIndex", "Interval", "MethodCall", "SafeCall", "AliasField", ;
+                      "InAlias", "Macro", "Ref", "Omitted", "ExprList", "AssignExpr", "ArrayLit", "Interp", ;
+                      "JsonLit", "HashLit", "CodeBlock", "Lambda", "Guard", "Pipeline"}
+Static aStmtKinds := {"Declaration", "Assignment", "CallStmt", "ReturnStmt", "ExitStmt", "LoopStmt", ;
+                      "Annotation", "IfStmt", "CaseStmt", "WhileStmt", "ForStmt", "ForInStmt", "ForTimesStmt", ;
+                      "Modified", "Deferred", "UsingAlias", "WithObject", "RawStmt", "TryStmt", ;
+                      "TransactionStmt", "NoOpStmt", "BreakStmt", "DefaultStmt", "SequenceStmt"}
+
+// The program, as text: a line each, each ending in a line feed.
+User Function xcb_dump(aProg)
+  Local cText := ""
+  Local nI
+  aOut := {}
+  Head(0, "Program")
+  Opt(2, "ns", aProg[PG_NS])
+  Strs(2, "usings", aProg[PG_USINGS])
+  Strs(2, "directives", aProg[PG_DIRECTIVES])
+  Many(2, "annotations", Len(aProg[PG_ANNOTATIONS]))
+  AEval(aProg[PG_ANNOTATIONS], {|a| Stmt(4, a)})
+  Many(2, "functions", Len(aProg[PG_FUNCTIONS]))
+  AEval(aProg[PG_FUNCTIONS], {|f| FunctionDef(4, f)})
+  Many(2, "classes", Len(aProg[PG_CLASSES]))
+  AEval(aProg[PG_CLASSES], {|c| ClassDef(4, c)})
+  Many(2, "methods", Len(aProg[PG_METHODS]))
+  AEval(aProg[PG_METHODS], {|m| MethodImpl(4, m)})
+  Many(2, "externals", Len(aProg[PG_EXTERNALS]))
+  AEval(aProg[PG_EXTERNALS], {|x| ExternalDef(4, x)})
+  Many(2, "statics", Len(aProg[PG_STATICS]))
+  AEval(aProg[PG_STATICS], {|d| Stmt(4, d)})
+  For nI := 1 To Len(aOut)
+    cText += aOut[nI] + Chr(10)
+  Next
+  aOut := {}
+Return cText
+
+// ---- lines ------------------------------------------------------------------
+Static Function Head(nIn, cText)
+  AAdd(aOut, Space(nIn) + cText)
+Return Nil
+
+// A string as xc-ast writes it: in double quotes, '\' and '"' escaped, a
+// byte under 32 or over 126 as '\xHH'.
+Static Function Quoted(cS)
+  Local cQ := '"'
+  Local nI
+  Local nB
+  Local cCh
+  For nI := 1 To Len(cS)
+    cCh := SubStr(cS, nI, 1)
+    nB := Asc(cCh)
+    If cCh == "\" .Or. cCh == '"'
+      cQ += "\" + cCh
+    ElseIf nB < 32 .Or. nB > 126
+      cQ += "\x" + Hex2(nB)
+    Else
+      cQ += cCh
+    EndIf
+  Next
+Return cQ + '"'
+
+Static Function Hex2(nB)
+  Local cH := "0123456789ABCDEF"
+Return SubStr(cH, Int(nB / 16) + 1, 1) + SubStr(cH, nB % 16 + 1, 1)
+
+Static Function Num(nIn, cName, nN)
+Return Head(nIn, cName + " " + AllTrim(Str(nN)))
+
+Static Function Flag(nIn, cName, lB)
+Return Head(nIn, cName + If(lB, " true", " false"))
+
+Static Function Text(nIn, cName, cS)
+Return Head(nIn, cName + " " + Quoted(cS))
+
+Static Function Opt(nIn, cName, cS)
+Return Head(nIn, cName + " " + If(cS == Nil, "nil", Quoted(cS)))
+
+Static Function Many(nIn, cName, nN)
+Return Head(nIn, cName + " (" + AllTrim(Str(nN)) + ")")
+
+Static Function Strs(nIn, cName, aV)
+  Local cT := cName + " ["
+  Local nI
+  For nI := 1 To Len(aV)
+    cT += If(nI > 1, ", ", "") + Quoted(aV[nI])
+  Next
+Return Head(nIn, cT + "]")
+
+Static Function Child(nIn, cName, aE)
+  If aE == Nil
+    Return Head(nIn, cName + " nil")
+  EndIf
+  Head(nIn, cName)
+Return Expr(nIn + 2, aE)
+
+Static Function Exprs(nIn, cName, aV)
+  Local nI
+  Many(nIn, cName, Len(aV))
+  For nI := 1 To Len(aV)
+    Expr(nIn + 2, aV[nI])
+  Next
+Return Nil
+
+Static Function Pairs2(nIn, cName, aV)
+  Local nI
+  Many(nIn, cName, Len(aV))
+  For nI := 1 To Len(aV)
+    Head(nIn + 2, "KeyValue")
+    Child(nIn + 4, "key", aV[nI][KV_KEY])
+    Child(nIn + 4, "value", aV[nI][KV_VALUE])
+  Next
+Return Nil
+
+Static Function Body(nIn, cName, aB)
+  Local nI
+  Many(nIn, cName, Len(aB))
+  For nI := 1 To Len(aB)
+    Stmt(nIn + 2, aB[nI])
+  Next
+Return Nil
+
+// ---- expressions ------------------------------------------------------------
+Static Function Expr(nIn, aE)
+  Local nF := nIn + 2
+  Local nK
+  Local nI
+  If aE == Nil
+    Return Head(nIn, "nil")
+  EndIf
+  nK := aE[N_KIND]
+  Head(nIn, aExprKinds[nK])
+  Num(nF, "line", aE[N_LINE])
+  Num(nF, "from", aE[N_FROM])
+  Num(nF, "to", aE[N_TO])
+  Do Case
+    Case nK == EK_LITERAL
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+    Case nK == EK_NAME
+      Text(nF, "name", aE[NAME_NAME])
+    Case nK == EK_USERTRANS
+      Text(nF, "text", aE[UT_TEXT])
+      Child(nF, "base", aE[UT_BASE])
+    Case nK == EK_CALL
+      Text(nF, "name", aE[CALL_NAME])
+      Exprs(nF, "args", aE[CALL_ARGS])
+    Case nK == EK_BINARY
+      Text(nF, "op", aE[BIN_OP])
+      Child(nF, "left", aE[BIN_LEFT])
+      Child(nF, "right", aE[BIN_RIGHT])
+    Case nK == EK_INDEX
+      Child(nF, "base", aE[IDX_BASE])
+      Exprs(nF, "indices", aE[IDX_INDICES])
+    Case nK == EK_MEMBER .Or. nK == EK_SAFEMEMBER
+      Child(nF, "base", aE[MEM_BASE])
+      Text(nF, "name", aE[MEM_NAME])
+    Case nK == EK_HASHINDEX
+      Child(nF, "base", aE[HIX_BASE])
+      Child(nF, "key", aE[HIX_KEY])
+      Num(nF, "set_kind", aE[HIX_SETKIND])
+    Case nK == EK_INTERVAL
+      Child(nF, "lo", aE[IVL_LO])
+      Child(nF, "hi", aE[IVL_HI])
+    Case nK == EK_METHODCALL .Or. nK == EK_SAFECALL
+      Child(nF, "base", aE[MC_BASE])
+      Text(nF, "name", aE[MC_NAME])
+      Exprs(nF, "args", aE[MC_ARGS])
+    Case nK == EK_ALIASFIELD
+      Child(nF, "base", aE[AF_BASE])
+      Opt(nF, "alias", aE[AF_ALIAS])
+      Text(nF, "field", aE[AF_FIELD])
+      Child(nF, "macro", aE[AF_MACRO])
+    Case nK == EK_INALIAS
+      Child(nF, "base", aE[IA_BASE])
+      Opt(nF, "alias", aE[IA_ALIAS])
+      Child(nF, "expr", aE[IA_EXPR])
+    Case nK == EK_MACRO
+      Child(nF, "target", aE[MAC_TARGET])
+      Flag(nF, "called", aE[MAC_CALLED])
+      Exprs(nF, "args", aE[MAC_ARGS])
+    Case nK == EK_REF
+      Child(nF, "target", aE[REF_TARGET])
+    Case nK == EK_EXPRLIST
+      Exprs(nF, "items", aE[EL_ITEMS])
+    Case nK == EK_ASSIGNEXPR
+      Child(nF, "target", aE[AE_TARGET])
+      Text(nF, "op", aE[AE_OP])
+      Child(nF, "value", aE[AE_VALUE])
+      Text(nF, "incdec", aE[AE_INCDEC])
+    Case nK == EK_ARRAYLIT
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+      Exprs(nF, "items", aE[ARR_ITEMS])
+      Text(nF, "elem", aE[ARR_ELEM])
+    Case nK == EK_INTERP
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+      Many(nF, "parts", Len(aE[INTERP_PARTS]))
+      For nI := 1 To Len(aE[INTERP_PARTS])
+        If ValType(aE[INTERP_PARTS][nI]) == "C"
+          Head(nF + 2, Quoted(aE[INTERP_PARTS][nI]))
+        Else
+          Expr(nF + 2, aE[INTERP_PARTS][nI])
+        EndIf
+      Next
+    Case nK == EK_JSONLIT
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+      Pairs2(nF, "pairs", aE[JSON_PAIRS])
+    Case nK == EK_HASHLIT
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+      Pairs2(nF, "pairs", aE[HASH_PAIRS])
+      Text(nF, "key_type", aE[HASH_KEYTYPE])
+      Text(nF, "value_type", aE[HASH_VALTYPE])
+      Num(nF, "set_kind", aE[HASH_SETKIND])
+    Case nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+      Text(nF, "type", aE[LIT_TYPE])
+      Text(nF, "text", aE[LIT_TEXT])
+      Strs(nF, "params", aE[CB_PARAMS])
+      Exprs(nF, "body", aE[CB_BODY])
+    Case nK == EK_GUARD
+      Child(nF, "expr", aE[GRD_EXPR])
+      Child(nF, "fallback", aE[GRD_FALLBACK])
+    Case nK == EK_PIPELINE
+      Child(nF, "source", aE[PIPE_SOURCE])
+      Exprs(nF, "stages", aE[PIPE_STAGES])
+      Flag(nF, "then", aE[PIPE_THEN])
+  EndCase
+Return Nil
+
+// ---- statements -------------------------------------------------------------
+Static Function Declarator(nIn, cName, aD)
+  Local nF
+  If aD == Nil
+    Return Head(nIn, cName + " nil")
+  EndIf
+  Head(nIn, cName)
+  nF := nIn + 2
+  Head(nF, "Declarator")
+  nF += 2
+  Text(nF, "name", aD[DCL_NAME])
+  Child(nF, "init", aD[DCL_INIT])
+  Text(nF, "declared", aD[DCL_DECLARED])
+  Strs(nF, "attributes", aD[DCL_ATTRS])
+  Num(nF, "line", aD[N_LINE])
+  Flag(nF, "type_first", aD[DCL_TYPEFIRST])
+  Opt(nF, "typespec_text", aD[DCL_TYPESPEC])
+  Exprs(nF, "dims", aD[DCL_DIMS])
+  Text(nF, "container", aD[DCL_CONTAINER])
+  Flag(nF, "init_made", aD[DCL_INITMADE])
+Return Nil
+
+Static Function Branches(nIn, aV)
+  Local nI
+  Many(nIn, "branches", Len(aV))
+  For nI := 1 To Len(aV)
+    Head(nIn + 2, "Branch")
+    Child(nIn + 4, "cond", aV[nI][BR_COND])
+    Body(nIn + 4, "body", aV[nI][BR_BODY])
+  Next
+Return Nil
+
+Static Function Stmt(nIn, aSt)
+  Local nF := nIn + 2
+  Local nK
+  Local nI
+  If aSt == Nil
+    Return Head(nIn, "nil")
+  EndIf
+  nK := aSt[N_KIND]
+  Head(nIn, aStmtKinds[nK - 100])
+  Num(nF, "line", aSt[N_LINE])
+  Num(nF, "from", aSt[N_FROM])
+  Num(nF, "to", aSt[N_TO])
+  Flag(nF, "oneline", aSt[S_ONELINE])
+  Flag(nF, "bare", aSt[S_BARE])
+  Do Case
+    Case nK == SK_DECLARATION
+      Text(nF, "scope", aSt[DECL_SCOPE])
+      Many(nF, "declarators", Len(aSt[DECL_DECLARATORS]))
+      For nI := 1 To Len(aSt[DECL_DECLARATORS])
+        Declarator(nF + 2, "-", aSt[DECL_DECLARATORS][nI])
+      Next
+    Case nK == SK_ASSIGNMENT
+      Child(nF, "target", aSt[ASG_TARGET])
+      Text(nF, "op", aSt[ASG_OP])
+      Child(nF, "value", aSt[ASG_VALUE])
+    Case nK == SK_CALLSTMT
+      Child(nF, "call", aSt[CS_CALL])
+    Case nK == SK_RETURNSTMT
+      Child(nF, "value", aSt[RET_VALUE])
+    Case nK == SK_ANNOTATION
+      Text(nF, "name", aSt[ANN_NAME])
+      Exprs(nF, "args", aSt[ANN_ARGS])
+    Case nK == SK_IFSTMT
+      Branches(nF, aSt[IF_BRANCHES])
+      Body(nF, "otherwise", aSt[IF_OTHERWISE])
+      Declarator(nF, "header_decl", aSt[IF_HEADER])
+    Case nK == SK_CASESTMT
+      Branches(nF, aSt[CASE_BRANCHES])
+      Body(nF, "otherwise", aSt[CASE_OTHERWISE])
+      Declarator(nF, "subject_decl", aSt[CASE_SUBJDECL])
+      If aSt[CASE_SUBJASSIGN] != Nil
+        Head(nF, "subject_assign")
+        Stmt(nF + 2, aSt[CASE_SUBJASSIGN])
+      Else
+        Head(nF, "subject_assign nil")
+      EndIf
+    Case nK == SK_WHILESTMT
+      Child(nF, "cond", aSt[WH_COND])
+      Body(nF, "body", aSt[WH_BODY])
+      Declarator(nF, "header_decl", aSt[WH_HEADER])
+    Case nK == SK_FORSTMT
+      Text(nF, "var", aSt[FOR_VAR])
+      Flag(nF, "var_local", aSt[FOR_VARLOCAL])
+      Child(nF, "from_", aSt[FOR_FROM])
+      Child(nF, "to_", aSt[FOR_TO])
+      Child(nF, "step", aSt[FOR_STEP])
+      Body(nF, "body", aSt[FOR_BODY])
+      Num(nF, "endname_from", aSt[FOR_ENDFROM])
+      Num(nF, "endname_to", aSt[FOR_ENDTO])
+    Case nK == SK_FORINSTMT
+      Text(nF, "elem", aSt[FIN_ELEM])
+      Opt(nF, "index", aSt[FIN_INDEX])
+      Flag(nF, "keyed", aSt[FIN_KEYED])
+      Child(nF, "source", aSt[FIN_SOURCE])
+      Body(nF, "body", aSt[FIN_BODY])
+      Num(nF, "endname_from", aSt[FIN_ENDFROM])
+      Num(nF, "endname_to", aSt[FIN_ENDTO])
+    Case nK == SK_FORTIMESSTMT
+      Child(nF, "count", aSt[FT_COUNT])
+      Body(nF, "body", aSt[FT_BODY])
+    Case nK == SK_MODIFIED
+      Head(nF, "stmt")
+      Stmt(nF + 2, aSt[MOD_STMT])
+      Text(nF, "op", aSt[MOD_OP])
+      Child(nF, "cond", aSt[MOD_COND])
+    Case nK == SK_DEFERRED
+      Head(nF, "stmt")
+      Stmt(nF + 2, aSt[DEF_STMT])
+    Case nK == SK_USINGALIAS
+      Text(nF, "area", aSt[UA_AREA])
+      Child(nF, "order", aSt[UA_ORDER])
+      Body(nF, "body", aSt[UA_BODY])
+    Case nK == SK_WITHOBJECT
+      Child(nF, "subject", aSt[WO_SUBJECT])
+      Body(nF, "body", aSt[WO_BODY])
+    Case nK == SK_RAWSTMT
+      Flag(nF, "block", aSt[RAW_BLOCK])
+      Strs(nF, "lines", aSt[RAW_LINES])
+    Case nK == SK_TRYSTMT
+      Body(nF, "body", aSt[TRY_BODY])
+      Opt(nF, "error_var", aSt[TRY_ERRVAR])
+      Body(nF, "handler", aSt[TRY_HANDLER])
+      Body(nF, "finally", aSt[TRY_FINALLY])
+    Case nK == SK_TRANSACTIONSTMT
+      Body(nF, "body", aSt[TX_BODY])
+    Case nK == SK_NOOPSTMT
+      Text(nF, "word", aSt[NOOP_WORD])
+    Case nK == SK_BREAKSTMT
+      Child(nF, "value", aSt[BRK_VALUE])
+      Flag(nF, "empty_call", aSt[BRK_EMPTYCALL])
+    Case nK == SK_DEFAULTSTMT
+      Many(nF, "pairs", Len(aSt[DFL_PAIRS]))
+      For nI := 1 To Len(aSt[DFL_PAIRS])
+        Stmt(nF + 2, aSt[DFL_PAIRS][nI])
+      Next
+    Case nK == SK_SEQUENCESTMT
+      Body(nF, "body", aSt[SEQ_BODY])
+      Flag(nF, "has_recover", aSt[SEQ_HASRECOVER])
+      Opt(nF, "error_var", aSt[SEQ_ERRVAR])
+      Num(nF, "recover_line", aSt[SEQ_RECLINE])
+      Body(nF, "recover", aSt[SEQ_RECOVER])
+  EndCase
+Return Nil
+
+// ---- the file ---------------------------------------------------------------
+Static Function Params(nIn, aV)
+  Local nI
+  Local aQ
+  Local nF := nIn + 4
+  Many(nIn, "params", Len(aV))
+  For nI := 1 To Len(aV)
+    aQ := aV[nI]
+    If aQ == Nil
+      Head(nIn + 2, "nil")
+      Loop
+    EndIf
+    Head(nIn + 2, "Param")
+    Text(nF, "name", aQ[PRM_NAME])
+    Text(nF, "declared", aQ[PRM_DECLARED])
+    Opt(nF, "type_word", aQ[PRM_TYPEWORD])
+    Strs(nF, "attributes", aQ[PRM_ATTRS])
+    Num(nF, "attrs_from", aQ[PRM_ATTRSFROM])
+    Num(nF, "attrs_to", aQ[PRM_ATTRSTO])
+    Text(nF, "container", aQ[PRM_CONTAINER])
+    Num(nF, "type_from", aQ[PRM_TYPEFROM])
+    Num(nF, "type_to", aQ[PRM_TYPETO])
+    Text(nF, "type_tlpp", aQ[PRM_TYPETLPP])
+  Next
+Return Nil
+
+Static Function FunctionDef(nIn, aD)
+  Local nF := nIn + 2
+  Head(nIn, "FunctionDef")
+  Text(nF, "type", aD[FN_TYPE])
+  Text(nF, "name", aD[FN_NAME])
+  Params(nF, aD[FN_PARAMS])
+  Many(nF, "annotations", Len(aD[FN_ANNOTATIONS]))
+  AEval(aD[FN_ANNOTATIONS], {|a| Stmt(nF + 2, a)})
+  Body(nF, "body", aD[FN_BODY])
+  Num(nF, "line", aD[N_LINE])
+  Opt(nF, "rettype_word", aD[FN_RETWORD])
+  Text(nF, "ret_container", aD[FN_RETCONTAINER])
+  Num(nF, "ret_from", aD[FN_RETFROM])
+  Num(nF, "ret_to", aD[FN_RETTO])
+  Text(nF, "ret_tlpp", aD[FN_RETTLPP])
+Return Nil
+
+Static Function ClassDef(nIn, aC)
+  Local nF := nIn + 2
+  Local nG := nIn + 6
+  Local nI
+  Local aD
+  Local aM
+  Head(nIn, "ClassDef")
+  Text(nF, "name", aC[CD_NAME])
+  Strs(nF, "supers", aC[CD_SUPERS])
+  Strs(nF, "ifaces", aC[CD_IFACES])
+  Many(nF, "members", Len(aC[CD_MEMBERS]))
+  For nI := 1 To Len(aC[CD_MEMBERS])
+    aD := aC[CD_MEMBERS][nI]
+    Head(nF + 2, "DataMember")
+    Text(nG, "name", aD[DM_NAME])
+    Opt(nG, "type", aD[DM_TYPE])
+    Opt(nG, "visibility", aD[DM_VISIBILITY])
+    Num(nG, "line", aD[N_LINE])
+    Child(nG, "init", aD[DM_INIT])
+    Text(nG, "init_word", aD[DM_INITWORD])
+    Text(nG, "container", aD[DM_CONTAINER])
+    Num(nG, "type_from", aD[DM_TYPEFROM])
+    Num(nG, "type_to", aD[DM_TYPETO])
+    Text(nG, "type_tlpp", aD[DM_TYPETLPP])
+  Next
+  Many(nF, "methods", Len(aC[CD_METHODS]))
+  For nI := 1 To Len(aC[CD_METHODS])
+    aM := aC[CD_METHODS][nI]
+    Head(nF + 2, "MethodSig")
+    Text(nG, "name", aM[MS_NAME])
+    Params(nG, aM[MS_PARAMS])
+    Opt(nG, "visibility", aM[MS_VISIBILITY])
+    Flag(nG, "constructor", aM[MS_CONSTRUCTOR])
+    Flag(nG, "is_static", aM[MS_STATIC])
+    Opt(nG, "returns", aM[MS_RETURNS])
+    Num(nG, "line", aM[N_LINE])
+    Text(nG, "ret_container", aM[MS_RETCONTAINER])
+    Num(nG, "ret_from", aM[MS_RETFROM])
+    Num(nG, "ret_to", aM[MS_RETTO])
+    Text(nG, "ret_tlpp", aM[MS_RETTLPP])
+  Next
+  Num(nF, "line", aC[N_LINE])
+  Flag(nF, "iface", aC[CD_IFACE])
+Return Nil
+
+Static Function MethodImpl(nIn, aM)
+  Local nF := nIn + 2
+  Head(nIn, "MethodImpl")
+  Text(nF, "class_name", aM[MI_CLASS])
+  Text(nF, "name", aM[MI_NAME])
+  Params(nF, aM[MI_PARAMS])
+  Opt(nF, "returns", aM[MI_RETURNS])
+  Body(nF, "body", aM[MI_BODY])
+  Num(nF, "line", aM[N_LINE])
+  Flag(nF, "ws", aM[MI_WS])
+  Text(nF, "ret_container", aM[MI_RETCONTAINER])
+  Num(nF, "ret_from", aM[MI_RETFROM])
+  Num(nF, "ret_to", aM[MI_RETTO])
+  Text(nF, "ret_tlpp", aM[MI_RETTLPP])
+Return Nil
+
+Static Function ExternalDef(nIn, aX)
+  Local nF := nIn + 2
+  Head(nIn, "External")
+  Flag(nF, "alias", aX[EXT_ALIAS])
+  Strs(nF, "names", aX[EXT_NAMES])
+  Num(nF, "line", aX[N_LINE])
+  Num(nF, "from", aX[N_FROM])
+  Num(nF, "to", aX[N_TO])
+Return Nil

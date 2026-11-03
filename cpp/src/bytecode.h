@@ -30,5 +30,6 @@ namespace xc
   // The .xbc of a program: its tree, its source, whether it is AdvPL's (a
   // .prw: no Decimal, nothing starts at its type's value), and the name of
   // its source, for the 'source' line. Throws NotBytecode.
-  std::string bytecode(const Program* p, std::string_view src, bool advpl, const std::string& source_name);
+  std::string bytecode(const Program* p, std::string_view src, bool advpl, const std::string& source_name,
+                       const std::vector<std::string>& defines = {});
 }

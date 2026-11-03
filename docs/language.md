@@ -168,7 +168,10 @@ A file holds, in any order:
 
 - preprocessor directives -- `#include`, `#define`, `#ifdef`, `#command`,
   `#xtranslate`, ... -- each passed through whole, with its continuation
-  lines;
+  lines. The names an include file xc can read `#define`s -- one beside the
+  source or in an include folder, as with its commands; TOTVS' own are
+  compressed -- are no variables to the checks, as the source's own are
+  not;
 - `namespace minha.empresa` and `using namespace ...`;
 - `external` declarations;
 - file statics: `Static aCache := {}`, written as a `Local` is -- the type

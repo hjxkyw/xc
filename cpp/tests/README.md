@@ -18,6 +18,7 @@ ctest --test-dir cpp/build
 | `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` | `selftests.cmake` says which |
 | `interp`, `interp-xc` | the interpreter in xtpl, run by `xc-vm`, does what `xc-vm` does: each bytecode case with a `.out`, xtpl's self-test; xc's (`interp-xc`, labelled `slow`) | `bytecode/`, `interp.cmake` |
+| `selfhost` | the compiler in xtpl (`selfhost/`), run by `xc-vm`, reads each source into the tree `xc-ast --bare` writes | `selfhost/tests/`, `selfhost.cmake` |
 
 ## cases/
 
@@ -122,6 +123,15 @@ The self-tests an AppServer runs -- xtpl's `xtpl/tests/54_selftest.xtpl`
 and xc's `protheus/xc_selftest.xtpl` -- compiled to bytecode with the
 runtime and run on `xc-vm`: each has to end with its total, and no check
 failed. Nothing to keep: the tests are those programs.
+
+## selfhost
+
+Nothing to keep: xc compiles `selfhost/` to bytecode, xc-vm runs it over
+each source of the folders given (`selfhost/tests/` by default), and the
+tree it writes for each has to be byte for byte the one `xc-ast --bare`
+writes -- the C++ parser's, the source's own commands not looked for. A
+tree that differs is left in the build's `selfhost/expect` and
+`selfhost/got`.
 
 ## docs/language.md
 

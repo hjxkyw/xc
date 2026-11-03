@@ -191,8 +191,8 @@ namespace xc
     class Compiler
     {
     public:
-      Compiler(const Program* p, std::string_view src, bool advpl, std::string source)
-        : p_(p), src_(src), advpl_(advpl), source_(std::move(source))
+      Compiler(const Program* p, std::string_view src, bool advpl, std::string source, std::vector<std::string> more)
+        : p_(p), src_(src), advpl_(advpl), source_(std::move(source)), more_(std::move(more))
       {
       }
 
@@ -203,6 +203,7 @@ namespace xc
       std::string_view src_;
       bool advpl_;
       std::string source_;
+      std::vector<std::string> more_;  // the include files' '#define's
       std::string ns_;                 // the namespace and a '.', or ""
       std::vector<std::string> statics_;
       Scope file_;
@@ -3477,11 +3478,14 @@ namespace xc
     }
 
     // '#define NAME value': the value read as an expression, compiled where
-    // the name is read. The preprocessor's choices -- '#ifdef' and the
-    // like -- are not made here.
+    // the name is read -- the include files' first, then the source's own.
+    // The preprocessor's choices -- '#ifdef' and the like -- are not made
+    // here.
     void Compiler::directives()
     {
-      for (const std::string& d : p_->directives)
+      std::vector<std::string> all = more_;
+      all.insert(all.end(), p_->directives.begin(), p_->directives.end());
+      for (const std::string& d : all)
       {
         std::size_t i = d.find_first_not_of(" \t", 1);
         if (i == std::string::npos) { continue; }
@@ -3777,9 +3781,10 @@ namespace xc
     }
   }
 
-  std::string bytecode(const Program* p, std::string_view src, bool advpl, const std::string& source_name)
+  std::string bytecode(const Program* p, std::string_view src, bool advpl, const std::string& source_name,
+                       const std::vector<std::string>& defines)
   {
-    Compiler c(p, src, advpl, source_name);
+    Compiler c(p, src, advpl, source_name, defines);
     return c.run();
   }
 }

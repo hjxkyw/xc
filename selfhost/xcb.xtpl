@@ -1,0 +1,61 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// xcb.xtpl -- the compiler written in xtpl, from the command line: xc-vm's,
+// for now (cpp/tests/selfhost.cmake), the AppServer's later.
+//
+//   xc-vm --run=U_XCB runtime.xbc ast.xbc dump.xbc parse.xbc xcb.xbc -- ast LIST
+//
+// 'ast': each line of LIST names a source and a file, a tab between them;
+// the source's tree goes to the file, as 'xc-ast --bare' writes it -- or
+// 'not parsed at N'.
+// -----------------------------------------------------------------------------
+
+User Function xcb(cWhat, cList)
+  Local aLines
+  Local nI
+  Local nTab
+  Local aSource
+  Local aProg
+  If !(cWhat == "ast") .Or. cList == Nil
+    ConOut("usage: xcb ast LIST")
+    Return 2
+  EndIf
+  aLines := StrTran(ReadAll(cList)[1], Chr(13), "") |> split(Chr(10))
+  For nI := 1 To Len(aLines)
+    nTab := At(Chr(9), aLines[nI])
+    If nTab == 0
+      Loop
+    EndIf
+    aSource := ReadAll(Left(aLines[nI], nTab - 1))
+    aProg := u_xcb_parse(aSource[1], aSource[2])
+    MemoWrite(SubStr(aLines[nI], nTab + 1), If(aProg == Nil, ;
+              "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10), u_xcb_dump(aProg)))
+  Next
+Return 0
+
+// A file's text, and its bytes' codes, read a piece at a time.
+Static Function ReadAll(cPath)
+  Local nH := FOpen(cPath)
+  Local cBuf := Space(4096)
+  Local cText := ""
+  Local aCodes := {}
+  Local nGot
+  Local nI
+  Local cPart
+  If nH < 0
+    Return {"", {}}
+  EndIf
+  While .T.
+    nGot := FRead(nH, @cBuf, 4096)
+    If nGot <= 0
+      Exit
+    EndIf
+    cPart := Left(cBuf, nGot)
+    cText += cPart
+    For nI := 1 To nGot
+      AAdd(aCodes, Asc(SubStr(cPart, nI, 1)))
+    Next
+  EndDo
+  FClose(nH)
+Return {cText, aCodes}
