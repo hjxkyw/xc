@@ -133,6 +133,8 @@ function files(dir)
     ['  Local aN := { <n> }', 'n', 'storage.type.letter'],
     ['  Local aK := {1} as Array<fixed n>', 'fixed', 'storage.modifier.fixed'],
     ['  Local bW as Bag<c>', 'Bag', 'storage.type'],
+    ['  Local oOrder as Order', 'Order', 'storage.type'],
+    ['Static Function Mk(oCust as Customer) as Order', 'Customer', 'storage.type'],
     ['  Data aItems as Array<fixed n>', 'Array', 'storage.type'],
     ['  Data aItems as Array<fixed n>', 'fixed', 'storage.modifier.fixed'],
     ['  Public Data sSeen as Set<c>', 'c', 'storage.type.letter'],

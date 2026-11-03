@@ -1,0 +1,3 @@
+010-objects.xtpl:5: warning: 'oLast' is assigned but never read
+010-objects.xtpl:33: warning: 'oU' is assigned but never read
+010-objects.xtpl:34: warning: 'cK' is declared but never used

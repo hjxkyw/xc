@@ -33,14 +33,21 @@
 // reading a typed array or hash gives; an operator's result; TL++'s common
 // functions, the runtime's verbs over a typed array, and the file's own
 // functions declared with a type; a field, given the dictionary; a class's
-// own Data and methods, through '::'. Not another object's method or Data, a
-// parameter declared with no type, a Private, a macro, a field without the
-// dictionary.
+// Data and methods, through '::' and on an object of the class. Not those of
+// any other object, a parameter declared with no type, a Private, a macro, a
+// field without the dictionary.
 //
 // A class's Data, its methods' parameters and returns may be typed too. In
 // its methods, '::x' is what the class -- or one it inherits from in the
 // file -- declares, and '::M()' takes and gives what M's declaration says. A
 // fixed Data is given its value by the constructor, and by each constructor.
+//
+// A class of the file is a type itself, 'Local oX as Order' (TL++'s 'as
+// Object', emit.cpp): what goes in is an object of it, of one that inherits
+// from it, of one that implements it. On an object xc knows to be of a class
+// of the file -- so declared, given 'Order():New()', given by a method or a
+// function so declared --, 'o:x' and 'o:M()' are checked as '::x' and '::M()'
+// are in its methods.
 
 #pragma once
 

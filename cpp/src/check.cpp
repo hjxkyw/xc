@@ -21,6 +21,7 @@
 #include "chars.h"
 #include "decimal.h"
 #include "parser.h"
+#include "text.h"
 #include "typed.h"
 #include "walk.h"
 
@@ -493,7 +494,7 @@ namespace xc
 
       void raw_reads(const std::string& text);
       void unclosed(const Literal* e);
-      void type_word(const OptStr& word, int line);
+      void type_word(const OptStr& word, int line, bool strict = false);
       void function(const std::vector<Param*>& params, const Body& body, int line);
       void never_read();
       void returns(const Body& body, int fline);
@@ -740,13 +741,13 @@ namespace xc
       for (const MethodImpl* m : p->methods) { privates(m->body); }
       for (const FunctionDef* f : p->functions)
       {
-        for (const Param* q : f->params) { type_word(q->type_word, f->line); }
-        type_word(f->rettype_word, f->line);
+        for (const Param* q : f->params) { type_word(q->type_word, f->line, true); }
+        type_word(f->rettype_word, f->line, true);
         function(f->params, f->body, f->line);
       }
       for (const MethodImpl* m : p->methods)
       {
-        for (const Param* q : m->params) { type_word(q->type_word, m->line); }
+        for (const Param* q : m->params) { type_word(q->type_word, m->line, true); }
         type_word(m->returns, m->line);
         function(m->params, m->body, m->line);
       }
@@ -754,6 +755,13 @@ namespace xc
       {
         if (advpl_) { break; }
         for (const DataMember* d : c->members) { type_word(d->type, d->line ? d->line : c->line); }
+        for (const MethodSig* m : c->methods)
+        {
+          for (const Param* q : m->params)
+          {
+            if (q) { type_word(q->type_word, m->line ? m->line : c->line, true); }
+          }
+        }
       }
       static_never_read();
     }
@@ -792,7 +800,10 @@ namespace xc
       warning("this string is not closed: TL++ ends it at the end of the line -- " + t);
     }
 
-    void Checker::type_word(const OptStr& word, int line)
+    // strict: where a word that is no type of TL++'s nor a class of the file
+    // is refused -- a Local's, a parameter's, a function's return; a Data's
+    // and a method's return pass through, as they always did.
+    void Checker::type_word(const OptStr& word, int line, bool strict)
     {
       // AdvPL's own words for a type, which a .prw takes and TL++ does not
       // ("Invalid Type STRING", tried on 24.3.1.9).
@@ -810,7 +821,22 @@ namespace xc
           return;
         }
       }
-      if (!word || !(word->size() == 1 || lc(*word) == "char" || lc(*word) == "block")) { return; }
+      if (!word) { return; }
+      if (!(word->size() == 1 || lc(*word) == "char" || lc(*word) == "block"))
+      {
+        static const Set TYPES =
+        {
+          "numeric", "character", "logical", "date", "array", "object", "codeblock", "json", "variant", "integer",
+          "decimal", "double", "variadic",
+        };
+        if (strict && !advpl_ && !TYPES.count(lc(*word)) && !classes_.count(lc(*word)))
+        {
+          line_ = line;
+          problem("'as " + *word + "': TL++ has no type '" + *word + "', and this file declares no class by that "
+                  + "name.");
+        }
+        return;
+      }
       static const std::unordered_map<std::string, std::string> whole =
       {
         { "a", "Array" }, { "n", "Numeric" }, { "c", "Character" }, { "l", "Logical" }, { "d", "Date" },
@@ -1305,7 +1331,8 @@ namespace xc
           for (Declarator* d : decl->declarators)
           {
             std::vector<std::string> w = words(d->typespec_text.value_or(""));
-            type_word(w.size() > 1 ? OptStr(w[1]) : std::nullopt, d->line);
+            std::string tw = type_word_of(d->typespec_text.value_or(""));
+            type_word(tw.empty() ? std::nullopt : OptStr(tw), d->line, true);
             agrees(d);
             if (static_decls_.count(s) && d->init) { static_value(d); }
             in_static_ = static_decls_.count(s) > 0;

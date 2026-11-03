@@ -367,7 +367,11 @@ Type N" to Protheus, and an error to xc: `Numeric`, `Character`, `Logical`,
 `Decimal`, `Double`, and `Variadic` -- a parameter that takes every argument
 there is, read as `parm:vCount` and `parm:vArgs[i]`. `Char` and `Block` are
 refused, as Protheus refuses them ("Use Character Type instead of Char
-Type", "Use CodeBlock Type instead of Block Type").
+Type", "Use CodeBlock Type instead of Block Type"). And the name of a class
+the file declares, `as Order`: TL++ is given `as Object`, and xc checks
+what goes in -- see [Objects](#typed-arrays-and-hashes). Any other word is
+refused, after a `Local`'s, a `Static`'s or a parameter's name and after a
+function; after a `Data` or a method it is left to TL++, as it always was.
 
 A value whose type xc can tell has to agree with the type declared: a
 literal, a comparison or a `.And.`, an `in`, a product, a sum of two numbers
@@ -641,9 +645,10 @@ result, and a string with something it cannot tell is a string; TL++'s
 common functions -- `Len()`, `Val()`, `Str()`, `AllTrim()`, `Date()`, ...
 --; the runtime's verbs over a typed array -- `filter` and the like keep
 what it holds, `map` gives what its lambda does --; the file's functions
-declared with a type; a field, given `--dict`; a class's own `Data` and
-methods, through `::`. Not another object's method or `Data`, a parameter
-declared with no type, a `Private`, a code block's parameter. And a typed
+declared with a type; a field, given `--dict`; a class's `Data` and
+methods, through `::` and on an object xc knows to be of that class. Not
+those of any other object, a parameter declared with no type, a `Private`,
+a code block's parameter. And a typed
 array given to a function whose parameter has no type is out of sight:
 nothing checks what that function puts in.
 
@@ -677,7 +682,7 @@ A fixed one goes only where a fixed one is wanted, or where nothing is said:
 into a typed array or hash, a parameter or a return that is not fixed, it is
 an error; into a name with no type, that name is fixed too -- every name
 that is ever given one. Where xc does not see -- a function whose parameter
-has no type, another object's method --, nothing is said.
+has no type, an object whose class xc does not know --, nothing is said.
 
 ```xtpl
 User Function Prices(cCode as Character)
@@ -706,8 +711,7 @@ one it inherits from, declared in the same file -- says it is, and
 checked as for a `Local`. A typed `Data` starts Nil, as any `Data` does: the
 constructor gives it its value. A fixed one is given its value by the
 constructor, `New()`, and nowhere else -- and a constructor that does not
-give it one is an error. Outside its methods -- `oOrder:aItems`,
-`oOrder:Add()` -- xc does not see: nothing is said.
+give it one is an error. Outside its methods, see Objects.
 
 ```xtpl
 Class Order
@@ -733,6 +737,64 @@ Return ::aItems
 order.xtpl:14: '::aItems' is an Array<n>: this is Character, not Numeric.
 order.xtpl:15: '::aCodes' is an Array<fixed c> (declared on line 3): only the constructor gives it its value.
 order.xtpl:16: the parameter 'aMore' of ::Add() is an Array<n>: this is Character, not Numeric.
+```
+
+**Objects.** A class the file declares is a type too: `Local oOrder as
+Order`, a parameter `oCust as Customer`, `Data oCust as Customer`, `Method
+Buyer() as Customer`, `Static Function Mk() as Order`. TL++ has no such
+type, so it is given `as Object`; what goes in is xc's to check, as for a
+typed array -- an object of that class, of one that inherits from it, or of
+one that implements it if it is an `Interface`. And where xc knows the
+class of an object -- a name or a `Data` declared so, `Order():New()`, a
+method or a function declared to give one, `Self` in a method --,
+`oOrder:aItems` and `oOrder:Add()` are what the class says, as `::aItems`
+and `::Add()` are in its methods: what goes into them is checked, and a
+fixed `Data` takes its value from its own object's constructor, never from
+outside. A set's or a bag's `Data` read so is read as one: `oOrder:sSeen{k}`
+is `.F.` for a key it does not have. Of an object whose class xc does not
+know -- a parameter with no type, an object of a class of another file --
+nothing is said.
+
+```xtpl
+Class Customer
+  Data aTags as Array<c>
+  Method New() Constructor
+EndClass
+
+Class Order
+  Data oCust as Customer
+  Data aCodes as Array<fixed c>
+  Method New(oCust as Customer) Constructor
+  Method Add(aMore as Array<n>)
+EndClass
+
+Method New() Class Customer
+  ::aTags := { <c> }
+Return Self
+
+Method New(oCust as Customer) Class Order
+  ::oCust := oCust
+  ::aCodes := {"A"}
+Return Self
+
+Method Add(aMore as Array<n>) Class Order
+Return Len(aMore)
+
+User Function Buy(oWho)
+  Local oOrder as Order
+  oOrder := Order():New(Customer():New())
+  oOrder:Add({"x"})
+  AAdd(oOrder:oCust:aTags, 1)
+  oOrder:aCodes := {}
+  oOrder := oWho
+Return oOrder
+```
+
+```text
+buy.xtpl:28: the parameter 'aMore' of Order:Add() is an Array<n>: this is Character, not Numeric.
+buy.xtpl:29: 'oOrder:oCust:aTags' is an Array<c>: this is Numeric, not Character.
+buy.xtpl:30: 'oOrder:aCodes' is an Array<fixed c> (declared on line 8): only the constructor gives it its value.
+buy.xtpl:31: warning: 'oOrder' is an Order: xc cannot tell that this is an Order.
 ```
 
 ## Statements
@@ -2085,6 +2147,7 @@ parses, in xtpl's words.
 | an `external` assigned | `'cEmpAnt' is external (line 1) and cannot be assigned.` |
 | a `Local` after a `Private` or `Public` | `'local' after 'private' (line 3): a private or a public is a statement, and every local comes before the first statement.` |
 | a type by its letter, `Char` or `Block` | `'as N': TL++ has no type 'N' -- write 'as Numeric'.` |
+| after a `Local`'s, a `Static`'s or a parameter's name, or a function, a word that is no type of TL++'s nor a class the file declares | `'as Foo': TL++ has no type 'Foo', and this file declares no class by that name.` |
 | in TL++, AdvPL's words for a type: `String`, `Number`, `Logic`, `Boolean` | `'as String': TL++ has no type 'String' -- write 'as Character' (a .prw takes it: AdvPL does not check its types).` |
 | in TL++, more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3 -- TL++ refuses the call ("More parameters used in function call than expected").` |
 | a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
@@ -2107,6 +2170,8 @@ parses, in xtpl's words.
 | a value of another type than a typed array or hash holds, going in | `'aN' is an Array<n>: this is Character, not Numeric.` |
 | a fixed array or hash, or anything it holds, written into | `'aX' is an Array<fixed n>: nothing in it may be written.`, `... AAdd() would write into it.` |
 | a fixed one's name with no value, assigned, or passed with `@` | `'aX' is an Array<fixed n>: it takes its value where it is declared.`, `'aX' is an Array<fixed n> (declared on line 3) and cannot be assigned.` |
+| an object of another class than the one declared, going in | `'oOrder' is an Order: this is a Customer, not an Order.` |
+| a fixed `Data` given its value but by its own object's constructor, or by none | `'oOrder:aCodes' is an Array<fixed c> (declared on line 8): only the constructor gives it its value.`, `'::aCodes' is an Array<fixed c>: New(), the constructor, gives it its value.` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
 comma in a declaration, `?=` in an expression, a chain or a `fallback`
@@ -2137,7 +2202,7 @@ with any name allowed, to say which name it was and why.
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |
 | a comparison on the left of `\|>` | `the whole left side of '\|>' is the first argument, so 'nA > 1' is what gets fed in. ...` |
-| a value whose type xc cannot tell, going into a typed array or hash | `'aN' is an Array<n>: xc cannot tell that this is Numeric.` |
+| a value whose type xc cannot tell, going into a typed array or hash, or where an object of a class is | `'aN' is an Array<n>: xc cannot tell that this is Numeric.` |
 | a `then` chain that is all of the condition of an `If`, an `ElseIf`, a `While`, a `Case`, a postfix `if` or `while` | `the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '\|>' there, or put the chain in parentheses` |
 
 A User Function of the file called without its `u_` is refused even when

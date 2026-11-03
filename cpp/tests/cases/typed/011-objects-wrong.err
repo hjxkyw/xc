@@ -1,0 +1,10 @@
+011-objects-wrong.xtpl:38: warning: 'oP' is a Part: xc cannot tell that this is a Part.
+011-objects-wrong.xtpl:31: 'oP' is a Part: this is a Nut, not a Part.
+011-objects-wrong.xtpl:32: the parameter 'oWith' of Part:Fit() is a Part: this is a Nut, not a Part.
+011-objects-wrong.xtpl:33: the parameter 'aMore' of Bolt:Fit() is an Array<n>: this is Character, not Numeric.
+011-objects-wrong.xtpl:34: 'oB:aSizes' is an Array<n>: this is Character, not Numeric.
+011-objects-wrong.xtpl:35: 'oB:aSizes' is an Array<n>: this is Logical, not Numeric.
+011-objects-wrong.xtpl:36: 'oB:aKeys' is an Array<fixed c> (declared on line 7): only the constructor gives it its value.
+011-objects-wrong.xtpl:37: 'oP:aKeys' is an Array<fixed c>: AAdd() would write into it.
+011-objects-wrong.xtpl:39: the parameter 'oPart' of Pick() is a Part: this is a Nut, not a Part.
+011-objects-wrong.xtpl:42: Pick() returns a Bolt: this is a Part, not a Bolt.

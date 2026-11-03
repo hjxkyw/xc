@@ -1,0 +1,44 @@
+// A class the file declares is a type: a Local's, a Static's, a parameter's,
+// a function's, a Data's, a method's. TL++ has none such, and is given 'as
+// Object'. Where xc knows an object's class, 'o:x' is the Data its class
+// declares -- a set's read as a set's, a hash walked by its keys.
+Static oLast as Ticket
+
+Interface ISeat
+  Method Code() as Character
+EndInterface
+
+Class Ticket Implements ISeat
+  Data sTags as Set<c>
+  Data hFees as Hash<c, n>
+  Data oNext as Ticket
+  Method New() Constructor
+  Method Code() as Character
+  Method Chain() as Ticket
+EndClass
+
+Method New() Class Ticket
+  ::sTags := setof()
+  ::hFees := { <c> => <n> }
+Return Self
+
+Method Code() as Character Class Ticket
+Return "T"
+
+Method Chain() as Ticket Class Ticket
+Return ::oNext
+
+User Function Fees(oSeat as ISeat) as Ticket
+  Local oT := Ticket():New()
+  Local oU as Ticket
+  Local cK
+  Local nSum := 0
+  oT:sTags{"vip"} := .T.
+  oT:hFees{"tax"} := 2
+  for cK in oT:hFees exec nSum += oT:hFees{cK}
+  oU := oT:Chain()
+  oLast := oT
+  If oT:sTags{"kid"}
+    nSum := 0
+  EndIf
+Return oT

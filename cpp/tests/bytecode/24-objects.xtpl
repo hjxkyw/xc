@@ -1,0 +1,54 @@
+// Objects of a class of the file: declared by the class's name or by an
+// Interface it implements, given New(), read through 'o:x' -- a set's Data
+// read as a set's (.F. for a key it lacks), a hash's walked by its keys, a
+// Data that is another object, whose Data are read in turn.
+Interface IShape
+  Method Area() as Numeric
+EndInterface
+
+Class Tag
+  Data aNames as Array<c>
+  Method New() Constructor
+EndClass
+
+Class Square Implements IShape
+  Data nSide as Numeric
+  Data sTags as Set<c>
+  Data hQty as Hash<c, n>
+  Data oTag as Tag
+  Method New(nSide as Numeric) Constructor
+  Method Area() as Numeric
+  Method Grow(aBy as Array<n>)
+EndClass
+
+Method New() Class Tag
+  ::aNames := { <c> }
+Return Self
+
+Method New(nSide as Numeric) Class Square
+  ::nSide := nSide
+  ::sTags := setof()
+  ::hQty := { <c> => <n> }
+  ::oTag := Tag():New()
+Return Self
+
+Method Area() as Numeric Class Square
+Return ::nSide * ::nSide
+
+Method Grow(aBy as Array<n>) Class Square
+  ::nSide += aBy[1]
+Return Nil
+
+User Function Main()
+  Local oS as IShape
+  Local oQ := Square():New(2)
+  Local aOut := { <c> }
+  oS := oQ
+  oQ:Grow({1})
+  oQ:sTags{"a"} := .T.
+  oQ:hQty{"k"} := 3
+  oQ:hQty{"j"} := 4
+  for cK in oQ:hQty exec AAdd(aOut, cK)
+  AAdd(oQ:oTag:aNames, "first")
+  ConOut(oS:Area(), oQ:sTags{"a"}, oQ:sTags{"b"}, aOut |> sort |> join(","), oQ:oTag:aNames[1])
+Return Nil

@@ -1,0 +1,12 @@
+// After a Local's, a Static's or a parameter's name, or a function, a word
+// is a type of TL++'s or a class the file declares; anything else is
+// refused. A Data's and a method's return go to TL++ as they are.
+Class Box
+  Data oLid as Lid
+  Method Open(oKey as Key) as Hinge
+EndClass
+
+User Function Pack(oItem as Item, oBox as Box) as Crate
+  Local oWrap as Paper
+  Local nN as Numeric
+Return oItem

@@ -1,0 +1,54 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A class the file declares is a type: a Local's, a Static's, a parameter's,
+// a function's, a Data's, a method's. TL++ has none such, and is given 'as
+// Object'. Where xc knows an object's class, 'o:x' is the Data its class
+// declares -- a set's read as a set's, a hash walked by its keys.
+Static oLast as Object
+
+Interface ISeat
+  Method Code() as Character
+EndInterface
+
+Class Ticket Implements ISeat
+  Data sTags as Object
+  Data hFees as Object
+  Data oNext as Object
+  Method New() Constructor
+  Method Code() as Character
+  Method Chain() as Object
+EndClass
+
+Method New() Class Ticket
+  ::sTags := u_xtpl_setof({})
+  ::hFees := THashMap():New()
+Return Self
+
+Method Code() as Character Class Ticket
+Return "T"
+
+Method Chain() as Object Class Ticket
+Return ::oNext
+
+User Function Fees(oSeat as Object) as Object
+  Local oT := Ticket():New()
+  Local oU as Object
+  Local cK
+  Local nSum := 0
+  Local s_0_cK  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  u_xtpl_sset(oT:sTags, "vip", .T.)
+  oT:hFees:Set("tax", 2)
+  fs_0_0 := u_xtpl_pairs(oT:hFees)
+  For fi_0_0 := 1 To Len(fs_0_0)
+    s_0_cK := fs_0_0[fi_0_0][1]
+    nSum += u_xtpl_hget(oT:hFees, s_0_cK)
+  Next
+  oU := oT:Chain()
+  oLast := oT
+  If u_xtpl_sget(oT:sTags, "kid")
+    nSum := 0
+  EndIf
+Return oT

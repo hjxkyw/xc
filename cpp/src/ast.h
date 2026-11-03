@@ -285,6 +285,8 @@ namespace xc
     std::vector<Expr*> dims;         // 'Local aX[10]'
     std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
     bool init_made = false;          // its value xc's: one starts empty
+    bool as_class = false;           // 'as Order', a class of the file: TL++'s
+                                     // 'as Object' (emit.cpp)
   };
 
   struct Declaration : Stmt
@@ -479,9 +481,9 @@ namespace xc
     int attrs_from = -1;             // from the name's end to the '>'
     int attrs_to = -1;
     std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
-    int type_from = -1;              // where its type is written, then
-    int type_to = -1;
-    std::string type_tlpp;           // and TL++'s word for it there
+    int type_from = -1;              // where its type is written -- a typed
+    int type_to = -1;                // array's, or a word
+    std::string type_tlpp;           // and TL++'s word for a typed one there
   };
 
   struct FunctionDef : Node
@@ -494,9 +496,9 @@ namespace xc
     int line = 0;
     OptStr rettype_word;
     std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
-    int ret_from = -1;               // where it is written
-    int ret_to = -1;
-    std::string ret_tlpp;            // and TL++'s word for it there
+    int ret_from = -1;               // where it is written -- a typed
+    int ret_to = -1;                 // array's, or a word
+    std::string ret_tlpp;            // and TL++'s word for a typed one there
   };
 
   struct DataMember : Node
@@ -508,9 +510,9 @@ namespace xc
     Expr* init = nullptr;            // 'default value', 'init value': the AppServer ignores it
     std::string init_word;           // 'default' or 'init', as written
     std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
-    int type_from = -1;              // where its type is written, then
-    int type_to = -1;
-    std::string type_tlpp;           // and TL++'s word for it there
+    int type_from = -1;              // where its type is written -- a typed
+    int type_to = -1;                // array's, or a word
+    std::string type_tlpp;           // and TL++'s word for a typed one there
   };
 
   struct MethodSig : Node
@@ -523,15 +525,16 @@ namespace xc
     OptStr returns;
     int line = 0;
     std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
-    int ret_from = -1;               // where it is written
-    int ret_to = -1;
-    std::string ret_tlpp;            // and TL++'s word for it there
+    int ret_from = -1;               // where it is written -- a typed
+    int ret_to = -1;                 // array's, or a word
+    std::string ret_tlpp;            // and TL++'s word for a typed one there
   };
 
   struct ClassDef : Node
   {
     std::string name;
     std::vector<std::string> supers;
+    std::vector<std::string> ifaces;     // 'Implements'
     std::vector<DataMember*> members;
     std::vector<MethodSig*> methods;
     int line = 0;
@@ -548,9 +551,9 @@ namespace xc
     int line = 0;
     bool ws = false;                 // a web service's: 'WSMETHOD ... WSSERVICE Name'
     std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
-    int ret_from = -1;               // where it is written
-    int ret_to = -1;
-    std::string ret_tlpp;            // and TL++'s word for it there
+    int ret_from = -1;               // where it is written -- a typed
+    int ret_to = -1;                 // array's, or a word
+    std::string ret_tlpp;            // and TL++'s word for a typed one there
   };
 
   struct External : Node

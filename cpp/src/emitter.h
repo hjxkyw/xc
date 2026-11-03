@@ -33,6 +33,7 @@ namespace xc
   std::string notes_of(const Declaration* d);
   std::string block_local_comment(const Declarator* d, const std::string& shown);
   std::string names_line(const std::string& kw, const Declaration* d);
+  std::string tlpp_typespec(const Declarator* d);
 
   class Emitter
   {

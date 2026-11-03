@@ -65,7 +65,10 @@ namespace xc
       if (n == "block" || n == "b" || n == "codeblock") { return "Block"; }
       if (n == "json" || n == "j") { return "JSON"; }
       if (n == "variant" || n == "u") { return "Variant"; }
-      return "?";
+      if (n == "string") { return "Character"; }     // AdvPL's words (check.cpp)
+      if (n == "number") { return "Numeric"; }
+      if (n == "logic" || n == "boolean") { return "Logical"; }
+      return "Object";                 // a class's name
     }
 
     // The words of a text, as Raku's .words.
@@ -1019,7 +1022,12 @@ namespace xc
         return fail();
       }
       save = p_;
-      if (!(ilit("implements") && ws() && dotted(nullptr) && ws()))
+      std::vector<std::string> ifaces;
+      if (ilit("implements") && ws() && dotted(&ifaces) && ws())
+      {
+        cls->ifaces = std::move(ifaces);
+      }
+      else
       {
         p_ = save;
       }
@@ -1207,6 +1215,7 @@ namespace xc
       p_ = s3;
       if (ilit("as") && ws())
       {
+        int rs = p_;
         int re = 0;
         std::string ret = name_text(re);
         if (re >= 0)
@@ -1215,6 +1224,8 @@ namespace xc
           if (ws() && ws())
           {
             m->returns = ret;
+            m->ret_from = rs;
+            m->ret_to = re;
             continue;
           }
         }
@@ -1325,6 +1336,7 @@ namespace xc
       }
       else if (p_ = save, ilit("as") && ws())
       {
+        int ts = p_;
         int te = 0;
         std::string t = name_text(te);
         if (te >= 0)
@@ -1333,6 +1345,8 @@ namespace xc
           if (ws())
           {
             m->type = t;
+            m->type_from = ts;
+            m->type_to = te;
           }
           else
           {
@@ -1492,6 +1506,7 @@ namespace xc
       p_ = s;
       if (ilit("as") && ws())
       {
+        int rs = p_;
         int re = 0;
         std::string r = name_text(re);
         if (re >= 0)
@@ -1499,6 +1514,8 @@ namespace xc
           p_ = re;
           if (ws())
           {
+            m->ret_from = rs;
+            m->ret_to = re;
             return r;
           }
         }
@@ -2970,10 +2987,17 @@ namespace xc
       return false;
     }
     typename_text = text(p_, e);
+    if (g)
+    {
+      // Where the word is: a class of the file named so is TL++'s 'Object'.
+      g->from = p_;
+      g->to = e;
+    }
     p_ = e;
     if (!ws())
     {
       p_ = start;
+      if (g) { *g = Generic{}; }
       return false;
     }
     from = start;
@@ -3112,27 +3136,18 @@ namespace xc
     return a;
   }
 
-  // token typename: the full names, and the abbreviations as words.
+  // token typename: a word -- TL++'s types by their full names, their
+  // letters, and a class's name; what is no type of TL++'s nor a class of the
+  // file is the checker's to refuse (check.cpp).
   int Parser::type_name_end(int p) const
   {
-    struct Word { std::string_view w; bool boundary; };
-    static const Word names[] =
+    if (!is_alpha(c(p)))
     {
-      { "integer", false }, { "decimal", false }, { "codeblock", false }, { "variadic", true },
-      { "double", true }, { "array", false }, { "a", true }, { "numeric", false }, { "n", true },
-      { "character", false }, { "c", true }, { "char", true }, { "logical", false }, { "l", true },
-      { "date", false }, { "d", true }, { "object", false }, { "o", true }, { "block", false },
-      { "b", true }, { "json", false }, { "j", true }, { "variant", false }, { "u", true },
-    };
-    for (const Word& n : names)
-    {
-      int len = static_cast<int>(n.w.size());
-      if (iword_at(p, n.w) && (!n.boundary || !is_w(c(p + len))))
-      {
-        return p + len;
-      }
+      return -1;
     }
-    return -1;
+    int e = p + 1;
+    while (is_w(c(e))) { e++; }
+    return e;
   }
 
   Declaration* Parser::read_declaration()

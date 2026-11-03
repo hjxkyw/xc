@@ -1,0 +1,6 @@
+102.xtpl:10: warning: 'oWrap' is declared but never used
+102.xtpl:11: warning: 'nN' is declared but never used
+102.xtpl:6: 'as Key': TL++ has no type 'Key', and this file declares no class by that name.
+102.xtpl:9: 'as Item': TL++ has no type 'Item', and this file declares no class by that name.
+102.xtpl:9: 'as Crate': TL++ has no type 'Crate', and this file declares no class by that name.
+102.xtpl:10: 'as Paper': TL++ has no type 'Paper', and this file declares no class by that name.

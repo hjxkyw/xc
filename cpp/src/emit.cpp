@@ -188,13 +188,19 @@ namespace xc
            + (d->attributes.empty() ? "" : " " + attrs_text(d->attributes));
   }
 
+  // Its 'as T' as TL++ takes it: a class of the file's name is 'Object'.
+  std::string tlpp_typespec(const Declarator* d)
+  {
+    return d->as_class ? std::string("as Object") : d->typespec_text.value_or("");
+  }
+
   // 'kw a, b as T' -- a declaration's keyword and names, its values gone.
   std::string names_line(const std::string& kw, const Declaration* d)
   {
     Lines n;
     for (const Declarator* v : d->declarators)
     {
-      n.push_back(v->name + (v->typespec_text ? " " + *v->typespec_text : ""));
+      n.push_back(v->name + (v->typespec_text ? " " + tlpp_typespec(v) : ""));
     }
     return kw + " " + join(n, ", ");
   }
@@ -245,7 +251,7 @@ namespace xc
         {
           // TL++ takes no type after dimensions: 'Local aX[10] as Array' is
           // "C2003 Syntax Error" (tried on 24.3.1.9).
-          if (d->type_first || !d->attributes.empty() || !d->container.empty()
+          if (d->type_first || !d->attributes.empty() || !d->container.empty() || d->as_class
               || (!d->dims.empty() && d->typespec_text))
           {
             return true;
@@ -695,6 +701,41 @@ namespace xc
       for (const FunctionDef* f : p->functions) { verb(f->body); }
       for (const MethodImpl* m : p->methods) { verb(m->body); }
     }
+    // A class of the file named as a type -- 'Local oX as Order', 'Data
+    // oCust as Customer' -- is TL++'s 'as Object': TL++ takes no class's
+    // name there, and what it is is xc's to check (typed.cpp).
+    std::unordered_set<std::string> classes;
+    for (const ClassDef* c : p->classes) { classes.insert(lc(c->name)); }
+    auto named = [&](const OptStr& word) { return word && classes.count(lc(*word)) > 0; };
+    auto mark = [&](Declarator* d)
+    {
+      d->as_class = classes.count(lc(type_word_of(d->typespec_text.value_or("")))) > 0;
+    };
+    if (!classes.empty())
+    {
+      for (const Declaration* d : p->statics)
+      {
+        for (Declarator* v : d->declarators) { mark(v); }
+      }
+      auto in_body = [&](const Body& body)
+      {
+        walk(body, [&](Stmt* s)
+        {
+          if (s->kind != SK::Declaration) { return; }
+          for (Declarator* v : static_cast<Declaration*>(s)->declarators) { mark(v); }
+        });
+      };
+      for (const FunctionDef* f : p->functions) { in_body(f->body); }
+      for (const MethodImpl* m : p->methods) { in_body(m->body); }
+    }
+    // 'as Array<n>' is TL++'s 'as Array', 'as Hash<c, n>' its 'as Object';
+    // 'as Order' its 'as Object' too.
+    auto retype = [&](const OptStr& word, const std::string& container, int from, int to, const std::string& tlpp)
+    {
+      if (!container.empty()) { edit(from, to, tlpp); }
+      else if (from >= 0 && named(word)) { edit(from, to, "Object"); }
+    };
+
     std::vector<Finding> problems = not_lowered(p);
     if (!problems.empty()) { throw NotLowered(std::move(problems)); }
 
@@ -759,11 +800,10 @@ namespace xc
     {
       ret_decimal_ = decimal_word(f->rettype_word);
       ret_numeric_ = numeric_word(f->rettype_word);
-      // 'as Array<n>' is TL++'s 'as Array', 'as Hash<c, n>' its 'as Object'.
-      if (!f->ret_container.empty()) { edit(f->ret_from, f->ret_to, f->ret_tlpp); }
+      retype(f->rettype_word, f->ret_container, f->ret_from, f->ret_to, f->ret_tlpp);
       for (const Param* q : f->params)
       {
-        if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+        if (q) { retype(q->type_word, q->container, q->type_from, q->type_to, q->type_tlpp); }
       }
       function(f->params, f->body);
     }
@@ -771,10 +811,10 @@ namespace xc
     {
       ret_decimal_ = decimal_word(m->returns);
       ret_numeric_ = numeric_word(m->returns);
-      if (!m->ret_container.empty()) { edit(m->ret_from, m->ret_to, m->ret_tlpp); }
+      retype(m->returns, m->ret_container, m->ret_from, m->ret_to, m->ret_tlpp);
       for (const Param* q : m->params)
       {
-        if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+        if (q) { retype(q->type_word, q->container, q->type_from, q->type_to, q->type_tlpp); }
       }
       function(m->params, m->body);
     }
@@ -784,14 +824,14 @@ namespace xc
     {
       for (const DataMember* d : c->members)
       {
-        if (!d->container.empty()) { edit(d->type_from, d->type_to, d->type_tlpp); }
+        retype(d->type, d->container, d->type_from, d->type_to, d->type_tlpp);
       }
       for (const MethodSig* m : c->methods)
       {
-        if (!m->ret_container.empty()) { edit(m->ret_from, m->ret_to, m->ret_tlpp); }
+        retype(m->returns, m->ret_container, m->ret_from, m->ret_to, m->ret_tlpp);
         for (const Param* q : m->params)
         {
-          if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+          if (q) { retype(q->type_word, q->container, q->type_from, q->type_to, q->type_tlpp); }
         }
       }
     }

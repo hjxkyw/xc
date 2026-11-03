@@ -139,6 +139,15 @@ namespace xc
     return out;
   }
 
+  std::string type_word_of(std::string_view typespec)
+  {
+    std::vector<std::string> w = words(typespec);
+    if (w.size() < 2) { return ""; }
+    std::size_t e = 0;
+    while (e < w[1].size() && is_w(static_cast<unsigned char>(w[1][e]))) { e++; }
+    return w[1].substr(0, e);
+  }
+
   std::string trim_trailing(std::string_view s)
   {
     std::size_t e = s.size();

@@ -27,6 +27,10 @@ namespace xc
   // Raku's .words: the runs of what is not whitespace.
   std::vector<std::string> words(std::string_view s);
 
+  // The type an 'as ...' names, its word alone: 'as Order // x' is 'Order',
+  // 'as Array//{...}' 'Array'; '' for none.
+  std::string type_word_of(std::string_view typespec);
+
   // Raku's .trim-trailing.
   std::string trim_trailing(std::string_view s);
 

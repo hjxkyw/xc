@@ -1,0 +1,42 @@
+// What an object of a class of the file refuses: another class's object
+// where its own is wanted -- a Local, a parameter, a Data, a return --; into
+// its typed Data, what they do not hold; its fixed Data given a value but by
+// its own constructor; its methods' typed parameters given another type.
+Class Part
+  Data aSizes as Array<n>
+  Data aKeys as Array<fixed c>
+  Method New() Constructor
+  Method Fit(aMore as Array<n>, oWith as Part)
+EndClass
+
+Class Bolt From Part
+EndClass
+
+Class Nut
+EndClass
+
+Method New() Class Part
+  ::aSizes := { <n> }
+  ::aKeys := {"K"}
+Return Self
+
+Method Fit(aMore as Array<n>, oWith as Part) Class Part
+Return Len(aMore)
+
+User Function Mount(oAny)
+  Local oP as Part
+  Local oB := Bolt():New()
+  Local oN := Nut():New()
+  oP := oB
+  oP := oN
+  oP:Fit({1}, oN)
+  oB:Fit({"x"}, oB)
+  AAdd(oB:aSizes, "9")
+  oB:aSizes[1] := .F.
+  oB:aKeys := {"L"}
+  AAdd(oP:aKeys, "M")
+  oP := oAny
+Return Pick(oN)
+
+Static Function Pick(oPart as Part) as Bolt
+Return oPart
