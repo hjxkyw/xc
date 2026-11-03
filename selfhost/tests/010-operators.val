@@ -1,0 +1,20 @@
+// Values, one a line: operators, their levels and their spans.
+a + b * 2
+-x ** 2 ^ 3
+!lOk .And. nX > 1 .Or. .Not. lB
+nA == 1 .and. cB != "x" .OR. cC $ "abc"
+x ?: y ?: z
+nX % 3 %% 2
+a in b
+cName has "x"
+1..10 |> sum
+(a, b, c)
+x := y += 2
+i++
+--j
+.T.
+nil
+.f.
+1'000.5'1
+'it''s' + "two"
+"a ${x + 1} b ${ y }"

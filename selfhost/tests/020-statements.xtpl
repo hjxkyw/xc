@@ -1,0 +1,119 @@
+// Every statement the parser reads, in a program: declarations, the
+// blocks, the one-line forms, the commands passed through, a class.
+#include "totvs.ch"
+#define LIMIT 10
+
+namespace my.app
+using namespace other.lib
+
+external alias SA1, SB1
+Static aCache := {} as Array, nHits <const> := 0
+
+@annotation Route
+  url as Character
+@end
+
+Class Pedido From Base Implements IPrint
+  Public Data aItens as Array<n> default {}
+  Data cNome, nTotal as Numeric init 0
+  Static Method Soma(a as Numeric, b) as Numeric
+  Method New(cNome as Character) Constructor
+  Method Show
+EndClass
+
+Interface IPrint
+  Method Print() as Character
+EndInterface
+
+@Get("x")
+User Function Teste(nA as Numeric, aB as Array<c>, cC <const>) as Logical
+  Local nI := 0, aL[2][3], cX as Character := "a"
+  Local oP := Pedido():New("x") as Object
+  Private M->nV := 1
+  Default nA := 1, cC := ""
+  If Local nK := 1, nK > 0
+    nI++
+  ElseIf nI == 2
+    --nI
+  Else
+    nI += 2
+  EndIf
+  if nI > 1 exec nI := 0, (nI++, nI--) else ConOut("x")
+  Do While nI < LIMIT
+    nI++
+    If nI == 3
+      Loop
+    EndIf
+    Exit
+  EndDo
+  while nI > 0 exec nI--
+  For nI := 1 To 10 Step 2
+    ConOut(nI)
+  Next nI
+  For Local nJ := 1 To 2
+  Next
+  for cK, nV in hMap exec ConOut(cK)
+  for x in 1..3
+    ConOut(x)
+  next
+  for 3 times exec nI++
+  Do Case
+    Case nI == 1
+      nI := 2
+    Otherwise
+      nI := 3
+  EndCase
+  Do Case With Local nW := nI
+    Case nW > 1
+  End Case
+  Begin Sequence
+    Break(nI)
+  Recover Using oErr
+    ConOut(oErr:Description)
+  End Sequence
+  Try
+    nI := 1 / 0
+  Catch e
+    ConOut(e)
+  Finally
+    nI := 0
+  EndTry
+  Begin Transaction
+    RecLock("SA1", .F.)
+  End Transaction
+  using alias SA1 order 1 do
+    DbSkip()
+  end using
+  With Object oP
+    :Show()
+  End With
+  defer ConOut("end")
+  exec ConOut(1) if nI > 0
+  ConOut(nI) if nI > 0
+  nI ?= 1
+  aB |> map([x] Upper(x)) |> join(",")
+  raw ConOut("raw")
+  raw
+    ConOut("block")
+  end raw
+  BeginSql Alias "QRY"
+    SELECT * FROM %table:SA1%
+  EndSql
+  @ 10, 10 SAY "x"
+  SET DELETED ON
+  #ifdef TOP
+  If(nI > 0, ConOut(1), ConOut(2))
+  Return If(nI > 0, .T., .F.)
+EndFunction
+
+Method New(cNome as Character) Class Pedido
+  ::cNome := cNome
+Return Self
+
+Static Method Soma(a as Numeric, b) as Numeric Class Pedido
+Return a + b
+
+Static Function Ajuda()
+Return
+
+Function Regular(); Return Nil

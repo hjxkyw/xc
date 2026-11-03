@@ -17,4 +17,7 @@
 namespace xc
 {
   std::string dump(const Program* p);
+
+  // One expression, as dump() writes it -- 'nil' for none.
+  std::string dump_expr(const Expr* e);
 }

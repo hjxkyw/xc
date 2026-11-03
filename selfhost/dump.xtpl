@@ -43,6 +43,18 @@ User Function xcb_dump(aProg)
   aOut := {}
 Return cText
 
+// One expression, as xc-ast writes it -- 'nil' for none.
+User Function xcb_dumpexpr(aE)
+  Local cText := ""
+  Local nI
+  aOut := {}
+  Expr(0, aE)
+  For nI := 1 To Len(aOut)
+    cText += aOut[nI] + Chr(10)
+  Next
+  aOut := {}
+Return cText
+
 // ---- lines ------------------------------------------------------------------
 Static Function Head(nIn, cText)
   AAdd(aOut, Space(nIn) + cText)

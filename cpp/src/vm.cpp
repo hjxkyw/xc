@@ -75,9 +75,18 @@ namespace
     int scale = 0;
   };
 
+  // A string, shared: a variable, the stack, an array that holds one do
+  // not copy it -- a long text read a byte at a time is not copied for each
+  // byte. None is changed in place: TL++'s strings are values.
+  struct Str
+  {
+    std::shared_ptr<const std::string> p;
+    const std::string& s() const { return *p; }
+  };
+
   struct Value
   {
-    std::variant<std::monostate, bool, double, std::string, Date, ArrayP, std::shared_ptr<Closure>,
+    std::variant<std::monostate, bool, double, Str, Date, ArrayP, std::shared_ptr<Closure>,
                  std::shared_ptr<Object>, Cell, Ref, Dec>
       v;
   };
@@ -97,7 +106,7 @@ namespace
   Value S(std::string s)
   {
     Value x;
-    x.v = std::move(s);
+    x.v = Str{ std::make_shared<const std::string>(std::move(s)) };
     return x;
   }
   Value A(ArrayP a)
@@ -456,7 +465,7 @@ namespace
     switch (type_of(x))
     {
       case 'N': return num_text(std::get<double>(x.v));
-      case 'C': return std::get<std::string>(x.v);
+      case 'C': return std::get<Str>(x.v).s();
       case 'L': return std::get<bool>(x.v) ? ".T." : ".F.";
       case 'F': return dec_text(std::get<Dec>(x.v));
       case 'D':
@@ -675,7 +684,7 @@ namespace
     // ---- the AppServer's ----------------------------------------------------
     void natives();
     double num_arg(const Args& a, std::size_t i, const char* fn);
-    std::string str_arg(const Args& a, std::size_t i, const char* fn);
+    const std::string& str_arg(const Args& a, std::size_t i, const char* fn);
     ArrayP array_arg(const Args& a, std::size_t i, const char* fn);
     std::string key_text(const Value& k);
     std::string json_text(const Value& x);
@@ -1217,14 +1226,14 @@ namespace
         default: return N(std::pow(x, y));
       }
     }
-    if (op == Op::Add && ta == 'C' && tb == 'C') { return S(std::get<std::string>(a.v) + std::get<std::string>(b.v)); }
+    if (op == Op::Add && ta == 'C' && tb == 'C') { return S(std::get<Str>(a.v).s() + std::get<Str>(b.v).s()); }
     if (op == Op::Sub && ta == 'C' && tb == 'C')
     {
       // Clipper's: the left's trailing blanks go to the end.
-      std::string x = std::get<std::string>(a.v);
+      std::string x = std::get<Str>(a.v).s();
       std::size_t e = x.find_last_not_of(' ');
       std::string kept = e == std::string::npos ? "" : x.substr(0, e + 1);
-      return S(kept + std::get<std::string>(b.v) + std::string(x.size() - kept.size(), ' '));
+      return S(kept + std::get<Str>(b.v).s() + std::string(x.size() - kept.size(), ' '));
     }
     if ((op == Op::Add || op == Op::Sub) && ta == 'D' && tb == 'N')
     {
@@ -1259,8 +1268,8 @@ namespace
       case 'C':
       {
         // '=' is SET EXACT OFF's: the left starts with the right.
-        const std::string& x = std::get<std::string>(a.v);
-        const std::string& y = std::get<std::string>(b.v);
+        const std::string& x = std::get<Str>(a.v).s();
+        const std::string& y = std::get<Str>(b.v).s();
         if (exact) { return x == y; }
         return x.size() >= y.size() && x.compare(0, y.size(), y) == 0;
       }
@@ -1288,7 +1297,7 @@ namespace
         }
         case 'C':
         {
-          int c = std::get<std::string>(a.v).compare(std::get<std::string>(b.v));
+          int c = std::get<Str>(a.v).s().compare(std::get<Str>(b.v).s());
           return c < 0 ? -1 : c > 0 ? 1 : 0;
         }
         case 'D':
@@ -1446,7 +1455,7 @@ namespace
       case 'C':
       {
         std::string out = "\"";
-        for (char c : std::get<std::string>(x.v))
+        for (char c : std::get<Str>(x.v).s())
         {
           if (c == '"' || c == '\\') { out += '\\'; }
           if (c == '\n') { out += "\\n"; }
@@ -1542,7 +1551,7 @@ namespace
         {
           if (p.first != k) { continue; }
           if (m == "GETJSONOBJECT") { return type_of(p.second) == 'J' ? p.second : Value(); }
-          return S(type_of(p.second) == 'C' ? std::get<std::string>(p.second.v) : json_text(p.second));
+          return S(type_of(p.second) == 'C' ? std::get<Str>(p.second.v).s() : json_text(p.second));
         }
         return m == "GETJSONOBJECT" ? Value() : S("null");
       }
@@ -1802,7 +1811,7 @@ namespace
           {
             fail(std::string("type mismatch on $: ") + type_of(x) + " and " + type_of(y));
           }
-          st.push_back(L(std::get<std::string>(y.v).find(std::get<std::string>(x.v)) != std::string::npos));
+          st.push_back(L(std::get<Str>(y.v).s().find(std::get<Str>(x.v).s()) != std::string::npos));
           break;
         }
         case Op::IsNil: st.push_back(L(is_nil(deref(pop())))); break;
@@ -1833,7 +1842,7 @@ namespace
           Args a = take(static_cast<std::size_t>(in.a));
           Value name = deref(pop());
           if (type_of(name) != 'C') { fail("&name.(): the name is no string"); }
-          invoke(f.fn->mod, std::get<std::string>(name.v), a, true);
+          invoke(f.fn->mod, std::get<Str>(name.v).s(), a, true);
           break;
         }
         case Op::Method:
@@ -2012,9 +2021,9 @@ namespace
     fail(std::string(fn) + ": argument " + std::to_string(i + 1) + " is no number");
   }
 
-  std::string VM::str_arg(const Args& a, std::size_t i, const char* fn)
+  const std::string& VM::str_arg(const Args& a, std::size_t i, const char* fn)
   {
-    if (auto s = std::get_if<std::string>(&at(a, i).v)) { return *s; }
+    if (auto s = std::get_if<Str>(&at(a, i).v)) { return s->s(); }
     fail(std::string(fn) + ": argument " + std::to_string(i + 1) + " is no string");
   }
 
@@ -2056,7 +2065,7 @@ namespace
       {
         case 'U': return L(true);
         case 'N': return L(std::get<double>(x.v) == 0);
-        case 'C': return L(std::get<std::string>(x.v).find_first_not_of(" \t\r\n") == std::string::npos);
+        case 'C': return L(std::get<Str>(x.v).s().find_first_not_of(" \t\r\n") == std::string::npos);
         case 'L': return L(!std::get<bool>(x.v));
         case 'D': return L(std::get<Date>(x.v).day == EMPTY_DAY);
         case 'A': return L(std::get<ArrayP>(x.v)->empty());
@@ -2067,7 +2076,7 @@ namespace
     n["LEN"] = [this](Args& a)
     {
       const Value& x = at(a, 0);
-      if (auto s = std::get_if<std::string>(&x.v)) { return N(static_cast<double>(s->size())); }
+      if (auto s = std::get_if<Str>(&x.v)) { return N(static_cast<double>(s->s().size())); }
       if (auto arr = std::get_if<ArrayP>(&x.v)) { return N(static_cast<double>((*arr)->size())); }
       if (type_of(x) == 'J') { return N(static_cast<double>(std::get<std::shared_ptr<Object>>(x.v)->props.size())); }
       fail(std::string("Len: argument is ") + type_of(x));
@@ -2216,7 +2225,7 @@ namespace
     n["TRIM"] = n["RTRIM"];
     n["SUBSTR"] = [this, opt_num](Args& a)
     {
-      std::string s = str_arg(a, 0, "SubStr");
+      const std::string& s = str_arg(a, 0, "SubStr");
       long len = static_cast<long>(s.size());
       long from = static_cast<long>(num_arg(a, 1, "SubStr"));
       if (from < 0) { from = std::max(1L, len + from + 1); }
@@ -2228,19 +2237,19 @@ namespace
     };
     n["LEFT"] = [this](Args& a)
     {
-      std::string s = str_arg(a, 0, "Left");
+      const std::string& s = str_arg(a, 0, "Left");
       return S(s.substr(0, static_cast<std::size_t>(std::max(0.0, num_arg(a, 1, "Left")))));
     };
     n["RIGHT"] = [this](Args& a)
     {
-      std::string s = str_arg(a, 0, "Right");
+      const std::string& s = str_arg(a, 0, "Right");
       std::size_t k = std::min(s.size(), static_cast<std::size_t>(std::max(0.0, num_arg(a, 1, "Right"))));
       return S(s.substr(s.size() - k));
     };
     n["AT"] = [this, opt_num](Args& a)
     {
-      std::string sub = str_arg(a, 0, "At");
-      std::string s = str_arg(a, 1, "At");
+      const std::string& sub = str_arg(a, 0, "At");
+      const std::string& s = str_arg(a, 1, "At");
       std::size_t from = static_cast<std::size_t>(std::max(1.0, opt_num(a, 2, 1, "At")));
       if (sub.empty() || from > s.size()) { return N(0); }
       std::size_t p = s.find(sub, from - 1);
@@ -2248,15 +2257,15 @@ namespace
     };
     n["RAT"] = [this](Args& a)
     {
-      std::string sub = str_arg(a, 0, "Rat");
-      std::string s = str_arg(a, 1, "Rat");
+      const std::string& sub = str_arg(a, 0, "Rat");
+      const std::string& s = str_arg(a, 1, "Rat");
       std::size_t p = sub.empty() ? std::string::npos : s.rfind(sub);
       return N(p == std::string::npos ? 0 : static_cast<double>(p + 1));
     };
     n["STRTRAN"] = [this](Args& a)
     {
-      std::string s = str_arg(a, 0, "StrTran");
-      std::string from = str_arg(a, 1, "StrTran");
+      const std::string& s = str_arg(a, 0, "StrTran");
+      const std::string& from = str_arg(a, 1, "StrTran");
       std::string to = is_nil(at(a, 2)) ? "" : str_arg(a, 2, "StrTran");
       if (from.empty()) { return S(s); }
       std::string out;
@@ -2266,7 +2275,7 @@ namespace
     };
     n["REPLICATE"] = [this](Args& a)
     {
-      std::string s = str_arg(a, 0, "Replicate");
+      const std::string& s = str_arg(a, 0, "Replicate");
       std::string out;
       for (long i = 0; i < static_cast<long>(num_arg(a, 1, "Replicate")); i++) { out += s; }
       return S(out);
@@ -2308,13 +2317,13 @@ namespace
     n["CHR"] = [this](Args& a) { return S(std::string(1, static_cast<char>(static_cast<int>(num_arg(a, 0, "Chr"))))); };
     n["ASC"] = [this](Args& a)
     {
-      std::string s = str_arg(a, 0, "Asc");
+      const std::string& s = str_arg(a, 0, "Asc");
       return N(s.empty() ? 0 : static_cast<double>(static_cast<unsigned char>(s[0])));
     };
 
     auto first_is = [this](Args& a, int (*test)(int), const char* fn)
     {
-      std::string t = str_arg(a, 0, fn);
+      const std::string& t = str_arg(a, 0, fn);
       return L(!t.empty() && test(static_cast<unsigned char>(t[0])) != 0);
     };
     n["ISDIGIT"] = [first_is](Args& a) { return first_is(a, [](int c) { return c >= '0' && c <= '9' ? 1 : 0; }, "IsDigit"); };
@@ -2532,7 +2541,7 @@ namespace
     };
     n["XBC_CALL"] = [this, host_args](Args& a)
     {
-      std::string name = str_arg(a, 0, "XBC_CALL");
+      const std::string& name = str_arg(a, 0, "XBC_CALL");
       Args args = host_args(a, 1, 2, "XBC_CALL");
       if (const Function* fn = function_named(nullptr, name))
       {

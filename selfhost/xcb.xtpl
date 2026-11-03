@@ -8,7 +8,8 @@
 //
 // 'ast': each line of LIST names a source and a file, a tab between them;
 // the source's tree goes to the file, as 'xc-ast --bare' writes it -- or
-// 'not parsed at N'.
+// 'not parsed at N'. 'values': each line of each source read in each form
+// a statement holds an expression as, as 'xc-ast --values' reads it.
 // -----------------------------------------------------------------------------
 
 User Function xcb(cWhat, cList)
@@ -17,8 +18,8 @@ User Function xcb(cWhat, cList)
   Local nTab
   Local aSource
   Local aProg
-  If !(cWhat == "ast") .Or. cList == Nil
-    ConOut("usage: xcb ast LIST")
+  If !(cWhat == "ast" .Or. cWhat == "values") .Or. cList == Nil
+    ConOut("usage: xcb ast|values LIST")
     Return 2
   EndIf
   aLines := StrTran(ReadAll(cList)[1], Chr(13), "") |> split(Chr(10))
@@ -28,11 +29,48 @@ User Function xcb(cWhat, cList)
       Loop
     EndIf
     aSource := ReadAll(Left(aLines[nI], nTab - 1))
+    If cWhat == "values"
+      MemoWrite(SubStr(aLines[nI], nTab + 1), EachValue(aSource[1], aSource[2]))
+      Loop
+    EndIf
     aProg := u_xcb_parse(aSource[1], aSource[2])
     MemoWrite(SubStr(aLines[nI], nTab + 1), If(aProg == Nil, ;
               "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10), u_xcb_dump(aProg)))
   Next
 Return 0
+
+// Each line of a text a value, as 'xc-ast --values' reads them: where it
+// starts and ends, then the node.
+Static Function EachValue(cText, aCodes)
+  Local cOut := ""
+  Local nAt := 0
+  Local nNext
+  Local nK
+  Local nN := Len(aCodes)
+  Local aRead
+  Local nForm
+  u_xcb_source(cText, aCodes)
+  While nAt < nN
+    nNext := nAt
+    While nNext < nN .And. aCodes[nNext + 1] != 10
+      nNext++
+    EndDo
+    nNext := Min(nNext + 1, nN)
+    nK := nAt
+    While nK < nNext .And. (aCodes[nK + 1] == 32 .Or. aCodes[nK + 1] == 9)
+      nK++
+    EndDo
+    If !(nK >= nN .Or. aCodes[nK + 1] == 10 .Or. aCodes[nK + 1] == 13 .Or. ;
+         (aCodes[nK + 1] == 47 .And. nK + 1 < nN .And. aCodes[nK + 2] == 47))
+      For nForm := 1 To 7
+        aRead := u_xcb_read(nForm, nK, .F.)
+        cOut += "@" + AllTrim(Str(nK)) + " form " + AllTrim(Str(nForm)) + " end " + AllTrim(Str(aRead[2])) + Chr(10) ;
+                + u_xcb_dumpexpr(aRead[1])
+      Next
+    EndIf
+    nAt := nNext
+  EndDo
+Return cOut
 
 // A file's text, and its bytes' codes, read a piece at a time.
 Static Function ReadAll(cPath)

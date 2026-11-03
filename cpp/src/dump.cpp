@@ -102,6 +102,8 @@ namespace xc
         for (const Declaration* d : p->statics) { stmt(4, d); }
       }
 
+      void one(const Expr* e) { expr(0, e); }
+
     private:
       void head(int in, const std::string& text)
       {
@@ -726,6 +728,13 @@ namespace xc
   {
     Dumper d;
     d.program(p);
+    return d.out;
+  }
+
+  std::string dump_expr(const Expr* e)
+  {
+    Dumper d;
+    d.one(e);
     return d.out;
   }
 }

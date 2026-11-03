@@ -1,0 +1,32 @@
+// Values: calls, trailers, members, hashes, aliases, macros.
+foo(1, , x := 2)
+oObj:Method(a)[2]:Member
+::Self(1):Data
+h{"key"} + h{k}{j}
+SA1->A1_NOME
+(cAlias)->(DbSkip())
+SA1->(DbGoTop(), DbSkip())
+&cMacro.
+&(cFunc)(1, 2)
+SA1->&(cField)
+a?.b?.c(1)
+tlpp.rest.call(1)
+@nRef
+f(@aArr[1], @::x)
+%exp:nVal%
+[x] x * 2
+[a, b] a + b
+{|| Nil}
+{|x, y| x + y, y}
+{"a": 1, "b": 2}
+{"a" => 1}
+{ => }
+{ : }
+{1, , 3}
+{ <n> }
+{ <c> => <Array<n>> }
+{ <Set<fixed c>> }
+aList |> filter([x] x > 1) |> map([x] x * 2) then count
+x fallback 0
+a (|) b (&) c
+x (elem) s

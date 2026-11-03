@@ -18,7 +18,7 @@ ctest --test-dir cpp/build
 | `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` | `selftests.cmake` says which |
 | `interp`, `interp-xc` | the interpreter in xtpl, run by `xc-vm`, does what `xc-vm` does: each bytecode case with a `.out`, xtpl's self-test; xc's (`interp-xc`, labelled `slow`) | `bytecode/`, `interp.cmake` |
-| `selfhost` | the compiler in xtpl (`selfhost/`), run by `xc-vm`, reads each source into the tree `xc-ast --bare` writes | `selfhost/tests/`, `selfhost.cmake` |
+| `selfhost` | the compiler in xtpl (`selfhost/`), run by `xc-vm`, reads each source into the tree `xc-ast --bare` writes | `selfhost/tests/`, `cases/`, `selfhost.cmake` |
 
 ## cases/
 
@@ -127,11 +127,13 @@ failed. Nothing to keep: the tests are those programs.
 ## selfhost
 
 Nothing to keep: xc compiles `selfhost/` to bytecode, xc-vm runs it over
-each source of the folders given (`selfhost/tests/` by default), and the
-tree it writes for each has to be byte for byte the one `xc-ast --bare`
-writes -- the C++ parser's, the source's own commands not looked for. A
-tree that differs is left in the build's `selfhost/expect` and
-`selfhost/got`.
+each source of the folders given -- `selfhost/tests/` and every case of
+`cases/` by default --, and the tree it writes for each has to be byte for
+byte the one `xc-ast --bare` writes: the C++ parser's, the source's own
+commands not looked for (a case that needs them is 'not parsed' at the same
+place by both). A `.val` of `selfhost/tests/` is read a line at a time,
+each line in every form a statement holds an expression as. A tree that
+differs is left in the build's `selfhost/expect` and `selfhost/got`.
 
 ## docs/language.md
 
