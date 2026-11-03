@@ -1,0 +1,24 @@
+// What a typed class refuses: a Data given another type, or written into
+// with one; a fixed Data given its value anywhere but the constructor, or
+// written into; a method's typed parameter given another type; a typed
+// return. And a fixed Data its constructor never gives a value.
+Class Order
+  Data aItems as Array<n>
+  Data aCodes as Array<fixed c>
+  Data aTags as Array<fixed c>
+  Method New() Constructor
+  Method Add(nValue as Numeric, aMore as Array<n>) as Array<n>
+EndClass
+
+Method New() Class Order
+  ::aItems := { <c> }
+  ::aCodes := {"A", "B"}
+Return Self
+
+Method Add(nValue as Numeric, aMore as Array<n>) as Array<n> Class Order
+  AAdd(::aItems, "x")
+  ::aItems[1] := .T.
+  ::aCodes := {}
+  AAdd(::aCodes, "C")
+  ::Add(1, {"no"})
+Return {"z"}

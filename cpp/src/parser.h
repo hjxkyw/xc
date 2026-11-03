@@ -247,6 +247,7 @@ namespace xc
       std::string tlpp;          // TL++'s word for it: 'Array', 'Object'
     };
     bool typespec(int& from, std::string& typename_text, Generic* g = nullptr);
+    bool generic_type(Generic& g);
     int type_name_end(int p) const;
     int elem_type(int p, std::string& out) const;
     int type_args(int p, int n, std::vector<std::string>& out, bool* fixed = nullptr) const;

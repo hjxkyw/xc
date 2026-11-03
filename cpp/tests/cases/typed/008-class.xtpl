@@ -1,0 +1,41 @@
+// A class's Data may be a typed or a fixed array or hash, a set, a bag; so
+// may its methods' parameters and returns. TL++ gets 'as Array' and 'as
+// Object'. Inside its methods, '::x' is what the class -- or one it
+// inherits from in the file -- declares.
+Class Stock
+  Public Data hQty as Hash<c, n>
+  Public Data aUnits as Array<fixed c>
+  Public Data bMoves as Bag<c>
+  Public Method New(aUnits as Array<fixed c>) Constructor
+  Public Method Put(cItem as Character, nQty as Numeric) as Numeric
+  Public Method Items() as Array<c>
+EndClass
+
+Class Depot From Stock
+  Public Data sOpen as Set<c>
+  Public Method Open(cItem as Character)
+EndClass
+
+Method New(aUnits as Array<fixed c>) Class Stock
+  ::hQty := { <c> => <n> }
+  ::aUnits := aUnits
+  ::bMoves := bagof()
+Return Self
+
+Method Put(cItem as Character, nQty as Numeric) as Numeric Class Stock
+  ::hQty{cItem} := (::hQty{cItem} ?: 0) + nQty
+  ::bMoves{cItem}++
+Return ::hQty{cItem}
+
+Method Items() as Array<c> Class Stock
+  Local aOut := { <c> }
+  for cItem in ::hQty exec AAdd(aOut, cItem)
+Return aOut
+
+Method Open(cItem as Character) Class Depot
+  If ::sOpen == Nil
+    ::sOpen := setof()
+  EndIf
+  ::sOpen{cItem} := .T.
+  ::Put(cItem, Len(::aUnits))
+Return ::sOpen{cItem}

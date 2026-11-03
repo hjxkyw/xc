@@ -641,7 +641,8 @@ result, and a string with something it cannot tell is a string; TL++'s
 common functions -- `Len()`, `Val()`, `Str()`, `AllTrim()`, `Date()`, ...
 --; the runtime's verbs over a typed array -- `filter` and the like keep
 what it holds, `map` gives what its lambda does --; the file's functions
-declared with a type; a field, given `--dict`. Not a method, a parameter
+declared with a type; a field, given `--dict`; a class's own `Data` and
+methods, through `::`. Not another object's method or `Data`, a parameter
 declared with no type, a `Private`, a code block's parameter. And a typed
 array given to a function whose parameter has no type is out of sight:
 nothing checks what that function puts in.
@@ -676,7 +677,7 @@ A fixed one goes only where a fixed one is wanted, or where nothing is said:
 into a typed array or hash, a parameter or a return that is not fixed, it is
 an error; into a name with no type, that name is fixed too -- every name
 that is ever given one. Where xc does not see -- a function whose parameter
-has no type, a method --, nothing is said.
+has no type, another object's method --, nothing is said.
 
 ```xtpl
 User Function Prices(cCode as Character)
@@ -694,6 +695,44 @@ Return Len(aSorted)
 prices.xtpl:5: 'aCodes' is an Array<fixed c>: AAdd() would write into it.
 prices.xtpl:6: 'hPrice' is a Hash<fixed c, n>: nothing in it may be written.
 prices.xtpl:8: 'aCodes' is an Array<fixed c> (declared on line 2) and cannot be assigned.
+```
+
+**Classes.** A class's `Data`, its methods' parameters and what they return
+take these types too: `Data aItems as Array<n>`, `Data sSeen as Set<c>`,
+`Method Add(aMore as Array<n>) as Array<c>`. TL++ is given `as Array` and
+`as Object`. In the class's own methods, `::aItems` is what the class -- or
+one it inherits from, declared in the same file -- says it is, and
+`::Add()` takes and gives what its declaration says: what goes into them is
+checked as for a `Local`. A typed `Data` starts Nil, as any `Data` does: the
+constructor gives it its value. A fixed one is given its value by the
+constructor, `New()`, and nowhere else -- and a constructor that does not
+give it one is an error. Outside its methods -- `oOrder:aItems`,
+`oOrder:Add()` -- xc does not see: nothing is said.
+
+```xtpl
+Class Order
+  Data aItems as Array<n>
+  Data aCodes as Array<fixed c>
+  Method New(aCodes as Array<fixed c>) Constructor
+  Method Add(nValue as Numeric, aMore as Array<n>) as Array<n>
+EndClass
+
+Method New(aCodes as Array<fixed c>) Class Order
+  ::aItems := { <n> }
+  ::aCodes := aCodes
+Return Self
+
+Method Add(nValue as Numeric, aMore as Array<n>) as Array<n> Class Order
+  AAdd(::aItems, Str(nValue))
+  ::aCodes := {}
+  ::Add(1, {"x"})
+Return ::aItems
+```
+
+```text
+order.xtpl:14: '::aItems' is an Array<n>: this is Character, not Numeric.
+order.xtpl:15: '::aCodes' is an Array<fixed c> (declared on line 3): only the constructor gives it its value.
+order.xtpl:16: the parameter 'aMore' of ::Add() is an Array<n>: this is Character, not Numeric.
 ```
 
 ## Statements

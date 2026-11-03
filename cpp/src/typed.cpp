@@ -393,6 +393,27 @@ namespace xc
       std::vector<Event> events;
       std::string ret;
       std::string name;
+      std::string cls;               // a method's class, in lower case
+      bool ctor = false;             // a constructor
+    };
+
+    // A class of the file: its Data -- typed or not --, its methods'
+    // signatures and implementations, and those it inherits from.
+    struct ClassData
+    {
+      std::string type;              // what it holds: its container, or its type's letter
+      std::string container;
+      std::string name;
+      int line = 0;
+    };
+
+    struct ClassInfo
+    {
+      std::string name;
+      std::vector<std::string> supers;
+      std::unordered_map<std::string, ClassData> data;
+      std::unordered_map<std::string, const MethodSig*> sigs;
+      std::unordered_map<std::string, const MethodImpl*> impls;
     };
 
     using Scope = std::unordered_map<std::string, Var*>;
@@ -414,8 +435,10 @@ namespace xc
       std::vector<Scope> scopes_;
       std::unordered_map<const Expr*, Var*> names_;  // what each name is
       std::unordered_map<const Expr*, std::vector<Var*>> block_params_;
-      std::vector<HashIndex*> hashes_;              // every 'h{k}', for its set_kind
-      std::vector<ForInStmt*> walks_;               // every 'for ... in', for keyed
+      std::vector<std::pair<HashIndex*, std::string>> hashes_;   // every 'h{k}', and its class
+      std::vector<std::pair<ForInStmt*, std::string>> walks_;    // every 'for ... in'
+      std::unordered_map<std::string, ClassInfo> classes_;       // the file's, by name
+      std::string cls_;              // the class of the method walked, checked
       std::vector<Unit> units_;
       std::unordered_map<std::string, std::string> returns_;    // the file's functions
       std::unordered_map<std::string, Function> functions_;
@@ -445,6 +468,12 @@ namespace xc
       std::string chain_type(const Pipeline* p, std::size_t stages);
       std::string field_type(const AliasField* f) const;
       std::string elem_in(const Expr* source);
+      const ClassData* data_of(const std::string& cls, const std::string& name, int depth = 0) const;
+      const ClassInfo* class_of_method(const std::string& cls, const std::string& name, int depth = 0) const;
+      bool self(const Expr* e) const;
+      std::string method_type(const std::string& name) const;
+      std::vector<const Param*> method_params(const std::string& name) const;
+      std::string member_who(const std::string& name) const;
 
       void into(const Expr* e, const std::string& slot, const std::string& who, bool key = false);
       std::string who_of(const Expr* base);
@@ -458,6 +487,29 @@ namespace xc
     // ---- what the file has --------------------------------------------------
     bool Typer::any_typed() const
     {
+      for (const ClassDef* c : p_->classes)
+      {
+        for (const DataMember* d : c->members)
+        {
+          if (!d->container.empty()) { return true; }
+        }
+        for (const MethodSig* m : c->methods)
+        {
+          if (!m->ret_container.empty()) { return true; }
+          for (const Param* q : m->params)
+          {
+            if (q && !q->container.empty()) { return true; }
+          }
+        }
+      }
+      for (const MethodImpl* m : p_->methods)
+      {
+        if (!m->ret_container.empty()) { return true; }
+        for (const Param* q : m->params)
+        {
+          if (q && !q->container.empty()) { return true; }
+        }
+      }
       for (const Declaration* d : p_->statics)
       {
         for (const Declarator* v : d->declarators)
@@ -584,6 +636,28 @@ namespace xc
         for (const Param* q : f->params) { fn.params.push_back(q); }
         functions_[name] = fn;
       }
+      // The file's classes: their Data, their methods.
+      for (const ClassDef* c : p_->classes)
+      {
+        ClassInfo& ci = classes_[lc(c->name)];
+        ci.name = c->name;
+        for (const std::string& x : c->supers) { ci.supers.push_back(lc(x)); }
+        for (const DataMember* d : c->members)
+        {
+          ClassData cd;
+          cd.container = d->container;
+          cd.type = !d->container.empty() ? d->container : d->type ? letter_of(*d->type) : UNKNOWN;
+          cd.name = d->name;
+          cd.line = d->line;
+          ci.data[lc(d->name)] = cd;
+        }
+        for (const MethodSig* m : c->methods) { ci.sigs[lc(m->name)] = m; }
+      }
+      for (const MethodImpl* m : p_->methods)
+      {
+        auto it = classes_.find(lc(m->class_name));
+        if (it != classes_.end()) { it->second.impls[lc(m->name)] = m; }
+      }
       // The file's statics -- only its functions give them anything, so what
       // they hold is worked out over all of them.
       scopes_.assign(1, Scope{});
@@ -605,23 +679,136 @@ namespace xc
       for (const MethodImpl* m : p_->methods)
       {
         scopes_.assign(1, file);
-        function(m->params, m->body, "", m->name, m->line);
+        cls_ = lc(m->class_name);
+        std::string ret = m->ret_container;
+        const MethodSig* sig = nullptr;
+        if (auto c = classes_.find(cls_); c != classes_.end())
+        {
+          if (auto g = c->second.sigs.find(lc(m->name)); g != c->second.sigs.end()) { sig = g->second; }
+        }
+        if (ret.empty() && sig) { ret = sig->ret_container; }
+        function(m->params, m->body, ret, "::" + m->name, m->line);
+        units_.back().cls = cls_;
+        units_.back().ctor = sig ? sig->constructor : lc(m->name) == "new";
+        cls_.clear();
       }
       infer();
       // A set's or a bag's 'h{k}': Raku's reads and writes (lower.cpp).
-      for (HashIndex* h : hashes_)
+      for (auto& [h, c] : hashes_)
       {
+        cls_ = c;
         char k = kind(type(h->base));
         if (k == 'S' || k == 'M') { h->set_kind = k; }
       }
       // 'for k in h', 'for k, v in h': its keys, and what each holds.
-      for (ForInStmt* f : walks_)
+      for (auto& [f, c] : walks_)
       {
+        cls_ = c;
         char k = kind(type(f->source));
         f->keyed = keyed(k) || k == 'J';
       }
+      cls_.clear();
       if (!typed) { return; }
       for (const Unit& u : units_) { check(u); }
+      // A fixed Data is given its value by the constructor: one the file
+      // implements, that never does, is refused.
+      for (const auto& [k, ci] : classes_)
+      {
+        for (const auto& [dk, cd] : ci.data)
+        {
+          if (!fixed(cd.container)) { continue; }
+          for (const Unit& u : units_)
+          {
+            if (u.cls != k || !u.ctor) { continue; }
+            bool given = false;
+            for (const Event& e : u.events)
+            {
+              if (e.kind == Event::Assign && is(e.target, EK::Member) && self(static_cast<const Member*>(e.target)->base)
+                  && lc(static_cast<const Member*>(e.target)->name) == dk)
+              {
+                given = true;
+              }
+            }
+            if (!given)
+            {
+              errors.push_back({ cd.line, "'::" + cd.name + "' is " + shown(cd.container) + ": " + u.name.substr(2)
+                                          + "(), the constructor, gives it its value." });
+            }
+          }
+        }
+      }
+    }
+
+    // ---- classes ------------------------------------------------------------
+    // A Data of a class of the file, or of one it inherits from there.
+    const ClassData* Typer::data_of(const std::string& cls, const std::string& name, int depth) const
+    {
+      auto c = classes_.find(cls);
+      if (c == classes_.end() || depth > 20) { return nullptr; }
+      if (auto d = c->second.data.find(lc(name)); d != c->second.data.end()) { return &d->second; }
+      for (const std::string& up : c->second.supers)
+      {
+        if (const ClassData* d = data_of(up, name, depth + 1)) { return d; }
+      }
+      return nullptr;
+    }
+
+    // The class of the file -- cls or one it inherits from -- that has a
+    // method by that name.
+    const ClassInfo* Typer::class_of_method(const std::string& cls, const std::string& name, int depth) const
+    {
+      auto c = classes_.find(cls);
+      if (c == classes_.end() || depth > 20) { return nullptr; }
+      std::string n = lc(name);
+      if (c->second.sigs.count(n) || c->second.impls.count(n)) { return &c->second; }
+      for (const std::string& up : c->second.supers)
+      {
+        if (const ClassInfo* x = class_of_method(up, name, depth + 1)) { return x; }
+      }
+      return nullptr;
+    }
+
+    // '::' -- or Self, by name -- in a method.
+    bool Typer::self(const Expr* e) const
+    {
+      return !cls_.empty() && (is(e, EK::SelfRef) || (is(e, EK::Name) && lc(static_cast<const Name*>(e)->name) == "self"));
+    }
+
+    // What '::m()' gives: its return type, as declared.
+    std::string Typer::method_type(const std::string& name) const
+    {
+      const ClassInfo* c = class_of_method(cls_, name);
+      if (!c) { return UNKNOWN; }
+      std::string n = lc(name);
+      auto i = c->impls.find(n);
+      if (i != c->impls.end() && !i->second->ret_container.empty()) { return i->second->ret_container; }
+      auto g = c->sigs.find(n);
+      if (g != c->sigs.end() && !g->second->ret_container.empty()) { return g->second->ret_container; }
+      if (i != c->impls.end() && i->second->returns) { return letter_of(*i->second->returns); }
+      if (g != c->sigs.end() && g->second->returns) { return letter_of(*g->second->returns); }
+      return UNKNOWN;
+    }
+
+    // Its parameters: the implementation's, or the signature's.
+    std::vector<const Param*> Typer::method_params(const std::string& name) const
+    {
+      std::vector<const Param*> out;
+      const ClassInfo* c = class_of_method(cls_, name);
+      if (!c) { return out; }
+      std::string n = lc(name);
+      auto i = c->impls.find(n);
+      auto g = c->sigs.find(n);
+      const std::vector<Param*>* ps = i != c->impls.end() ? &i->second->params : g != c->sigs.end() ? &g->second->params
+                                                                                                    : nullptr;
+      if (ps) { out.assign(ps->begin(), ps->end()); }
+      return out;
+    }
+
+    // A Data, said so: "'::aItems' is an Array<n>".
+    std::string Typer::member_who(const std::string& name) const
+    {
+      const ClassData* d = data_of(cls_, name);
+      return "'::" + (d ? d->name : name) + "' is " + shown(d ? d->type : UNKNOWN);
     }
 
     void Typer::function(const std::vector<Param*>& params, const Body& b, const std::string& ret,
@@ -749,7 +936,7 @@ namespace xc
         case SK::ForInStmt:
         {
           auto f = static_cast<ForInStmt*>(s);
-          walks_.push_back(f);
+          walks_.emplace_back(f, cls_);
           expr(f->source);
           scopes_.emplace_back();
           Event e;
@@ -939,7 +1126,7 @@ namespace xc
           return;
         }
         case EK::HashIndex:
-          hashes_.push_back(static_cast<HashIndex*>(e));
+          hashes_.emplace_back(static_cast<HashIndex*>(e), cls_);
           for (Expr* x : subexprs(e)) { expr(x); }
           return;
         case EK::Pipeline:
@@ -985,6 +1172,7 @@ namespace xc
         changed = false;
         for (const Unit& u : units_)
         {
+          cls_ = u.cls;
           for (const Event& e : u.events)
           {
             switch (e.kind)
@@ -1032,6 +1220,7 @@ namespace xc
           }
         }
       }
+      cls_.clear();
       for (const std::unique_ptr<Var>& v : vars_)
       {
         if (!v->pinned && v->type == NONE) { v->type = UNKNOWN; }
@@ -1128,11 +1317,20 @@ namespace xc
           auto g = static_cast<const Guard*>(e);
           return binop("?:", type(g->expr), type(g->fallback));
         }
+        case EK::Member:
+        {
+          // '::x' in a method: the Data, as its class declares it.
+          auto m = static_cast<const Member*>(e);
+          if (!self(m->base)) { return UNKNOWN; }
+          const ClassData* d = data_of(cls_, m->name);
+          return d ? d->type : UNKNOWN;
+        }
         case EK::MethodCall:
         {
-          // 'Name():New()': THashMap's a hash, JsonObject's a JSON, any
-          // other an object.
+          // '::m()' in a method: what it is declared to give. 'Name():New()':
+          // THashMap's a hash, JsonObject's a JSON, any other an object.
           auto m = static_cast<const MethodCall*>(e);
+          if (self(m->base)) { return method_type(m->name); }
           if (lc(m->name) != "new" || !is(m->base, EK::Call)) { return UNKNOWN; }
           std::string c = lc(static_cast<const Call*>(m->base)->name);
           return c == "thashmap" ? "H" : c == "jsonobject" ? "J" : "O";
@@ -1285,6 +1483,12 @@ namespace xc
     void Typer::into(const Expr* e, const std::string& slot, const std::string& who, bool key)
     {
       if (!e || slot.empty() || slot == UNKNOWN || is(e, EK::Ref) || is(e, EK::Omitted)) { return; }
+      // setOf(), bagOf(): an empty set or bag, of whatever is wanted.
+      if (is(e, EK::Call) && static_cast<const Call*>(e)->args.empty())
+      {
+        std::string n = lc(static_cast<const Call*>(e)->name);
+        if ((n == "setof" && kind(slot) == 'S') || (n == "bagof" && kind(slot) == 'M')) { return; }
+      }
       if (is(e, EK::ArrayLit) && static_cast<const ArrayLit*>(e)->elem.empty() && generic(slot) && kind(slot) == 'A')
       {
         std::string t = elem_of(slot);
@@ -1325,6 +1529,10 @@ namespace xc
         root = is(root, EK::Index) ? static_cast<const Index*>(root)->base : static_cast<const HashIndex*>(root)->base;
       }
       if (is(root, EK::Name)) { return "'" + static_cast<const Name*>(root)->name + "' is " + shown(type(root)); }
+      if (is(root, EK::Member) && self(static_cast<const Member*>(root)->base))
+      {
+        return member_who(static_cast<const Member*>(root)->name);
+      }
       std::string t = type(base);
       return std::string(kind(t) == 'H' ? "the hash" : "the array") + " is " + shown(t);
     }
@@ -1342,12 +1550,20 @@ namespace xc
         bool declared = it != names_.end() && fixed(it->second->container);
         return "'" + static_cast<const Name*>(written)->name + (declared ? "' is " : "' may hold ") + what;
       }
+      if (is(written, EK::Member) && self(static_cast<const Member*>(written)->base))
+      {
+        return member_who(static_cast<const Member*>(written)->name);
+      }
       const Expr* root = written;
       while (is(root, EK::Index) || is(root, EK::HashIndex))
       {
         root = is(root, EK::Index) ? static_cast<const Index*>(root)->base : static_cast<const HashIndex*>(root)->base;
       }
       if (is(root, EK::Name)) { return "'" + static_cast<const Name*>(root)->name + "' holds " + what + " here"; }
+      if (is(root, EK::Member) && self(static_cast<const Member*>(root)->base))
+      {
+        return "'::" + static_cast<const Member*>(root)->name + "' holds " + what + " here";
+      }
       return "this is " + what;
     }
 
@@ -1455,6 +1671,7 @@ namespace xc
     {
       ret_ = u.ret;
       ret_name_ = u.name;
+      cls_ = u.cls;
       for (const Event& e : u.events)
       {
         line_ = e.line;
@@ -1497,6 +1714,25 @@ namespace xc
               if (v && !v->container.empty() && e.incdec.empty() && (e.op == ":=" || e.op == "=" || e.op == "?="))
               {
                 into(e.value, v->container, "'" + v->name + "' is " + shown(v->container));
+              }
+              break;
+            }
+            if (is(e.target, EK::Member) && self(static_cast<const Member*>(e.target)->base))
+            {
+              // '::x := v': as the class declares it -- a fixed one only in
+              // the constructor.
+              const std::string& n = static_cast<const Member*>(e.target)->name;
+              const ClassData* d = data_of(cls_, n);
+              if (!d || d->container.empty()) { break; }
+              if (fixed(d->container) && !(u.ctor && e.incdec.empty() && (e.op == ":=" || e.op == "=")))
+              {
+                errors.push_back({ line_, "'::" + d->name + "' is " + shown(d->container) + " (declared on line "
+                                          + std::to_string(d->line) + "): only the constructor gives it its value." });
+                break;
+              }
+              if (e.incdec.empty() && (e.op == ":=" || e.op == "=" || e.op == "?="))
+              {
+                into(e.value, d->container, member_who(n));
               }
               break;
             }
@@ -1570,6 +1806,17 @@ namespace xc
               std::string who = who_of(m->base);
               into(m->args[0], key_of(t), who, true);
               into(m->args[1], value_of(t), who);
+            }
+            // '::m(...)': what its parameters are declared as.
+            if (self(m->base))
+            {
+              std::vector<const Param*> ps = method_params(m->name);
+              for (std::size_t i = 0; i < ps.size() && i < m->args.size(); i++)
+              {
+                if (!ps[i] || ps[i]->container.empty()) { continue; }
+                into(m->args[i], ps[i]->container, "the parameter '" + ps[i]->name + "' of ::" + m->name + "() is "
+                                                     + shown(ps[i]->container));
+              }
             }
             break;
           }

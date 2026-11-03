@@ -1,0 +1,8 @@
+009-class-wrong.xtpl:8: '::aTags' is an Array<fixed c>: New(), the constructor, gives it its value.
+009-class-wrong.xtpl:14: '::aItems' is an Array<n>: this is an Array<c>, not an Array<n>.
+009-class-wrong.xtpl:19: '::aItems' is an Array<n>: this is Character, not Numeric.
+009-class-wrong.xtpl:20: '::aItems' is an Array<n>: this is Logical, not Numeric.
+009-class-wrong.xtpl:21: '::aCodes' is an Array<fixed c> (declared on line 7): only the constructor gives it its value.
+009-class-wrong.xtpl:22: '::aCodes' is an Array<fixed c>: AAdd() would write into it.
+009-class-wrong.xtpl:23: the parameter 'aMore' of ::Add() is an Array<n>: this is Character, not Numeric.
+009-class-wrong.xtpl:24: ::Add() returns an Array<n>: this is Character, not Numeric.

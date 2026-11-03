@@ -1159,7 +1159,9 @@ namespace xc
       bool ok = false;
       if (ws())
       {
+        generic_ok_ = true;
         std::vector<Param*> ps = params();
+        generic_ok_ = false;
         if (c(p_) == ')')
         {
           p_++;
@@ -1190,6 +1192,17 @@ namespace xc
           m->constructor = true;
           continue;
         }
+      }
+      p_ = s3;
+      Generic gen;
+      if (ilit("as") && ws() && generic_type(gen) && ws())
+      {
+        m->returns = gen.tlpp;
+        m->ret_container = gen.container;
+        m->ret_from = gen.from;
+        m->ret_to = gen.to;
+        m->ret_tlpp = gen.tlpp;
+        continue;
       }
       p_ = s3;
       if (ilit("as") && ws())
@@ -1247,6 +1260,28 @@ namespace xc
     return std::nullopt;
   }
 
+  // After 'as', in a class: a typed array's, hash's, set's or bag's type --
+  // 'Array<n>', 'Hash<fixed c, n>' --, what it is in g, the cursor past it.
+  bool Parser::generic_type(Generic& g)
+  {
+    int p = p_;
+    bool hash = (iword_at(p, "hash") && c(p + 4) == '<')
+                || ((iword_at(p, "set") || iword_at(p, "bag")) && c(p + 3) == '<');
+    if (!hash && !(iword_at(p, "array") && c(p + 5) == '<'))
+    {
+      return false;
+    }
+    std::string t;
+    int e = elem_type(p, t);
+    if (e < 0)
+    {
+      return false;
+    }
+    g = Generic{ t, p, e, hash ? "Object" : text(p, p + 5) };
+    p_ = e;
+    return true;
+  }
+
   // rule datadecl { <visib>? :i 'data' <datavar>+ % ',' }
   // rule datavar  { <dname=name> [ :i 'as' <dtype=name> ]? [ :i [ 'default' || 'init' ] <datadefault> ]? }
   // token datadefault { <guardexpr> }
@@ -1279,7 +1314,16 @@ namespace xc
       m->visibility = vis;
       m->line = line(s);
       int save = p_;
-      if (ilit("as") && ws())
+      Generic gen;
+      if (ilit("as") && ws() && generic_type(gen) && ws())
+      {
+        m->type = gen.tlpp;
+        m->container = gen.container;
+        m->type_from = gen.from;
+        m->type_to = gen.to;
+        m->type_tlpp = gen.tlpp;
+      }
+      else if (p_ = save, ilit("as") && ws())
       {
         int te = 0;
         std::string t = name_text(te);
@@ -1420,7 +1464,9 @@ namespace xc
     {
       return fail();
     }
+    generic_ok_ = true;
     m->params = params();
+    generic_ok_ = false;
     if (c(p_) != ')')
     {
       return fail();
@@ -1430,10 +1476,20 @@ namespace xc
     {
       return fail();
     }
-    // [ :i 'as' <name> ]?
+    // [ :i 'as' <name> ]? -- or a typed array's, hash's, set's or bag's.
     auto as_name = [&]() -> OptStr
     {
       int s = p_;
+      Generic gen;
+      if (ilit("as") && ws() && generic_type(gen) && ws())
+      {
+        m->ret_container = gen.container;
+        m->ret_from = gen.from;
+        m->ret_to = gen.to;
+        m->ret_tlpp = gen.tlpp;
+        return gen.tlpp;
+      }
+      p_ = s;
       if (ilit("as") && ws())
       {
         int re = 0;

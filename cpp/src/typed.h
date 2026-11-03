@@ -32,9 +32,15 @@
 // Local or Static whose every assignment xc can tell, and the same; what
 // reading a typed array or hash gives; an operator's result; TL++'s common
 // functions, the runtime's verbs over a typed array, and the file's own
-// functions declared with a type; a field, given the dictionary. Not a
-// method, a parameter declared with no type, a Private, a macro, a field
-// without the dictionary.
+// functions declared with a type; a field, given the dictionary; a class's
+// own Data and methods, through '::'. Not another object's method or Data, a
+// parameter declared with no type, a Private, a macro, a field without the
+// dictionary.
+//
+// A class's Data, its methods' parameters and returns may be typed too. In
+// its methods, '::x' is what the class -- or one it inherits from in the
+// file -- declares, and '::M()' takes and gives what M's declaration says. A
+// fixed Data is given its value by the constructor, and by each constructor.
 
 #pragma once
 

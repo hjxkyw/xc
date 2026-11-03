@@ -1,0 +1,54 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A class's Data may be a typed or a fixed array or hash, a set, a bag; so
+// may its methods' parameters and returns. TL++ gets 'as Array' and 'as
+// Object'. Inside its methods, '::x' is what the class -- or one it
+// inherits from in the file -- declares.
+Class Stock
+  Public Data hQty as Object
+  Public Data aUnits as Array
+  Public Data bMoves as Object
+  Public Method New(aUnits as Array) Constructor
+  Public Method Put(cItem as Character, nQty as Numeric) as Numeric
+  Public Method Items() as Array
+EndClass
+
+Class Depot From Stock
+  Public Data sOpen as Object
+  Public Method Open(cItem as Character)
+EndClass
+
+Method New(aUnits as Array) Class Stock
+  ::hQty := THashMap():New()
+  ::aUnits := aUnits
+  ::bMoves := u_xtpl_bagof({})
+Return Self
+
+Method Put(cItem as Character, nQty as Numeric) as Numeric Class Stock
+  Local et_0_0  // the left side of a '?:', evaluated once
+  Local fhd_0_0  // a hash that is read and written back
+  ::hQty:Set(cItem, If(ValType(et_0_0 := u_xtpl_hget(::hQty, cItem)) != "U", et_0_0, 0) + nQty)
+  fhd_0_0 := ::bMoves
+  u_xtpl_bset(fhd_0_0, cItem, u_xtpl_bget(fhd_0_0, cItem) + (1))
+Return u_xtpl_hget(::hQty, cItem)
+
+Method Items() as Array Class Stock
+  Local aOut := {}
+  Local cItem  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  fs_0_0 := u_xtpl_pairs(::hQty)
+  For fi_0_0 := 1 To Len(fs_0_0)
+    cItem := fs_0_0[fi_0_0][1]
+    AAdd(aOut, cItem)
+  Next
+Return aOut
+
+Method Open(cItem as Character) Class Depot
+  If ::sOpen == Nil
+    ::sOpen := u_xtpl_setof({})
+  EndIf
+  u_xtpl_sset(::sOpen, cItem, .T.)
+  ::Put(cItem, Len(::aUnits))
+Return u_xtpl_sget(::sOpen, cItem)

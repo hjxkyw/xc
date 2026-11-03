@@ -23,18 +23,18 @@ xtpl -- TL++ with xtpl's extensions, the language
 From a package, which `npx @vscode/vsce package` makes here:
 
 ```sh
-code --install-extension xtpl-0.2.0.vsix
+code --install-extension xtpl-0.3.0.vsix
 ```
 
 Or from this folder as it is, with no packaging -- a copy, or a link, in
 VS Code's extensions folder:
 
 ```sh
-ln -s "$PWD" ~/.vscode/extensions/hjxkyw.xtpl-0.2.0     # Linux
+ln -s "$PWD" ~/.vscode/extensions/hjxkyw.xtpl-0.3.0     # Linux
 ```
 
 ```bat
-mklink /D "%USERPROFILE%\.vscode\extensions\hjxkyw.xtpl-0.2.0" "%CD%"   & rem Windows
+mklink /D "%USERPROFILE%\.vscode\extensions\hjxkyw.xtpl-0.3.0" "%CD%"   & rem Windows
 ```
 
 and restart VS Code. The checks need xc itself, the C++ program: built

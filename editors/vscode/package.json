@@ -2,7 +2,7 @@
   "name": "xtpl",
   "displayName": "xtpl",
   "description": "xtpl -- TL++ with xtpl's extensions -- for Visual Studio Code: highlighting, and xc's checks as you save.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "hjxkyw",
   "license": "MIT",
   "repository": {

@@ -771,7 +771,29 @@ namespace xc
     {
       ret_decimal_ = decimal_word(m->returns);
       ret_numeric_ = numeric_word(m->returns);
+      if (!m->ret_container.empty()) { edit(m->ret_from, m->ret_to, m->ret_tlpp); }
+      for (const Param* q : m->params)
+      {
+        if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+      }
       function(m->params, m->body);
+    }
+    // A class's typed Data, and its methods' typed parameters and returns:
+    // TL++'s 'as Array', 'as Object'.
+    for (const ClassDef* c : p->classes)
+    {
+      for (const DataMember* d : c->members)
+      {
+        if (!d->container.empty()) { edit(d->type_from, d->type_to, d->type_tlpp); }
+      }
+      for (const MethodSig* m : c->methods)
+      {
+        if (!m->ret_container.empty()) { edit(m->ret_from, m->ret_to, m->ret_tlpp); }
+        for (const Param* q : m->params)
+        {
+          if (q && !q->container.empty()) { edit(q->type_from, q->type_to, q->type_tlpp); }
+        }
+      }
     }
 
     // Two edits over the same text would garble it without a word.

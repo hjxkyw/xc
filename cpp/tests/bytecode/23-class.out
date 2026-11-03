@@ -1,0 +1,8 @@
+exit 0
+--- output
+0
+a,b,c
+.F.
+2
+4
+--- errors

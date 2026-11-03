@@ -1,0 +1,160 @@
+xbc 1
+source 23-class.xtpl
+statics 0
+
+class STOCK
+  data HQTY AUNITS BMOVES
+  method NEW STOCK:NEW
+  method PUT STOCK:PUT
+  method ITEMS STOCK:ITEMS
+end
+
+function U_MAIN user 0 1
+  locals oS
+  line 30
+  str "un"
+  str "kg"
+  array 2
+  new 1 Stock New
+  setlocal 1
+  line 31
+  local 1
+  str "a"
+  num 2
+  method 2 Put
+  pop
+  line 32
+  local 1
+  str "b"
+  num 1
+  method 2 Put
+  pop
+  line 33
+  local 1
+  str "a"
+  num 3
+  method 2 Put
+  pop
+  line 34
+  local 1
+  str "c"
+  num 0
+  method 2 Put
+  local 1
+  method 0 Items
+  str ","
+  call 2 u_xtpl_join
+  local 1
+  member hQty
+  str "a"
+  call 2 u_xtpl_hget
+  nil
+  exact
+  local 1
+  member aUnits
+  call 1 Len
+  local 1
+  member bMoves
+  call 1 u_xtpl_totalof
+  call 5 ConOut
+  pop
+  line 35
+  nil
+  ret
+end
+
+function STOCK:NEW method 1 1
+  locals aUnits
+  line 14
+  self
+  new 0 THashMap New
+  setmember hQty
+  line 15
+  self
+  local 1
+  setmember aUnits
+  line 16
+  self
+  array 0
+  call 1 u_xtpl_bagof
+  setmember bMoves
+  line 17
+  self
+  ret
+end
+
+function STOCK:PUT method 2 2
+  locals cItem nQty
+  line 20
+  self
+  member hQty
+  local 1
+  self
+  member hQty
+  local 1
+  call 2 u_xtpl_hget
+  dup
+  isnil
+  jumpf 14
+  pop
+  num 0
+  local 2
+  add
+  call 3 u_xtpl_hset
+  pop
+  line 21
+  self
+  member bMoves
+  local 1
+  dup2
+  call 2 u_xtpl_bget
+  num 1
+  add
+  call 3 u_xtpl_bset
+  pop
+  line 22
+  self
+  member hQty
+  local 1
+  call 2 u_xtpl_hget
+  ret
+end
+
+function STOCK:ITEMS method 0 4
+  locals aOut .t1 cItem .t2
+  line 25
+  array 0
+  setlocal 1
+  line 26
+  self
+  member hQty
+  call 1 u_xtpl_pairs
+  setlocal 2
+  num 1
+  setlocal 4
+  line 26
+  local 4
+  local 2
+  call 1 Len
+  le
+  jumpf 32
+  local 2
+  local 4
+  index
+  num 1
+  index
+  setlocal 3
+  local 1
+  local 3
+  call 2 AAdd
+  pop
+  local 4
+  num 1
+  add
+  setlocal 4
+  jump 11
+  line 27
+  local 1
+  call 1 u_xtpl_sort
+  ret
+end

@@ -1,0 +1,35 @@
+// A class whose Data are typed: a hash of counts, a fixed array its
+// constructor is given, a bag; methods that take and return typed arrays.
+// Each typed Data starts Nil, as any Data does: New() gives it its value.
+Class Stock
+  Data hQty as Hash<c, n>
+  Data aUnits as Array<fixed c>
+  Data bMoves as Bag<c>
+  Method New(aUnits as Array<fixed c>) Constructor
+  Method Put(cItem as Character, nQty as Numeric) as Numeric
+  Method Items() as Array<c>
+EndClass
+
+Method New(aUnits as Array<fixed c>) Class Stock
+  ::hQty := { <c> => <n> }
+  ::aUnits := aUnits
+  ::bMoves := bagof()
+Return Self
+
+Method Put(cItem as Character, nQty as Numeric) as Numeric Class Stock
+  ::hQty{cItem} := (::hQty{cItem} ?: 0) + nQty
+  ::bMoves{cItem}++
+Return ::hQty{cItem}
+
+Method Items() as Array<c> Class Stock
+  Local aOut := { <c> }
+  for cItem in ::hQty exec AAdd(aOut, cItem)
+Return aOut |> sort
+
+User Function Main()
+  Local oS := Stock():New({"un", "kg"})
+  oS:Put("a", 2)
+  oS:Put("b", 1)
+  oS:Put("a", 3)
+  ConOut(oS:Put("c", 0), oS:Items() |> join(","), oS:hQty{"a"} == Nil, Len(oS:aUnits), totalof(oS:bMoves))
+Return Nil

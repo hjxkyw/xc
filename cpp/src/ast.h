@@ -507,6 +507,10 @@ namespace xc
     int line = 0;
     Expr* init = nullptr;            // 'default value', 'init value': the AppServer ignores it
     std::string init_word;           // 'default' or 'init', as written
+    std::string container;           // 'as Array<n>': 'A<N>' (see ArrayLit)
+    int type_from = -1;              // where its type is written, then
+    int type_to = -1;
+    std::string type_tlpp;           // and TL++'s word for it there
   };
 
   struct MethodSig : Node
@@ -518,6 +522,10 @@ namespace xc
     bool is_static = false;          // 'Static Method'
     OptStr returns;
     int line = 0;
+    std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
+    int ret_from = -1;               // where it is written
+    int ret_to = -1;
+    std::string ret_tlpp;            // and TL++'s word for it there
   };
 
   struct ClassDef : Node
@@ -539,6 +547,10 @@ namespace xc
     Body body;
     int line = 0;
     bool ws = false;                 // a web service's: 'WSMETHOD ... WSSERVICE Name'
+    std::string ret_container;       // 'as Array<n>': 'A<N>' (see ArrayLit)
+    int ret_from = -1;               // where it is written
+    int ret_to = -1;
+    std::string ret_tlpp;            // and TL++'s word for it there
   };
 
   struct External : Node
