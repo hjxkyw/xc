@@ -89,7 +89,12 @@ tree, runs the passes the back end needs on it -- what each name holds,
 the Decimals, which chains run as loops -- and writes its bytecode: the
 tree and what the passes find have to be what `xc-ast --bare --facts`
 writes, and the `.xbc` what `xc --bytecode` writes (ctest's `selfhost`).
-What xc refuses is not looked for yet, nor the source's own commands.
+In the RPO with the interpreter, `appserver -run=u_xbc -env=NAME
+prog.xtpl` runs a source, made bytecode as it loads, and `appserver
+-run=u_xcb -env=NAME bytecode prog.xtpl` writes its `.xbc`
+(`docs/bytecode.md`, The compiler in xtpl; `run-protheus.raku
+--selfhost`). What xc refuses is not looked for yet, nor the source's own
+commands.
 
 ## Running the tests
 
@@ -134,6 +139,7 @@ rakupp run-protheus.raku ... --compile-only     # or --run-only
 rakupp run-protheus.raku ... --corpus           # all of xtpl's corpus, compiled by Protheus in one run
 rakupp run-protheus.raku ... --interp           # the bytecode's interpreter, on the bytecode cases and xtpl's self-test
 rakupp run-protheus.raku ... --bench            # the interpreter's speed: interp/bench.xtpl compiled and interpreted
+rakupp run-protheus.raku ... --selfhost         # the compiler written in xtpl, making bytecode on the AppServer
 rakupp run-protheus.raku ... --verbose          # everything the AppServer says, as it comes
 rakupp run-protheus.raku ... --rebuild          # the self-tests compiled again, up to date or not
 ```
@@ -157,7 +163,12 @@ Decimals; `--trace` keeps what the interpreter did in each run, in
 code blocks of runs of instructions with the macro compiler. With
 `--bench`, the AppServer runs `interp/bench.xtpl` compiled, then the
 interpreter on it as bytecode, with and without those blocks, and the
-times of each of its parts are shown side by side.
+times of each of its parts are shown side by side. With `--selfhost`, the
+AppServer compiles the interpreter and the compiler written in xtpl
+(`selfhost/`); the compiler makes bytecode of the runtime, the cases and
+xtpl's self-test there, each `.xbc` as xc makes it, with how long each
+took; then the interpreter runs each case and the self-test from its
+source.
 
 It calls `appserver -compile -files=... -includes=... -env=... [-authorization=...]`
 and reads its `Compilation Results .: Total sources(3) Success(3) Errors(0)`

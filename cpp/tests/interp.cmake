@@ -4,8 +4,10 @@
 # program: xtpl's runtime and the program, both bytecode, both interpreted.
 # What it writes (--out) has to be what xc-vm does running the program
 # itself: each case of cpp/tests/bytecode that has a NAME.out, and xtpl's
-# self-test; with -DMODE=xc, xc's self-test instead (it walks arrays of
-# 40,000 through two machines: tens of seconds).
+# self-test -- and each of them again from its source, which the compiler
+# written in xtpl makes bytecode as the interpreter loads it; with
+# -DMODE=xc, xc's self-test instead (it walks arrays of 40,000 through two
+# machines: tens of seconds).
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DROOT=. -DWORK=cpp/build/interp -P cpp/tests/interp.cmake
 #
@@ -165,6 +167,48 @@ foreach(test ${selftests})
     message("  FAIL  ${name}${how}\n${got}")
   endif()
 endforeach()
+
+# Each case again from its source, and xtpl's self-test with the runtime's
+# too: the compiler written in xtpl (selfhost/), there beside the
+# interpreter as on an AppServer with both in its RPO, makes each module
+# bytecode as it loads it.
+if(NOT MODE STREQUAL "xc")
+  set(selfhost "")
+  foreach(m ast dump parse walk chains decimal typed facts bytecode xcb)
+    compile(${ROOT}/selfhost/${m}.xtpl selfhost-${m})
+    list(APPEND selfhost ${WORK}/selfhost-${m}.xbc)
+  endforeach()
+  foreach(o ${outs})
+    string(REGEX REPLACE "\\.out$" "" name ${o})
+    math(EXPR count "${count} + 1")
+    file(GLOB src ${CASES}/${name}.xtpl ${CASES}/${name}.prw)
+    set(with "")
+    if(EXISTS ${CASES}/${name}.with)
+      file(STRINGS ${CASES}/${name}.with names)
+      foreach(w ${names})
+        file(GLOB wsrc ${CASES}/${w}.xtpl ${CASES}/${w}.prw)
+        list(APPEND with ${wsrc})
+      endforeach()
+    endif()
+    vm(${WORK}/${name}.source.got "${selfhost}" "${WORK}/xtpl_runtime.xbc;${with};${src}" got)
+    file(READ ${CASES}/${o} expect)
+    string(REPLACE "\r\n" "\n" expect "${expect}")
+    if(NOT got STREQUAL expect)
+      list(APPEND failed ${name}.source)
+      message("  FAIL  ${name}, from its source\n--- expected\n${expect}--- got\n${got}")
+    endif()
+  endforeach()
+  math(EXPR count "${count} + 1")
+  vm(${WORK}/54_selftest.source.got "${selfhost}"
+     "--run=U_SELFTEST;${ROOT}/runtime/xtpl_runtime.tlpp;${ROOT}/xtpl/tests/54_selftest.xtpl" got)
+  if(got MATCHES "^exit 0\n--- output\n.*selftest: [0-9]+ ok, 0 falhas\n--- errors\n$")
+    string(REGEX MATCH "selftest: [0-9]+ ok, 0 falhas" last "${got}")
+    message("  ${last} (from its source and the runtime's)")
+  else()
+    list(APPEND failed 54_selftest.source)
+    message("  FAIL  54_selftest, from its source and the runtime's\n${got}")
+  endif()
+endif()
 
 if(failed)
   list(LENGTH failed n)

@@ -1,22 +1,214 @@
 #include "totvs.ch"
 #include "xcb.ch"
 
-// xcb.xtpl -- the compiler written in xtpl, from the command line: xc-vm's,
-// for now (cpp/tests/selfhost.cmake), the AppServer's later.
+// xcb.xtpl -- the compiler written in xtpl, from the command line: an
+// AppServer's, and xc-vm's (cpp/tests/selfhost.cmake).
 //
-//   xc-vm --run=U_XCB runtime.xbc ast.xbc ... xcb.xbc -- ast LIST
+//   appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS]
+//   appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS]
+//   xc-vm --run=U_XCB runtime.xbc ast.xbc ... xcb.xbc -- bytecode SOURCE [OUT]
 //
-// 'ast': each line of LIST names a source and a file, a tab between them;
-// the source's tree goes to the file, as 'xc-ast --bare' writes it -- or
-// 'not parsed at N'. 'facts': the tree marked, then its facts, as 'xc-ast
-// --bare --facts' writes them; a third file on the line, after another tab,
-// is given the source's bytecode, as 'xc --bytecode' writes it -- or what
-// cannot become bytecode yet, a line each. 'values': each line of each
-// source read in each form a statement holds an expression as, as 'xc-ast
-// --values' reads it.
+// 'bytecode': a source -- .xtpl, .prw, .prx, .tlpp -- as bytecode, what
+// 'xc --bytecode' writes: to OUT, else beside it as NAME.xbc; or each
+// source of LIST, a line each, a tab and the .xbc after it. DIRS: the
+// include folders searched after the source's own, ';' or ',' between
+// them. It says 'SOURCE -> OUT (N.NN s)' for each, or why it is not made.
+// u_xcb_compile() is the same, for a program: the interpreter
+// (interp/xbc.xtpl) runs a source with it.
+//
+// The rest is for selfhost.cmake. 'ast': each line of LIST names a source
+// and a file, a tab between them; the source's tree goes to the file, as
+// 'xc-ast --bare' writes it -- or 'not parsed at N'. 'facts': the tree
+// marked, then its facts, as 'xc-ast --bare --facts' writes them; a third
+// file on the line, after another tab, is given the source's bytecode, as
+// 'xc --bytecode' writes it -- or what cannot become bytecode yet, a line
+// each. 'values': each line of each source read in each form a statement
+// holds an expression as, as 'xc-ast --values' reads it.
+//
+// What xc refuses although it parses is not looked for yet, nor a source's
+// own commands: a source xc refuses may still be made bytecode here.
 // -----------------------------------------------------------------------------
 
-User Function xcb(cWhat, cList)
+// The arguments as the AppServer gives them -- the program, its options
+// among them -- or as xc-vm does.
+User Function xcb(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10)
+  Local aArgs := {}
+  Local aEach := {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10}
+  Local nI
+  Local cArg
+  For nI := 1 To Len(aEach)
+    cArg := If(ValType(aEach[nI]) == "C", aEach[nI], "")
+    If cArg == "" .Or. Left(cArg, 1) == "-" .Or. ".exe" $ Lower(cArg) .Or. "appsrv" $ Lower(cArg)
+      Loop
+    EndIf
+    AAdd(aArgs, cArg)
+  Next
+  If Len(aArgs) >= 2 .And. aArgs[1] == "bytecode"
+    Return Bytecodes(aArgs)
+  EndIf
+  If Len(aArgs) >= 2 .And. (aArgs[1] == "ast" .Or. aArgs[1] == "facts" .Or. aArgs[1] == "values")
+    Return Lists(aArgs[1], aArgs[2])
+  EndIf
+  ConOut("usage: xcb bytecode SOURCE [OUT] [includes=DIRS] | bytecode LIST [includes=DIRS] | ast|facts|values LIST")
+Return 2
+
+// A source as bytecode: {the .xbc's text, what was said} -- the text Nil
+// when it cannot be made, and what was said why, a line each, as xc says
+// it. aDirs: the include folders searched after the source's own.
+User Function xcb_compile(cPath, aDirs)
+  Local aSource
+  Local cWhy
+  Local aProg
+  Local aBc
+  Local aSaid := {}
+  Local nP
+  If aDirs == Nil
+    aDirs := {}
+  EndIf
+  If !File(cPath)
+    Return {Nil, {cPath + ": cannot be read"}}
+  EndIf
+  aSource := ReadAll(cPath)
+  cWhy := Utf8Reason(aSource[1])
+  If cWhy != Nil
+    Return {Nil, {cPath + ": " + cWhy}}
+  EndIf
+  aProg := u_xcb_parse(aSource[1], aSource[2])
+  If aProg == Nil
+    Return {Nil, {NotParsed(aSource[1], cPath, u_xcb_furthest())}}
+  EndIf
+  u_xcb_typed(aProg)
+  aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cPath), SourceName(cPath), ;
+                        IncludeDefines(aSource[1], FolderOf(cPath), aDirs))
+  If aBc[1] == Nil
+    For nP := 1 To Len(aBc[2])
+      AAdd(aSaid, cPath + ":" + AllTrim(Str(aBc[2][nP][1])) + ": " + Cp1252ToUtf8(aBc[2][nP][2]) ;
+                  + " cannot become bytecode yet")
+    Next
+    Return {Nil, aSaid}
+  EndIf
+Return {aBc[1], {}}
+
+// 'bytecode SOURCE [OUT]', 'bytecode LIST': each made, and said so.
+Static Function Bytecodes(aArgs)
+  Local aDirs := {}
+  Local aWork := {}
+  Local nI
+  Local cArg
+  Local aLines
+  Local nTab
+  Local nBad := 0
+  Local nStart
+  Local aMade
+  For nI := 2 To Len(aArgs)
+    cArg := aArgs[nI]
+    If Lower(Left(cArg, 9)) == "includes="
+      aDirs := StrTran(SubStr(cArg, 10), ",", ";") |> split(";")
+      aDirs := aDirs |> filter([d] !(d == ""))
+    EndIf
+  Next
+  cArg := aArgs[2]
+  If IsSource(cArg)
+    AAdd(aWork, {cArg, If(Len(aArgs) >= 3 .And. !(Lower(Left(aArgs[3], 9)) == "includes="), aArgs[3], ;
+                          Left(cArg, RAt(".", cArg)) + "xbc")})
+  Else
+    aLines := StrTran(ReadAll(cArg)[1], Chr(13), "") |> split(Chr(10))
+    For nI := 1 To Len(aLines)
+      nTab := At(Chr(9), aLines[nI])
+      If nTab > 0
+        AAdd(aWork, {Left(aLines[nI], nTab - 1), SubStr(aLines[nI], nTab + 1)})
+      EndIf
+    Next
+  EndIf
+  For nI := 1 To Len(aWork)
+    nStart := Seconds()
+    aMade := u_xcb_compile(aWork[nI][1], aDirs)
+    If aMade[1] == Nil
+      AEval(aMade[2], {|l| ConOut(l)})
+      nBad++
+      Loop
+    EndIf
+    MemoWrite(aWork[nI][2], aMade[1])
+    ConOut(aWork[nI][1] + " -> " + aWork[nI][2] + " (" + AllTrim(Str(Seconds() - nStart, 10, 2)) + " s)")
+  Next
+Return If(nBad > 0, 1, 0)
+
+// Whether a file is a source: .xtpl, .prw, .prx, .tlpp.
+Static Function IsSource(cPath)
+  Local cExt := Lower(SubStr(cPath, RAt(".", cPath) + 1))
+Return RAt(".", cPath) > 0 .And. (cExt == "xtpl" .Or. cExt == "prw" .Or. cExt == "prx" .Or. cExt == "tlpp")
+
+// Why a source's bytes are UTF-8, not windows-1252 -- or Nil when they are
+// windows-1252: they start with UTF-8's byte-order mark, or what is beyond
+// ASCII in them is valid UTF-8 (driver.cpp's utf8_reason).
+Static Function Utf8Reason(cB)
+  Local cFix := "Protheus' sources are windows-1252 (cp1252): save it so"
+  Local nFirst := 1
+  Local cBefore
+  If Left(cB, 3) == Chr(239) + Chr(187) + Chr(191)
+    Return "it starts with UTF-8's byte-order mark. " + cFix
+  EndIf
+  While nFirst <= Len(cB) .And. Asc(SubStr(cB, nFirst, 1)) < 128
+    nFirst++
+  EndDo
+  If nFirst > Len(cB)
+    Return Nil
+  EndIf
+  If Utf8ToCp1252(cB) == Nil
+    Return Nil
+  EndIf
+  cBefore := Left(cB, nFirst - 1)
+Return "it is UTF-8 -- the first character beyond ASCII is on line " ;
+       + AllTrim(Str(1 + Len(cBefore) - Len(StrTran(cBefore, Chr(10), "")))) + ". " + cFix
+
+// What is said when a source does not parse: the line it stopped at
+// (driver.cpp's not_parsed, but for the names it reads again for).
+Static Function NotParsed(cSrc, cPath, nFurthest)
+  Local nLine
+  Local aL
+  If u_xcb_trim(SubStr(cSrc, nFurthest + 1)) == ""
+    Return cPath + ": the file ends inside a block that was never closed"
+  EndIf
+  nLine := LineAt(cSrc, nFurthest)
+  aL := LinesOf(cSrc, .F.)
+Return cPath + ":" + AllTrim(Str(nLine)) + ": cannot parse this line: " ;
+       + Cp1252ToUtf8(If(nLine <= Len(aL), u_xcb_trim(aL[nLine]), ""))
+
+// The line, from 1, an offset from 0 is on: a "\r\n" is one line end
+// (driver.cpp's line_at).
+Static Function LineAt(cSrc, nO)
+  Local aStarts := {}
+  Local nB := 0
+  Local nI := 0
+  Local nN := Len(cSrc)
+  Local nRow := 0
+  Local nLines
+  Local nR
+  Local cC
+  While nI < nN
+    cC := SubStr(cSrc, nI + 1, 1)
+    If cC == Chr(10) .Or. cC == Chr(13)
+      AAdd(aStarts, nB)
+      nI += If(cC == Chr(13) .And. SubStr(cSrc, nI + 2, 1) == Chr(10), 2, 1)
+      nB := nI
+    Else
+      nI++
+    EndIf
+  EndDo
+  If nB < nN
+    AAdd(aStarts, nB)
+  EndIf
+  nLines := Len(aStarts)
+  AAdd(aStarts, nN)
+  For nR := 1 To Len(aStarts)
+    If aStarts[nR] <= nO
+      nRow := nR - 1
+    EndIf
+  Next
+Return Min(nRow + 1, Max(1, nLines))
+
+// 'ast', 'facts', 'values' over a LIST.
+Static Function Lists(cWhat, cList)
   Local aLines
   Local nI
   Local nTab
@@ -28,10 +220,6 @@ User Function xcb(cWhat, cList)
   Local aBc
   Local nP
   Local oErr
-  If !(cWhat == "ast" .Or. cWhat == "facts" .Or. cWhat == "values") .Or. cList == Nil
-    ConOut("usage: xcb ast|facts|values LIST")
-    Return 2
-  EndIf
   aLines := StrTran(ReadAll(cList)[1], Chr(13), "") |> split(Chr(10))
   For nI := 1 To Len(aLines)
     nTab := At(Chr(9), aLines[nI])
@@ -121,13 +309,16 @@ Static Function IsAdvpl(cPath)
 Return cExt == "prw" .Or. cExt == "prx"
 
 // The name of a source, its folders aside, for the .xbc's 'source' line;
-// the folder it is in.
+// the folder it is in. '/' or '\' ends a folder.
 Static Function SourceName(cPath)
-Return SubStr(cPath, RAt("/", cPath) + 1)
+Return SubStr(cPath, FolderEnd(cPath) + 1)
 
 Static Function FolderOf(cPath)
-  Local nCut := RAt("/", cPath)
+  Local nCut := FolderEnd(cPath)
 Return If(nCut > 0, Left(cPath, nCut - 1), ".")
+
+Static Function FolderEnd(cPath)
+Return Max(RAt("/", cPath), RAt("\", cPath))
 
 // ---- include files ----------------------------------------------------------
 // The '#define' lines of the include files a source names, and those they
@@ -155,10 +346,10 @@ Static Function IncludeDefines(cText, cDir, aDirs)
       AAdd(aPlaces, aDirs[nP])
     Next
     For nP := 1 To Len(aPlaces)
-      If !File(aPlaces[nP] + "/" + cName)
+      If !File(InFolder(aPlaces[nP], cName))
         Loop
       EndIf
-      cT := IncludeText(aPlaces[nP] + "/" + cName)
+      cT := IncludeText(InFolder(aPlaces[nP], cName))
       If cT != Nil
         DefinesOf(cT, aOut)
         AEval(IncludesOf(cT), {|x| AAdd(aTodo, x)})
@@ -167,6 +358,11 @@ Static Function IncludeDefines(cText, cDir, aDirs)
     Next
   EndDo
 Return aOut
+
+// A file in a folder, with the folder's own separator: an AppServer's
+// '\xbc', a '/' anywhere else.
+Static Function InFolder(cDir, cName)
+Return cDir + If("\" $ cDir, "\", "/") + cName
 
 // The names a text includes: '#include "x.ch"', '<x.ch>' or 'x.ch' in
 // single quotes.

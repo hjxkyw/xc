@@ -108,6 +108,18 @@ foreach(what facts values)
   endif()
 endforeach()
 
+# 'bytecode SOURCE OUT', as an AppServer runs it: what it writes, and says.
+set(one ${ROOT}/cpp/tests/bytecode/01-core.xtpl)
+execute_process(COMMAND ${XC} --bytecode ${one} ${WORK}/expect/one.xbc OUTPUT_QUIET ERROR_QUIET)
+execute_process(COMMAND ${VM} --run=U_XCB ${modules} -- bytecode ${one} ${WORK}/got/one.xbc
+                RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
+execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/one.xbc ${WORK}/got/one.xbc
+                RESULT_VARIABLE same_one)
+string(FIND "${said}" "${one} -> ${WORK}/got/one.xbc (" at)
+if(NOT same_one EQUAL 0 OR NOT at EQUAL 0 OR NOT said MATCHES " s\\)\n$")
+  message(FATAL_ERROR "  xcb bytecode ${one}: not xc's .xbc, or not said so:\n${said}")
+endif()
+
 # ---- what each says ----------------------------------------------------------
 set(wrong "")
 set(same 0)

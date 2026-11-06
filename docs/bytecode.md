@@ -676,9 +676,37 @@ Each line of LIST names a source, a file for its tree and what the passes
 find in it, and a file for its `.xbc`, tabs between them. ctest's
 `selfhost` holds what it writes to xc's: the `.xbc` of each source `xc
 --bytecode` compiles has to be the same, byte for byte -- the compiler's
-own sources among them. Not yet: what xc refuses although it parses (a
-source xc refuses is compiled anyway), a source's own commands, and the
-AppServer's side of it.
+own sources among them.
+
+On an AppServer it is TL++ in the RPO, as the interpreter is: xc compiles
+`selfhost/*.xtpl` and `interp/xbc.xtpl`, and the AppServer compiles them
+with the runtime, `selfhost/xcb.ch` among its include folders. Then
+
+```text
+appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS]
+appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS]
+appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module ...
+```
+
+The first writes a source's `.xbc` -- to OUT, else beside it -- as `xc
+--bytecode` does, and says `SOURCE -> OUT (N.NN s)`, or why it is not made,
+as xc says it; the second does each source of LIST, a line each, a tab and
+the `.xbc` after it. DIRS are the include folders searched after the
+source's own, `;` between them; a TOTVS include file, compressed, is not
+read, as for xc. The third is the interpreter, whose modules may be
+sources -- `.xtpl`, `.prw`, `.prx`, `.tlpp` -- each made bytecode as it
+loads (`u_xcb_compile()`), the runtime's own among them; a source that
+does not parse, or holds what cannot become bytecode yet, stops it as a
+module that does not load does, with what xc would say. xc-vm does the
+same with the compiler's bytecode loaded beside the interpreter's (ctest's
+`interp` runs each case so, from its source), and `rakupp
+run-protheus.raku --selfhost` on an AppServer: each `.xbc` the compiler
+makes there has to be xc's, and each case run from its source has to do
+what xc-vm does.
+
+Not yet: what xc refuses although it parses -- a source xc refuses may
+still be made bytecode --, and a source's own commands (`#command`,
+`#translate`): such a source does not parse.
 
 ## xc-vm
 

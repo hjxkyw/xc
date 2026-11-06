@@ -33,7 +33,6 @@ Static cSrc := ""
 Static aC := {}
 Static nN := 0
 Static nP := 0                 // the cursor
-Static lUserOn := .F.
 Static nFurthest := 0
 Static lPastPrologue := .F.    // the body's declarations are over
 Static lMemvarOk := .F.        // a Private's names: 'M->' may come before one
@@ -324,7 +323,6 @@ Static Function Start(cText, aCodes)
   cSrc := cText
   aC := If(aCodes == Nil, u_xcb_codes(cText), aCodes)
   nN := Len(aC)
-  lUserOn := .F.
   aRows := {0}
   For nI := 0 To nN - 1
     nCh := aC[nI + 1]

@@ -3,7 +3,7 @@
 #   rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]
 #                            [--authorization=FILE] [--out=DIR] [--rebuild]
 #                            [--xc=PATH] [--rootpath=PATH]
-#                            [--compile-only | --run-only | --corpus | --interp | --bench]
+#                            [--compile-only | --run-only | --corpus | --interp | --bench | --selfhost]
 #                            [--trace] [--nojit] [--verbose]
 #
 # The self-tests (the default):
@@ -63,6 +63,22 @@
 # is -- and the interpreter's times with no JIT, jit=off, which --nojit
 # makes the only ones. Nothing is checked: a run takes a minute or so.
 #
+# The compiler written in xtpl (--selfhost): xc compiles the interpreter and
+# the compiler -- interp/xbc.xtpl, selfhost/*.xtpl -- into build/selfhost/,
+# and the AppServer compiles them with the runtime, selfhost/xcb.ch in
+# build/selfhost-inc/ among its include folders; xc makes bytecode of the
+# runtime, of each case the interpreter runs (--interp) and of xtpl's
+# self-test, into build/selfhost-xbc/. The sources go to xbc/ in the
+# RootPath, with the cases' include files, and the AppServer's compiler
+# makes them bytecode there, in one run --
+#   appserver -run=u_xcb -env=<name> bytecode \xbc\list.txt
+# -- each .xbc has to be xc's, byte for byte, and how long each took is
+# shown. Then the interpreter runs each case from its source, the compiler
+# making it bytecode as it loads it --
+#   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xtpl
+# -- what it writes compared with NAME.out; and xtpl's self-test, from its
+# source and the runtime's.
+#
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
 # 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
@@ -95,7 +111,7 @@ my %opt =
   xc            => %*ENV<XC_COMPILER>,
   rootpath      => %*ENV<XC_ROOTPATH>,
   out           => Str;
-my ($compile, $run, $rebuild, $corpus, $interp, $bench, $verbose, $trace, $nojit) =
+my ($compile, $run, $rebuild, $corpus, $interp, $bench, $verbose, $trace, $nojit, $selfhost) =
    True, True, False, False, False, False, False, False, False;
 
 sub usage(Str $why)
@@ -104,7 +120,8 @@ sub usage(Str $why)
      ~ "usage: rakupp run-protheus.raku --env=NAME --includes=PATH [--appserver=PATH]\n"
      ~ "                                [--authorization=FILE] [--out=DIR] [--rebuild]\n"
      ~ "                                [--xc=PATH] [--rootpath=PATH]\n"
-     ~ "                                [--compile-only | --run-only | --corpus | --interp | --bench]\n"
+     ~ "                                [--compile-only | --run-only | --corpus | --interp | --bench\n"
+     ~ "                                 | --selfhost]\n"
      ~ "                                [--trace] [--nojit] [--verbose]";
   exit 2;
 }
@@ -117,6 +134,7 @@ for @*ARGS -> $a
   elsif $a eq '--corpus'     { $corpus = True }
   elsif $a eq '--interp'     { $interp = True }
   elsif $a eq '--bench'      { $bench = True }
+  elsif $a eq '--selfhost'   { $selfhost = True }
   elsif $a eq '--verbose'    { $verbose = True }
   elsif $a eq '--trace'      { $trace = True }
   elsif $a eq '--nojit'      { $nojit = True }
@@ -125,7 +143,7 @@ for @*ARGS -> $a
 }
 usage("--compile-only and --run-only together leave nothing to do") unless $compile || $run;
 usage("--corpus only compiles: not with --run-only") if $corpus && !$compile;
-usage("--corpus, --interp and --bench: one at a time") if ($corpus, $interp, $bench).grep(*.so) > 1;
+usage("--corpus, --interp, --bench and --selfhost: one at a time") if ($corpus, $interp, $bench, $selfhost).grep(*.so) > 1;
 usage("--trace is for --interp") if $trace && !$interp;
 usage("--nojit is for --interp and --bench") if $nojit && !($interp || $bench);
 $run = False if $corpus;
@@ -135,7 +153,8 @@ usage("no xc at {%opt<xc>}: --xc=PATH names the program") if $compile && %opt<xc
 
 # Everything from the top of the repository, wherever this is run from.
 my $root = $*PROGRAM.IO.absolute.IO.parent;
-%opt<out> //= $corpus ?? 'build/corpus' !! $interp ?? 'build/interp' !! $bench ?? 'build/bench' !! 'build/protheus';
+%opt<out> //= $corpus ?? 'build/corpus' !! $interp ?? 'build/interp' !! $bench ?? 'build/bench'
+           !! $selfhost ?? 'build/selfhost' !! 'build/protheus';
 my $out = %opt<out>.IO.is-absolute ?? %opt<out>.IO !! $root.add(%opt<out>);
 # The logs: beside the compiled folder, not in it -- the AppServer compiles a
 # folder whole, and counted a log there as one more source.
@@ -219,9 +238,10 @@ sub worth-showing(Str $l --> Bool)
   so $l ~~ m:i/ error | fail | warning: /
 }
 
-# The folder compiled by the AppServer, $count sources in it. Shows what
-# matters, and returns why it failed -- or Str, when it did not.
-sub compile-folder(IO::Path $dir, Int $count --> Str)
+# The folder compiled by the AppServer, $count sources in it -- @more include
+# folders searched before the others. Shows what matters, and returns why it
+# failed -- or Str, when it did not.
+sub compile-folder(IO::Path $dir, Int $count, *@more --> Str)
 {
   # The AppServer writes compile_errors.log where it runs; its time before
   # tells a new one from an old one (a file's time against a file's time:
@@ -230,7 +250,8 @@ sub compile-folder(IO::Path $dir, Int $count --> Str)
   my $before = $errors.e ?? $errors.modified !! Instant;
   mkdir $logs;
   my $log = $logs.add('compile.log');
-  my ($code, $text) = appserver($log, '-compile', "-files={native($dir)}", "-includes={%opt<includes>}",
+  my $includes = (|@more.map({ native($_) }), %opt<includes>).join(';');
+  my ($code, $text) = appserver($log, '-compile', "-files={native($dir)}", "-includes=$includes",
                                 "-env={%opt<env>}", |(%opt<authorization> ?? "-authorization={%opt<authorization>}" !! ()));
   unless $verbose
   {
@@ -492,6 +513,164 @@ if $interp
   }
   .key.IO.unlink for @data;
   say "\n  {@bad ?? "{+@bad} of {@cases + 2 * @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
+  exit(@bad ?? 1 !! 0);
+}
+
+# ---- the compiler written in xtpl --------------------------------------------
+if $selfhost
+{
+  my $xbc = $out.parent.add('selfhost-xbc');
+  my $inc = $out.parent.add('selfhost-inc');
+  my $cases = $root.add('cpp/tests/bytecode');
+  my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
+                        .grep({ !$cases.add("$_.vmonly").e }).sort;
+  my @modules = <ast dump parse walk chains decimal typed facts bytecode xcb>;
+  sub source-of(Str $c --> IO::Path) { $cases.add("$c.xtpl").e ?? $cases.add("$c.xtpl") !! $cases.add("$c.prw") }
+  # What the AppServer's compiler makes bytecode of: the runtime, the cases,
+  # xtpl's self-test -- each NAME.xbc.
+  my @sources = ($root.add('runtime/xtpl_runtime.tlpp'), |@cases.map({ source-of($_) }),
+                 $root.add('xtpl/tests/54_selftest.xtpl'));
+  sub xbc-name(IO::Path $s --> Str) { $s.basename.subst(/ '.' \w+ $ /, '.xbc') }
+  if $compile
+  {
+    say "xc ($xc-shown): compiling the interpreter and the compiler written in xtpl into {shown($out)}";
+    mkdir $out;
+    for ('interp/xbc.xtpl' => 'xbc.tlpp', |@modules.map({ "selfhost/$_.xtpl" => "$_.tlpp" })) -> $m
+    {
+      my $p = xc(native($root.add($m.key)), native($out.add($m.value)));
+      print $p.out.slurp(:close).lines.map({ "  $_\n" }).join;
+      if $p.exitcode
+      {
+        say "\n  xc could not compile {$m.key}";
+        exit 1;
+      }
+    }
+    # Its include file, where the AppServer finds it: not in the folder it
+    # compiles, which would count it as one more source.
+    mkdir $inc;
+    spurt $inc.add('xcb.ch'), $root.add('selfhost/xcb.ch').slurp(:bin);
+    say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}'";
+    my $count = prepare-folder($out, ['xbc.tlpp', |@modules.map({ "$_.tlpp" })]);
+    with compile-folder($out, $count, $inc)
+    {
+      say "\n  $_";
+      exit 1;
+    }
+    say "\nxc: the runtime, {+@cases} cases and xtpl's self-test as bytecode, to compare with, into {shown($xbc)}";
+    mkdir $xbc;
+    for @sources -> $s
+    {
+      my $q = xc('--bytecode', native($s), native($xbc.add(xbc-name($s))));
+      my $said = $q.out.slurp(:close);
+      if $q.exitcode
+      {
+        print $said.lines.map({ "  $_\n" }).join;
+        say "\n  xc could not make {shown($s)} bytecode";
+        exit 1;
+      }
+    }
+  }
+  exit 0 unless $run;
+  mkdir $logs;
+  my @bad;
+  # Where the AppServer reads them: the sources and the cases' include files
+  # in xbc/ of the RootPath, named \xbc\NAME; what the cases read by a
+  # relative name in the StartPath.
+  my ($rootpath, $startpath) = env-paths();
+  my $stage = $rootpath.add('xbc');
+  my $start = $rootpath.add($startpath.subst(/ ^ <[\\/]>+ /, ''));
+  sub on-server(Str $name --> Str) { "\\xbc\\$name" }
+  say "\nThe sources into {native($stage)}, the cases' files into {native($start)}";
+  mkdir $stage;
+  .unlink for $stage.dir.grep({ .f && .extension eq 'xbc' | 'got' });
+  my @staged = |@sources, |$cases.dir.grep(*.extension eq 'ch');
+  spurt $stage.add(.basename), .slurp(:bin) for @staged;
+  my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
+  spurt .key, .value.slurp(:bin) for @data;
+  spurt $stage.add('list.txt'), @sources.map({ on-server(.basename) ~ "\t" ~ on-server(xbc-name($_)) ~ "\r\n" }).join;
+
+  say "\nProtheus: the compiler making {+@sources} sources bytecode, in one run";
+  my ($code, $text) = appserver($logs.add('run-u_xcb.log'), '-run=u_xcb', "-env={%opt<env>}", 'bytecode',
+                                on-server('list.txt'));
+  # 'SOURCE -> OUT (N.NN s)': how long each took.
+  my %took;
+  for $text.lines -> $l
+  {
+    %took{~$0} = ~$1 if $l ~~ / '\\xbc\\' (\S+) ' -> ' \S+ ' (' (<[\d.]>+) ' s)' /;
+  }
+  my $total = 0;
+  for @sources -> $s
+  {
+    my $name = xbc-name($s);
+    my $made = $stage.add($name);
+    my $took = %took{$s.basename};
+    $total += $took if $took.defined;
+    if $made.e && $made.slurp(:bin) eqv $xbc.add($name).slurp(:bin)
+    {
+      say sprintf("    ok    %-22s %8s s", $s.basename, $took // '-');
+      next;
+    }
+    @bad.push($s.basename);
+    say "    {$made.e ?? 'DIFF' !! 'NONE'}  {$s.basename}{$made.e ?? ": not xc's {$name}" !! ': no .xbc made'}";
+  }
+  unless %took
+  {
+    say "    what the AppServer said:";
+    say "      $_" for $text.lines.grep(*.trim).tail(15);
+  }
+  say sprintf("    %d of %d as xc makes them, in %.2f s", @sources - @bad, +@sources, $total);
+
+  # The interpreter on the modules; what it wrote, '\r\n' read as '\n'.
+  sub interpret(Str $name, *@args --> Str)
+  {
+    my $got = $stage.add("$name.got");
+    $got.unlink if $got.e;
+    my ($c, $t) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
+                            "out={on-server("$name.got")}", |@args);
+    $got.e ?? $got.slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g)
+           !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $c)\n"
+              ~ $t.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join
+  }
+  say "\nProtheus: the interpreter running {+@cases} cases and xtpl's self-test from their sources";
+  for @cases -> $c
+  {
+    my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines>>.trim.grep(*.chars)
+                                                 .map({ on-server(source-of($_).basename) })
+                                       !! ();
+    my $got = interpret("$c.source", on-server('xtpl_runtime.xbc'), |@with, on-server(source-of($c).basename));
+    my $expect = $cases.add("$c.out").slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g);
+    if $got eq $expect
+    {
+      say "    ok    $c";
+      next;
+    }
+    @bad.push("$c.source");
+    say "    DIFF  $c";
+    my @e = $expect.lines;
+    my @g = $got.lines;
+    for ^max(+@e, +@g) -> $i
+    {
+      next if @e[$i].defined && @g[$i].defined && @e[$i] eq @g[$i];
+      say "          {$i + 1}: expected {@e[$i] // '(nothing)'}";
+      say "          {' ' x ($i + 1).chars}  got      {@g[$i] // '(nothing)'}";
+    }
+  }
+  my $got = interpret('54_selftest.source', 'run=U_SELFTEST', on-server('xtpl_runtime.tlpp'),
+                      on-server('54_selftest.xtpl'));
+  my $sum = $got.lines.first({ / 'selftest: ' \d+ ' ok, 0 falhas' / });
+  if $sum.defined && $got.starts-with("exit 0\n")
+  {
+    say "    ok    54_selftest: $sum (from its source and the runtime's)";
+  }
+  else
+  {
+    @bad.push('54_selftest.source');
+    say "    FAIL  54_selftest (from its source and the runtime's)";
+    say "          $_" for $got.lines;
+  }
+  .key.IO.unlink for @data;
+  my $all = @sources + @cases + 1;
+  say "\n  {@bad ?? "{+@bad} of $all wrong: {@bad.join(', ')}" !! "every one as xc makes it, and as xc-vm runs it"}";
   exit(@bad ?? 1 !! 0);
 }
 

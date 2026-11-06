@@ -6,7 +6,10 @@
 //
 //   appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module.xbc ...
 //
-// It loads the modules, runs each one's __INIT in the order given, then NAME
+// A module may be a source -- .xtpl, .prw, .prx, .tlpp --, which the
+// compiler written in xtpl (selfhost/xcb.xtpl's u_xcb_compile()) makes
+// bytecode first, when it is in the RPO beside the interpreter. It loads
+// the modules, runs each one's __INIT in the order given, then NAME
 // -- U_MAIN when it is not given and there is one, else the first user
 // function of the last module. The machine is the page's: frames, a stack,
 // cells for the locals a code block shares, references copied in and out,
@@ -577,7 +580,7 @@ Method Load(cPath) Class XbcVM
   Local nLine
   Local lJit
   Local nI := 4
-  for cRead in XbcLines(cPath)
+  for cRead in XbcModuleLines(cPath)
     Local cLine := LTrim(StrTran(StrTran(cRead, Chr(13), ""), Chr(9), " "))
     AAdd(aLines, cLine) if !Empty(cLine)
   next
@@ -1037,6 +1040,21 @@ Static Function XbcRetarget(aCode, aMap)
     if aIns[I_OP] == OP_DEFER exec aIns[I_B] := aMap[nTo] else aIns[I_A] := aMap[nTo]
   next
 Return Nil
+
+// A module's lines: a .xbc's; a source's -- .xtpl, .prw, .prx, .tlpp --
+// its bytecode's, which the compiler written in xtpl (selfhost/), there
+// beside the interpreter, makes first. What it says when it cannot goes as
+// what a module that does not load says.
+Static Function XbcModuleLines(cPath)
+  Local nDot := RAt(".", cPath)
+  Local cExt := Lower(SubStr(cPath, nDot + 1))
+  Local aMade
+  Return XbcLines(cPath) if nDot == 0 .Or. !(cExt == "xtpl" .Or. cExt == "prw" .Or. cExt == "prx" .Or. cExt == "tlpp")
+  XbcBreak("xc-vm: ${cPath}: a source, and the compiler written in xtpl (selfhost/) is not here") ;
+    if !FindFunction("U_XCB_COMPILE")
+  aMade := u_xcb_compile(cPath)
+  XbcBreak("xc-vm: " + join(aMade[2], Chr(10) + "xc-vm: ")) if aMade[1] == Nil
+Return split(StrTran(aMade[1], Chr(13), ""), Chr(10))
 
 // A file's lines, read whole: the AppServer's FT_FReadLn() -- and so
 // lines() -- gives a line longer than 1023 characters in pieces, and a

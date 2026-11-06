@@ -17,7 +17,7 @@ ctest --test-dir cpp/build
 | `style` | each separator line of xc's own files ends at column 80 | `style.cmake` says which files |
 | `bytecode` | each case: the bytecode xc writes, what it says, and what `xc-vm` does running it | `bytecode/` |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` | `selftests.cmake` says which |
-| `interp`, `interp-xc` | the interpreter in xtpl, run by `xc-vm`, does what `xc-vm` does: each bytecode case with a `.out`, xtpl's self-test; xc's (`interp-xc`, labelled `slow`) | `bytecode/`, `interp.cmake` |
+| `interp`, `interp-xc` | the interpreter in xtpl, run by `xc-vm`, does what `xc-vm` does: each bytecode case with a `.out`, xtpl's self-test -- again from their sources, which the compiler in xtpl makes bytecode; xc's (`interp-xc`, labelled `slow`) | `bytecode/`, `interp.cmake` |
 | `selfhost` | the compiler in xtpl (`selfhost/`), run by `xc-vm`, reads each source into the tree and finds in it what `xc-ast --bare --facts` does, and writes the `.xbc` `xc --bytecode` does | `selfhost/tests/`, `bytecode/`, `cases/`, `selfhost.cmake` |
 
 ## cases/
@@ -109,7 +109,11 @@ the runtime's bytecode. Each run is made three times: as it is, then for
 the JIT -- the AppServer's macro compiler, which xc-vm has not --, with
 `--jitdump=FILE`, the blocks it would make written down and its runs left
 to the loop, then with FILE, compiled, loaded: the blocks taken from it;
-all three have to do the same. It checks that the interpreter's table has the
+all three have to do the same. Then each case runs again from its source,
+and xtpl's self-test from its source and the runtime's: the compiler
+written in xtpl (`selfhost/`), its bytecode loaded beside the
+interpreter's, makes each module bytecode as the interpreter loads it, as
+on an AppServer with both in its RPO. It checks that the interpreter's table has the
 runtime's functions as `runtime/xtpl_runtime.tlpp` declares them; after a
 change of theirs, `cmake -DROOT=. -DUPDATE=1 -P cpp/tests/runtime-calls.cmake`
 writes them again. It checks too that the copies of the interpreter's loop
@@ -136,7 +140,8 @@ parsed' at the same place by both), marked by the typed pass -- a set's
 statement and expression in walk order with what the Decimals and the
 chains say of it (`src/facts.h`). Of each of those sources `xc
 --bytecode` compiles, the `.xbc` the compiler in xtpl writes has to be
-xc's. A `.val` of `selfhost/tests/` is read a line at a time, each line in
+xc's -- and so has the one `bytecode SOURCE OUT` writes, as an AppServer
+runs it. A `.val` of `selfhost/tests/` is read a line at a time, each line in
 every form a statement holds an expression as. What differs is left in the
 build's `selfhost/expect` and `selfhost/got`.
 
