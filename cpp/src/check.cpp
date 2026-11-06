@@ -372,6 +372,20 @@ namespace xc
       "parameters", "private", "procedure", "public", "recover", "return", "static", "while",
     };
 
+    // The functions of the AppServer's language: its compiler has them as its
+    // own, and refuses a function of the file by one of their names --
+    // "C2022 Redefinition of language function ISALPHA" (tried on 24.3.1.9,
+    // with IsAlpha). The rest are Clipper's intrinsic functions that TL++ has,
+    // which its compiler keeps the same way, and IsAlpha's kin.
+    const std::unordered_set<std::string> LANGUAGE_FUNCTIONS =
+    {
+      "aadd", "abs", "asc", "at", "bof", "chr", "ctod", "date", "day", "deleted", "dow", "dtoc", "dtos", "empty",
+      "eof", "eval", "exp", "fcount", "fieldname", "file", "found", "int", "isalpha", "isdigit", "islower",
+      "isupper", "lastrec", "len", "left", "log", "lower", "ltrim", "max", "min", "month", "pcount", "reccount",
+      "recno", "replicate", "round", "rtrim", "seconds", "select", "space", "sqrt", "str", "substr", "time",
+      "transform", "trim", "type", "upper", "val", "valtype", "year",
+    };
+
     // The keyword NAME begins, written short, or "".
     std::string short_keyword(const std::string& name)
     {
@@ -480,6 +494,7 @@ namespace xc
       void warning(const std::string& m) { warned.push_back({ line_, m }); }
       void then_cond(const Expr* cond, const std::string& where);
       void keyword_name(const std::string& name, int line);
+      void language_name(const std::string& name, int line);
       std::unordered_set<std::string> keyword_seen_;   // line and name, said once
 
       void agrees(const Declarator* d)
@@ -553,7 +568,11 @@ namespace xc
         // Web's 'W_', an Html's 'H_'), no keyword -- not tried: only a
         // Static, a Main and a bare Function's are checked.
         std::string type = lc(f->type);
-        if (type.empty() || type == "static" || type == "main") { keyword_name(f->name, f->line); }
+        if (type.empty() || type == "static" || type == "main")
+        {
+          keyword_name(f->name, f->line);
+          language_name(f->name, f->line);
+        }
         funcs_[lc(f->name)] = Func{ f->name, lc(f->type), f->params.size(), f->line };
         // A bare 'Function' whose name has no 'u_', or a 'Main Function': a
         // regular function, which TOTVS compiles with its authorization --
@@ -967,6 +986,15 @@ namespace xc
                            "its keywords as the keyword, and refuses the line";
       found.push_back({ line, "'" + name + "' is " + what + " (\"" + code + "\", tried on 24.3.1.9). Give it another "
                               + "name." });
+    }
+
+    // A function of the file named as one of the AppServer's language.
+    void Checker::language_name(const std::string& name, int line)
+    {
+      if (!LANGUAGE_FUNCTIONS.count(lc(name))) { return; }
+      found.push_back({ line, "'" + name + "' is a function of the AppServer's language, and it refuses a function of "
+                              + "that name (\"C2022 Redefinition of language function " + uc(name) + "\"). Give it "
+                              + "another name." });
     }
 
     void Checker::declare(const std::string& name, int line, const std::vector<std::string>& attributes,

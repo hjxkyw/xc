@@ -1,0 +1,2 @@
+103.xtpl:4: 'IsAlpha' is a function of the AppServer's language, and it refuses a function of that name ("C2022 Redefinition of language function ISALPHA"). Give it another name.
+103.xtpl:7: 'Found' is a function of the AppServer's language, and it refuses a function of that name ("C2022 Redefinition of language function FOUND"). Give it another name.

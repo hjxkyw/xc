@@ -451,7 +451,7 @@ Return nCh >= 0 .And. aIsNL[nCh + 1]
 Static Function IsS(nCh)
 Return nCh >= 0 .And. aIsS[nCh + 1]
 
-Static Function IsAlpha(nCh)
+Static Function IsLetter(nCh)
 Return (nCh >= 97 .And. nCh <= 122) .Or. (nCh >= 65 .And. nCh <= 90) .Or. nCh == 95
 
 // A letter in lower case, as the C++ lower(): ASCII's alone.
@@ -587,7 +587,7 @@ Return If(C(nQ) == 13 .And. C(nQ + 1) == 10, nQ + 2, nQ + 1)
 // Where a name starting at p ends ('<[A..Za..z_]> \w*'), or -1.
 Static Function NameEnd(nAt)
   Local nQ
-  If !IsAlpha(C(nAt))
+  If !IsLetter(C(nAt))
     Return -1
   EndIf
   nQ := nAt + 1
@@ -1202,51 +1202,51 @@ Static Function OpAt()
   Local nLen2
   Do Case
     Case nCh == 43
-      Return Found("+", LV_ADD)
+      Return OpFound("+", LV_ADD)
     Case nCh == 45
-      Return Found("-", LV_ADD)
+      Return OpFound("-", LV_ADD)
     Case nCh == 42
-      Return If(nD == 42, Found("**", LV_POW), Found("*", LV_MUL))
+      Return If(nD == 42, OpFound("**", LV_POW), OpFound("*", LV_MUL))
     Case nCh == 47
-      Return Found("/", LV_MUL)
+      Return OpFound("/", LV_MUL)
     Case nCh == 37
       If nD == 37
-        Return Found("%%", LV_MUL)
+        Return OpFound("%%", LV_MUL)
       EndIf
-      Return If(nInExp > 0, 0, Found("%", LV_MUL))
+      Return If(nInExp > 0, 0, OpFound("%", LV_MUL))
     Case nCh == 94
-      Return Found("^", LV_POW)
+      Return OpFound("^", LV_POW)
     Case nCh == 46
       If nD == 46
-        Return Found("..", LV_RANGE)
+        Return OpFound("..", LV_RANGE)
       EndIf
       If CLower(nD) == 111 .And. CLower(C(nP + 2)) == 114 .And. C(nP + 3) == 46
-        Return Found(".or.", LV_OR)
+        Return OpFound(".or.", LV_OR)
       EndIf
       If CLower(nD) == 97 .And. CLower(C(nP + 2)) == 110 .And. CLower(C(nP + 3)) == 100 .And. C(nP + 4) == 46
-        Return Found(".and.", LV_AND)
+        Return OpFound(".and.", LV_AND)
       EndIf
       Return 0
     Case nCh == 63
-      Return If(nD == 58, Found("?:", LV_ELVIS), 0)
+      Return If(nD == 58, OpFound("?:", LV_ELVIS), 0)
     Case nCh == 61
       If nD == 61
-        Return Found("==", LV_CMP)
+        Return OpFound("==", LV_CMP)
       EndIf
-      Return If(nD == 62, 0, Found("=", LV_CMP))
+      Return If(nD == 62, 0, OpFound("=", LV_CMP))
     Case nCh == 60
       If nD == 62
-        Return Found("<>", LV_CMP)
+        Return OpFound("<>", LV_CMP)
       EndIf
-      Return If(nD == 61, Found("<=", LV_CMP), Found("<", LV_CMP))
+      Return If(nD == 61, OpFound("<=", LV_CMP), OpFound("<", LV_CMP))
     Case nCh == 62
-      Return If(nD == 61, Found(">=", LV_CMP), Found(">", LV_CMP))
+      Return If(nD == 61, OpFound(">=", LV_CMP), OpFound(">", LV_CMP))
     Case nCh == 33
-      Return If(nD == 61, Found("!=", LV_CMP), 0)
+      Return If(nD == 61, OpFound("!=", LV_CMP), 0)
     Case nCh == 36
-      Return Found("$", LV_CMP)
+      Return OpFound("$", LV_CMP)
     Case nCh == 35
-      Return Found("#", LV_CMP)
+      Return OpFound("#", LV_CMP)
     Case nCh == 40
       // Raku's set operators, in ASCII.
       aOp := {""}
@@ -1262,14 +1262,14 @@ Static Function OpAt()
       Return If(cOp == "(|)" .Or. cOp == "(^)" .Or. cOp == "(+)" .Or. cOp == "(-)", LV_SETOR, LV_CMP)
   EndCase
   If CLower(nCh) == 105 .And. CLower(nD) == 110 .And. !IsW(C(nP + 2))
-    Return Found("in", LV_CMP)
+    Return OpFound("in", LV_CMP)
   EndIf
   If CLower(nCh) == 104 .And. CLower(nD) == 97 .And. CLower(C(nP + 2)) == 115 .And. !IsW(C(nP + 3))
-    Return Found("has", LV_CMP)
+    Return OpFound("has", LV_CMP)
   EndIf
 Return 0
 
-Static Function Found(cOp2, nLevel)
+Static Function OpFound(cOp2, nLevel)
   cOp := cOp2
   nOpLen := Len(cOp2)
 Return nLevel
@@ -1729,7 +1729,7 @@ Static Function Primary()
   Local aNm
   Local aE
   Local aList
-  If IsAlpha(nCh)
+  If IsLetter(nCh)
     nWe := NameEnd(nStart)
     If C(nWe) == 46 .And. IsW(C(nWe + 1))
       aX := NsCall()
@@ -2942,7 +2942,7 @@ Static Function LValue()
     EndIf
     nP := nStart
   EndIf
-  If IsAlpha(nCh)
+  If IsLetter(nCh)
     aCl := CallE()
     If aCl != Nil
       nBt := nP
@@ -3049,7 +3049,7 @@ Static Function CallSt()
   EndIf
   nAt := nP
   nCh := C(nAt)
-  If IsAlpha(nCh)
+  If IsLetter(nCh)
     aCl := CallE()
     If aCl != Nil
       nBt := nP
@@ -3090,7 +3090,7 @@ Static Function CallSt()
     EndIf
     nP := nAt
   EndIf
-  If IsAlpha(nCh)
+  If IsLetter(nCh)
     aNs := NsCall()
     If aNs != Nil
       nBt := nP
@@ -3106,7 +3106,7 @@ Static Function CallSt()
     EndIf
     nP := nAt
   EndIf
-  If IsAlpha(nCh)
+  If IsLetter(nCh)
     aA := AliasFieldE()
     If aA != Nil .And. aA[N_KIND] == EK_INALIAS
       Return Span(Trailed(aA, nAt, nP, {}, nStart, .T.), nStart, nP)
@@ -4978,7 +4978,7 @@ Static Function DeclSoon()
   For nI := 1 To Len(aWords)
     If IWordAt(nQ, aWords[nI])
       nK := C(nQ + Len(aWords[nI]))
-      Return !((nK >= 48 .And. nK <= 57) .Or. IsAlpha(nK))
+      Return !((nK >= 48 .And. nK <= 57) .Or. IsLetter(nK))
     EndIf
   Next
 Return .F.
@@ -5623,7 +5623,7 @@ Return .T.
 // letters, and a class's name.
 Static Function TypeNameEnd(nAt)
   Local nE
-  If !IsAlpha(C(nAt))
+  If !IsLetter(C(nAt))
     Return -1
   EndIf
   nE := nAt + 1
@@ -7008,7 +7008,7 @@ Static Function CmdWord(nAt)
   For nI := 1 To Len(aOne)
     If IWordAt(nAt, aOne[nI])
       nQ := HWs(nAt + Len(aOne[nI]))
-      If nQ >= 0 .And. IsAlpha(C(nQ))
+      If nQ >= 0 .And. IsLetter(C(nQ))
         Return nQ + 1
       EndIf
       Exit

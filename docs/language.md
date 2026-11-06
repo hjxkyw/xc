@@ -434,6 +434,15 @@ longer than the keyword (`Returns`), one that only shares its first letters
 taken, and so are `SEQUENCE`'s, `MEMVAR`'s, `FIELD`'s and `REQUEST`'s
 (`Sequ`, `Memv`) -- tried on 24.3.1.9. xc refuses what the AppServer would.
 
+**Functions of the AppServer's language.** Its compiler has some functions
+as its own, and refuses a function of the file by one of their names --
+`Static Function IsAlpha()` is "C2022 Redefinition of language function
+ISALPHA" (tried on 24.3.1.9). xc refuses a `Static`, a `Main` or a bare
+`Function` named so: `IsAlpha` and its kin `IsDigit`, `IsLower`,
+`IsUpper`, and Clipper's intrinsic functions that TL++ has -- `Len`, `Str`,
+`SubStr`, `Found`, `Empty`, `Type`, `Time` and the like. A User Function's
+name is the AppServer's with `U_` before it, and is taken.
+
 ### The prologue
 
 A function's locals and statics come first, before its first statement:
@@ -2154,6 +2163,7 @@ parses, in xtpl's words.
 | in TL++, AdvPL's words for a type: `String`, `Number`, `Logic`, `Boolean` | `'as String': TL++ has no type 'String' -- write 'as Character' (a .prw takes it: AdvPL does not check its types).` |
 | in TL++, more arguments than a function of the file takes | `calcTotal() takes 2 parameters (line 4), but is given 3 -- TL++ refuses the call ("More parameters used in function call than expected").` |
 | a function of the file named like a verb | `'Count' is the name of one of xtpl's verbs: a call to count() is the runtime's u_xtpl_count, never a function of the file. Give it another name.` |
+| a static, main or bare function named as one of the AppServer's language | `'IsAlpha' is a function of the AppServer's language, and it refuses a function of that name ("C2022 Redefinition of language function ISALPHA"). Give it another name.` |
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
 | a name of xc's shape declared | `'fo_0_0' has the shape of a name xc generates, so it cannot be declared. ...` |

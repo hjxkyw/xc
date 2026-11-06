@@ -1,0 +1,11 @@
+// A function of the file named as one of the AppServer's language -- IsAlpha,
+// Found -- is refused: its compiler has those as its own ("C2022 Redefinition
+// of language function"). A User Function's name is the AppServer's U_LEN.
+Static Function IsAlpha(cS)
+Return !Empty(cS)
+
+Static Function Found()
+Return .F.
+
+User Function Len()
+Return IsAlpha("x") .And. Found()
