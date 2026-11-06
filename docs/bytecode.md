@@ -658,6 +658,28 @@ interpreter run it as bytecode, and shows both and their ratio. On xc-vm,
 `xc-vm --run=U_BENCH xtpl_runtime.xbc bench.xbc` does the same, and
 `--profile=FILE` says where the interpreter's instructions go.
 
+## The compiler in xtpl
+
+`selfhost/` is xc again, written in xtpl, for an AppServer to compile xtpl
+into this bytecode itself: the parser (`parse.xtpl`), the passes the back
+end needs -- what each name holds (`typed.xtpl`), the Decimals
+(`decimal.xtpl`), the chains (`chains.xtpl`) -- and the back end
+(`bytecode.xtpl`), the C++ ones written again routine by routine. xc
+compiles it to bytecode, and xc-vm runs it:
+
+```text
+xc-vm --run=U_XCB xtpl_runtime.xbc ast.xbc dump.xbc parse.xbc walk.xbc chains.xbc
+      decimal.xbc typed.xbc facts.xbc bytecode.xbc xcb.xbc -- facts LIST
+```
+
+Each line of LIST names a source, a file for its tree and what the passes
+find in it, and a file for its `.xbc`, tabs between them. ctest's
+`selfhost` holds what it writes to xc's: the `.xbc` of each source `xc
+--bytecode` compiles has to be the same, byte for byte -- the compiler's
+own sources among them. Not yet: what xc refuses although it parses (a
+source xc refuses is compiled anyway), a source's own commands, and the
+AppServer's side of it.
+
 ## xc-vm
 
 `xc-vm [--run=NAME] [--profile=FILE] module.xbc ... [-- ARG ...]` loads

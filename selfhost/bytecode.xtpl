@@ -1,0 +1,3889 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// bytecode.xtpl -- a program as the instructions of a stack machine
+// (cpp/src/bytecode.cpp; docs/bytecode.md says what each does): the .xbc
+// 'xc --bytecode' writes, byte for byte.
+//
+// Each function is compiled to a list of instructions, its jumps to
+// labels; what it is written as comes at the end, when it is known which
+// of its locals a code block shares -- those become cells (a 'box' at the
+// start, 'cell' for 'local') -- and where each label is. Labels and locals
+// are numbered from 0, as the C++ has them. What the C++ keeps in a lambda
+// is a code block here, made by a function from its parameters where the
+// C++ copies what it captures.
+// -----------------------------------------------------------------------------
+
+// An instruction: its op, the words after it -- a string's text --,
+// whether those are a string, the label a jump goes to, the local it names.
+#define I_OP          1
+#define I_ARG         2
+#define I_STR         3
+#define I_TARGET      4
+#define I_LOCAL       5
+
+// What a name of a scope is -- a scope is a hash of them, by the name in
+// lower case.
+#define E_KIND        1
+#define E_INDEX       2
+#define SYM_LOCAL     1
+#define SYM_STATIC    2
+#define SYM_MEMVAR    3
+
+// A cell a code block shares: its function's local, or a cell of the block
+// around it.
+#define UV_FROMLOCAL  1
+#define UV_INDEX      2
+#define UV_NAME       3
+
+// What a way out of a construct does on the way: end its region, or put
+// back what it changed.
+#define X_KIND        1
+#define X_RUN         2
+#define XK_REGION     1
+#define XK_RESTORE    2
+
+#define LP_BRK        1
+#define LP_CONT       2
+#define LP_EXITS      3
+
+// A function: a block's parent is the function that makes it; a function's
+// made, its blocks in the order made.
+#define F_ID          1
+#define F_NAME        2
+#define F_KIND        3
+#define F_PARAMS      4
+#define F_NAMES       5
+#define F_CAPTURED    6
+#define F_CODE        7
+#define F_LABELS      8
+#define F_PARENT      9
+#define F_UPVALS      10
+#define F_SCOPES      11
+#define F_LOOPS       12
+#define F_EXITS       13
+#define F_LINE        14
+#define F_TEMPS       15
+#define F_NUMBER      16
+#define F_MADECOUNT   17
+#define F_MADE        18
+#define F_DEFERS      19
+#define F_DEFERRED    20
+
+// A 'defer' of a function: where its code is, the statement, the scopes and
+// the subjects where it stands.
+#define DF_LABEL      1
+#define DF_STMT       2
+#define DF_SCOPES     3
+#define DF_SUBJECTS   4
+
+// What a name is where it is read: a memvar's name in upper case, a
+// #define's; declared, a memvar a Private or a Public declares.
+#define V_KIND        1
+#define V_INDEX       2
+#define V_NAME        3
+#define V_DECLARED    4
+#define VK_LOCAL      1
+#define VK_UPVAL      2
+#define VK_STATIC     3
+#define VK_MEMVAR     4
+#define VK_DEFINE     5
+#define VK_CRLF       6
+
+#define WANT_NONE     0
+#define WANT_NEW      1
+#define WANT_OLD      2
+
+// Where an assignment writes: what it pushes first (the array and the
+// index, the object...), how it reads the value there without taking them,
+// and how it writes it, taking them.
+#define T_OPERANDS    1
+#define T_PUSH        2
+#define T_READ        3
+#define T_WRITE       4
+
+// A stage's record over rows(), before a map: 'r:X' is a field of the area
+// walked -- its alias written out, or held in a local.
+#define R_ALIAS       1
+#define R_LOCAL       2
+
+// A #define: its value's tree, whether it takes parameters, whether its
+// value reads as an expression.
+#define D_BODY        1
+#define D_PARAMS      2
+#define D_READ        3
+
+// A subject of 'with object': the function that holds it, and its local.
+#define SB_FN         1
+#define SB_LOCAL      2
+
+// A part of a chain's loop: what a stage sets before the loop, does in it,
+// and closes after the stages inside it.
+#define PT_AHEAD      1
+#define PT_OPEN       2
+#define PT_CLOSE      3
+
+Static aProg := Nil
+Static cSrc := ""
+Static lAdvpl := .F.
+Static cSource := ""
+Static aMore := {}             // the include files' '#define's
+Static cNs := ""               // the namespace and a '.', or ""
+Static aStaticNames := {}
+Static hFile := Nil
+Static hDefines := Nil
+Static hExpanding := Nil
+Static aDec := Nil
+Static aDv := Nil
+Static aUnwrapped := Nil
+Static aFns := {}
+Static aOrder := {}
+Static aProblems := {}
+Static aF := Nil
+Static aInit := Nil
+Static aTop := Nil
+Static nLine := 0
+Static aSubjects := {}
+// The names the function declares (chains.xtpl), the records of the stages
+// being written, and the verbs written as calls made chains.
+Static hDeclared := Nil
+Static hRecords := Nil
+Static hChainsMade := Nil
+Static nFnId := 0
+
+// The .xbc of a program: its tree, its source, whether it is AdvPL's (a
+// .prw: no Decimal, nothing starts at its type's value), the name of its
+// source, for the 'source' line, and the include files' '#define's. What
+// cannot become bytecode yet: {Nil, {{line, what}, ...}}; else {text, {}}.
+User Function xcb_bytecode(aP, cText, lIsAdvpl, cName, aDefines)
+  aProg := aP
+  cSrc := cText
+  lAdvpl := lIsAdvpl
+  cSource := cName
+  aMore := If(aDefines == Nil, {}, aDefines)
+  cNs := ""
+  aStaticNames := {}
+  hFile := { => }
+  hDefines := { => }
+  hExpanding := { => }
+  aDec := u_xcb_decimals()
+  aDv := {{ => }, { => }}
+  aUnwrapped := Nil
+  aFns := {}
+  aOrder := {}
+  aProblems := {}
+  aF := Nil
+  aInit := Nil
+  aTop := Nil
+  nLine := 0
+  aSubjects := {}
+  hDeclared := { => }
+  hRecords := { => }
+  hChainsMade := { => }
+Return Run()
+
+// ---- small things -----------------------------------------------------------
+Static Function IsK(aE, nKind)
+Return aE != Nil .And. aE[N_KIND] == nKind
+
+Static Function NameOf(aE)
+Return aE[NAME_NAME]
+
+Static Function NumText(nN)
+Return AllTrim(Str(nN))
+
+Static Function ArithOp(cOp)
+  Do Case
+    Case cOp == "+"
+      Return "add"
+    Case cOp == "-"
+      Return "sub"
+    Case cOp == "*"
+      Return "mul"
+    Case cOp == "/"
+      Return "div"
+    Case cOp == "%"
+      Return "mod"
+  EndCase
+Return "pow"
+
+Static Function CompareOp(cOp)
+  Do Case
+    Case cOp == "="
+      Return "eq"
+    Case cOp == "=="
+      Return "exact"
+    Case cOp == "!=" .Or. cOp == "<>" .Or. cOp == "#"
+      Return "ne"
+    Case cOp == "<"
+      Return "lt"
+    Case cOp == ">"
+      Return "gt"
+    Case cOp == "<="
+      Return "le"
+    Case cOp == ">="
+      Return "ge"
+  EndCase
+Return "contains"
+
+Static Function Compound(cOp)
+Return cOp == "+=" .Or. cOp == "-=" .Or. cOp == "*=" .Or. cOp == "/=" .Or. cOp == "%="
+
+// A number literal's text as the machine reads it: no digit separators, a
+// digit before its point.
+Static Function NumberText(cT)
+  Local cOut := StrTran(cT, "'", "")
+  If Left(cOut, 1) == "."
+    cOut := "0" + cOut
+  EndIf
+Return cOut
+
+// A string literal's text, without its quotes -- one the line ended has
+// none at its end.
+Static Function StringText(cT)
+  Local cS
+  If cT == ""
+    Return cT
+  EndIf
+  cS := SubStr(cT, 2)
+  If !(cS == "") .And. Right(cS, 1) == Left(cT, 1)
+    cS := Left(cS, Len(cS) - 1)
+  EndIf
+Return cS
+
+Static Function NameOrLiteral(aE)
+Return IsK(aE, EK_NAME) .Or. IsK(aE, EK_LITERAL)
+
+Static Function Uc(cS)
+Return u_xcb_uc(cS)
+
+Static Function Lc(cS)
+Return u_xcb_lc(cS)
+
+// A copy of a scope: what is declared in it after is not in the copy.
+Static Function CopyScope(hS)
+  Local hOut := { => }
+  Local aK := keys(hS)
+  Local nI
+  For nI := 1 To Len(aK)
+    hOut{aK[nI]} := hS{aK[nI]}
+  Next
+Return hOut
+
+Static Function CopyScopes(aSc)
+  Local aOut := {}
+  Local nI
+  For nI := 1 To Len(aSc)
+    AAdd(aOut, CopyScope(aSc[nI]))
+  Next
+Return aOut
+
+// ---- functions --------------------------------------------------------------
+Static Function NewFn()
+  nFnId++
+Return {nFnId, "", "", 0, {}, {}, {}, {}, Nil, {}, {}, {}, {}, -1, 0, 0, 0, {}, .F., {}}
+
+// ---- emitting ---------------------------------------------------------------
+Static Function Op(cOp, cArg)
+  AAdd(aF[F_CODE], {cOp, If(cArg == Nil, "", cArg), .F., -1, -1})
+Return Nil
+
+Static Function Num(nN)
+Return Op("num", NumText(nN))
+
+Static Function EmitStr(cT)
+  AAdd(aF[F_CODE], {"str", cT, .T., -1, -1})
+Return Nil
+
+Static Function Jump(cOp, nLabel, cArg)
+  AAdd(aF[F_CODE], {cOp, If(cArg == Nil, "", cArg), .F., nLabel, -1})
+Return Nil
+
+Static Function OnLocal(cOp, nLocal)
+  AAdd(aF[F_CODE], {cOp, "", .F., -1, nLocal})
+Return Nil
+
+Static Function EmitCall(nArgc, cName)
+Return Op("call", NumText(nArgc) + " " + cName)
+
+Static Function Label()
+  AAdd(aF[F_LABELS], -1)
+Return Len(aF[F_LABELS]) - 1
+
+Static Function Place(nL)
+  aF[F_LABELS][nL + 1] := Len(aF[F_CODE])
+Return Nil
+
+Static Function AddLocal(aG, cName)
+  AAdd(aG[F_NAMES], cName)
+  AAdd(aG[F_CAPTURED], .F.)
+Return Len(aG[F_NAMES]) - 1
+
+Static Function Temp()
+  aF[F_TEMPS]++
+Return AddLocal(aF, ".t" + NumText(aF[F_TEMPS]))
+
+Static Function Problem(cWhat)
+  AAdd(aProblems, {nLine, cWhat})
+Return Nil
+
+// A line said where nothing has run since the last one said replaces it --
+// unless a jump goes to that one.
+Static Function ForceLine(nN)
+  Local nLast
+  Local aCode := aF[F_CODE]
+  If nN <= 0
+    Return Nil
+  EndIf
+  nLast := Len(aCode) - 1
+  If nLast >= 0 .And. aCode[nLast + 1][I_OP] == "line" .And. AScan(aF[F_LABELS], {|x| x == nLast}) == 0
+    aCode[nLast + 1][I_ARG] := NumText(nN)
+  Else
+    Op("line", NumText(nN))
+  EndIf
+  aF[F_LINE] := nN
+Return Nil
+
+Static Function Line(nN)
+  If nN > 0 .And. nN != aF[F_LINE]
+    ForceLine(nN)
+  EndIf
+Return Nil
+
+// The top of a loop, where its line is said again: a jump back to it comes
+// from the body's last line.
+Static Function LoopTop(nTop, nN)
+  Local aCode := aF[F_CODE]
+  If Len(aCode) > 0 .And. ATail(aCode)[I_OP] == "line" .And. ATail(aCode)[I_ARG] == NumText(nN)
+    aF[F_LABELS][nTop + 1] := Len(aCode) - 1
+    Return Nil
+  EndIf
+  Place(nTop)
+  ForceLine(nN)
+Return Nil
+
+// ---- names ------------------------------------------------------------------
+// A name, from the function compiled out: a local of it or of a function
+// around it (a block's), a static, a variable a Private or a Public
+// declares; then the file's statics, its #defines, CRLF; anything else is
+// a memvar.
+Static Function Resolve(cName)
+  Local cK := Lc(cName)
+  Local aG := aF
+  Local nS
+  Local aE
+  While aG != Nil
+    For nS := Len(aG[F_SCOPES]) To 1 Step -1
+      If !(aG[F_SCOPES][nS] has cK)
+        Loop
+      EndIf
+      aE := aG[F_SCOPES][nS]{cK}
+      If aE[E_KIND] == SYM_STATIC
+        Return {VK_STATIC, aE[E_INDEX], "", .F.}
+      EndIf
+      If aE[E_KIND] == SYM_MEMVAR
+        Return {VK_MEMVAR, -1, Uc(cName), .T.}
+      EndIf
+      Return LocalOf(aG, aE[E_INDEX])
+    Next
+    aG := aG[F_PARENT]
+  EndDo
+  If hFile has cK
+    Return {VK_STATIC, hFile{cK}[E_INDEX], "", .F.}
+  EndIf
+  If (hDefines has cK) .And. !hDefines{cK}[D_PARAMS]
+    Return {VK_DEFINE, -1, cK, .F.}
+  EndIf
+  If cK == "crlf"
+    Return {VK_CRLF, -1, "", .F.}
+  EndIf
+Return {VK_MEMVAR, -1, Uc(cName), .F.}
+
+Static Function LocalOf(aOwner, nIndex)
+  If aOwner[F_ID] == aF[F_ID]
+    Return {VK_LOCAL, nIndex, "", .F.}
+  EndIf
+Return {VK_UPVAL, Upval(aF, aOwner, nIndex), "", .F.}
+
+// The cell of f that is owner's local: a block's cell, made of its maker's
+// local or of a cell of the block around it.
+Static Function Upval(aG, aOwner, nIndex)
+  Local aU
+  Local nJ
+  Local nI
+  If aG[F_PARENT][F_ID] == aOwner[F_ID]
+    aOwner[F_CAPTURED][nIndex + 1] := .T.
+    aU := {.T., nIndex, aOwner[F_NAMES][nIndex + 1]}
+  Else
+    nJ := Upval(aG[F_PARENT], aOwner, nIndex)
+    aU := {.F., nJ, aG[F_PARENT][F_UPVALS][nJ + 1][UV_NAME]}
+  EndIf
+  For nI := 1 To Len(aG[F_UPVALS])
+    If aG[F_UPVALS][nI][UV_FROMLOCAL] == aU[UV_FROMLOCAL] .And. aG[F_UPVALS][nI][UV_INDEX] == aU[UV_INDEX]
+      Return nI - 1
+    EndIf
+  Next
+  AAdd(aG[F_UPVALS], aU)
+Return Len(aG[F_UPVALS]) - 1
+
+// A local declared in the innermost scope. One the function declared
+// already at its own level is the same variable.
+Static Function DeclareLocal(cName)
+  Local cK := Lc(cName)
+  Local hS := ATail(aF[F_SCOPES])
+  Local nI
+  If Len(aF[F_SCOPES]) == 1
+    If (hS has cK) .And. hS{cK}[E_KIND] == SYM_LOCAL
+      Return hS{cK}[E_INDEX]
+    EndIf
+  EndIf
+  nI := AddLocal(aF, cName)
+  hS{cK} := {SYM_LOCAL, nI}
+Return nI
+
+Static Function Load(aV)
+  Local aD
+  Do Case
+    Case aV[V_KIND] == VK_LOCAL
+      OnLocal("local", aV[V_INDEX])
+    Case aV[V_KIND] == VK_UPVAL
+      Op("upval", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_STATIC
+      Op("static", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_MEMVAR
+      Op("memvar", aV[V_NAME])
+    Case aV[V_KIND] == VK_DEFINE
+      // Its value, compiled where it is read.
+      aD := hDefines{aV[V_NAME]}
+      If !aD[D_READ] .Or. (hExpanding has aV[V_NAME])
+        Problem("'" + aV[V_NAME] + "', a #define whose value " + If(aD[D_READ], "names itself", "is no expression"))
+        Op("nil")
+      ElseIf aD[D_BODY] == Nil
+        Op("nil")
+      Else
+        hExpanding{aV[V_NAME]} := .T.
+        Expr(aD[D_BODY])
+        hExpanding:Del(aV[V_NAME])
+      EndIf
+    Case aV[V_KIND] == VK_CRLF
+      Num(13)
+      EmitCall(1, "Chr")
+      Num(10)
+      EmitCall(1, "Chr")
+      Op("add")
+  EndCase
+Return Nil
+
+Static Function Store(aV)
+  Do Case
+    Case aV[V_KIND] == VK_LOCAL
+      OnLocal("setlocal", aV[V_INDEX])
+    Case aV[V_KIND] == VK_UPVAL
+      Op("setupval", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_STATIC
+      Op("setstatic", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_MEMVAR
+      Op("setmemvar", aV[V_NAME])
+    Otherwise
+      Problem("an assignment to a #define")
+      Op("pop")
+  EndCase
+Return Nil
+
+Static Function RefVar(aV)
+  Do Case
+    Case aV[V_KIND] == VK_LOCAL
+      OnLocal("reflocal", aV[V_INDEX])
+    Case aV[V_KIND] == VK_UPVAL
+      Op("refupval", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_STATIC
+      Op("refstatic", NumText(aV[V_INDEX] + 1))
+    Case aV[V_KIND] == VK_MEMVAR
+      Op("refmemvar", aV[V_NAME])
+    Otherwise
+      Problem("'@' before a #define")
+      Op("nil")
+  EndCase
+Return Nil
+
+// ':x' inside 'with object': the innermost subject, a local of the
+// function that holds the block -- a code block in it shares it.
+Static Function Subject()
+  If Len(aSubjects) == 0
+    Problem("':' outside 'with object'")
+    Op("nil")
+    Return Nil
+  EndIf
+  Load(LocalOf(ATail(aSubjects)[SB_FN], ATail(aSubjects)[SB_LOCAL]))
+Return Nil
+
+// ---- expressions ------------------------------------------------------------
+Static Function Expr(aE)
+  Local nK
+  Local nI
+  Local aM
+  Local lAbove
+  Local bAlias
+  Local aL
+  Local lFirst
+  Local xP
+  Local nKept
+  Local nCaught
+  Local nEnd
+  If aE == Nil .Or. aE[N_KIND] == EK_OMITTED
+    Op("nil")
+    Return Nil
+  EndIf
+  If LoweredDecimal(aE)
+    DecimalExpr(aE)
+    Return Nil
+  EndIf
+  nK := aE[N_KIND]
+  Do Case
+    Case nK == EK_LITERAL
+      Literal(aE)
+    Case nK == EK_NAME
+      // 'Self', the object a method runs on -- but a variable of that name.
+      If Lc(NameOf(aE)) == "self" .And. !(hDeclared has "self")
+        Op("self")
+        Return Nil
+      EndIf
+      Load(Resolve(NameOf(aE)))
+    Case nK == EK_USERTRANS
+      Problem("'" + aE[UT_TEXT] + "', a translation of the source's own")
+      Op("nil")
+    Case nK == EK_CALL
+      CallExpr(aE)
+    Case nK == EK_BINARY
+      Binary(aE)
+    Case nK == EK_INDEX
+      Expr(aE[IDX_BASE])
+      For nI := 1 To Len(aE[IDX_INDICES])
+        Expr(aE[IDX_INDICES][nI])
+        Op("index")
+      Next
+    Case nK == EK_SELFREF
+      Op("self")
+    Case nK == EK_SUBJECTREF
+      Subject()
+    Case nK == EK_MEMBER
+      If IsK(aE[MEM_BASE], EK_NAME)
+        If hRecords has Lc(NameOf(aE[MEM_BASE]))
+          RecField(hRecords{Lc(NameOf(aE[MEM_BASE]))}, aE[MEM_NAME], .F.)
+          Return Nil
+        EndIf
+      EndIf
+      MemberBase(aE[MEM_BASE])
+      Op("member", aE[MEM_NAME])
+    Case nK == EK_SAFEMEMBER
+      Safe(aE[MEM_BASE], {|| Op("member", aE[MEM_NAME])})
+    Case nK == EK_HASHINDEX
+      Expr(aE[HIX_BASE])
+      Expr(aE[HIX_KEY])
+      EmitCall(2, u_xcb_keyreader(aE))
+    Case nK == EK_INTERVAL
+      Problem("a range outside 'in' and the head of a chain")
+      Op("nil")
+    Case nK == EK_METHODCALL
+      // 'Name():M(...)': an object of the class Name, M run on it -- TL++'s
+      // form, whatever Name is.
+      aM := aE
+      If IsK(aM[MC_BASE], EK_CALL) .And. Len(aM[MC_BASE][CALL_ARGS]) == 0
+        For nI := 1 To Len(aM[MC_ARGS])
+          Arg(aM[MC_ARGS][nI])
+        Next
+        Op("new", NumText(Len(aM[MC_ARGS])) + " " + aM[MC_BASE][CALL_NAME] + " " + aM[MC_NAME])
+        Return Nil
+      EndIf
+      // '_Super:M()': the method of the class above, on Self.
+      lAbove := IsK(aM[MC_BASE], EK_NAME) .And. Lc(NameOf(aM[MC_BASE])) == "_super"
+      If !lAbove
+        MemberBase(aM[MC_BASE])
+      EndIf
+      For nI := 1 To Len(aM[MC_ARGS])
+        Arg(aM[MC_ARGS][nI])
+      Next
+      Op(If(lAbove, "super", "method"), NumText(Len(aM[MC_ARGS])) + " " + aM[MC_NAME])
+    Case nK == EK_SAFECALL
+      Safe(aE[MC_BASE], {|| SafeCallRest(aE)})
+    Case nK == EK_ALIASFIELD
+      AliasField(aE)
+    Case nK == EK_INALIAS
+      bAlias := If(aE[IA_ALIAS] != Nil, {|| EmitStr(aE[IA_ALIAS])}, {|| Expr(aE[IA_BASE])})
+      InArea(bAlias, {|| Expr(aE[IA_EXPR])})
+    Case nK == EK_MACRO
+      Expr(aE[MAC_TARGET])
+      If aE[MAC_CALLED]
+        For nI := 1 To Len(aE[MAC_ARGS])
+          Arg(aE[MAC_ARGS][nI])
+        Next
+        Op("callx", NumText(Len(aE[MAC_ARGS])))
+      Else
+        Op("macro")
+      EndIf
+    Case nK == EK_REF
+      Expr(aE[REF_TARGET])
+    Case nK == EK_EXPRLIST
+      // '(a, b, c)': each in turn, the last the value; '%exp:x%' is one.
+      aL := aE[EL_ITEMS]
+      For nI := 1 To Len(aL) - 1
+        Effect(aL[nI])
+      Next
+      Expr(If(Len(aL) == 0, Nil, ATail(aL)))
+    Case nK == EK_ASSIGNEXPR
+      Assign(aE[AE_TARGET], aE[AE_OP], aE[AE_VALUE], If(aE[AE_INCDEC] == "post", WANT_OLD, WANT_NEW), aE[AE_INCDEC])
+    Case nK == EK_ARRAYLIT
+      For nI := 1 To Len(aE[ARR_ITEMS])
+        Expr(aE[ARR_ITEMS][nI])
+      Next
+      Op("array", NumText(Len(aE[ARR_ITEMS])))
+    Case nK == EK_INTERP
+      // A sum of strings: the text as it is, each value its cValToChar().
+      lFirst := .T.
+      For nI := 1 To Len(aE[INTERP_PARTS])
+        xP := aE[INTERP_PARTS][nI]
+        If ValType(xP) == "A"
+          Expr(xP)
+          EmitCall(1, "cValToChar")
+        ElseIf !(xP == "")
+          EmitStr(xP)
+        Else
+          Loop
+        EndIf
+        If !lFirst
+          Op("add")
+        EndIf
+        lFirst := .F.
+      Next
+      If lFirst
+        EmitStr("")
+      EndIf
+    Case nK == EK_JSONLIT
+      PairsLit(aE[JSON_PAIRS], .F.)
+    Case nK == EK_HASHLIT
+      PairsLit(aE[HASH_PAIRS], .T.)
+    Case nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+      Block(aE)
+    Case nK == EK_GUARD
+      // As TL++ has it: the error block one that breaks, a sequence around
+      // the value -- an error, or a Break, gives the alternative -- and the
+      // error block put back.
+      nKept := Temp()
+      nCaught := Label()
+      nEnd := Label()
+      NameBlock("Break")
+      EmitCall(1, "ErrorBlock")
+      OnLocal("setlocal", nKept)
+      Jump("seq", nCaught)
+      Expr(aE[GRD_EXPR])
+      Op("endseq")
+      Jump("jump", nEnd)
+      Place(nCaught)
+      Op("pop")
+      Expr(aE[GRD_FALLBACK])
+      Place(nEnd)
+      OnLocal("local", nKept)
+      EmitCall(1, "ErrorBlock")
+      Op("pop")
+    Case nK == EK_PIPELINE
+      Pipeline(aE)
+  EndCase
+Return Nil
+
+Static Function SafeCallRest(aM)
+  Local nI
+  For nI := 1 To Len(aM[MC_ARGS])
+    Arg(aM[MC_ARGS][nI])
+  Next
+  Op("method", NumText(Len(aM[MC_ARGS])) + " " + aM[MC_NAME])
+Return Nil
+
+// An expression for what it does: an assignment wants no value back.
+Static Function Effect(aE)
+  If IsK(aE, EK_ASSIGNEXPR) .And. !LoweredDecimal(aE)
+    Assign(aE[AE_TARGET], aE[AE_OP], aE[AE_VALUE], WANT_NONE, aE[AE_INCDEC])
+    Return Nil
+  EndIf
+  Expr(aE)
+  Op("pop")
+Return Nil
+
+Static Function Literal(aL)
+  Local cT := aL[LIT_TYPE]
+  Do Case
+    Case cT == "Numeric"
+      Op("num", NumberText(aL[LIT_TEXT]))
+    Case cT == "Character"
+      EmitStr(StringText(aL[LIT_TEXT]))
+    Case cT == "Logical"
+      Op(If(Len(aL[LIT_TEXT]) > 1 .And. Lower(SubStr(aL[LIT_TEXT], 2, 1)) == "t", "true", "false"))
+    Otherwise
+      Op("nil")
+  EndCase
+Return Nil
+
+Static Function Binary(aB)
+  Local cO := aB[BIN_OP]
+  Local nEnd
+  Local aR
+  Local bX
+  Local nT
+  If cO == ".and." .Or. cO == ".or."
+    nEnd := Label()
+    Expr(aB[BIN_LEFT])
+    Jump(If(cO == ".and.", "andjump", "orjump"), nEnd)
+    Expr(aB[BIN_RIGHT])
+    Place(nEnd)
+    Return Nil
+  EndIf
+  If cO == "!" .Or. cO == "neg"
+    Expr(aB[BIN_RIGHT])
+    Op(If(cO == "!", "not", "neg"))
+    Return Nil
+  EndIf
+  If cO == "in"
+    If IsK(aB[BIN_RIGHT], EK_INTERVAL)
+      // 'x in lo..hi': both ends, x read once.
+      aR := aB[BIN_RIGHT]
+      nEnd := Label()
+      If NameOrLiteral(aB[BIN_LEFT])
+        bX := {|| Expr(aB[BIN_LEFT])}
+      Else
+        nT := Temp()
+        Expr(aB[BIN_LEFT])
+        OnLocal("setlocal", nT)
+        bX := {|| OnLocal("local", nT)}
+      EndIf
+      Eval(bX)
+      Expr(aR[IVL_LO])
+      Op("ge")
+      Jump("andjump", nEnd)
+      Eval(bX)
+      Expr(aR[IVL_HI])
+      Op("le")
+      Place(nEnd)
+      Return Nil
+    EndIf
+    Expr(aB[BIN_LEFT])
+    Expr(aB[BIN_RIGHT])
+    EmitCall(2, "u_xtpl_in")
+    Return Nil
+  EndIf
+  If cO == "has"
+    Expr(aB[BIN_LEFT])
+    Expr(aB[BIN_RIGHT])
+    EmitCall(2, "u_xtpl_hhas")
+    Return Nil
+  EndIf
+  If !(u_xcb_setfunction(cO) == "")
+    // Raku's set operators: the runtime's functions, the sides in order.
+    Expr(aB[BIN_LEFT])
+    Expr(aB[BIN_RIGHT])
+    EmitCall(2, u_xcb_setfunction(cO))
+    Return Nil
+  EndIf
+  If cO == "%%"
+    Expr(aB[BIN_LEFT])
+    Expr(aB[BIN_RIGHT])
+    Op("mod")
+    Num(0)
+    Op("exact")
+    Return Nil
+  EndIf
+  If cO == "?:"
+    // A literal is Nil or never is: the side it picks.
+    If IsK(aB[BIN_LEFT], EK_LITERAL)
+      Expr(If(aB[BIN_LEFT][LIT_TYPE] == "Variant", aB[BIN_RIGHT], aB[BIN_LEFT]))
+      Return Nil
+    EndIf
+    nEnd := Label()
+    Expr(aB[BIN_LEFT])
+    Op("dup")
+    Op("isnil")
+    Jump("jumpf", nEnd)
+    Op("pop")
+    Expr(aB[BIN_RIGHT])
+    Place(nEnd)
+    Return Nil
+  EndIf
+  Expr(aB[BIN_LEFT])
+  Expr(aB[BIN_RIGHT])
+  Op(If(u_xcb_arithmetic(cO), ArithOp(cO), CompareOp(cO)))
+Return Nil
+
+Static Function CallExpr(aC)
+  Local cN := Lc(aC[CALL_NAME])
+  Local nOther
+  Local nEnd
+  Local lVerb
+  Local nI
+  Local nCount
+  If (cN == "iif" .Or. cN == "if") .And. Len(aC[CALL_ARGS]) == 3
+    // Only the branch taken is evaluated.
+    nOther := Label()
+    nEnd := Label()
+    Expr(aC[CALL_ARGS][1])
+    Jump("jumpf", nOther)
+    Expr(aC[CALL_ARGS][2])
+    Jump("jump", nEnd)
+    Place(nOther)
+    Expr(aC[CALL_ARGS][3])
+    Place(nEnd)
+    Return Nil
+  EndIf
+  If (hDefines has cN) .And. hDefines{cN}[D_PARAMS]
+    Problem("'" + aC[CALL_NAME] + "()', a #define with parameters")
+    Op("nil")
+    Return Nil
+  EndIf
+  If u_xcb_issource(aC)
+    Problem("'" + cN + "()' outside the head of a chain (it is a source)")
+    Op("nil")
+    Return Nil
+  EndIf
+  lVerb := u_xcb_isverb(aC[CALL_NAME])
+  For nI := 1 To Len(aC[CALL_ARGS])
+    If lVerb .And. nI > 1
+      BlockArg(cN, aC[CALL_ARGS][nI])
+    Else
+      Arg(aC[CALL_ARGS][nI])
+    EndIf
+  Next
+  nCount := Len(aC[CALL_ARGS])
+  If lVerb .And. u_xcb_onearray(cN, nCount)
+    Op("array", NumText(nCount))
+    nCount := 1
+  EndIf
+  EmitCall(nCount, If(lVerb, "u_xtpl_" + cN, aC[CALL_NAME]))
+Return Nil
+
+// An argument: left out, Nil; '@x', a reference to x.
+Static Function Arg(aA)
+  Local aT
+  If IsK(aA, EK_REF)
+    aT := aA[REF_TARGET]
+    If IsK(aT, EK_NAME)
+      RefVar(Resolve(NameOf(aT)))
+      Return Nil
+    EndIf
+    If IsK(aT, EK_ALIASFIELD) .And. aT[AF_ALIAS] != Nil .And. aT[AF_MACRO] == Nil ;
+       .And. (Uc(aT[AF_ALIAS]) == "M" .Or. Uc(aT[AF_ALIAS]) == "MEMVAR")
+      Op("refmemvar", Uc(aT[AF_FIELD]))
+      Return Nil
+    EndIf
+    Problem("'@' before what is not a variable -- an element, a member")
+    Op("nil")
+    Return Nil
+  EndIf
+  Expr(aA)
+Return Nil
+
+// An argument of a verb that takes a block: a bare name the function does
+// not declare is the function of that name, as for TL++.
+Static Function BlockArg(cVerb, aA)
+  If u_xcb_takesblock(cVerb) .And. IsK(aA, EK_NAME) .And. !(hDeclared has Lc(NameOf(aA)))
+    NameBlock(NameOf(aA))
+    Return Nil
+  EndIf
+  Arg(aA)
+Return Nil
+
+// '{|__it| f(__it)}'.
+Static Function NameBlock(cFname)
+  Local aG := NewFn()
+  Local aWas
+  aTop[F_MADECOUNT]++
+  aG[F_NUMBER] := aTop[F_MADECOUNT]
+  aG[F_NAME] := aTop[F_NAME] + "#" + NumText(aG[F_NUMBER])
+  aG[F_KIND] := "block"
+  aG[F_PARAMS] := 1
+  aG[F_PARENT] := aF
+  AAdd(aFns, aG)
+  AAdd(aTop[F_MADE], aG)
+  AddLocal(aG, "__it")
+  aWas := aF
+  aF := aG
+  ForceLine(aWas[F_LINE])
+  OnLocal("local", 0)
+  EmitCall(1, cFname)
+  Op("ret")
+  aF := aWas
+  Op("block", aG[F_NAME] + " 0")
+Return Nil
+
+// A code block, a lambda: a function of its own, which the cells it shares
+// are given to when it is made.
+Static Function Block(aB)
+  Local aG := NewFn()
+  Local aWas
+  Local nI
+  Local nL
+  Local aU
+  aTop[F_MADECOUNT]++
+  aG[F_NUMBER] := aTop[F_MADECOUNT]
+  aG[F_NAME] := aTop[F_NAME] + "#" + NumText(aG[F_NUMBER])
+  aG[F_KIND] := "block"
+  aG[F_PARAMS] := Len(aB[CB_PARAMS])
+  aG[F_PARENT] := aF
+  AAdd(aFns, aG)
+  AAdd(aTop[F_MADE], aG)
+  AAdd(aG[F_SCOPES], { => })
+  // A name given to two parameters is the last of them.
+  For nI := 1 To Len(aB[CB_PARAMS])
+    nL := AddLocal(aG, aB[CB_PARAMS][nI])
+    ATail(aG[F_SCOPES]){Lc(aB[CB_PARAMS][nI])} := {SYM_LOCAL, nL}
+  Next
+  aWas := aF
+  aF := aG
+  ForceLine(aWas[F_LINE])
+  If Len(aB[CB_BODY]) == 0
+    Op("nil")
+  EndIf
+  For nI := 1 To Len(aB[CB_BODY])
+    If nI < Len(aB[CB_BODY])
+      Effect(aB[CB_BODY][nI])
+    Else
+      Expr(aB[CB_BODY][nI])
+    EndIf
+  Next
+  Op("ret")
+  aF := aWas
+  For nI := 1 To Len(aG[F_UPVALS])
+    aU := aG[F_UPVALS][nI]
+    If aU[UV_FROMLOCAL]
+      OnLocal("reflocal", aU[UV_INDEX])
+    Else
+      Op("refupval", NumText(aU[UV_INDEX] + 1))
+    EndIf
+  Next
+  Op("block", aG[F_NAME] + " " + NumText(Len(aG[F_UPVALS])))
+Return Nil
+
+Static Function MemberBase(aBase)
+  If IsK(aBase, EK_SUBJECTREF)
+    Subject()
+  Else
+    Expr(aBase)
+  EndIf
+Return Nil
+
+// 'o?.x', 'o?.m()': Nil when o is -- but ':x?.y' inside 'with object' is a
+// plain ':'.
+Static Function Safe(aBase, bRest)
+  Local nEnd
+  If IsK(aBase, EK_SUBJECTREF)
+    Subject()
+    Eval(bRest)
+    Return Nil
+  EndIf
+  nEnd := Label()
+  Expr(aBase)
+  Op("dup")
+  Op("isnil")
+  Jump("jumpt", nEnd)
+  Eval(bRest)
+  Place(nEnd)
+Return Nil
+
+// 'SA1->A1_NOME', '(cAlias)->A1_NOME', 'M->nX'; a field named by a macro is
+// FieldGet() in the area.
+Static Function AliasField(aA)
+  Local aName
+  Local bAlias
+  Local cAl
+  If aA[AF_MACRO] != Nil
+    aName := aA[AF_MACRO][MAC_TARGET]
+    bAlias := If(aA[AF_ALIAS] != Nil, {|| EmitStr(aA[AF_ALIAS])}, {|| Expr(aA[AF_BASE])})
+    InArea(bAlias, {|| Expr(aName), EmitCall(1, "FieldPos"), EmitCall(1, "FieldGet")})
+    Return Nil
+  EndIf
+  If aA[AF_ALIAS] != Nil
+    cAl := Uc(aA[AF_ALIAS])
+    If cAl == "M" .Or. cAl == "MEMVAR"
+      Op("memvar", Uc(aA[AF_FIELD]))
+    Else
+      Op("field", cAl + " " + Uc(aA[AF_FIELD]))
+    EndIf
+    Return Nil
+  EndIf
+  Expr(aA[AF_BASE])
+  Op("fieldx", Uc(aA[AF_FIELD]))
+Return Nil
+
+// What runs in an area, 'SA1->(...)': the area selected, the body, and the
+// area selected before selected again.
+Static Function InArea(bAlias, bBody)
+  Eval(bAlias)
+  Op("area")
+  Eval(bBody)
+  Op("endarea")
+Return Nil
+
+// A hash, a JSON object: the runtime's, made of {key, value} pairs.
+Static Function PairsLit(aPs, lHash)
+  Local nI
+  If Len(aPs) == 0
+    Op("new", If(lHash, "0 THashMap New", "0 JsonObject New"))
+    Return Nil
+  EndIf
+  For nI := 1 To Len(aPs)
+    Expr(aPs[nI][KV_KEY])
+    Expr(aPs[nI][KV_VALUE])
+    Op("array", "2")
+  Next
+  Op("array", NumText(Len(aPs)))
+  EmitCall(1, If(lHash, "u_xtpl_hnew", "u_xtpl_jnew"))
+Return Nil
+
+// A chain inside an expression: each stage a call, what came before its
+// first argument -- one from a source cannot be.
+Static Function Pipeline(aP)
+  Local cWhat
+  If u_xcb_issource(aP[PIPE_SOURCE])
+    cWhat := If(u_xcb_sourcekind(aP[PIPE_SOURCE]) == "range", "a range", u_xcb_sourcekind(aP[PIPE_SOURCE]) + "()")
+    Problem("a chain from " + cWhat + " where it cannot run as a loop first (it goes in 'x := ...', " ;
+            + "'return ...' or a statement of its own)")
+    Op("nil")
+    Return Nil
+  EndIf
+  Calls({|| Expr(aP[PIPE_SOURCE])}, aP[PIPE_STAGES])
+Return Nil
+
+// ---- chains that are loops --------------------------------------------------
+// What TL++ makes a loop of (emit.cpp's fused_value, lower.cpp's
+// walk_chain), written the same way: a chain that is a statement's whole
+// value -- 'x := ...', 'return ...', a block's Local, a Private, a Public, a
+// statement of its own, or what a 'fallback' there guards -- from rows(),
+// lines() or a range, or over an array with stages that fuse. What the C++
+// keeps as a Push is a code block here, made by an Mk... function.
+
+// Verbs written as calls are the chain they stand for: 'filter(map(a, f),
+// g)' is 'a |> map(f) |> filter(g)'.
+Static Function AsChain(aE)
+  Local aOuter := {}
+  Local aX
+  Local aMade
+  Local aP
+  Local aSt
+  Local nI
+  Local nJ
+  If !IsK(aE, EK_CALL) .Or. !u_xcb_isverb(aE[CALL_NAME])
+    Return aE
+  EndIf
+  If hChainsMade has aE[N_ID]
+    Return hChainsMade{aE[N_ID]}
+  EndIf
+  aX := aE
+  While IsK(aX, EK_CALL) .And. u_xcb_isverb(aX[CALL_NAME]) .And. Len(aX[CALL_ARGS]) > 0
+    AAdd(aOuter, aX)
+    aX := aX[CALL_ARGS][1]
+  EndDo
+  aMade := aE
+  If Len(aOuter) > 0 .And. aX != Nil .And. aX[N_KIND] != EK_OMITTED .And. !u_xcb_issource(aX) ;
+     .And. !IsK(aX, EK_PIPELINE)
+    aP := u_xcb_new(EK_PIPELINE)
+    aP[PIPE_SOURCE] := aX
+    For nI := Len(aOuter) To 1 Step -1
+      aSt := u_xcb_new(EK_CALL)
+      aSt[CALL_NAME] := aOuter[nI][CALL_NAME]
+      For nJ := 2 To Len(aOuter[nI][CALL_ARGS])
+        AAdd(aSt[CALL_ARGS], aOuter[nI][CALL_ARGS][nJ])
+      Next
+      AAdd(aP[PIPE_STAGES], aSt)
+    Next
+    aMade := aP
+  EndIf
+  hChainsMade{aE[N_ID]} := aMade
+Return aMade
+
+Static Function FusableArray(aE, lForEffect)
+  If !IsK(aE, EK_PIPELINE) .Or. u_xcb_issource(aE[PIPE_SOURCE])
+    Return .F.
+  EndIf
+Return u_xcb_fusefrom(aE[PIPE_STAGES], hDeclared, lForEffect) >= 0
+
+// A value that is statements before it is a value: a guard, a chain that
+// runs as a loop.
+Static Function LoopValue(aE)
+Return IsK(aE, EK_GUARD) .Or. (aE != Nil .And. (u_xcb_sourcecall(aE) != Nil .Or. FusableArray(AsChain(aE), .F.)))
+
+// What keeps a chain from a source from being a loop (chains.xtpl).
+Static Function CheckChain(aChain, lForEffect)
+  Local aM
+  Local nI
+  If u_xcb_sourcecall(aChain) == Nil
+    Return Nil
+  EndIf
+  aM := u_xcb_chainproblems(aChain, lForEffect, hDeclared)
+  For nI := 1 To Len(aM)
+    Problem(aM[nI])
+  Next
+Return Nil
+
+// A value with stages applied to it as calls, each around the one before.
+Static Function Calls(bValue, aStages)
+  Local nI
+  Local nA
+  Local aSt
+  Local nN
+  Eval(bValue)
+  For nI := 1 To Len(aStages)
+    aSt := aStages[nI]
+    For nA := 1 To Len(aSt[CALL_ARGS])
+      BlockArg(Lc(aSt[CALL_NAME]), aSt[CALL_ARGS][nA])
+    Next
+    nN := Len(aSt[CALL_ARGS]) + 1
+    If u_xcb_onearray(aSt[CALL_NAME], nN)
+      Op("array", NumText(nN))
+      nN := 1
+    EndIf
+    EmitCall(nN, If(u_xcb_isverb(aSt[CALL_NAME]), "u_xtpl_" + Lc(aSt[CALL_NAME]), aSt[CALL_NAME]))
+  Next
+Return Nil
+
+// Stages from one place to another, from 1.
+Static Function Stages(aAll, nFrom, nTo)
+  Local aOut := {}
+  Local nI
+  For nI := nFrom To nTo
+    AAdd(aOut, aAll[nI])
+  Next
+Return aOut
+
+// A chain as a loop, and how its result is pushed. Over an array the loop
+// starts where fuse_from says, the stages before it calls; a name is walked
+// as it is, anything else bound once.
+Static Function Stream(aChain, lCollect)
+  Local aStages := {}
+  Local aSrc
+  Local nFrom
+  Local nFs
+  CheckChain(aChain, !lCollect)
+  If IsK(aChain, EK_PIPELINE)
+    aStages := aChain[PIPE_STAGES]
+  EndIf
+  aSrc := u_xcb_sourcecall(aChain)
+  If aSrc != Nil
+    Return WalkChain(aSrc, Nil, aStages, lCollect)
+  EndIf
+  aSrc := aChain[PIPE_SOURCE]
+  nFrom := Max(0, u_xcb_fusefrom(aStages, hDeclared, !lCollect))
+  If nFrom == 0 .And. IsK(aSrc, EK_NAME)
+    Return WalkChain(Nil, MkExpr(aSrc), aStages, lCollect)
+  EndIf
+  nFs := Temp()
+  Calls(MkExpr(aSrc), Stages(aStages, 1, nFrom))
+  OnLocal("setlocal", nFs)
+Return WalkChain(Nil, MkLocal(nFs), Stages(aStages, nFrom + 1, Len(aStages)), lCollect)
+
+// An end of a range: a number or a name as it is, anything else bound
+// once, before the loop.
+Static Function RangeEnd(aE)
+  Local nT
+  If u_xcb_numberlit(aE) .Or. IsK(aE, EK_NAME)
+    Return MkExpr(aE)
+  EndIf
+  nT := Temp()
+  Expr(aE)
+  OnLocal("setlocal", nT)
+Return MkLocal(nT)
+
+// ---- blocks of what the C++ keeps -------------------------------------------
+Static Function MkExpr(aE)
+Return {|| Expr(aE)}
+
+Static Function MkLocal(nL)
+Return {|| OnLocal("local", nL)}
+
+Static Function MkStr(cS)
+Return {|| EmitStr(cS)}
+
+Static Function MkPlace(nL)
+Return {|| Place(nL)}
+
+Static Function MkOp(cOp)
+Return {|| Op(cOp)}
+
+Static Function MkCalls(bValue, aStages)
+Return {|| Calls(bValue, aStages)}
+
+// 'v(); setlocal to'.
+Static Function MkSetFrom(bV, nTo)
+Return {|| Eval(bV), OnLocal("setlocal", nTo)}
+
+// 'v(); pop'.
+Static Function MkPopFrom(bV)
+Return {|| Eval(bV), Op("pop")}
+
+// The element, or Nil when there is none.
+Static Function MkEl(nElem)
+Return {|| If(nElem != Nil, OnLocal("local", nElem), Op("nil"))}
+
+// A stage's block as a value: a lambda written in it, its parameter the
+// element -- or the record --, or a function's name called on it.
+Static Function ValueOf(aSt, nElem, aRecord)
+  Local aA := ArgAt(aSt, 1)
+  If IsK(aA, EK_LAMBDA)
+    Return {|| Bound(aA, nElem, aRecord)}
+  EndIf
+  If aA == Nil
+    Return MkOp("nil")
+  EndIf
+Return MkNameCall(NameOf(aA), nElem)
+
+// A stage's argument, from 1 -- Nil for one it does not have, where xc
+// refuses it as what cannot become bytecode yet.
+Static Function ArgAt(aSt, nN)
+Return If(nN <= Len(aSt[CALL_ARGS]), aSt[CALL_ARGS][nN], Nil)
+
+Static Function MkNameCall(cFn, nElem)
+Return {|| NameCall(cFn, nElem)}
+
+Static Function NameCall(cFn, nElem)
+  If nElem != Nil
+    OnLocal("local", nElem)
+  EndIf
+  EmitCall(If(nElem != Nil, 1, 0), cFn)
+Return Nil
+
+// The loop's head, its element, the step to the next one.
+Static Function MkRangeHead(bLo, bHi, nFi, nTop, nEnd)
+Return {|| Eval(bLo), OnLocal("setlocal", nFi), Place(nTop), OnLocal("local", nFi), Eval(bHi), Op("le"), ;
+           Jump("jumpf", nEnd)}
+
+Static Function MkCopy(nFrom, nTo)
+Return {|| OnLocal("local", nFrom), OnLocal("setlocal", nTo)}
+
+Static Function MkNext(nFi, nTop)
+Return {|| OnLocal("local", nFi), Num(1), Op("add"), OnLocal("setlocal", nFi), Jump("jump", nTop)}
+
+Static Function MkArrayHead(bOver, nFi, nTop, nEnd)
+Return {|| Num(1), OnLocal("setlocal", nFi), Place(nTop), OnLocal("local", nFi), Eval(bOver), ;
+           EmitCall(1, "Len"), Op("le"), Jump("jumpf", nEnd)}
+
+Static Function MkArrayRead(bOver, nFi, nV)
+Return {|| Eval(bOver), OnLocal("local", nFi), Op("index"), OnLocal("setlocal", nV)}
+
+Static Function SeekOrTop(aC)
+  If Len(aC[CALL_ARGS]) > 1
+    Expr(aC[CALL_ARGS][2])
+    EmitCall(1, "DbSeek")
+  Else
+    EmitCall(0, "DbGoTop")
+  EndIf
+Return Nil
+
+Static Function MkRowsHead(bAlias, nTop, nEnd)
+Return {|| Place(nTop), InArea(bAlias, {|| EmitCall(0, "Eof")}), Op("not"), Jump("jumpf", nEnd)}
+
+Static Function MkRowsNext(bAlias, nTop)
+Return {|| InArea(bAlias, {|| EmitCall(0, "DbSkip")}), Op("pop"), Jump("jump", nTop)}
+
+Static Function MkRowsTeardown(bAlias, nFrc, nFar)
+Return {|| RowsTeardown(bAlias, nFrc, nFar)}
+
+Static Function RowsTeardown(bAlias, nFrc, nFar)
+  Local nSkip
+  InArea(bAlias, {|| OnLocal("local", nFrc), EmitCall(1, "DbGoto")})
+  Op("pop")
+  nSkip := Label()
+  OnLocal("local", nFar)
+  EmitCall(1, "Empty")
+  Jump("jumpt", nSkip)
+  OnLocal("local", nFar)
+  EmitCall(1, "DbSelectArea")
+  Op("pop")
+  Place(nSkip)
+Return Nil
+
+Static Function MkLinesHead(nFok, nTop, nEnd)
+Return {|| LinesHead(nFok, nTop, nEnd)}
+
+Static Function LinesHead(nFok, nTop, nEnd)
+  Local nBoth
+  Place(nTop)
+  nBoth := Label()
+  OnLocal("local", nFok)
+  Jump("andjump", nBoth)
+  EmitCall(0, "FT_FEof")
+  Op("not")
+  Place(nBoth)
+  Jump("jumpf", nEnd)
+Return Nil
+
+Static Function MkLinesRead(nV)
+Return {|| EmitCall(0, "FT_FReadLn"), OnLocal("setlocal", nV)}
+
+Static Function MkLinesNext(nTop)
+Return {|| EmitCall(0, "FT_FSkip"), Op("pop"), Jump("jump", nTop)}
+
+Static Function MkLinesTeardown(nFok)
+Return {|| LinesTeardown(nFok)}
+
+Static Function LinesTeardown(nFok)
+  Local nDone := Label()
+  OnLocal("local", nFok)
+  Jump("jumpf", nDone)
+  EmitCall(0, "FT_FUse")
+  Op("pop")
+  Place(nDone)
+Return Nil
+
+// ---- the loop of a chain ----------------------------------------------------
+// Over a source, or over the array bOver pushes. What it needs is set up
+// first, then each stage's state, then the loop, its stages inside in
+// order, the terminal -- or an AAdd -- collecting; the stages after that
+// are a chain over what was collected, each part as PT_* has it.
+
+Static Function WalkChain(aSource, bOver, aStages, lCollect)
+  Local aSp := u_xcb_splitstages(aStages, aSource == Nil, hDeclared)
+  Local nTop := Label()
+  Local nEnd := Label()
+  Local nElem := Nil
+  Local nFv := Nil
+  Local aRecord := Nil
+  Local bHead := Nil
+  Local bRead := Nil
+  Local bNext := Nil
+  Local bTeardown := Nil
+  Local bLo
+  Local bHi
+  Local nFi
+  Local nV
+  Local aA
+  Local aRec
+  Local bAlias
+  Local nFar
+  Local nFrc
+  Local aPath
+  Local bAt
+  Local nFs
+  Local nFok
+  Local nSkip
+  Local aParts := {}
+  Local nI
+  Local aSt
+  Local cN
+  Local aPart
+  Local bV
+  Local nTo
+  Local aX
+  Local bLimit
+  Local nFlm
+  Local nPassed
+  Local nDone
+  Local nOn
+  Local nBag
+  Local nJ
+  Local nInner
+  Local nOut
+  Local nFa
+  Local nFrom
+  Local nLast
+  Local nSeen
+  Local nBefore
+  Local nPair
+  Local bE
+  Local nKey
+  Local bK
+  Local nFo := -1
+  Local bFinish := Nil
+  Local aTerm
+  Local cT
+  Local bC
+  Local aL
+  Local bSep
+  Local nFsp
+  Local nChunk
+  Local nNow
+  Local nBest
+  Local aAfter
+  Local bCollected
+  Local bApplied
+  Local bArr
+  If IsK(aSource, EK_INTERVAL)
+    // A range counts; the element is a copy of the counter.
+    bLo := RangeEnd(aSource[IVL_LO])
+    bHi := RangeEnd(aSource[IVL_HI])
+    nFi := Temp()
+    If nFv == Nil
+      nFv := Temp()
+    EndIf
+    nV := nFv
+    nElem := nV
+    bHead := MkRangeHead(bLo, bHi, nFi, nTop, nEnd)
+    bRead := MkCopy(nFi, nV)
+    bNext := MkNext(nFi, nTop)
+  ElseIf aSource == Nil
+    // An array: a name, or the array walked.
+    nFi := Temp()
+    If nFv == Nil
+      nFv := Temp()
+    EndIf
+    nV := nFv
+    nElem := nV
+    bHead := MkArrayHead(bOver, nFi, nTop, nEnd)
+    bRead := MkArrayRead(bOver, nFi, nV)
+    bNext := MkNext(nFi, nTop)
+  ElseIf Lc(aSource[CALL_NAME]) == "rows"
+    // The area selected, from its top or from a seek; the element is the
+    // record. A literal alias is written out; anything else bound once.
+    aA := ArgAt(aSource, 1)
+    aRec := {"", -1}
+    If IsK(aA, EK_LITERAL) .And. aA[LIT_TYPE] == "Character"
+      aRec[R_ALIAS] := StringText(aA[LIT_TEXT])
+      bAlias := MkStr(aRec[R_ALIAS])
+    Else
+      aRec[R_LOCAL] := Temp()
+      Expr(aA)
+      OnLocal("setlocal", aRec[R_LOCAL])
+      bAlias := MkLocal(aRec[R_LOCAL])
+    EndIf
+    aRecord := aRec
+    nFar := Temp()
+    nFrc := Temp()
+    EmitCall(0, "Alias")
+    OnLocal("setlocal", nFar)
+    Eval(bAlias)
+    EmitCall(1, "DbSelectArea")
+    Op("pop")
+    InArea(bAlias, {|| EmitCall(0, "RecNo")})
+    OnLocal("setlocal", nFrc)
+    InArea(bAlias, {|| SeekOrTop(aSource)})
+    Op("pop")
+    bHead := MkRowsHead(bAlias, nTop, nEnd)
+    bNext := MkRowsNext(bAlias, nTop)
+    bTeardown := MkRowsTeardown(bAlias, nFrc, nFar)
+  Else
+    // A file, line by line, when File() finds it: a path held in a variable
+    // used as it is, anything else bound once.
+    aPath := ArgAt(aSource, 1)
+    If IsK(aPath, EK_NAME)
+      bAt := MkExpr(aPath)
+    Else
+      nFs := Temp()
+      Expr(aPath)
+      OnLocal("setlocal", nFs)
+      bAt := MkLocal(nFs)
+    EndIf
+    nFok := Temp()
+    If nFv == Nil
+      nFv := Temp()
+    EndIf
+    nV := nFv
+    nElem := nV
+    Eval(bAt)
+    EmitCall(1, "File")
+    OnLocal("setlocal", nFok)
+    nSkip := Label()
+    OnLocal("local", nFok)
+    Jump("jumpf", nSkip)
+    Eval(bAt)
+    EmitCall(1, "FT_FUse")
+    Op("pop")
+    EmitCall(0, "FT_FGoTop")
+    Op("pop")
+    Place(nSkip)
+    bHead := MkLinesHead(nFok, nTop, nEnd)
+    bRead := MkLinesRead(nV)
+    bNext := MkLinesNext(nTop)
+    bTeardown := MkLinesTeardown(nFok)
+  EndIf
+
+  // Each stage: what it holds, set before the loop; what it does, in it;
+  // and what it closes, after the stages inside it.
+  For nI := 1 To Len(aSp[SP_FUSED])
+    aSt := aSp[SP_FUSED][nI]
+    cN := Lc(aSt[CALL_NAME])
+    aPart := {Nil, Nil, Nil}
+    Do Case
+      Case cN == "filter" .Or. cN == "reject"
+        nSkip := Label()
+        bV := ValueOf(aSt, nElem, aRecord)
+        aPart[PT_OPEN] := MkFilterOpen(bV, cN == "filter", nSkip)
+        aPart[PT_CLOSE] := MkPlace(nSkip)
+      Case cN == "map"
+        bV := ValueOf(aSt, nElem, aRecord)
+        If nFv == Nil
+          nFv := Temp()
+        EndIf
+        nTo := nFv
+        aPart[PT_OPEN] := MkSetFrom(bV, nTo)
+        nElem := nTo
+      Case cN == "tap"
+        bV := ValueOf(aSt, nElem, aRecord)
+        aPart[PT_OPEN] := MkPopFrom(bV)
+      Case cN == "take" .Or. cN == "drop"
+        // A number is the limit as it is; anything else is bound once.
+        aX := ArgAt(aSt, 1)
+        nFlm := -1
+        If u_xcb_numberlit(aX)
+          bLimit := MkExpr(aX)
+        Else
+          nFlm := Temp()
+          bLimit := MkLocal(nFlm)
+        EndIf
+        nPassed := Temp()
+        aPart[PT_AHEAD] := MkTakeAhead(nFlm, aX, nPassed)
+        If cN == "take"
+          aPart[PT_OPEN] := MkTakeOpen(nPassed, bLimit, nEnd)
+        Else
+          // The rest of the chain only once the first n have passed by.
+          nDone := Label()
+          aPart[PT_OPEN] := MkDropOpen(nPassed, bLimit, nDone)
+          aPart[PT_CLOSE] := MkPlace(nDone)
+        EndIf
+      Case cN == "takewhile"
+        bV := ValueOf(aSt, nElem, aRecord)
+        aPart[PT_OPEN] := MkTakeWhileOpen(bV, nEnd)
+      Case cN == "dropwhile"
+        // A flag, not a test: once the leading run is over, an element that
+        // would have matched still passes.
+        bV := ValueOf(aSt, nElem, aRecord)
+        nOn := Temp()
+        nSkip := Label()
+        aPart[PT_AHEAD] := MkTrueInto(nOn)
+        aPart[PT_OPEN] := MkDropWhileOpen(nOn, bV, nSkip)
+        aPart[PT_CLOSE] := MkPlace(nSkip)
+      Case cN == "expand"
+        // A loop inside the loop: the rest runs once per inner element.
+        bV := ValueOf(aSt, nElem, aRecord)
+        nBag := Temp()
+        nJ := Temp()
+        If nFv == Nil
+          nFv := Temp()
+        EndIf
+        nTo := nFv
+        nInner := Label()
+        nOut := Label()
+        aPart[PT_OPEN] := MkExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
+        aPart[PT_CLOSE] := MkExpandClose(nJ, nInner, nOut)
+        nElem := nTo
+      Case cN == "scan"
+        // A running value, carried from element to element.
+        aL := aSt[CALL_ARGS][1]
+        nFa := Temp()
+        nFrom := If(nElem == Nil, -1, nElem)
+        If nFv == Nil
+          nFv := Temp()
+        EndIf
+        nTo := nFv
+        aPart[PT_AHEAD] := MkSetFrom(MkExpr(aSt[CALL_ARGS][2]), nFa)
+        aPart[PT_OPEN] := MkScanOpen(aL, nFa, nFrom, nTo)
+        nElem := nTo
+      Case cN == "pairwise"
+        // Each element with the one before it, from the second on.
+        nLast := Temp()
+        nSeen := Temp()
+        nBefore := Temp()
+        nPair := Temp()
+        nSkip := Label()
+        bE := MkEl(nElem)
+        If nFv == Nil
+          nFv := Temp()
+        EndIf
+        nTo := nFv
+        aPart[PT_AHEAD] := MkPairwiseAhead(nLast, nSeen)
+        aPart[PT_OPEN] := MkPairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
+        aPart[PT_CLOSE] := MkPlace(nSkip)
+        nElem := nTo
+      Case cN == "distinct"
+        // An element seen before is skipped: the runtime keeps what was.
+        nSeen := Temp()
+        nSkip := Label()
+        bE := MkEl(nElem)
+        aPart[PT_AHEAD] := MkNewHashInto(nSeen)
+        aPart[PT_OPEN] := MkDistinctOpen(nSeen, bE, nSkip)
+        aPart[PT_CLOSE] := MkPlace(nSkip)
+      Case cN == "distinctadjacent"
+        // A key equal to the one before is skipped; the first always passes.
+        nSeen := Temp()
+        nLast := Temp()
+        nKey := Temp()
+        nSkip := Label()
+        bK := If(Len(aSt[CALL_ARGS]) == 0, MkEl(nElem), ValueOf(aSt, nElem, aRecord))
+        aPart[PT_AHEAD] := MkAdjacentAhead(nSeen, nLast, nKey)
+        aPart[PT_OPEN] := MkAdjacentOpen(bK, nKey, nSeen, nLast, nSkip)
+        aPart[PT_CLOSE] := MkPlace(nSkip)
+    EndCase
+    AAdd(aParts, aPart)
+  Next
+
+  // The terminal, or an AAdd, into the result.
+  aTerm := aSp[SP_TERMINAL]
+  cT := If(aTerm != Nil, Lc(aTerm[CALL_NAME]), "")
+  If !(cT == "") .Or. lCollect .Or. Len(aSp[SP_REST]) > 0
+    nFo := Temp()
+    aPart := {Nil, Nil, Nil}
+    bC := Nil
+    If aTerm != Nil .And. Len(aTerm[CALL_ARGS]) > 0 .And. !(cT == "reduce") .And. !(cT == "fold") .And. !(cT == "join")
+      bC := ValueOf(aTerm, nElem, aRecord)
+    EndIf
+    bE := MkEl(nElem)
+    Do Case
+      Case cT == "asum" .Or. cT == "aprod"
+        aPart[PT_AHEAD] := MkStart(If(cT == "asum", "0", "1"), nFo)
+        aPart[PT_OPEN] := MkSumOpen(nFo, bE, If(cT == "asum", "add", "mul"))
+      Case cT == "count"
+        aPart[PT_AHEAD] := MkStart("0", nFo)
+        aPart[PT_OPEN] := MkCountOpen(bC, nFo)
+      Case cT == "anyof"
+        aPart[PT_AHEAD] := MkStart("false", nFo)
+        aPart[PT_OPEN] := MkStopIf(.T., MkOp("true"), bC, nFo, nEnd)
+      Case cT == "allof"
+        aPart[PT_AHEAD] := MkStart("true", nFo)
+        aPart[PT_OPEN] := MkStopIf(.F., MkOp("false"), bC, nFo, nEnd)
+      Case cT == "noneof"
+        aPart[PT_AHEAD] := MkStart("true", nFo)
+        aPart[PT_OPEN] := MkStopIf(.T., MkOp("false"), bC, nFo, nEnd)
+      Case cT == "first"
+        aPart[PT_AHEAD] := MkStart("nil", nFo)
+        If bC != Nil
+          aPart[PT_OPEN] := MkStopIf(.T., bE, bC, nFo, nEnd)
+        Else
+          aPart[PT_OPEN] := MkFirstOpen(bE, nFo, nEnd)
+        EndIf
+      Case cT == "amax" .Or. cT == "amin" .Or. cT == "fold"
+        // The first element is the start.
+        aPart[PT_AHEAD] := MkStart("nil", nFo)
+        aL := If(cT == "fold", aTerm[CALL_ARGS][1], Nil)
+        nFrom := If(nElem == Nil, -1, nElem)
+        aPart[PT_OPEN] := MkMaxOpen(cT, aL, nFo, nFrom, bE)
+      Case cT == "join"
+        // The elements collected, and joined once, after the loop, by the
+        // runtime. The separator: a literal as it is, anything else bound
+        // once, before the loop.
+        bSep := Nil
+        nFsp := -1
+        aX := If(Len(aTerm[CALL_ARGS]) == 0, Nil, aTerm[CALL_ARGS][1])
+        If aX != Nil
+          If IsK(aX, EK_LITERAL) .Or. IsK(aX, EK_ARRAYLIT) .Or. IsK(aX, EK_JSONLIT) .Or. IsK(aX, EK_HASHLIT) ;
+             .Or. IsK(aX, EK_CODEBLOCK) .Or. IsK(aX, EK_LAMBDA)
+            bSep := MkExpr(aX)
+          Else
+            nFsp := Temp()
+            bSep := MkLocal(nFsp)
+          EndIf
+        EndIf
+        aPart[PT_AHEAD] := MkJoinAhead(nFsp, aX, nFo)
+        aPart[PT_OPEN] := MkAAddOpen(nFo, bE)
+        bFinish := MkJoinFinish(nFo, bSep)
+      Case cT == "reduce"
+        // The seed once, before the loop; the step with its parameters the
+        // result so far and the element.
+        aL := aTerm[CALL_ARGS][1]
+        nFrom := If(nElem == Nil, -1, nElem)
+        aPart[PT_AHEAD] := MkSetFrom(MkExpr(aTerm[CALL_ARGS][2]), nFo)
+        aPart[PT_OPEN] := MkReduceOpen(aL, nFo, nFrom)
+      Case cT == "chunkby"
+        // The runs of elements whose key is equal, each an array.
+        nChunk := Temp()
+        nKey := Temp()
+        nSeen := Temp()
+        nNow := Temp()
+        aPart[PT_AHEAD] := MkChunkAhead(nChunk, nKey, nSeen, nNow, nFo)
+        aPart[PT_OPEN] := MkChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
+        bFinish := MkChunkFinish(nSeen, nFo, nChunk)
+      Case cT == "maxby" .Or. cT == "minby"
+        // The element whose key is the greatest (least): the first of them.
+        nBest := Temp()
+        nSeen := Temp()
+        nKey := Temp()
+        aPart[PT_AHEAD] := MkMaxByAhead(nBest, nSeen, nKey, nFo)
+        aPart[PT_OPEN] := MkMaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)
+      Otherwise
+        aPart[PT_AHEAD] := MkStart("array", nFo)
+        aPart[PT_OPEN] := MkAAddOpen(nFo, bE)
+    EndCase
+    AAdd(aParts, aPart)
+  EndIf
+
+  For nI := 1 To Len(aParts)
+    If aParts[nI][PT_AHEAD] != Nil
+      Eval(aParts[nI][PT_AHEAD])
+    EndIf
+  Next
+  Eval(bHead)
+  If bRead != Nil
+    Eval(bRead)
+  EndIf
+  For nI := 1 To Len(aParts)
+    If aParts[nI][PT_OPEN] != Nil
+      Eval(aParts[nI][PT_OPEN])
+    EndIf
+  Next
+  For nI := Len(aParts) To 1 Step -1
+    If aParts[nI][PT_CLOSE] != Nil
+      Eval(aParts[nI][PT_CLOSE])
+    EndIf
+  Next
+  Eval(bNext)
+  Place(nEnd)
+  If bFinish != Nil
+    Eval(bFinish)
+  EndIf
+  If bTeardown != Nil
+    Eval(bTeardown)
+  EndIf
+  If Len(aSp[SP_REST]) == 0
+    If nFo < 0
+      Return MkOp("nil")
+    EndIf
+    Return MkLocal(nFo)
+  EndIf
+
+  // The stages after the loop, over what it collected.
+  aAfter := aSp[SP_REST]
+  nFrom := u_xcb_fusefrom(aAfter, hDeclared, !lCollect)
+  bCollected := MkLocal(nFo)
+  If nFrom < 0
+    bApplied := MkCalls(bCollected, aAfter)
+    If lCollect
+      Return bApplied
+    EndIf
+    Eval(bApplied)
+    Op("pop")
+    Return MkOp("nil")
+  EndIf
+  bArr := bCollected
+  If nFrom > 0
+    nFs := Temp()
+    Calls(bCollected, Stages(aAfter, 1, nFrom))
+    OnLocal("setlocal", nFs)
+    bArr := MkLocal(nFs)
+  EndIf
+Return WalkChain(Nil, bArr, Stages(aAfter, nFrom + 1, Len(aAfter)), lCollect)
+
+// ---- the stages' parts ------------------------------------------------------
+Static Function MkFilterOpen(bV, lKeep, nSkip)
+Return {|| Eval(bV), Jump(If(lKeep, "jumpf", "jumpt"), nSkip)}
+
+Static Function MkTakeAhead(nFlm, aX, nPassed)
+Return {|| TakeAhead(nFlm, aX, nPassed)}
+
+Static Function TakeAhead(nFlm, aX, nPassed)
+  If nFlm >= 0
+    Expr(aX)
+    OnLocal("setlocal", nFlm)
+  EndIf
+  Num(0)
+  OnLocal("setlocal", nPassed)
+Return Nil
+
+Static Function MkTakeOpen(nPassed, bLimit, nEnd)
+Return {|| TakeOpen(nPassed, bLimit, nEnd)}
+
+Static Function TakeOpen(nPassed, bLimit, nEnd)
+  Local nGo := Label()
+  OnLocal("local", nPassed)
+  Eval(bLimit)
+  Op("ge")
+  Jump("jumpf", nGo)
+  Jump("jump", nEnd)
+  Place(nGo)
+  OnLocal("local", nPassed)
+  Num(1)
+  Op("add")
+  OnLocal("setlocal", nPassed)
+Return Nil
+
+Static Function MkDropOpen(nPassed, bLimit, nDone)
+Return {|| DropOpen(nPassed, bLimit, nDone)}
+
+Static Function DropOpen(nPassed, bLimit, nDone)
+  Local nRest := Label()
+  OnLocal("local", nPassed)
+  Eval(bLimit)
+  Op("lt")
+  Jump("jumpf", nRest)
+  OnLocal("local", nPassed)
+  Num(1)
+  Op("add")
+  OnLocal("setlocal", nPassed)
+  Jump("jump", nDone)
+  Place(nRest)
+Return Nil
+
+Static Function MkTakeWhileOpen(bV, nEnd)
+Return {|| TakeWhileOpen(bV, nEnd)}
+
+Static Function TakeWhileOpen(bV, nEnd)
+  Local nGo := Label()
+  Eval(bV)
+  Jump("jumpt", nGo)
+  Jump("jump", nEnd)
+  Place(nGo)
+Return Nil
+
+Static Function MkTrueInto(nL)
+Return {|| Op("true"), OnLocal("setlocal", nL)}
+
+Static Function MkDropWhileOpen(nOn, bV, nSkip)
+Return {|| DropWhileOpen(nOn, bV, nSkip)}
+
+Static Function DropWhileOpen(nOn, bV, nSkip)
+  Local nBoth := Label()
+  OnLocal("local", nOn)
+  Jump("andjump", nBoth)
+  Eval(bV)
+  Place(nBoth)
+  Jump("jumpt", nSkip)
+  Op("false")
+  OnLocal("setlocal", nOn)
+Return Nil
+
+Static Function MkExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
+Return {|| ExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)}
+
+Static Function ExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
+  Eval(bV)
+  OnLocal("setlocal", nBag)
+  Num(1)
+  OnLocal("setlocal", nJ)
+  Place(nInner)
+  OnLocal("local", nJ)
+  OnLocal("local", nBag)
+  EmitCall(1, "Len")
+  Op("le")
+  Jump("jumpf", nOut)
+  OnLocal("local", nBag)
+  OnLocal("local", nJ)
+  Op("index")
+  OnLocal("setlocal", nTo)
+Return Nil
+
+Static Function MkExpandClose(nJ, nInner, nOut)
+Return {|| OnLocal("local", nJ), Num(1), Op("add"), OnLocal("setlocal", nJ), Jump("jump", nInner), Place(nOut)}
+
+Static Function MkScanOpen(aL, nFa, nFrom, nTo)
+Return {|| Bound2(aL, nFa, nFrom), OnLocal("setlocal", nFa), OnLocal("local", nFa), OnLocal("setlocal", nTo)}
+
+Static Function MkPairwiseAhead(nLast, nSeen)
+Return {|| Op("nil"), OnLocal("setlocal", nLast), Op("false"), OnLocal("setlocal", nSeen)}
+
+Static Function MkPairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
+Return {|| PairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)}
+
+Static Function PairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
+  OnLocal("local", nLast)
+  OnLocal("setlocal", nBefore)
+  OnLocal("local", nSeen)
+  OnLocal("setlocal", nPair)
+  Eval(bE)
+  OnLocal("setlocal", nLast)
+  Op("true")
+  OnLocal("setlocal", nSeen)
+  OnLocal("local", nPair)
+  Jump("jumpf", nSkip)
+  OnLocal("local", nBefore)
+  Eval(bE)
+  Op("array", "2")
+  OnLocal("setlocal", nTo)
+Return Nil
+
+Static Function MkNewHashInto(nL)
+Return {|| Op("new", "0 THashMap New"), OnLocal("setlocal", nL)}
+
+Static Function MkDistinctOpen(nSeen, bE, nSkip)
+Return {|| OnLocal("local", nSeen), Eval(bE), EmitCall(2, "u_xtpl_seen"), Jump("jumpt", nSkip)}
+
+Static Function MkAdjacentAhead(nSeen, nLast, nKey)
+Return {|| Op("false"), OnLocal("setlocal", nSeen), Op("nil"), OnLocal("setlocal", nLast), Op("nil"), ;
+           OnLocal("setlocal", nKey)}
+
+Static Function MkAdjacentOpen(bK, nKey, nSeen, nLast, nSkip)
+Return {|| AdjacentOpen(bK, nKey, nSeen, nLast, nSkip)}
+
+Static Function AdjacentOpen(bK, nKey, nSeen, nLast, nSkip)
+  Local nBoth := Label()
+  Eval(bK)
+  OnLocal("setlocal", nKey)
+  OnLocal("local", nSeen)
+  Jump("andjump", nBoth)
+  OnLocal("local", nKey)
+  OnLocal("local", nLast)
+  Op("exact")
+  Place(nBoth)
+  Jump("jumpt", nSkip)
+  Op("true")
+  OnLocal("setlocal", nSeen)
+  OnLocal("local", nKey)
+  OnLocal("setlocal", nLast)
+Return Nil
+
+// ---- the terminal's parts ---------------------------------------------------
+// 'fo := what' before the loop.
+Static Function MkStart(cWhat, nFo)
+Return {|| StartFo(cWhat, nFo)}
+
+Static Function StartFo(cWhat, nFo)
+  Do Case
+    Case cWhat == "0"
+      Num(0)
+    Case cWhat == "1"
+      Num(1)
+    Case cWhat == "true"
+      Op("true")
+    Case cWhat == "false"
+      Op("false")
+    Case cWhat == "array"
+      Op("array", "0")
+    Otherwise
+      Op("nil")
+  EndCase
+  OnLocal("setlocal", nFo)
+Return Nil
+
+// 'If c; fo := x; Exit; EndIf', or with c false.
+Static Function MkStopIf(lWhen, bX, bC, nFo, nEnd)
+Return {|| StopIf(lWhen, bX, bC, nFo, nEnd)}
+
+Static Function StopIf(lWhen, bX, bC, nFo, nEnd)
+  Local nGo := Label()
+  Eval(bC)
+  Jump(If(lWhen, "jumpf", "jumpt"), nGo)
+  Eval(bX)
+  OnLocal("setlocal", nFo)
+  Jump("jump", nEnd)
+  Place(nGo)
+Return Nil
+
+Static Function MkSumOpen(nFo, bE, cOp)
+Return {|| OnLocal("local", nFo), Eval(bE), Op(cOp), OnLocal("setlocal", nFo)}
+
+Static Function MkCountOpen(bC, nFo)
+Return {|| CountOpen(bC, nFo)}
+
+Static Function CountOpen(bC, nFo)
+  Local nSkip := Label()
+  If bC != Nil
+    Eval(bC)
+    Jump("jumpf", nSkip)
+  EndIf
+  OnLocal("local", nFo)
+  Num(1)
+  Op("add")
+  OnLocal("setlocal", nFo)
+  Place(nSkip)
+Return Nil
+
+Static Function MkFirstOpen(bE, nFo, nEnd)
+Return {|| Eval(bE), OnLocal("setlocal", nFo), Jump("jump", nEnd)}
+
+Static Function MkMaxOpen(cT, aL, nFo, nFrom, bE)
+Return {|| MaxOpen(cT, aL, nFo, nFrom, bE)}
+
+Static Function MaxOpen(cT, aL, nFo, nFrom, bE)
+  Local nOther := Label()
+  Local nDone := Label()
+  OnLocal("local", nFo)
+  Op("isnil")
+  Jump("jumpf", nOther)
+  Eval(bE)
+  OnLocal("setlocal", nFo)
+  Jump("jump", nDone)
+  Place(nOther)
+  If aL != Nil
+    Bound2(aL, nFo, nFrom)
+  Else
+    OnLocal("local", nFo)
+    Eval(bE)
+    EmitCall(2, If(cT == "amax", "Max", "Min"))
+  EndIf
+  OnLocal("setlocal", nFo)
+  Place(nDone)
+Return Nil
+
+Static Function MkJoinAhead(nFsp, aX, nFo)
+Return {|| JoinAhead(nFsp, aX, nFo)}
+
+Static Function JoinAhead(nFsp, aX, nFo)
+  If nFsp >= 0
+    Expr(aX)
+    OnLocal("setlocal", nFsp)
+  EndIf
+  Op("array", "0")
+  OnLocal("setlocal", nFo)
+Return Nil
+
+Static Function MkAAddOpen(nFo, bE)
+Return {|| OnLocal("local", nFo), Eval(bE), EmitCall(2, "AAdd"), Op("pop")}
+
+Static Function MkJoinFinish(nFo, bSep)
+Return {|| JoinFinish(nFo, bSep)}
+
+Static Function JoinFinish(nFo, bSep)
+  OnLocal("local", nFo)
+  If bSep != Nil
+    Eval(bSep)
+  EndIf
+  EmitCall(If(bSep != Nil, 2, 1), "u_xtpl_join")
+  OnLocal("setlocal", nFo)
+Return Nil
+
+Static Function MkReduceOpen(aL, nFo, nFrom)
+Return {|| Bound2(aL, nFo, nFrom), OnLocal("setlocal", nFo)}
+
+Static Function MkChunkAhead(nChunk, nKey, nSeen, nNow, nFo)
+Return {|| Op("array", "0"), OnLocal("setlocal", nChunk), Op("nil"), OnLocal("setlocal", nKey), Op("false"), ;
+           OnLocal("setlocal", nSeen), Op("nil"), OnLocal("setlocal", nNow), Op("array", "0"), ;
+           OnLocal("setlocal", nFo)}
+
+Static Function MkChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
+Return {|| ChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)}
+
+Static Function ChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
+  Local nOther := Label()
+  Local nDone := Label()
+  Eval(bC)
+  OnLocal("setlocal", nNow)
+  OnLocal("local", nSeen)
+  Jump("jumpt", nOther)
+  Op("true")
+  OnLocal("setlocal", nSeen)
+  OnLocal("local", nNow)
+  OnLocal("setlocal", nKey)
+  Jump("jump", nDone)
+  Place(nOther)
+  OnLocal("local", nNow)
+  OnLocal("local", nKey)
+  Op("exact")
+  Jump("jumpt", nDone)
+  OnLocal("local", nFo)
+  OnLocal("local", nChunk)
+  EmitCall(2, "AAdd")
+  Op("pop")
+  Op("array", "0")
+  OnLocal("setlocal", nChunk)
+  OnLocal("local", nNow)
+  OnLocal("setlocal", nKey)
+  Place(nDone)
+  OnLocal("local", nChunk)
+  Eval(bE)
+  EmitCall(2, "AAdd")
+  Op("pop")
+Return Nil
+
+Static Function MkChunkFinish(nSeen, nFo, nChunk)
+Return {|| ChunkFinish(nSeen, nFo, nChunk)}
+
+Static Function ChunkFinish(nSeen, nFo, nChunk)
+  Local nSkip := Label()
+  OnLocal("local", nSeen)
+  Jump("jumpf", nSkip)
+  OnLocal("local", nFo)
+  OnLocal("local", nChunk)
+  EmitCall(2, "AAdd")
+  Op("pop")
+  Place(nSkip)
+Return Nil
+
+Static Function MkMaxByAhead(nBest, nSeen, nKey, nFo)
+Return {|| Op("nil"), OnLocal("setlocal", nBest), Op("false"), OnLocal("setlocal", nSeen), Op("nil"), ;
+           OnLocal("setlocal", nKey), Op("nil"), OnLocal("setlocal", nFo)}
+
+Static Function MkMaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)
+Return {|| MaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)}
+
+Static Function MaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)
+  Local nEither := Label()
+  Local nSkip := Label()
+  Eval(bC)
+  OnLocal("setlocal", nKey)
+  OnLocal("local", nSeen)
+  Op("not")
+  Jump("orjump", nEither)
+  OnLocal("local", nKey)
+  OnLocal("local", nBest)
+  Op(If(cT == "maxby", "gt", "lt"))
+  Place(nEither)
+  Jump("jumpf", nSkip)
+  Op("true")
+  OnLocal("setlocal", nSeen)
+  OnLocal("local", nKey)
+  OnLocal("setlocal", nBest)
+  Eval(bE)
+  OnLocal("setlocal", nFo)
+  Place(nSkip)
+Return Nil
+
+// A stage's lambda body, its parameter the element -- or, over a record,
+// before a map, the name its fields are read by.
+Static Function Bound(aL, nElem, aRecord)
+  Local cP := Lc(aL[CB_PARAMS][1])
+  Local hKept := CopyScope(hRecords)
+  Local hS := { => }
+  AAdd(aF[F_SCOPES], hS)
+  If nElem != Nil
+    hS{cP} := {SYM_LOCAL, nElem}
+    If hRecords has cP
+      hRecords:Del(cP)
+    EndIf
+  ElseIf aRecord != Nil
+    hRecords{cP} := aRecord
+  EndIf
+  Expr(If(Len(aL[CB_BODY]) == 0, Nil, aL[CB_BODY][1]))
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+  hRecords := hKept
+Return Nil
+
+// A two-parameter step: the value carried and the element.
+Static Function Bound2(aL, nCarried, nElement)
+  Local cA := Lc(aL[CB_PARAMS][1])
+  Local cB := Lc(aL[CB_PARAMS][2])
+  Local hKept := CopyScope(hRecords)
+  Local hS := { => }
+  AAdd(aF[F_SCOPES], hS)
+  hS{cA} := {SYM_LOCAL, nCarried}
+  hS{cB} := {SYM_LOCAL, nElement}
+  If hRecords has cA
+    hRecords:Del(cA)
+  EndIf
+  If hRecords has cB
+    hRecords:Del(cB)
+  EndIf
+  Expr(If(Len(aL[CB_BODY]) == 0, Nil, aL[CB_BODY][1]))
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+  hRecords := hKept
+Return Nil
+
+// 'r:X' over rows(): the field, of an alias written out or held.
+Static Function RecField(aR, cName, lSet)
+  If aR[R_LOCAL] < 0
+    Op(If(lSet, "setfield", "field"), Uc(aR[R_ALIAS]) + " " + Uc(cName))
+    Return Nil
+  EndIf
+  OnLocal("local", aR[R_LOCAL])
+  Op(If(lSet, "setfieldx", "fieldx"), Uc(cName))
+Return Nil
+
+// 'x := value' as statements: a chain's loop, then x; a guard's sequence, x
+// given its value inside. bStore: [x] ->.
+Static Function InitInto(aValue, bStore)
+  Local bResult
+  If IsK(aValue, EK_GUARD)
+    GuardInto(aValue, bStore)
+    Return Nil
+  EndIf
+  If LoopValue(aValue)
+    bResult := Stream(AsChain(aValue), .T.)
+    Eval(bResult)
+    Eval(bStore)
+    Return Nil
+  EndIf
+  Expr(aValue)
+  Eval(bStore)
+Return Nil
+
+// A guard that is a statement's whole value, as TL++ writes it: the error
+// block one that breaks, the statement in a sequence, the alternative in its
+// recover, and the error block put back.
+Static Function GuardInto(aG, bStore)
+  Local nKept := Temp()
+  Local nCaught := Label()
+  Local nEnd := Label()
+  NameBlock("Break")
+  EmitCall(1, "ErrorBlock")
+  OnLocal("setlocal", nKept)
+  Jump("seq", nCaught)
+  InitInto(aG[GRD_EXPR], bStore)
+  Op("endseq")
+  Jump("jump", nEnd)
+  Place(nCaught)
+  Op("pop")
+  InitInto(aG[GRD_FALLBACK], bStore)
+  Place(nEnd)
+  OnLocal("local", nKept)
+  EmitCall(1, "ErrorBlock")
+  Op("pop")
+Return Nil
+
+// An assignment, a return or a chain as a statement whose value is
+// statements first (LoopValue): .F. for any other.
+Static Function WholeValue(aSt)
+  Local aV
+  Local nHeld
+  Local aC
+  Local aChain
+  If aSt[N_KIND] == SK_ASSIGNMENT
+    If !(aSt[ASG_OP] == ":=") .Or. !LoopValue(aSt[ASG_VALUE])
+      Return .F.
+    EndIf
+    If IsK(aSt[ASG_VALUE], EK_GUARD) .And. IsK(aSt[ASG_TARGET], EK_HASHINDEX)
+      Return .F.
+    EndIf
+    If IsK(aSt[ASG_TARGET], EK_NAME)
+      aV := Resolve(NameOf(aSt[ASG_TARGET]))
+      InitInto(aSt[ASG_VALUE], MkStore(aV))
+      Return .T.
+    EndIf
+    // Anything but a name takes the value after.
+    nHeld := Temp()
+    InitInto(aSt[ASG_VALUE], {|| OnLocal("setlocal", nHeld)})
+    AssignValue(aSt[ASG_TARGET], MkLocal(nHeld))
+    Return .T.
+  EndIf
+  If aSt[N_KIND] == SK_RETURNSTMT
+    aV := aSt[RET_VALUE]
+    If aV == Nil .Or. !LoopValue(aV)
+      Return .F.
+    EndIf
+    If aF[F_DEFERS]
+      Op("rundefers")
+    EndIf
+    RunExits(0, .F.)
+    nHeld := Temp()
+    InitInto(aV, {|| OnLocal("setlocal", nHeld)})
+    OnLocal("local", nHeld)
+    Op("ret")
+    Return .T.
+  EndIf
+  If aSt[N_KIND] == SK_CALLSTMT
+    aC := aSt[CS_CALL]
+    aChain := AsChain(aC)
+    If !(IsK(aC, EK_PIPELINE) .And. u_xcb_sourcecall(aC) != Nil) .And. !FusableArray(aChain, .T.)
+      Return .F.
+    EndIf
+    Stream(aChain, .F.)
+    Return .T.
+  EndIf
+Return .F.
+
+Static Function MkStore(aV)
+Return {|| Store(aV)}
+
+Static Function MkLoad(aV)
+Return {|| Load(aV)}
+
+// ---- assignments ------------------------------------------------------------
+// Where an assignment writes (T_*): Nil, and the problem said, for what
+// cannot be written.
+Static Function TargetOf(aT)
+  Local nK
+  Local aV
+  Local cF
+  Local cAl
+  Local aName
+  Local bAlias
+  If IsK(aT, EK_REF)
+    aT := aT[REF_TARGET]
+  EndIf
+  nK := If(aT == Nil, EK_OMITTED, aT[N_KIND])
+  Do Case
+    Case nK == EK_NAME
+      aV := Resolve(NameOf(aT))
+      Return {0, Nil, MkLoad(aV), MkStore(aV)}
+    Case nK == EK_INDEX
+      Return {2, {|| IndexPush(aT)}, {|| Op("dup2"), Op("index")}, {|| Op("setindex")}}
+    Case nK == EK_MEMBER .Or. nK == EK_SAFEMEMBER
+      If IsK(aT[MEM_BASE], EK_NAME) .And. (hRecords has Lc(NameOf(aT[MEM_BASE])))
+        Return MkFieldTarget(hRecords{Lc(NameOf(aT[MEM_BASE]))}, aT[MEM_NAME])
+      EndIf
+      Return {1, {|| MemberBase(aT[MEM_BASE])}, {|| Op("dup"), Op("member", aT[MEM_NAME])}, ;
+              {|| Op("setmember", aT[MEM_NAME])}}
+    Case nK == EK_HASHINDEX
+      Return {2, {|| Expr(aT[HIX_BASE]), Expr(aT[HIX_KEY])}, {|| Op("dup2"), EmitCall(2, u_xcb_keyreader(aT))}, ;
+              {|| EmitCall(3, u_xcb_keywriter(aT)), Op("pop")}}
+    Case nK == EK_CALL
+      // 'aTail(a) := x': the last element.
+      If Lc(aT[CALL_NAME]) == "atail" .And. Len(aT[CALL_ARGS]) == 1
+        Return {2, {|| Expr(aT[CALL_ARGS][1]), Op("dup"), EmitCall(1, "Len")}, {|| Op("dup2"), Op("index")}, ;
+                {|| Op("setindex")}}
+      EndIf
+    Case nK == EK_ALIASFIELD
+      If aT[AF_MACRO] != Nil
+        // '(cAlias)->&(cField) := x': FieldPut() in the area.
+        aName := aT[AF_MACRO][MAC_TARGET]
+        bAlias := If(aT[AF_ALIAS] != Nil, MkStr(aT[AF_ALIAS]), MkExpr(aT[AF_BASE]))
+        Return {0, Nil, {|| InArea(bAlias, {|| Expr(aName), EmitCall(1, "FieldPos"), EmitCall(1, "FieldGet")})}, ;
+                {|| FieldPutWrite(bAlias, aName)}}
+      EndIf
+      If aT[AF_ALIAS] != Nil
+        cAl := Uc(aT[AF_ALIAS])
+        cF := Uc(aT[AF_FIELD])
+        If cAl == "M" .Or. cAl == "MEMVAR"
+          aV := {VK_MEMVAR, -1, cF, .F.}
+          Return {0, Nil, MkLoad(aV), MkStore(aV)}
+        EndIf
+        Return {0, Nil, {|| Op("field", cAl + " " + cF)}, {|| Op("setfield", cAl + " " + cF)}}
+      EndIf
+      cF := Uc(aT[AF_FIELD])
+      Return {1, {|| Expr(aT[AF_BASE])}, {|| Op("dup"), Op("fieldx", cF)}, {|| Op("setfieldx", cF)}}
+    Case nK == EK_MACRO
+      If !aT[MAC_CALLED]
+        Return {1, {|| Expr(aT[MAC_TARGET])}, {|| Op("dup"), Op("macro")}, {|| Op("setmacro")}}
+      EndIf
+  EndCase
+  Problem("an assignment to this -- a call")
+Return Nil
+
+Static Function IndexPush(aX)
+  Local nI
+  Expr(aX[IDX_BASE])
+  For nI := 1 To Len(aX[IDX_INDICES]) - 1
+    Expr(aX[IDX_INDICES][nI])
+    Op("index")
+  Next
+  Expr(ATail(aX[IDX_INDICES]))
+Return Nil
+
+Static Function MkFieldTarget(aRec, cF)
+Return {0, Nil, {|| RecField(aRec, cF, .F.)}, {|| RecField(aRec, cF, .T.)}}
+
+Static Function FieldPutWrite(bAlias, aName)
+  Local nValue := Temp()
+  OnLocal("setlocal", nValue)
+  InArea(bAlias, {|| Expr(aName), EmitCall(1, "FieldPos"), OnLocal("local", nValue), EmitCall(2, "FieldPut")})
+  Op("pop")
+Return Nil
+
+// An assignment: the target's operands, the value, and the write. As a
+// value it leaves the value written (New) or the one before it (Old:
+// 'n++').
+Static Function Assign(aT, cO, aValue, nWant, cIncdec)
+  Local aTg := TargetOf(aT)
+  Local nKept := -1
+  If aTg == Nil
+    If nWant != WANT_NONE
+      Op("nil")
+    EndIf
+    Return Nil
+  EndIf
+  If aTg[T_PUSH] != Nil
+    Eval(aTg[T_PUSH])
+  EndIf
+  If cO == ":=" .Or. cO == "="
+    Expr(aValue)
+    If nWant != WANT_NONE
+      nKept := Keep(aTg)
+    EndIf
+  Else
+    Eval(aTg[T_READ])
+    If nWant == WANT_OLD
+      nKept := Keep(aTg)
+    EndIf
+    Operand(aT, cO, aValue, cIncdec)
+    If nWant == WANT_NEW
+      nKept := Keep(aTg)
+    EndIf
+  EndIf
+  Eval(aTg[T_WRITE])
+  If nKept >= 0
+    OnLocal("local", nKept)
+  EndIf
+Return Nil
+
+// The value kept, to be pushed after the write: in a temporary when the
+// target has operands under it.
+Static Function Keep(aTg)
+  Local nKept := -1
+  Op("dup")
+  If aTg[T_OPERANDS] > 0
+    nKept := Temp()
+    OnLocal("setlocal", nKept)
+  EndIf
+Return nKept
+
+// The right side of '+=' and the like, and its operator: with a Decimal
+// target, the DEC_ function.
+Static Function Operand(aT, cO, aValue, cIncdec)
+  Local cBare := Left(cO, Len(cO) - 1)
+  If !lAdvpl .And. IsK(aT, EK_NAME) .And. Compound(cO) .And. u_xcb_isdecimal(aDec, aT)
+    If cIncdec == ""
+      AsDecimal(aValue)
+    Else
+      DecLiteral("1")
+    EndIf
+    EmitCall(2, u_xcb_decop(cBare))
+    Return Nil
+  EndIf
+  Expr(aValue)
+  Op(ArithOp(cBare))
+Return Nil
+
+// '?=', 'Default': only when what is there is Nil.
+Static Function NilAssign(aT, aValue)
+  Local nEnd := Label()
+  Expr(aT)
+  Op("isnil")
+  Jump("jumpf", nEnd)
+  Assign(aT, ":=", aValue, WANT_NONE, "")
+  Place(nEnd)
+Return Nil
+
+// 'x := value' with the value pushed by bValue, after the target's
+// operands.
+Static Function AssignValue(aT, bValue)
+  Local aTg := TargetOf(aT)
+  If aTg == Nil
+    Return Nil
+  EndIf
+  If aTg[T_PUSH] != Nil
+    Eval(aTg[T_PUSH])
+  EndIf
+  Eval(bValue)
+  Eval(aTg[T_WRITE])
+Return Nil
+
+// 'Local aX[10][2]': Array(10, 2).
+Static Function Dims(aDs)
+  Local nI
+  For nI := 1 To Len(aDs)
+    Expr(aDs[nI])
+  Next
+  EmitCall(Len(aDs), "Array")
+Return Nil
+
+// What a variable declared with a type and no value starts at, in TL++.
+Static Function StartDecl(aV)
+Return StartOf(aV[DCL_TYPESPEC])
+
+// The type of those that start at something else than Nil, in TL++:
+// 'numeric', 'character', 'logical', 'date' -- or "".
+Static Function StartWord(xType)
+  Local aW
+  Local cT
+  If lAdvpl .Or. xType == Nil
+    Return ""
+  EndIf
+  aW := u_xcb_words(xType)
+  cT := If(Len(aW) == 0, "", Lc(ATail(aW)))
+  If cT == "integer" .Or. cT == "double"
+    Return "numeric"
+  EndIf
+Return If(cT == "numeric" .Or. cT == "character" .Or. cT == "logical" .Or. cT == "date", cT, "")
+
+Static Function StartOf(xType)
+  Local cT := StartWord(xType)
+  Do Case
+    Case cT == "numeric"
+      Num(0)
+    Case cT == "character"
+      EmitStr("")
+    Case cT == "logical"
+      Op("false")
+    Case cT == "date"
+      EmitStr("18991231")
+      EmitCall(1, "StoD")
+    Otherwise
+      Return .F.
+  EndCase
+Return .T.
+
+// ---- Decimals ---------------------------------------------------------------
+// What TL++ writes with the DEC_ functions (lower.cpp), written so here.
+Static Function NotUnwrapped(aE)
+Return aUnwrapped == Nil .Or. aUnwrapped[N_ID] != aE[N_ID]
+
+Static Function LoweredDecimal(aE)
+  Local lL
+  Local lR
+  Local cN
+  If aE == Nil .Or. lAdvpl
+    Return .F.
+  EndIf
+  If (aDv[DV_NUMERIC] has aE[N_ID]) .And. NotUnwrapped(aE) .And. u_xcb_isdecimal(aDec, aE)
+    Return .T.
+  EndIf
+  If (aDv[DV_DECIMAL] has aE[N_ID]) .And. u_xcb_isconstant(aDec, aE) .And. !u_xcb_isdecimal(aDec, aE)
+    Return .T.
+  EndIf
+  If aE[N_KIND] == EK_BINARY
+    If u_xcb_arithmetic(aE[BIN_OP])
+      Return u_xcb_isdecimal(aDec, aE)
+    EndIf
+    If !u_xcb_comparison(aE[BIN_OP])
+      Return .F.
+    EndIf
+    lL := u_xcb_isdecimal(aDec, aE[BIN_LEFT])
+    lR := u_xcb_isdecimal(aDec, aE[BIN_RIGHT])
+    Return (lL .And. !lR .And. u_xcb_isconstant(aDec, aE[BIN_RIGHT])) ;
+           .Or. (lR .And. !lL .And. u_xcb_isconstant(aDec, aE[BIN_LEFT]))
+  EndIf
+  If aE[N_KIND] == EK_CALL
+    cN := Lc(aE[CALL_NAME])
+    If cN == "round" .Or. cN == "noround"
+      Return Len(aE[CALL_ARGS]) == 2 .And. u_xcb_isdecimal(aDec, aE[CALL_ARGS][1])
+    EndIf
+    Return cN == "empty" .And. Len(aE[CALL_ARGS]) == 1 .And. u_xcb_isdecimal(aDec, aE[CALL_ARGS][1])
+  EndIf
+Return .F.
+
+Static Function DecimalExpr(aE)
+  Local aWas
+  Local cN
+  If (aDv[DV_NUMERIC] has aE[N_ID]) .And. NotUnwrapped(aE) .And. u_xcb_isdecimal(aDec, aE)
+    aWas := aUnwrapped
+    aUnwrapped := aE
+    Expr(aE)
+    aUnwrapped := aWas
+    EmitCall(1, "DEC_TO_DBL")
+    Return Nil
+  EndIf
+  If (aDv[DV_DECIMAL] has aE[N_ID]) .And. u_xcb_isconstant(aDec, aE) .And. !u_xcb_isdecimal(aDec, aE)
+    AsDecimal(aE)
+    Return Nil
+  EndIf
+  If aE[N_KIND] == EK_BINARY
+    If u_xcb_arithmetic(aE[BIN_OP])
+      AsDecimal(aE[BIN_LEFT])
+      AsDecimal(aE[BIN_RIGHT])
+      EmitCall(2, u_xcb_decop(aE[BIN_OP]))
+      Return Nil
+    EndIf
+    DecSide(aE[BIN_LEFT])
+    DecSide(aE[BIN_RIGHT])
+    Op(CompareOp(aE[BIN_OP]))
+    Return Nil
+  EndIf
+  cN := Lc(aE[CALL_NAME])
+  Expr(aE[CALL_ARGS][1])
+  If cN == "empty"
+    DecLiteral("0")
+    Op("exact")
+    Return Nil
+  EndIf
+  Expr(aE[CALL_ARGS][2])
+  Num(If(cN == "round", 0, 2))
+  EmitCall(3, "DEC_RESCALE")
+Return Nil
+
+Static Function DecSide(aX)
+  If u_xcb_isdecimal(aDec, aX)
+    Expr(aX)
+  Else
+    AsDecimal(aX)
+  EndIf
+Return Nil
+
+Static Function AsDecimal(aE)
+  If aE == Nil .Or. u_xcb_isdecimal(aDec, aE)
+    Expr(aE)
+    Return Nil
+  EndIf
+  If u_xcb_numberlit(aE)
+    DecLiteral(aE[LIT_TEXT])
+    Return Nil
+  EndIf
+  If aE[N_KIND] == EK_BINARY .And. u_xcb_isconstant(aDec, aE)
+    If aE[BIN_OP] == "neg"
+      AsDecimal(aE[BIN_RIGHT])
+      Op("neg")
+      Return Nil
+    EndIf
+    AsDecimal(aE[BIN_LEFT])
+    AsDecimal(aE[BIN_RIGHT])
+    EmitCall(2, u_xcb_decop(aE[BIN_OP]))
+    Return Nil
+  EndIf
+  Expr(aE)
+Return Nil
+
+// DEC_CREATE of a literal's own text: its digits and its decimals.
+Static Function DecLiteral(cText)
+  Local cT := NumberText(cText)
+  Local nDot := At(".", cT)
+  Local cWhole := If(nDot == 0, cT, Left(cT, nDot - 1))
+  Local cDecimals := If(nDot == 0, "", SubStr(cT, nDot + 1))
+  Local nNz := 1
+  While nNz <= Len(cWhole) .And. SubStr(cWhole, nNz, 1) == "0"
+    nNz++
+  EndDo
+  cWhole := If(nNz > Len(cWhole), "0", SubStr(cWhole, nNz))
+  EmitStr(If(cDecimals == "", cWhole, cWhole + "." + cDecimals))
+  Num(Len(cWhole) + Len(cDecimals))
+  Num(Len(cDecimals))
+  EmitCall(3, "DEC_CREATE")
+Return Nil
+
+// ---- statements -------------------------------------------------------------
+Static Function Statements(aB)
+  Local nI
+  For nI := 1 To Len(aB)
+    Stmt(aB[nI])
+  Next
+Return Nil
+
+// A block's body: its block locals live to its end.
+Static Function BlockBody(aB)
+  AAdd(aF[F_SCOPES], { => })
+  Statements(aB)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+Static Function Stmt(aSt)
+  Local nK := aSt[N_KIND]
+  Local nI
+  Local nL
+  Local nT
+  Local cFirst
+  Local aV
+  nLine := aSt[N_LINE]
+  Line(aSt[N_LINE])
+  // A value that is statements first: a chain's loop, a guard's sequence.
+  If WholeValue(aSt)
+    Return Nil
+  EndIf
+  Do Case
+    Case nK == SK_DECLARATION
+      Declaration(aSt)
+    Case nK == SK_ASSIGNMENT
+      If aSt[ASG_OP] == "?="
+        NilAssign(aSt[ASG_TARGET], aSt[ASG_VALUE])
+      Else
+        Assign(aSt[ASG_TARGET], aSt[ASG_OP], aSt[ASG_VALUE], WANT_NONE, "")
+      EndIf
+    Case nK == SK_CALLSTMT
+      Effect(aSt[CS_CALL])
+    Case nK == SK_RETURNSTMT
+      ReturnStmt(aSt)
+    Case nK == SK_EXITSTMT
+      JumpOut(.T.)
+    Case nK == SK_LOOPSTMT
+      JumpOut(.F.)
+    Case nK == SK_IFSTMT
+      IfStmt(aSt)
+    Case nK == SK_CASESTMT
+      CaseStmt(aSt)
+    Case nK == SK_WHILESTMT
+      WhileStmt(aSt)
+    Case nK == SK_FORSTMT
+      ForStmt(aSt)
+    Case nK == SK_FORINSTMT
+      ForIn(aSt)
+    Case nK == SK_FORTIMESSTMT
+      ForTimes(aSt)
+    Case nK == SK_MODIFIED
+      Modified(aSt)
+    Case nK == SK_DEFERRED
+      // The statement goes after the function's code, with the names it
+      // sees here, and the subjects of the 'with object's around it.
+      nL := Label()
+      Jump("defer", nL, NumText(Len(aF[F_DEFERRED]) + 1))
+      AAdd(aF[F_DEFERRED], {nL, aSt[DEF_STMT], CopyScopes(aF[F_SCOPES]), AClone(aSubjects)})
+    Case nK == SK_USINGALIAS
+      UsingAlias(aSt)
+    Case nK == SK_WITHOBJECT
+      nT := Temp()
+      Expr(aSt[WO_SUBJECT])
+      OnLocal("setlocal", nT)
+      AAdd(aSubjects, {aF, nT})
+      BlockBody(aSt[WO_BODY])
+      ASize(aSubjects, Len(aSubjects) - 1)
+    Case nK == SK_RAWSTMT
+      cFirst := If(Len(aSt[RAW_LINES]) == 0, "", u_xcb_trim(aSt[RAW_LINES][1]))
+      If aSt[RAW_BLOCK]
+        Problem("a 'raw' block")
+      ElseIf Left(cFirst, 1) == "#"
+        Problem("a directive inside a function ('" + cFirst + "')")
+      Else
+        Problem("a command for the preprocessor ('" + cFirst + "')")
+      EndIf
+    Case nK == SK_TRYSTMT
+      TryStmt(aSt)
+    Case nK == SK_TRANSACTIONSTMT
+      EmitCall(0, "BeginTran")
+      Op("pop")
+      BlockBody(aSt[TX_BODY])
+      EmitCall(0, "EndTran")
+      Op("pop")
+    Case nK == SK_BREAKSTMT
+      aV := aSt[BRK_VALUE]
+      If aV != Nil
+        Expr(aV)
+      EndIf
+      EmitCall(If(aV != Nil, 1, 0), "Break")
+      Op("pop")
+    Case nK == SK_DEFAULTSTMT
+      For nI := 1 To Len(aSt[DFL_PAIRS])
+        NilAssign(aSt[DFL_PAIRS][nI][ASG_TARGET], aSt[DFL_PAIRS][nI][ASG_VALUE])
+      Next
+    Case nK == SK_SEQUENCESTMT
+      Sequence(aSt)
+  EndCase
+Return Nil
+
+Static Function Declaration(aD)
+  Local cScope := Lc(aD[DECL_SCOPE])
+  Local nI
+  Local aV
+  Local lBlockLocal
+  Local lKnown
+  Local hS
+  Local cK
+  Local lPushed
+  Local nL
+  Local cName
+  Local cU
+  For nI := 1 To Len(aD[DECL_DECLARATORS])
+    aV := aD[DECL_DECLARATORS][nI]
+    Line(aV[N_LINE])
+    If cScope == "local"
+      // The value first: it reads the names as they were before. A block
+      // local with none is Nil each time, as TL++ has it, whatever its type.
+      lBlockLocal := Len(aF[F_SCOPES]) > 1
+      hS := ATail(aF[F_SCOPES])
+      cK := Lc(aV[DCL_NAME])
+      lKnown := !lBlockLocal .And. (hS has cK) .And. hS{cK}[E_KIND] == SYM_LOCAL
+      // A block local's chain is a loop, and its guard a sequence; the
+      // prologue keeps its values where they are written, but a chain from
+      // a source.
+      If aV[DCL_INIT] != Nil .And. If(lBlockLocal, LoopValue(aV[DCL_INIT]), u_xcb_sourcecall(aV[DCL_INIT]) != Nil)
+        InitInto(aV[DCL_INIT], MkDeclStore({-1}, aV[DCL_NAME]))
+        Loop
+      EndIf
+      lPushed := .T.
+      If aV[DCL_INIT] != Nil
+        Expr(aV[DCL_INIT])
+      ElseIf Len(aV[DCL_DIMS]) > 0
+        Dims(aV[DCL_DIMS])
+      ElseIf lBlockLocal
+        Op("nil")
+      ElseIf !lKnown .And. StartDecl(aV)
+      Else
+        lPushed := .F.
+      EndIf
+      nL := DeclareLocal(aV[DCL_NAME])
+      If lPushed
+        OnLocal("setlocal", nL)
+      EndIf
+    ElseIf cScope == "static"
+      StaticValue(aV, aF[F_SCOPES][1])
+    Else
+      cName := aV[DCL_NAME]
+      If Len(cName) > 3 .And. Uc(Left(cName, 3)) == "M->"
+        cName := SubStr(cName, 4)
+      EndIf
+      cU := Uc(cName)
+      Op(If(cScope == "private", "private", "public"), cU)
+      aF[F_SCOPES][1]{Lc(cName)} := {SYM_MEMVAR, -1}
+      If aV[DCL_INIT] != Nil .And. LoopValue(aV[DCL_INIT])
+        InitInto(aV[DCL_INIT], {|| Op("setmemvar", cU)})
+        Loop
+      EndIf
+      lPushed := .T.
+      If aV[DCL_INIT] != Nil
+        Expr(aV[DCL_INIT])
+      ElseIf Len(aV[DCL_DIMS]) > 0
+        Dims(aV[DCL_DIMS])
+      Else
+        lPushed := .F.
+      EndIf
+      If lPushed
+        Op("setmemvar", cU)
+      EndIf
+      aF[F_SCOPES][1]{Lc(cName)} := {SYM_MEMVAR, -1}
+    EndIf
+  Next
+Return Nil
+
+// A Local's store, declaring it the first time it runs -- a guard's two
+// branches store it both.
+Static Function MkDeclStore(aI, cName)
+Return {|| DeclStore(aI, cName)}
+
+Static Function DeclStore(aI, cName)
+  If aI[1] < 0
+    aI[1] := DeclareLocal(cName)
+  EndIf
+  OnLocal("setlocal", aI[1])
+Return Nil
+
+// A static: a number of the module's, given its value in __INIT -- where
+// the statics its function declared before it are seen, and nothing else
+// of the function's.
+Static Function StaticValue(aV, hInto)
+  Local nN := Len(aStaticNames)
+  Local hSeen := { => }
+  Local nS
+  Local aK
+  Local nK
+  Local aWas
+  Local aWasTop
+  Local lPushed
+  AAdd(aStaticNames, aV[DCL_NAME])
+  If aF[F_ID] != aInit[F_ID]
+    For nS := 1 To Len(aF[F_SCOPES])
+      aK := keys(aF[F_SCOPES][nS])
+      For nK := 1 To Len(aK)
+        If aF[F_SCOPES][nS]{aK[nK]}[E_KIND] == SYM_STATIC
+          hSeen{aK[nK]} := aF[F_SCOPES][nS]{aK[nK]}
+        EndIf
+      Next
+    Next
+  EndIf
+  aWas := aF
+  aWasTop := aTop
+  aF := aInit
+  aTop := aInit
+  AAdd(aInit[F_SCOPES], hSeen)
+  Line(aV[N_LINE])
+  lPushed := .T.
+  If aV[DCL_INIT] != Nil
+    Expr(aV[DCL_INIT])
+  ElseIf Len(aV[DCL_DIMS]) > 0
+    Dims(aV[DCL_DIMS])
+  ElseIf StartDecl(aV)
+  Else
+    lPushed := .F.
+  EndIf
+  If lPushed
+    Op("setstatic", NumText(nN + 1))
+  EndIf
+  ASize(aInit[F_SCOPES], Len(aInit[F_SCOPES]) - 1)
+  aF := aWas
+  aTop := aWasTop
+  hInto{Lc(aV[DCL_NAME])} := {SYM_STATIC, nN}
+Return Nil
+
+Static Function LocalHeader(aD)
+  Expr(aD[DCL_INIT])
+  OnLocal("setlocal", DeclareLocal(aD[DCL_NAME]))
+Return Nil
+
+Static Function IfStmt(aSt)
+  Local nEnd
+  Local nI
+  Local aB
+  Local nNext
+  AAdd(aF[F_SCOPES], { => })
+  If aSt[IF_HEADER] != Nil
+    LocalHeader(aSt[IF_HEADER])
+  EndIf
+  nEnd := Label()
+  For nI := 1 To Len(aSt[IF_BRANCHES])
+    aB := aSt[IF_BRANCHES][nI]
+    nNext := Label()
+    Expr(aB[BR_COND])
+    Jump("jumpf", nNext)
+    BlockBody(aB[BR_BODY])
+    If nI < Len(aSt[IF_BRANCHES]) .Or. Len(aSt[IF_OTHERWISE]) > 0
+      Jump("jump", nEnd)
+    EndIf
+    Place(nNext)
+  Next
+  BlockBody(aSt[IF_OTHERWISE])
+  Place(nEnd)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+Static Function CaseStmt(aSt)
+  Local nEnd
+  Local nI
+  Local aB
+  Local nNext
+  AAdd(aF[F_SCOPES], { => })
+  If aSt[CASE_SUBJDECL] != Nil
+    LocalHeader(aSt[CASE_SUBJDECL])
+  EndIf
+  If aSt[CASE_SUBJASSIGN] != Nil
+    Assign(aSt[CASE_SUBJASSIGN][ASG_TARGET], ":=", aSt[CASE_SUBJASSIGN][ASG_VALUE], WANT_NONE, "")
+  EndIf
+  nEnd := Label()
+  For nI := 1 To Len(aSt[CASE_BRANCHES])
+    aB := aSt[CASE_BRANCHES][nI]
+    nNext := Label()
+    Expr(aB[BR_COND])
+    Jump("jumpf", nNext)
+    BlockBody(aB[BR_BODY])
+    If nI < Len(aSt[CASE_BRANCHES]) .Or. Len(aSt[CASE_OTHERWISE]) > 0
+      Jump("jump", nEnd)
+    EndIf
+    Place(nNext)
+  Next
+  BlockBody(aSt[CASE_OTHERWISE])
+  Place(nEnd)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+Static Function PushLoop(nBrk, nCont)
+  AAdd(aF[F_LOOPS], {nBrk, nCont, Len(aF[F_EXITS])})
+Return Nil
+
+Static Function PopLoop()
+  ASize(aF[F_LOOPS], Len(aF[F_LOOPS]) - 1)
+Return Nil
+
+Static Function WhileStmt(aSt)
+  Local nTop
+  Local nEnd
+  AAdd(aF[F_SCOPES], { => })
+  nTop := Label()
+  nEnd := Label()
+  LoopTop(nTop, aSt[N_LINE])
+  If aSt[WH_HEADER] != Nil
+    LocalHeader(aSt[WH_HEADER])
+  EndIf
+  Expr(aSt[WH_COND])
+  Jump("jumpf", nEnd)
+  PushLoop(nEnd, nTop)
+  BlockBody(aSt[WH_BODY])
+  PopLoop()
+  Jump("jump", nTop)
+  Place(nEnd)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+// 'For i := a To b [Step s]': To and Step evaluated each time round; a Step
+// that is no literal decides which way it counts when it runs.
+Static Function ForStmt(aSt)
+  Local aV
+  Local nTop
+  Local nCont
+  Local nEnd
+  Local xDown := Nil
+  Local aStep := aSt[FOR_STEP]
+  Local nNeg
+  Local nBody
+  AAdd(aF[F_SCOPES], { => })
+  Expr(aSt[FOR_FROM])
+  aV := If(aSt[FOR_VARLOCAL], {VK_LOCAL, DeclareLocal(aSt[FOR_VAR]), "", .F.}, Resolve(aSt[FOR_VAR]))
+  Store(aV)
+  nTop := Label()
+  nCont := Label()
+  nEnd := Label()
+  LoopTop(nTop, aSt[N_LINE])
+  If aStep == Nil .Or. u_xcb_numberlit(aStep)
+    xDown := .F.
+  ElseIf IsK(aStep, EK_BINARY) .And. aStep[BIN_OP] == "neg" .And. u_xcb_numberlit(aStep[BIN_RIGHT])
+    xDown := .T.
+  EndIf
+  If xDown != Nil
+    Load(aV)
+    Expr(aSt[FOR_TO])
+    Op(If(xDown, "ge", "le"))
+    Jump("jumpf", nEnd)
+  Else
+    nNeg := Label()
+    nBody := Label()
+    Expr(aStep)
+    Num(0)
+    Op("ge")
+    Jump("jumpf", nNeg)
+    Load(aV)
+    Expr(aSt[FOR_TO])
+    Op("le")
+    Jump("jumpf", nEnd)
+    Jump("jump", nBody)
+    Place(nNeg)
+    Load(aV)
+    Expr(aSt[FOR_TO])
+    Op("ge")
+    Jump("jumpf", nEnd)
+    Place(nBody)
+  EndIf
+  PushLoop(nEnd, nCont)
+  BlockBody(aSt[FOR_BODY])
+  PopLoop()
+  Place(nCont)
+  Load(aV)
+  If aStep != Nil
+    Expr(aStep)
+  Else
+    Num(1)
+  EndIf
+  Op("add")
+  Store(aV)
+  Jump("jump", nTop)
+  Place(nEnd)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+// An end of a range a 'for ... in' walks: a name or a literal as it is,
+// anything else read once.
+Static Function ForBound(aX)
+  Local nT
+  If NameOrLiteral(aX)
+    Return MkExpr(aX)
+  EndIf
+  nT := Temp()
+  Expr(aX)
+  OnLocal("setlocal", nT)
+Return MkLocal(nT)
+
+// 'for x [, i] in source': an array read once, its index the counter when
+// named; a range counted, its ends read once.
+Static Function ForIn(aSt)
+  Local aSrc := aSt[FIN_SOURCE]
+  Local nTop
+  Local nCont
+  Local nEnd
+  Local bLo
+  Local bHi
+  Local nEl
+  Local nIx
+  Local nCtr
+  Local nS
+  Local lKeyed := aSt[FIN_KEYED]
+  If IsK(aSrc, EK_CALL) .And. u_xcb_issource(aSrc)
+    If Lc(aSrc[CALL_NAME]) == "rows"
+      Problem("'for ... in' over rows()")
+    Else
+      ForLines(aSt)
+    EndIf
+    Return Nil
+  EndIf
+  AAdd(aF[F_SCOPES], { => })
+  nTop := Label()
+  nCont := Label()
+  nEnd := Label()
+  If IsK(aSrc, EK_INTERVAL)
+    bLo := ForBound(aSrc[IVL_LO])
+    bHi := ForBound(aSrc[IVL_HI])
+    nEl := DeclareLocal(aSt[FIN_ELEM])
+    nIx := If(aSt[FIN_INDEX] != Nil, DeclareLocal(aSt[FIN_INDEX]), -1)
+    If nIx >= 0
+      Num(0)
+      OnLocal("setlocal", nIx)
+    EndIf
+    nCtr := Temp()
+    Eval(bLo)
+    OnLocal("setlocal", nCtr)
+    LoopTop(nTop, aSt[N_LINE])
+    OnLocal("local", nCtr)
+    Eval(bHi)
+    Op("le")
+    Jump("jumpf", nEnd)
+    OnLocal("local", nCtr)
+    OnLocal("setlocal", nEl)
+    If nIx >= 0
+      OnLocal("local", nIx)
+      Num(1)
+      Op("add")
+      OnLocal("setlocal", nIx)
+    EndIf
+    PushLoop(nEnd, nCont)
+    BlockBody(aSt[FIN_BODY])
+    PopLoop()
+    Place(nCont)
+    OnLocal("local", nCtr)
+    Num(1)
+    Op("add")
+    OnLocal("setlocal", nCtr)
+  Else
+    // Over a hash, a set, a bag, a JSON object (typed.xtpl knows it): its
+    // {key, value} pairs -- the element each key, the index what it holds.
+    nS := Temp()
+    Expr(aSrc)
+    If lKeyed
+      EmitCall(1, "u_xtpl_pairs")
+    EndIf
+    OnLocal("setlocal", nS)
+    nEl := DeclareLocal(aSt[FIN_ELEM])
+    nIx := If(lKeyed .And. aSt[FIN_INDEX] != Nil, DeclareLocal(aSt[FIN_INDEX]), -1)
+    nCtr := If(aSt[FIN_INDEX] != Nil .And. !lKeyed, DeclareLocal(aSt[FIN_INDEX]), Temp())
+    Num(1)
+    OnLocal("setlocal", nCtr)
+    LoopTop(nTop, aSt[N_LINE])
+    OnLocal("local", nCtr)
+    OnLocal("local", nS)
+    EmitCall(1, "Len")
+    Op("le")
+    Jump("jumpf", nEnd)
+    OnLocal("local", nS)
+    OnLocal("local", nCtr)
+    Op("index")
+    If lKeyed
+      If nIx >= 0
+        Op("dup")
+        Num(2)
+        Op("index")
+        OnLocal("setlocal", nIx)
+      EndIf
+      Num(1)
+      Op("index")
+    EndIf
+    OnLocal("setlocal", nEl)
+    PushLoop(nEnd, nCont)
+    BlockBody(aSt[FIN_BODY])
+    PopLoop()
+    Place(nCont)
+    OnLocal("local", nCtr)
+    Num(1)
+    Op("add")
+    OnLocal("setlocal", nCtr)
+  EndIf
+  Jump("jump", nTop)
+  Place(nEnd)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+// 'for x [, i] in lines(path)': the file opened only if it is there,
+// advanced at the top -- so a 'loop' goes on to the next line --, and
+// closed after the loop and on a 'return' out of it.
+Static Function ForLines(aSt)
+  Local aArgs := aSt[FIN_SOURCE][CALL_ARGS]
+  Local nTop
+  Local nEnd
+  Local nFs
+  Local nFok
+  Local nShut
+  Local nEl
+  Local nIx
+  Local nBoth
+  Local bClose
+  If Len(aArgs) != 1
+    Problem("'lines()' with no path, or more than one")
+    Return Nil
+  EndIf
+  AAdd(aF[F_SCOPES], { => })
+  nTop := Label()
+  nEnd := Label()
+  nFs := Temp()
+  nFok := Temp()
+  Expr(aArgs[1])
+  OnLocal("setlocal", nFs)
+  OnLocal("local", nFs)
+  EmitCall(1, "File")
+  OnLocal("setlocal", nFok)
+  nShut := Label()
+  OnLocal("local", nFok)
+  Jump("jumpf", nShut)
+  OnLocal("local", nFs)
+  EmitCall(1, "FT_FUse")
+  Op("pop")
+  EmitCall(0, "FT_FGoTop")
+  Op("pop")
+  Place(nShut)
+  nEl := DeclareLocal(aSt[FIN_ELEM])
+  nIx := If(aSt[FIN_INDEX] != Nil, DeclareLocal(aSt[FIN_INDEX]), -1)
+  If nIx >= 0
+    Num(0)
+    OnLocal("setlocal", nIx)
+  EndIf
+  LoopTop(nTop, aSt[N_LINE])
+  nBoth := Label()
+  OnLocal("local", nFok)
+  Jump("andjump", nBoth)
+  EmitCall(0, "FT_FEof")
+  Op("not")
+  Place(nBoth)
+  Jump("jumpf", nEnd)
+  If nIx >= 0
+    OnLocal("local", nIx)
+    Num(1)
+    Op("add")
+    OnLocal("setlocal", nIx)
+  EndIf
+  EmitCall(0, "FT_FReadLn")
+  OnLocal("setlocal", nEl)
+  EmitCall(0, "FT_FSkip")
+  Op("pop")
+  bClose := MkLinesTeardown(nFok)
+  AAdd(aF[F_EXITS], {XK_RESTORE, bClose})
+  PushLoop(nEnd, nTop)
+  BlockBody(aSt[FIN_BODY])
+  PopLoop()
+  ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+  Jump("jump", nTop)
+  Place(nEnd)
+  Eval(bClose)
+  ASize(aF[F_SCOPES], Len(aF[F_SCOPES]) - 1)
+Return Nil
+
+// 'for n times': n read once, unless it is a number already.
+Static Function ForTimes(aSt)
+  Local bCount
+  Local nN
+  Local nCtr
+  Local nTop
+  Local nCont
+  Local nEnd
+  If u_xcb_numberlit(aSt[FT_COUNT])
+    bCount := MkExpr(aSt[FT_COUNT])
+  Else
+    nN := Temp()
+    Expr(aSt[FT_COUNT])
+    OnLocal("setlocal", nN)
+    bCount := MkLocal(nN)
+  EndIf
+  nCtr := Temp()
+  nTop := Label()
+  nCont := Label()
+  nEnd := Label()
+  Num(1)
+  OnLocal("setlocal", nCtr)
+  LoopTop(nTop, aSt[N_LINE])
+  OnLocal("local", nCtr)
+  Eval(bCount)
+  Op("le")
+  Jump("jumpf", nEnd)
+  PushLoop(nEnd, nCont)
+  BlockBody(aSt[FT_BODY])
+  PopLoop()
+  Place(nCont)
+  OnLocal("local", nCtr)
+  Num(1)
+  Op("add")
+  OnLocal("setlocal", nCtr)
+  Jump("jump", nTop)
+  Place(nEnd)
+Return Nil
+
+// 'x if c': an If around it; 'x while c', a loop.
+Static Function Modified(aM)
+  Local nEnd := Label()
+  Local nTop
+  If aM[MOD_OP] == "while"
+    nTop := Label()
+    LoopTop(nTop, aM[N_LINE])
+    Expr(aM[MOD_COND])
+    Jump("jumpf", nEnd)
+    PushLoop(nEnd, nTop)
+    Stmt(aM[MOD_STMT])
+    PopLoop()
+    Jump("jump", nTop)
+  Else
+    Expr(aM[MOD_COND])
+    Jump("jumpf", nEnd)
+    Stmt(aM[MOD_STMT])
+  EndIf
+  Place(nEnd)
+Return Nil
+
+// 'using alias': the area selected, and put back -- with its record and its
+// order -- at its end and on every way out.
+Static Function UsingAlias(aU)
+  Local aV := Resolve(aU[UA_AREA])
+  Local bAlias
+  Local nFal
+  Local nFar
+  Local nFrc
+  Local nFol := -1
+  Local bRestore
+  If hDeclared has Lc(aU[UA_AREA])
+    nFal := Temp()
+    Load(aV)
+    OnLocal("setlocal", nFal)
+    bAlias := MkLocal(nFal)
+  Else
+    bAlias := MkStr(aU[UA_AREA])
+  EndIf
+  nFar := Temp()
+  nFrc := Temp()
+  EmitCall(0, "Alias")
+  OnLocal("setlocal", nFar)
+  Eval(bAlias)
+  EmitCall(1, "DbSelectArea")
+  Op("pop")
+  InArea(bAlias, {|| EmitCall(0, "RecNo")})
+  OnLocal("setlocal", nFrc)
+  If aU[UA_ORDER] != Nil
+    nFol := Temp()
+    InArea(bAlias, {|| EmitCall(0, "IndexOrd")})
+    OnLocal("setlocal", nFol)
+    InArea(bAlias, {|| Expr(aU[UA_ORDER]), EmitCall(1, "DbSetOrder")})
+    Op("pop")
+  EndIf
+  bRestore := MkRestore(bAlias, nFar, nFrc, nFol)
+  AAdd(aF[F_EXITS], {XK_RESTORE, bRestore})
+  BlockBody(aU[UA_BODY])
+  ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+  Eval(bRestore)
+Return Nil
+
+Static Function MkRestore(bAlias, nFar, nFrc, nFol)
+Return {|| Restore(bAlias, nFar, nFrc, nFol)}
+
+Static Function Restore(bAlias, nFar, nFrc, nFol)
+  Local nSkip
+  If nFol >= 0
+    InArea(bAlias, {|| OnLocal("local", nFol), EmitCall(1, "DbSetOrder")})
+    Op("pop")
+  EndIf
+  InArea(bAlias, {|| OnLocal("local", nFrc), EmitCall(1, "DbGoto")})
+  Op("pop")
+  nSkip := Label()
+  OnLocal("local", nFar)
+  EmitCall(1, "Empty")
+  Jump("jumpt", nSkip)
+  OnLocal("local", nFar)
+  EmitCall(1, "DbSelectArea")
+  Op("pop")
+  Place(nSkip)
+Return Nil
+
+// 'Try ... Catch e ... Finally ... EndTry': the Finally after the body and
+// after the Catch, and on a way out of either.
+Static Function TryStmt(aT)
+  Local nCaught := Label()
+  Local nEnd := Label()
+  Local lFin := Len(aT[TRY_FINALLY]) > 0
+  Local bFinally := {|| BlockBody(aT[TRY_FINALLY])}
+  If lFin
+    AAdd(aF[F_EXITS], {XK_RESTORE, bFinally})
+  EndIf
+  AAdd(aF[F_EXITS], {XK_REGION, Nil})
+  Jump("try", nCaught)
+  BlockBody(aT[TRY_BODY])
+  Op("endseq")
+  ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+  If lFin
+    ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+    Eval(bFinally)
+  EndIf
+  Jump("jump", nEnd)
+  Place(nCaught)
+  If aT[TRY_ERRVAR] != Nil
+    Store(Resolve(aT[TRY_ERRVAR]))
+  Else
+    Op("pop")
+  EndIf
+  If lFin
+    AAdd(aF[F_EXITS], {XK_RESTORE, bFinally})
+  EndIf
+  BlockBody(aT[TRY_HANDLER])
+  If lFin
+    ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+    Eval(bFinally)
+  EndIf
+  Place(nEnd)
+Return Nil
+
+Static Function Sequence(aSt)
+  Local nRecover := Label()
+  Local nEnd := Label()
+  AAdd(aF[F_EXITS], {XK_REGION, Nil})
+  Jump("seq", nRecover)
+  BlockBody(aSt[SEQ_BODY])
+  Op("endseq")
+  ASize(aF[F_EXITS], Len(aF[F_EXITS]) - 1)
+  Jump("jump", nEnd)
+  Place(nRecover)
+  If aSt[SEQ_HASRECOVER] .And. aSt[SEQ_ERRVAR] != Nil
+    Store(Resolve(aSt[SEQ_ERRVAR]))
+  Else
+    Op("pop")
+  EndIf
+  If aSt[SEQ_HASRECOVER]
+    BlockBody(aSt[SEQ_RECOVER])
+  EndIf
+  Place(nEnd)
+Return Nil
+
+// A 'return': the defers reached, what is open put back, then its value.
+Static Function ReturnStmt(aR)
+  If aF[F_DEFERS]
+    Op("rundefers")
+  EndIf
+  RunExits(0, .F.)
+  Expr(aR[RET_VALUE])
+  Op("ret")
+Return Nil
+
+Static Function JumpOut(lExit)
+  Local aL
+  If Len(aF[F_LOOPS]) == 0
+    Problem(If(lExit, "'exit'", "'loop'") + " outside a loop")
+    Return Nil
+  EndIf
+  aL := ATail(aF[F_LOOPS])
+  RunExits(aL[LP_EXITS], .T.)
+  Jump("jump", If(lExit, aL[LP_BRK], aL[LP_CONT]))
+Return Nil
+
+// What the exits above down_to do, the innermost first -- each with the
+// ones inside it gone while it is written.
+Static Function RunExits(nDownTo, lRegions)
+  Local aAll := AClone(aF[F_EXITS])
+  Local aG := aF
+  Local nI
+  For nI := Len(aAll) - 1 To nDownTo Step -1
+    ASize(aF[F_EXITS], nI)
+    If aAll[nI + 1][X_KIND] == XK_REGION
+      If lRegions
+        Op("endseq")
+      EndIf
+    Else
+      Eval(aAll[nI + 1][X_RUN])
+    EndIf
+  Next
+  aG[F_EXITS] := aAll
+Return Nil
+
+// ---- the file ---------------------------------------------------------------
+// The line a text is first found on in the source, from 1.
+Static Function LineOf(cText)
+  Local nAt := At(cText, cSrc)
+  Local cBefore
+  If nAt == 0
+    Return 1
+  EndIf
+  cBefore := Left(cSrc, nAt - 1)
+Return 1 + Len(cBefore) - Len(StrTran(cBefore, Chr(10), ""))
+
+// '#define NAME value': the value read as an expression, compiled where the
+// name is read -- the include files' first, then the source's own. The
+// preprocessor's choices -- '#ifdef' and the like -- are not made here.
+Static Function Directives()
+  Local aAll := {}
+  Local nI
+  Local cD
+  Local nP
+  Local nW
+  Local cWord
+  Local nN
+  Local nE
+  Local cName
+  Local cValue
+  Local aRead
+  For nI := 1 To Len(aMore)
+    AAdd(aAll, aMore[nI])
+  Next
+  For nI := 1 To Len(aProg[PG_DIRECTIVES])
+    AAdd(aAll, aProg[PG_DIRECTIVES][nI])
+  Next
+  For nI := 1 To Len(aAll)
+    cD := aAll[nI]
+    // Offsets from 1 here.
+    nP := 2
+    While nP <= Len(cD) .And. (SubStr(cD, nP, 1) == " " .Or. SubStr(cD, nP, 1) == Chr(9))
+      nP++
+    EndDo
+    If nP > Len(cD)
+      Loop
+    EndIf
+    nW := nP
+    While nP <= Len(cD) .And. u_xcb_isw(Asc(SubStr(cD, nP, 1)))
+      nP++
+    EndDo
+    cWord := Lc(SubStr(cD, nW, nP - nW))
+    If cWord == "if" .Or. cWord == "ifdef" .Or. cWord == "ifndef" .Or. cWord == "elif" .Or. cWord == "else" ;
+       .Or. cWord == "endif"
+      nLine := LineOf(cD)
+      Problem("'#" + cWord + "', a choice of the preprocessor's")
+      Loop
+    EndIf
+    If !(cWord == "define")
+      Loop
+    EndIf
+    nN := nP
+    While nN <= Len(cD) .And. (SubStr(cD, nN, 1) == " " .Or. SubStr(cD, nN, 1) == Chr(9))
+      nN++
+    EndDo
+    If nN > Len(cD)
+      Loop
+    EndIf
+    nE := nN
+    While nE <= Len(cD) .And. u_xcb_isw(Asc(SubStr(cD, nE, 1)))
+      nE++
+    EndDo
+    cName := Lc(SubStr(cD, nN, nE - nN))
+    If nE <= Len(cD) .And. SubStr(cD, nE, 1) == "("
+      hDefines{cName} := {Nil, .T., .F.}
+      Loop
+    EndIf
+    cValue := u_xcb_trim(CodeOf(SubStr(cD, nE)))
+    If cValue == ""
+      hDefines{cName} := {Nil, .F., .T.}
+      Loop
+    EndIf
+    u_xcb_source(cValue, Nil)
+    aRead := u_xcb_read(4, 0, .F.)
+    hDefines{cName} := {aRead[1], .F., aRead[1] != Nil .And. u_xcb_trim(SubStr(cValue, aRead[2] + 1)) == ""}
+  Next
+Return Nil
+
+// A line's code, its comments aside (text.cpp's split_comment): strings
+// kept, '//', '&&' and a '*' that starts a line cut to the end of the line,
+// '/* */' a blank, the blanks at its end gone.
+Static Function CodeOf(cT)
+  Local cCode := ""
+  Local nI := 1
+  Local nN := Len(cT)
+  Local cQuote := ""
+  Local cC
+  Local nEnd
+  While nI <= nN
+    cC := SubStr(cT, nI, 1)
+    If !(cQuote == "")
+      // A string ends at its quote, or at the end of its line.
+      If cC == cQuote .Or. cC == Chr(13) .Or. cC == Chr(10)
+        cQuote := ""
+      EndIf
+      cCode += cC
+      nI++
+    ElseIf cC == '"' .Or. (cC == "'" .And. !IsSeparator(cT, nI))
+      cQuote := cC
+      cCode += cC
+      nI++
+    ElseIf SubStr(cT, nI, 2) == "//" .Or. SubStr(cT, nI, 2) == "&&" .Or. StarComment(cT, nI)
+      While nI <= nN .And. !(SubStr(cT, nI, 1) == Chr(13) .Or. SubStr(cT, nI, 1) == Chr(10))
+        nI++
+      EndDo
+    ElseIf SubStr(cT, nI, 2) == "/*"
+      nEnd := At("*/", cT, nI + 2)
+      If nEnd == 0
+        nEnd := nN - 1
+      EndIf
+      cCode += " "
+      nI := nEnd + 2
+    Else
+      cCode += cC
+      nI++
+    EndIf
+  EndDo
+Return u_xcb_trimtrailing(cCode)
+
+// A "'" between two digits: a digit separator.
+Static Function IsSeparator(cT, nI)
+  If !(nI > 1 .And. nI < Len(cT))
+    Return .F.
+  EndIf
+Return IsDigit(SubStr(cT, nI - 1, 1)) .And. IsDigit(SubStr(cT, nI + 1, 1))
+
+// The line break at or before p: where it starts, and where what follows it
+// starts -- Nil for none.
+Static Function BreakBefore(cT, nP)
+  Local nK := nP
+  While nK >= 1 .And. !(SubStr(cT, nK, 1) == Chr(13) .Or. SubStr(cT, nK, 1) == Chr(10))
+    nK--
+  EndDo
+  If nK < 1
+    Return Nil
+  EndIf
+  If SubStr(cT, nK, 1) == Chr(10) .And. nK > 1 .And. SubStr(cT, nK - 1, 1) == Chr(13)
+    Return {nK - 1, nK + 1}
+  EndIf
+Return {nK, nK + 1}
+
+// A '*' that starts a line -- blanks before it -- after one that does not
+// end in a ';': a comment to the end of its line.
+Static Function StarComment(cT, nI)
+  Local aB
+  Local aB2
+  Local nK
+  Local nFrom := 1
+  Local cLine
+  Local nCut
+  If !(nI > 1 .And. SubStr(cT, nI, 1) == "*")
+    Return .F.
+  EndIf
+  aB := BreakBefore(cT, nI - 1)
+  If aB == Nil
+    Return .F.
+  EndIf
+  For nK := aB[2] To nI - 1
+    If !u_xcb_iss(Asc(SubStr(cT, nK, 1)))
+      Return .F.
+    EndIf
+  Next
+  // The line before, its comment aside: does it end in a ';'?
+  If aB[1] > 1
+    aB2 := BreakBefore(cT, aB[1] - 1)
+    If aB2 != Nil
+      nFrom := aB2[2]
+    EndIf
+  EndIf
+  cLine := SubStr(cT, nFrom, aB[1] - nFrom)
+  nCut := Len(cLine)
+  For nK := 1 To Len(cLine) - 1
+    If SubStr(cLine, nK, 2) == "//" .Or. SubStr(cLine, nK, 2) == "&&"
+      nCut := nK - 1
+      Exit
+    EndIf
+  Next
+  cLine := Left(cLine, nCut)
+  While Len(cLine) > 0 .And. u_xcb_ish(Asc(Right(cLine, 1)))
+    cLine := Left(cLine, Len(cLine) - 1)
+  EndDo
+Return !(Right(cLine, 1) == ";")
+
+Static Function CompileFunction(cName, cKind, aParams, aBody, xReturns)
+  Local aG := NewFn()
+  Local nI
+  Local nL
+  Local aAll
+  aG[F_NAME] := cName
+  aG[F_KIND] := cKind
+  aG[F_PARAMS] := Len(aParams)
+  AAdd(aFns, aG)
+  AAdd(aOrder, aG)
+  aF := aG
+  aTop := aG
+  AAdd(aG[F_SCOPES], { => })
+  For nI := 1 To Len(aParams)
+    nL := AddLocal(aG, aParams[nI][PRM_NAME])
+    aG[F_SCOPES][1]{Lc(aParams[nI][PRM_NAME])} := {SYM_LOCAL, nL}
+  Next
+  u_xcb_decfunc(aDec, aParams, aBody)
+  aDv := u_xcb_decvalues(aDec, aBody, u_xcb_decimalword(xReturns), u_xcb_numericword(xReturns))
+  hDeclared := u_xcb_declarednames(aParams, aBody)
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    If aAll[nI][N_KIND] == SK_DEFERRED
+      aG[F_DEFERS] := .T.
+    EndIf
+  Next
+  Statements(aBody)
+  Finish()
+Return Nil
+
+// The values a class's data members start at, when one has one -- its
+// type's, in TL++; a 'default' or an 'init' the AppServer ignores (tried on
+// 24.3.1.9) --: a function, CLASS:__DATA, run on each new object, Self the
+// object.
+Static Function ClassData(aC)
+  Local aWith := {}
+  Local nI
+  Local aG
+  For nI := 1 To Len(aC[CD_MEMBERS])
+    If !(StartWord(aC[CD_MEMBERS][nI][DM_TYPE]) == "")
+      AAdd(aWith, aC[CD_MEMBERS][nI])
+    EndIf
+  Next
+  If Len(aWith) == 0
+    Return .F.
+  EndIf
+  aG := NewFn()
+  aG[F_NAME] := cNs + Uc(aC[CD_NAME]) + ":__DATA"
+  aG[F_KIND] := "data"
+  AAdd(aFns, aG)
+  AAdd(aOrder, aG)
+  aF := aG
+  aTop := aG
+  AAdd(aG[F_SCOPES], { => })
+  hDeclared := { => }
+  aDv := {{ => }, { => }}
+  u_xcb_decfunc(aDec, {}, {})
+  For nI := 1 To Len(aWith)
+    Line(aWith[nI][N_LINE])
+    Op("self")
+    StartOf(aWith[nI][DM_TYPE])
+    Op("setmember", Uc(aWith[nI][DM_NAME]))
+  Next
+  Finish()
+Return .T.
+
+// 'class NAME', the classes above it, its data, the function that gives
+// them their values, its methods -- 'static' those that are.
+Static Function ClassText(aC, lData)
+  Local cName := cNs + Uc(aC[CD_NAME])
+  Local cOut := "class " + cName + Chr(10)
+  Local nI
+  Local aM
+  If Len(aC[CD_SUPERS]) > 0
+    cOut += "  from"
+    For nI := 1 To Len(aC[CD_SUPERS])
+      cOut += " " + Uc(aC[CD_SUPERS][nI])
+    Next
+    cOut += Chr(10)
+  EndIf
+  If Len(aC[CD_MEMBERS]) > 0
+    cOut += "  data"
+    For nI := 1 To Len(aC[CD_MEMBERS])
+      cOut += " " + Uc(aC[CD_MEMBERS][nI][DM_NAME])
+    Next
+    cOut += Chr(10)
+  EndIf
+  If lData
+    cOut += "  init " + cName + ":__DATA" + Chr(10)
+  EndIf
+  For nI := 1 To Len(aC[CD_METHODS])
+    aM := aC[CD_METHODS][nI]
+    cOut += If(aM[MS_STATIC], "  static ", "  method ") + Uc(aM[MS_NAME]) + " " + cName + ":" + Uc(aM[MS_NAME]) + Chr(10)
+  Next
+Return cOut + "end" + Chr(10)
+
+// The function's end, a return of Nil, and after it the code of its
+// defers.
+Static Function Finish()
+  Local aCode := aF[F_CODE]
+  Local nSize := Len(aCode)
+  Local lTarget := AScan(aF[F_LABELS], {|x| x == nSize}) > 0
+  Local aDeferred
+  Local nI
+  Local aD
+  If Len(aCode) == 0 .Or. !(ATail(aCode)[I_OP] == "ret") .Or. lTarget
+    If aF[F_DEFERS]
+      Op("rundefers")
+    EndIf
+    Op("nil")
+    Op("ret")
+  EndIf
+  aDeferred := AClone(aF[F_DEFERRED])
+  For nI := 1 To Len(aDeferred)
+    aD := aDeferred[nI]
+    Place(aD[DF_LABEL])
+    aF[F_SCOPES] := aD[DF_SCOPES]
+    aSubjects := aD[DF_SUBJECTS]
+    aF[F_LINE] := -1
+    Stmt(aD[DF_STMT])
+    Op("enddefer")
+    aSubjects := {}
+  Next
+Return Nil
+
+// A function as the .xbc writes it: its locals, its cells, its code -- each
+// jump to the place its label is.
+Static Function Written(aG)
+  Local aBoxes := {}
+  Local nI
+  Local nShift
+  Local cOut
+  Local aIns
+  Local cO
+  Local nAt
+  For nI := 1 To Len(aG[F_CAPTURED])
+    If aG[F_CAPTURED][nI]
+      AAdd(aBoxes, nI - 1)
+    EndIf
+  Next
+  nShift := Len(aBoxes)
+  cOut := "function " + aG[F_NAME] + " " + aG[F_KIND] + " " + NumText(aG[F_PARAMS]) + " " ;
+          + NumText(Len(aG[F_NAMES])) + Chr(10)
+  cOut += "  locals"
+  For nI := 1 To Len(aG[F_NAMES])
+    cOut += " " + aG[F_NAMES][nI]
+  Next
+  cOut += Chr(10)
+  If Len(aG[F_UPVALS]) > 0
+    cOut += "  upvals"
+    For nI := 1 To Len(aG[F_UPVALS])
+      cOut += " " + aG[F_UPVALS][nI][UV_NAME]
+    Next
+    cOut += Chr(10)
+  EndIf
+  For nI := 1 To Len(aBoxes)
+    cOut += "  box " + NumText(aBoxes[nI] + 1) + Chr(10)
+  Next
+  For nI := 1 To Len(aG[F_CODE])
+    aIns := aG[F_CODE][nI]
+    cO := aIns[I_OP]
+    If aIns[I_LOCAL] >= 0
+      If aG[F_CAPTURED][aIns[I_LOCAL] + 1]
+        cO := If(cO == "local", "cell", If(cO == "setlocal", "setcell", "refcell"))
+      EndIf
+      cO += " " + NumText(aIns[I_LOCAL] + 1)
+    EndIf
+    If !(aIns[I_ARG] == "") .Or. aIns[I_STR]
+      cO += " " + If(aIns[I_STR], '"' + aIns[I_ARG] + '"', aIns[I_ARG])
+    EndIf
+    If aIns[I_TARGET] >= 0
+      nAt := aG[F_LABELS][aIns[I_TARGET] + 1]
+      cO += " " + NumText(nAt + nShift + 1)
+    EndIf
+    cOut += "  " + cO + Chr(10)
+  Next
+Return cOut + "end" + Chr(10)
+
+Static Function WithBlocks(aG)
+  Local cOut := Chr(10) + Written(aG)
+  Local nI
+  For nI := 1 To Len(aG[F_MADE])
+    cOut += Chr(10) + Written(aG[F_MADE][nI])
+  Next
+Return cOut
+
+Static Function Run()
+  Local nI
+  Local nJ
+  Local aD
+  Local aV
+  Local aFd
+  Local cT
+  Local cName
+  Local cKind
+  Local cClasses := ""
+  Local aC
+  Local aM
+  Local cOut
+  Directives()
+  // A namespace's functions and classes are named with it before them:
+  // XDK.NS.U_SOMA, as the AppServer names them -- a Static Function is the
+  // source's own, and keeps its name.
+  If aProg[PG_NS] != Nil
+    cNs := Uc(aProg[PG_NS]) + "."
+  EndIf
+
+  // The statics' values, run first: the file's, then each function's.
+  aInit := NewFn()
+  aInit[F_NAME] := "__INIT"
+  aInit[F_KIND] := "init"
+  AAdd(aFns, aInit)
+  aF := aInit
+  aTop := aInit
+  If !lAdvpl
+    u_xcb_decfile(aDec, aProg)
+  EndIf
+  u_xcb_decfunc(aDec, {}, {})
+  For nI := 1 To Len(aProg[PG_STATICS])
+    aD := aProg[PG_STATICS][nI]
+    nLine := aD[N_LINE]
+    For nJ := 1 To Len(aD[DECL_DECLARATORS])
+      aV := aD[DECL_DECLARATORS][nJ]
+      If aV[DCL_INIT] != Nil .And. u_xcb_decimalword(aV[DCL_TYPESPEC])
+        aDv[DV_DECIMAL]{aV[DCL_INIT][N_ID]} := .T.
+      EndIf
+      StaticValue(aV, hFile)
+    Next
+  Next
+
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aFd := aProg[PG_FUNCTIONS][nI]
+    nLine := aFd[N_LINE]
+    cT := Lc(aFd[FN_TYPE])
+    cName := Uc(aFd[FN_NAME])
+    Do Case
+      Case cT == "user"
+        cKind := "user"
+        cName := "U_" + cName
+      Case cT == "static"
+        cKind := "static"
+      Case cT == "main"
+        cKind := "main"
+      Case cT == ""
+        cKind := If(Left(cName, 2) == "U_", "user", "function")
+      Otherwise
+        Problem("a " + aFd[FN_TYPE] + " function")
+        Loop
+    EndCase
+    If !(cKind == "static")
+      cName := cNs + cName
+    EndIf
+    CompileFunction(cName, cKind, aFd[FN_PARAMS], aFd[FN_BODY], aFd[FN_RETWORD])
+  Next
+
+  // A class: what its objects hold, and its methods -- each a function named
+  // for its class and itself, Self the object it runs on.
+  For nI := 1 To Len(aProg[PG_CLASSES])
+    aC := aProg[PG_CLASSES][nI]
+    If aC[CD_IFACE]
+      Loop
+    EndIf
+    nLine := aC[N_LINE]
+    cClasses += Chr(10) + ClassText(aC, ClassData(aC))
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    nLine := aM[N_LINE]
+    If aM[MI_WS]
+      Problem("a web service's method ('" + aM[MI_NAME] + "')")
+      Loop
+    EndIf
+    CompileFunction(cNs + Uc(aM[MI_CLASS]) + ":" + Uc(aM[MI_NAME]), "method", aM[MI_PARAMS], aM[MI_BODY], ;
+                    aM[MI_RETURNS])
+  Next
+
+  If Len(aProblems) > 0
+    Return {Nil, aProblems}
+  EndIf
+
+  cOut := "xbc 1" + Chr(10) + "source " + cSource + Chr(10) + "statics " + NumText(Len(aStaticNames)) + Chr(10)
+  If aProg[PG_NS] != Nil
+    cOut += "namespace " + Uc(aProg[PG_NS]) + Chr(10)
+  EndIf
+  For nI := 1 To Len(aProg[PG_USINGS])
+    cOut += "using " + Uc(aProg[PG_USINGS][nI]) + Chr(10)
+  Next
+  cOut += cClasses
+  If Len(aInit[F_CODE]) > 0
+    aF := aInit
+    Op("nil")
+    Op("ret")
+    cOut += WithBlocks(aInit)
+  EndIf
+  For nI := 1 To Len(aOrder)
+    cOut += WithBlocks(aOrder[nI])
+  Next
+Return {cOut, {}}

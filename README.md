@@ -84,10 +84,12 @@ xtpl's runtime compiled to bytecode first, and the self-tests too.
 
 `selfhost/` is xc again, written in xtpl, a part at a time: what turns a
 source into bytecode, for an AppServer to compile xtpl and run it with the
-interpreter, with no compile into the RPO. For now it reads a source into
-xc's tree and runs the passes the back end needs on it -- what each name
-holds, the Decimals, which chains run as loops --; the tree and what they
-find have to be what `xc-ast --bare --facts` writes (ctest's `selfhost`).
+interpreter, with no compile into the RPO. It reads a source into xc's
+tree, runs the passes the back end needs on it -- what each name holds,
+the Decimals, which chains run as loops -- and writes its bytecode: the
+tree and what the passes find have to be what `xc-ast --bare --facts`
+writes, and the `.xbc` what `xc --bytecode` writes (ctest's `selfhost`).
+What xc refuses is not looked for yet, nor the source's own commands.
 
 ## Running the tests
 
@@ -108,7 +110,7 @@ On Windows, `ctest --test-dir cpp\build -C Release`. The tests are data, in
 | `bytecode` | sources, each with its bytecode, the messages, and what `xc-vm` does running it |
 | `selftests` | xtpl's self-tests and xc's, as bytecode, pass on `xc-vm` |
 | `interp`, `interp-xc` | the interpreter written in xtpl, run by `xc-vm`, does what `xc-vm` does: the bytecode cases, the self-tests (`interp-xc`: xc's, slowly) |
-| `selfhost` | the compiler written in xtpl, run by `xc-vm`, reads each source into the tree and finds in it what `xc-ast --facts` does |
+| `selfhost` | the compiler written in xtpl, run by `xc-vm`, reads each source into the tree and finds in it what `xc-ast --facts` does, and writes the `.xbc` `xc --bytecode` does |
 
 After a change to the output that is meant, the expected files are written
 again, and the diff is the review:
@@ -203,7 +205,7 @@ It runs under rakupp 5.3.0, and under Rakudo as well.
 | `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples --, and the bytecode's, `bytecode.md` |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
-| `selfhost/` | xc written in xtpl, a part at a time: the parser and the passes after it so far (`selfhost.cmake` holds them to `xc-ast`) |
+| `selfhost/` | xc written in xtpl, a part at a time: the parser, the passes after it and the bytecode back end so far (`selfhost.cmake` holds them to `xc-ast` and `xc --bytecode`) |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
 | `xtpl/` | xtpl's own tests, examples, errors and probes, byte for byte, each with the `.tlpp` xc makes of it, and xc's example `saldo` -- see `xtpl/README.md` |
 | `run-protheus.raku` | xc's output compiled and run by an AppServer |

@@ -230,6 +230,49 @@ User Function xcb_lc(cS)
   Classes()
 Return Lc(cS)
 
+// Raku's .uc, for the bytes of a source (cpp/src/chars.cpp).
+User Function xcb_uc(cS)
+  Local cOut := ""
+  Local nI
+  Local nB
+  For nI := 1 To Len(cS)
+    nB := Asc(SubStr(cS, nI, 1))
+    If (nB >= 97 .And. nB <= 122) .Or. (nB >= 224 .And. nB <= 254 .And. nB != 247)
+      nB -= 32
+    ElseIf nB == 154 .Or. nB == 156 .Or. nB == 158
+      nB -= 16
+    ElseIf nB == 255
+      nB := 159
+    ElseIf nB == 223
+      cOut += "SS"
+      Loop
+    EndIf
+    cOut += Chr(nB)
+  Next
+Return cOut
+
+// Raku's .trim, and the same at the end alone (text.cpp's trim_trailing).
+User Function xcb_trim(cS)
+  Classes()
+Return TrimS(cS)
+
+User Function xcb_trimtrailing(cS)
+  Local nB := Len(cS)
+  Classes()
+  While nB >= 1 .And. aIsTrim[Asc(SubStr(cS, nB, 1)) + 1]
+    nB--
+  EndDo
+Return Left(cS, nB)
+
+// A byte of \s, of \h.
+User Function xcb_iss(nCh)
+  Classes()
+Return IsS(nCh)
+
+User Function xcb_ish(nCh)
+  Classes()
+Return IsH(nCh)
+
 // A byte of \w, or not.
 User Function xcb_isw(nCh)
   Classes()

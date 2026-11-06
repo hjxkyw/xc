@@ -9,9 +9,11 @@
 // 'ast': each line of LIST names a source and a file, a tab between them;
 // the source's tree goes to the file, as 'xc-ast --bare' writes it -- or
 // 'not parsed at N'. 'facts': the tree marked, then its facts, as 'xc-ast
-// --bare --facts' writes them. 'values': each line of each source read in
-// each form a statement holds an expression as, as 'xc-ast --values' reads
-// it.
+// --bare --facts' writes them; a third file on the line, after another tab,
+// is given the source's bytecode, as 'xc --bytecode' writes it -- or what
+// cannot become bytecode yet, a line each. 'values': each line of each
+// source read in each form a statement holds an expression as, as 'xc-ast
+// --values' reads it.
 // -----------------------------------------------------------------------------
 
 User Function xcb(cWhat, cList)
@@ -22,6 +24,10 @@ User Function xcb(cWhat, cList)
   Local aProg
   Local cSource
   Local cText
+  Local aCols
+  Local aBc
+  Local nP
+  Local oErr
   If !(cWhat == "ast" .Or. cWhat == "facts" .Or. cWhat == "values") .Or. cList == Nil
     ConOut("usage: xcb ast|facts|values LIST")
     Return 2
@@ -38,6 +44,7 @@ User Function xcb(cWhat, cList)
       MemoWrite(SubStr(aLines[nI], nTab + 1), EachValue(aSource[1], aSource[2]))
       Loop
     EndIf
+    aCols := SubStr(aLines[nI], nTab + 1) |> split(Chr(9))
     aProg := u_xcb_parse(aSource[1], aSource[2])
     If aProg == Nil
       cText := "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10)
@@ -47,7 +54,26 @@ User Function xcb(cWhat, cList)
     Else
       cText := u_xcb_dump(aProg)
     EndIf
-    MemoWrite(SubStr(aLines[nI], nTab + 1), cText)
+    MemoWrite(aCols[1], cText)
+    If aProg != Nil .And. cWhat == "facts" .And. Len(aCols) > 1
+      // A source xc refuses may take the back end where the C++ reads
+      // what is not there: what goes wrong is said, and the next one read.
+      Try
+        aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cSource), SourceName(cSource), ;
+                              IncludeDefines(aSource[1], FolderOf(cSource), {}))
+      Catch oErr
+        aBc := {"error: " + oErr:Description + Chr(10), {}}
+      EndTry
+      cText := aBc[1]
+      If cText == Nil
+        cText := ""
+        For nP := 1 To Len(aBc[2])
+          cText += AllTrim(Str(aBc[2][nP][1])) + ": " + Cp1252ToUtf8(aBc[2][nP][2]) + " cannot become bytecode yet" ;
+                   + Chr(10)
+        Next
+      EndIf
+      MemoWrite(aCols[2], cText)
+    EndIf
   Next
 Return 0
 
@@ -93,6 +119,235 @@ Static Function IsAdvpl(cPath)
   EndIf
   cExt := u_xcb_lc(SubStr(cPath, nDot + 1))
 Return cExt == "prw" .Or. cExt == "prx"
+
+// The name of a source, its folders aside, for the .xbc's 'source' line;
+// the folder it is in.
+Static Function SourceName(cPath)
+Return SubStr(cPath, RAt("/", cPath) + 1)
+
+Static Function FolderOf(cPath)
+  Local nCut := RAt("/", cPath)
+Return If(nCut > 0, Left(cPath, nCut - 1), ".")
+
+// ---- include files ----------------------------------------------------------
+// The '#define' lines of the include files a source names, and those they
+// name -- each found beside the source, then in each folder of aDirs, each
+// once (commands.cpp's include_defines). TOTVS' compressed ones ('#zip')
+// are skipped.
+Static Function IncludeDefines(cText, cDir, aDirs)
+  Local aOut := {}
+  Local hSeen := { => }
+  Local aTodo := IncludesOf(cText)
+  Local nNext := 1
+  Local cName
+  Local aPlaces
+  Local nP
+  Local cT
+  While nNext <= Len(aTodo)
+    cName := aTodo[nNext]
+    nNext++
+    If hSeen has u_xcb_lc(cName)
+      Loop
+    EndIf
+    hSeen{u_xcb_lc(cName)} := .T.
+    aPlaces := {cDir}
+    For nP := 1 To Len(aDirs)
+      AAdd(aPlaces, aDirs[nP])
+    Next
+    For nP := 1 To Len(aPlaces)
+      If !File(aPlaces[nP] + "/" + cName)
+        Loop
+      EndIf
+      cT := IncludeText(aPlaces[nP] + "/" + cName)
+      If cT != Nil
+        DefinesOf(cT, aOut)
+        AEval(IncludesOf(cT), {|x| AAdd(aTodo, x)})
+      EndIf
+      Exit
+    Next
+  EndDo
+Return aOut
+
+// The names a text includes: '#include "x.ch"', '<x.ch>' or 'x.ch' in
+// single quotes.
+Static Function IncludesOf(cText)
+  Local aOut := {}
+  Local aL := LinesOf(cText, .T.)
+  Local nI
+  Local cL
+  Local nK
+  Local nB
+  Local cQ
+  For nI := 1 To Len(aL)
+    cL := aL[nI]
+    nK := SkipH(cL, 1)
+    If !(SubStr(cL, nK, 1) == "#")
+      Loop
+    EndIf
+    nK := SkipH(cL, nK + 1)
+    If !(Lower(SubStr(cL, nK, 7)) == "include")
+      Loop
+    EndIf
+    nK := SkipH(cL, nK + 7)
+    cQ := SubStr(cL, nK, 1)
+    If !(cQ == '"' .Or. cQ == "'" .Or. cQ == "<")
+      Loop
+    EndIf
+    nK++
+    nB := nK
+    While nK <= Len(cL) .And. !(SubStr(cL, nK, 1) $ ('"' + "'>"))
+      nK++
+    EndDo
+    If nK == nB .Or. nK > Len(cL)
+      Loop
+    EndIf
+    AAdd(aOut, u_xcb_trim(SubStr(cL, nB, nK - nB)))
+  Next
+Return aOut
+
+// The '#define' lines of a text, from their '#'.
+Static Function DefinesOf(cText, aOut)
+  Local aL := LinesOf(cText, .F.)
+  Local nI
+  Local cL
+  Local nK
+  Local nW
+  For nI := 1 To Len(aL)
+    cL := aL[nI]
+    nK := SkipH(cL, 1)
+    If !(SubStr(cL, nK, 1) == "#")
+      Loop
+    EndIf
+    nW := SkipH(cL, nK + 1)
+    If Lower(SubStr(cL, nW, 6)) == "define" .And. nW + 6 <= Len(cL) .And. u_xcb_ish(Asc(SubStr(cL, nW + 6, 1)))
+      AAdd(aOut, SubStr(cL, nK))
+    EndIf
+  Next
+Return Nil
+
+// Past the blanks of \h from a place, from 1.
+Static Function SkipH(cL, nK)
+  While nK <= Len(cL) .And. u_xcb_ish(Asc(SubStr(cL, nK, 1)))
+    nK++
+  EndDo
+Return nK
+
+// Raku's .lines: split at "\r\n", "\n" and "\r"; no empty last line. lKeep:
+// each line with its line end.
+Static Function LinesOf(cText, lKeep)
+  Local aOut := {}
+  Local nB := 1
+  Local nI := 1
+  Local nN := Len(cText)
+  Local cC
+  Local nE
+  While nI <= nN
+    cC := SubStr(cText, nI, 1)
+    If cC == Chr(13) .Or. cC == Chr(10)
+      nE := nI + If(cC == Chr(13) .And. SubStr(cText, nI + 1, 1) == Chr(10), 2, 1)
+      AAdd(aOut, SubStr(cText, nB, If(lKeep, nE, nI) - nB))
+      nI := nE
+      nB := nI
+    Else
+      nI++
+    EndIf
+  EndDo
+  If nB <= nN
+    AAdd(aOut, SubStr(cText, nB))
+  EndIf
+Return aOut
+
+// An include file's text, as windows-1252 when it is UTF-8: Nil for one of
+// TOTVS' compressed ones.
+Static Function IncludeText(cPath)
+  Local cT := ReadAll(cPath)[1]
+  Local cOut
+  If Left(cT, 4) == "#zip"
+    Return Nil
+  EndIf
+  cOut := Utf8ToCp1252(cT)
+Return If(cOut == Nil, cT, cOut)
+
+// UTF-8 as windows-1252 (chars.cpp's utf8_to_cp1252): Nil when it is not
+// UTF-8; a character windows-1252 does not have is '?'.
+Static Function Utf8ToCp1252(cIn)
+  Local cOut := ""
+  Local nI := 1
+  Local nLen := Len(cIn)
+  Local nB
+  Local nCp
+  Local nN
+  Local nK
+  Local nC
+  Local nAt
+  Local aHigh := {{8364, 128}, {8218, 130}, {402, 131}, {8222, 132}, {8230, 133}, {8224, 134}, {8225, 135}, ;
+                  {710, 136}, {8240, 137}, {352, 138}, {8249, 139}, {338, 140}, {381, 142}, {8216, 145}, ;
+                  {8217, 146}, {8220, 147}, {8221, 148}, {8226, 149}, {8211, 150}, {8212, 151}, {732, 152}, ;
+                  {8482, 153}, {353, 154}, {8250, 155}, {339, 156}, {382, 158}, {376, 159}}
+  While nI <= nLen
+    nB := Asc(SubStr(cIn, nI, 1))
+    Do Case
+      Case nB < 128
+        nCp := nB
+        nN := 0
+      Case Int(nB / 32) == 6
+        nCp := nB % 32
+        nN := 1
+      Case Int(nB / 16) == 14
+        nCp := nB % 16
+        nN := 2
+      Case Int(nB / 8) == 30
+        nCp := nB % 8
+        nN := 3
+      Otherwise
+        Return Nil
+    EndCase
+    For nK := 1 To nN
+      If nI + nK > nLen
+        Return Nil
+      EndIf
+      nC := Asc(SubStr(cIn, nI + nK, 1))
+      If Int(nC / 64) != 2
+        Return Nil
+      EndIf
+      nCp := nCp * 64 + nC % 64
+    Next
+    If (nN == 1 .And. nCp < 128) .Or. (nN == 2 .And. nCp < 2048) .Or. (nN == 3 .And. nCp < 65536) ;
+       .Or. nCp > 1114111 .Or. (nCp >= 55296 .And. nCp <= 57343)
+      Return Nil
+    EndIf
+    If nCp < 256
+      cOut += Chr(nCp)
+    Else
+      nAt := AScan(aHigh, {|h| h[1] == nCp})
+      cOut += If(nAt > 0, Chr(aHigh[nAt][2]), "?")
+    EndIf
+    nI += nN + 1
+  EndDo
+Return cOut
+
+// Windows-1252 as UTF-8, as the C++ xc says what it finds (chars.cpp's
+// cp1252_to_utf8): the five bytes windows-1252 leaves undefined as the
+// characters of the same number.
+Static Function Cp1252ToUtf8(cIn)
+  Local cOut := ""
+  Local nI
+  Local nC
+  Local nU
+  Local aHigh := {8364, 129, 8218, 402, 8222, 8230, 8224, 8225, 710, 8240, 352, 8249, 338, 141, 381, 143, 144, ;
+                  8216, 8217, 8220, 8221, 8226, 8211, 8212, 732, 8482, 353, 8250, 339, 157, 382, 376}
+  For nI := 1 To Len(cIn)
+    nC := Asc(SubStr(cIn, nI, 1))
+    nU := If(nC >= 128 .And. nC < 160, aHigh[nC - 127], nC)
+    If nU < 128
+      cOut += Chr(nU)
+    ElseIf nU < 2048
+      cOut += Chr(192 + Int(nU / 64)) + Chr(128 + nU % 64)
+    Else
+      cOut += Chr(224 + Int(nU / 4096)) + Chr(128 + Int(nU / 64) % 64) + Chr(128 + nU % 64)
+    EndIf
+  Next
+Return cOut
 
 // A file's text, and its bytes' codes, read a piece at a time.
 Static Function ReadAll(cPath)
