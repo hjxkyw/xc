@@ -1663,6 +1663,15 @@ the body runs later, and lifting a stage out of it would run the stage
 first. A name given to two parameters, `{|p1, p1| p1}`, is the last of
 them -- the AppServer takes it so, and xc warns.
 
+On the AppServer a block sees the parameters of its function's last call,
+not of the call that made it: `Function Adder(n)` returning `{|x| x + n}`
+gives a block that adds the `n` of whichever call came last (tried on
+24.3.1.9). A block run before the function is called again -- given to
+`aScan()`, say -- sees the right one; one that leaves the function --
+returned, or kept in a variable, an array or a hash -- does not, and xc
+warns of a parameter it uses. A Local is the block's own: copy the
+parameter into one, `Local nAdd := n`, and use that.
+
 ### fallback
 
 | xtpl | TL++ |
@@ -2211,6 +2220,7 @@ with any name allowed, to say which name it was and why.
 | `Recover Using`, but in bytecode | `'Recover Using oErr': the AppServer runs this Recover with every Local Nil but oErr, and gives the function's back as they were at End Sequence -- nothing assigned there stays, oErr included. ...` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
+| a parameter of the function in a code block or a lambda that leaves it -- returned, or kept in a variable, an array or a hash | `'n', a parameter, is used in a code block that leaves the function: on the AppServer the block sees the parameter of the function's last call, not of the call that made it -- copy it into a Local, and use that` |
 | in a `.prw`, more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
 | a `fallback` inside an expression, around a chain that would fuse | `'fallback' inside an expression turns off fusion for this chain -- ...` |

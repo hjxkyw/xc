@@ -612,6 +612,18 @@ if $selfhost
     }
     @bad.push($s.basename);
     say "    {$made.e ?? 'DIFF' !! 'NONE'}  {$s.basename}{$made.e ?? ": not xc's {$name}" !! ': no .xbc made'}";
+    next unless $made.e;
+    # The first lines that differ, xc's and the AppServer's.
+    my @e = $xbc.add($name).slurp(:bin).decode('windows-1252').lines;
+    my @g = $made.slurp(:bin).decode('windows-1252').lines;
+    my $shown = 0;
+    for ^max(+@e, +@g) -> $i
+    {
+      next if @e[$i].defined && @g[$i].defined && @e[$i] eq @g[$i];
+      say "          {$i + 1}: xc's  {@e[$i] // '(nothing)'}";
+      say "          {' ' x ($i + 1).chars}  made  {@g[$i] // '(nothing)'}";
+      last if ++$shown == 6;
+    }
   }
   unless %took
   {

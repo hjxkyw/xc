@@ -11,7 +11,11 @@
 // start, 'cell' for 'local') -- and where each label is. Labels and locals
 // are numbered from 0, as the C++ has them. What the C++ keeps in a lambda
 // is a code block here, made by a function from its parameters where the
-// C++ copies what it captures.
+// C++ copies what it captures. A parameter a block uses is copied into a
+// Local of its name first, the parameter itself named with a 0 after it:
+// on the AppServer a block sees the parameter of its function's last call,
+// not of the call that made it (24.3.1.9) -- the blocks a function made
+// were all its last call's.
 // -----------------------------------------------------------------------------
 
 // An instruction: its op, the words after it -- a string's text --,
@@ -518,7 +522,8 @@ Static Function Subject()
 Return Nil
 
 // ---- expressions ------------------------------------------------------------
-Static Function Expr(aE)
+Static Function Expr(aE0)
+  Local aE := aE0
   Local nK
   Local nI
   Local aM
@@ -722,7 +727,8 @@ Static Function Literal(aL)
   EndCase
 Return Nil
 
-Static Function Binary(aB)
+Static Function Binary(aB0)
+  Local aB := aB0
   Local cO := aB[BIN_OP]
   Local nEnd
   Local aR
@@ -987,7 +993,8 @@ Return Nil
 
 // 'SA1->A1_NOME', '(cAlias)->A1_NOME', 'M->nX'; a field named by a macro is
 // FieldGet() in the area.
-Static Function AliasField(aA)
+Static Function AliasField(aA0)
+  Local aA := aA0
   Local aName
   Local bAlias
   Local cAl
@@ -1037,7 +1044,8 @@ Return Nil
 
 // A chain inside an expression: each stage a call, what came before its
 // first argument -- one from a source cannot be.
-Static Function Pipeline(aP)
+Static Function Pipeline(aP0)
+  Local aP := aP0
   Local cWhat
   If u_xcb_issource(aP[PIPE_SOURCE])
     cWhat := If(u_xcb_sourcekind(aP[PIPE_SOURCE]) == "range", "a range", u_xcb_sourcekind(aP[PIPE_SOURCE]) + "()")
@@ -1189,39 +1197,52 @@ Static Function RangeEnd(aE)
 Return MkLocal(nT)
 
 // ---- blocks of what the C++ keeps -------------------------------------------
-Static Function MkExpr(aE)
+Static Function MkExpr(aE0)
+  Local aE := aE0
 Return {|| Expr(aE)}
 
-Static Function MkLocal(nL)
+Static Function MkLocal(nL0)
+  Local nL := nL0
 Return {|| OnLocal("local", nL)}
 
-Static Function MkStr(cS)
+Static Function MkStr(cS0)
+  Local cS := cS0
 Return {|| EmitStr(cS)}
 
-Static Function MkPlace(nL)
+Static Function MkPlace(nL0)
+  Local nL := nL0
 Return {|| Place(nL)}
 
-Static Function MkOp(cOp)
+Static Function MkOp(cOp0)
+  Local cOp := cOp0
 Return {|| Op(cOp)}
 
-Static Function MkCalls(bValue, aStages)
+Static Function MkCalls(bValue0, aStages0)
+  Local bValue := bValue0
+  Local aStages := aStages0
 Return {|| Calls(bValue, aStages)}
 
 // 'v(); setlocal to'.
-Static Function MkSetFrom(bV, nTo)
+Static Function MkSetFrom(bV0, nTo0)
+  Local bV := bV0
+  Local nTo := nTo0
 Return {|| Eval(bV), OnLocal("setlocal", nTo)}
 
 // 'v(); pop'.
-Static Function MkPopFrom(bV)
+Static Function MkPopFrom(bV0)
+  Local bV := bV0
 Return {|| Eval(bV), Op("pop")}
 
 // The element, or Nil when there is none.
-Static Function MkEl(nElem)
+Static Function MkEl(nElem0)
+  Local nElem := nElem0
 Return {|| If(nElem != Nil, OnLocal("local", nElem), Op("nil"))}
 
 // A stage's block as a value: a lambda written in it, its parameter the
 // element -- or the record --, or a function's name called on it.
-Static Function ValueOf(aSt, nElem, aRecord)
+Static Function ValueOf(aSt, nElem0, aRecord0)
+  Local nElem := nElem0
+  Local aRecord := aRecord0
   Local aA := ArgAt(aSt, 1)
   If IsK(aA, EK_LAMBDA)
     Return {|| Bound(aA, nElem, aRecord)}
@@ -1236,7 +1257,9 @@ Return MkNameCall(NameOf(aA), nElem)
 Static Function ArgAt(aSt, nN)
 Return If(nN <= Len(aSt[CALL_ARGS]), aSt[CALL_ARGS][nN], Nil)
 
-Static Function MkNameCall(cFn, nElem)
+Static Function MkNameCall(cFn0, nElem0)
+  Local cFn := cFn0
+  Local nElem := nElem0
 Return {|| NameCall(cFn, nElem)}
 
 Static Function NameCall(cFn, nElem)
@@ -1247,21 +1270,37 @@ Static Function NameCall(cFn, nElem)
 Return Nil
 
 // The loop's head, its element, the step to the next one.
-Static Function MkRangeHead(bLo, bHi, nFi, nTop, nEnd)
+Static Function MkRangeHead(bLo0, bHi0, nFi0, nTop0, nEnd0)
+  Local bLo := bLo0
+  Local bHi := bHi0
+  Local nFi := nFi0
+  Local nTop := nTop0
+  Local nEnd := nEnd0
 Return {|| Eval(bLo), OnLocal("setlocal", nFi), Place(nTop), OnLocal("local", nFi), Eval(bHi), Op("le"), ;
            Jump("jumpf", nEnd)}
 
-Static Function MkCopy(nFrom, nTo)
+Static Function MkCopy(nFrom0, nTo0)
+  Local nFrom := nFrom0
+  Local nTo := nTo0
 Return {|| OnLocal("local", nFrom), OnLocal("setlocal", nTo)}
 
-Static Function MkNext(nFi, nTop)
+Static Function MkNext(nFi0, nTop0)
+  Local nFi := nFi0
+  Local nTop := nTop0
 Return {|| OnLocal("local", nFi), Num(1), Op("add"), OnLocal("setlocal", nFi), Jump("jump", nTop)}
 
-Static Function MkArrayHead(bOver, nFi, nTop, nEnd)
+Static Function MkArrayHead(bOver0, nFi0, nTop0, nEnd0)
+  Local bOver := bOver0
+  Local nFi := nFi0
+  Local nTop := nTop0
+  Local nEnd := nEnd0
 Return {|| Num(1), OnLocal("setlocal", nFi), Place(nTop), OnLocal("local", nFi), Eval(bOver), ;
            EmitCall(1, "Len"), Op("le"), Jump("jumpf", nEnd)}
 
-Static Function MkArrayRead(bOver, nFi, nV)
+Static Function MkArrayRead(bOver0, nFi0, nV0)
+  Local bOver := bOver0
+  Local nFi := nFi0
+  Local nV := nV0
 Return {|| Eval(bOver), OnLocal("local", nFi), Op("index"), OnLocal("setlocal", nV)}
 
 Static Function SeekOrTop(aC)
@@ -1273,16 +1312,25 @@ Static Function SeekOrTop(aC)
   EndIf
 Return Nil
 
-Static Function MkRowsHead(bAlias, nTop, nEnd)
+Static Function MkRowsHead(bAlias0, nTop0, nEnd0)
+  Local bAlias := bAlias0
+  Local nTop := nTop0
+  Local nEnd := nEnd0
 Return {|| Place(nTop), InArea(bAlias, {|| EmitCall(0, "Eof")}), Op("not"), Jump("jumpf", nEnd)}
 
-Static Function MkRowsNext(bAlias, nTop)
+Static Function MkRowsNext(bAlias0, nTop0)
+  Local bAlias := bAlias0
+  Local nTop := nTop0
 Return {|| InArea(bAlias, {|| EmitCall(0, "DbSkip")}), Op("pop"), Jump("jump", nTop)}
 
-Static Function MkRowsTeardown(bAlias, nFrc, nFar)
+Static Function MkRowsTeardown(bAlias0, nFrc0, nFar0)
+  Local bAlias := bAlias0
+  Local nFrc := nFrc0
+  Local nFar := nFar0
 Return {|| RowsTeardown(bAlias, nFrc, nFar)}
 
-Static Function RowsTeardown(bAlias, nFrc, nFar)
+Static Function RowsTeardown(bAlias, nFrc0, nFar)
+  Local nFrc := nFrc0
   Local nSkip
   InArea(bAlias, {|| OnLocal("local", nFrc), EmitCall(1, "DbGoto")})
   Op("pop")
@@ -1296,7 +1344,10 @@ Static Function RowsTeardown(bAlias, nFrc, nFar)
   Place(nSkip)
 Return Nil
 
-Static Function MkLinesHead(nFok, nTop, nEnd)
+Static Function MkLinesHead(nFok0, nTop0, nEnd0)
+  Local nFok := nFok0
+  Local nTop := nTop0
+  Local nEnd := nEnd0
 Return {|| LinesHead(nFok, nTop, nEnd)}
 
 Static Function LinesHead(nFok, nTop, nEnd)
@@ -1311,13 +1362,16 @@ Static Function LinesHead(nFok, nTop, nEnd)
   Jump("jumpf", nEnd)
 Return Nil
 
-Static Function MkLinesRead(nV)
+Static Function MkLinesRead(nV0)
+  Local nV := nV0
 Return {|| EmitCall(0, "FT_FReadLn"), OnLocal("setlocal", nV)}
 
-Static Function MkLinesNext(nTop)
+Static Function MkLinesNext(nTop0)
+  Local nTop := nTop0
 Return {|| EmitCall(0, "FT_FSkip"), Op("pop"), Jump("jump", nTop)}
 
-Static Function MkLinesTeardown(nFok)
+Static Function MkLinesTeardown(nFok0)
+  Local nFok := nFok0
 Return {|| LinesTeardown(nFok)}
 
 Static Function LinesTeardown(nFok)
@@ -1335,7 +1389,8 @@ Return Nil
 // order, the terminal -- or an AAdd -- collecting; the stages after that
 // are a chain over what was collected, each part as PT_* has it.
 
-Static Function WalkChain(aSource, bOver, aStages, lCollect)
+Static Function WalkChain(aSource0, bOver, aStages, lCollect)
+  Local aSource := aSource0
   Local aSp := u_xcb_splitstages(aStages, aSource == Nil, hDeclared)
   Local nTop := Label()
   Local nEnd := Label()
@@ -1755,10 +1810,16 @@ Static Function WalkChain(aSource, bOver, aStages, lCollect)
 Return WalkChain(Nil, bArr, Stages(aAfter, nFrom + 1, Len(aAfter)), lCollect)
 
 // ---- the stages' parts ------------------------------------------------------
-Static Function MkFilterOpen(bV, lKeep, nSkip)
+Static Function MkFilterOpen(bV0, lKeep0, nSkip0)
+  Local bV := bV0
+  Local lKeep := lKeep0
+  Local nSkip := nSkip0
 Return {|| Eval(bV), Jump(If(lKeep, "jumpf", "jumpt"), nSkip)}
 
-Static Function MkTakeAhead(nFlm, aX, nPassed)
+Static Function MkTakeAhead(nFlm0, aX0, nPassed0)
+  Local nFlm := nFlm0
+  Local aX := aX0
+  Local nPassed := nPassed0
 Return {|| TakeAhead(nFlm, aX, nPassed)}
 
 Static Function TakeAhead(nFlm, aX, nPassed)
@@ -1770,7 +1831,10 @@ Static Function TakeAhead(nFlm, aX, nPassed)
   OnLocal("setlocal", nPassed)
 Return Nil
 
-Static Function MkTakeOpen(nPassed, bLimit, nEnd)
+Static Function MkTakeOpen(nPassed0, bLimit0, nEnd0)
+  Local nPassed := nPassed0
+  Local bLimit := bLimit0
+  Local nEnd := nEnd0
 Return {|| TakeOpen(nPassed, bLimit, nEnd)}
 
 Static Function TakeOpen(nPassed, bLimit, nEnd)
@@ -1787,7 +1851,10 @@ Static Function TakeOpen(nPassed, bLimit, nEnd)
   OnLocal("setlocal", nPassed)
 Return Nil
 
-Static Function MkDropOpen(nPassed, bLimit, nDone)
+Static Function MkDropOpen(nPassed0, bLimit0, nDone0)
+  Local nPassed := nPassed0
+  Local bLimit := bLimit0
+  Local nDone := nDone0
 Return {|| DropOpen(nPassed, bLimit, nDone)}
 
 Static Function DropOpen(nPassed, bLimit, nDone)
@@ -1804,7 +1871,9 @@ Static Function DropOpen(nPassed, bLimit, nDone)
   Place(nRest)
 Return Nil
 
-Static Function MkTakeWhileOpen(bV, nEnd)
+Static Function MkTakeWhileOpen(bV0, nEnd0)
+  Local bV := bV0
+  Local nEnd := nEnd0
 Return {|| TakeWhileOpen(bV, nEnd)}
 
 Static Function TakeWhileOpen(bV, nEnd)
@@ -1815,10 +1884,14 @@ Static Function TakeWhileOpen(bV, nEnd)
   Place(nGo)
 Return Nil
 
-Static Function MkTrueInto(nL)
+Static Function MkTrueInto(nL0)
+  Local nL := nL0
 Return {|| Op("true"), OnLocal("setlocal", nL)}
 
-Static Function MkDropWhileOpen(nOn, bV, nSkip)
+Static Function MkDropWhileOpen(nOn0, bV0, nSkip0)
+  Local nOn := nOn0
+  Local bV := bV0
+  Local nSkip := nSkip0
 Return {|| DropWhileOpen(nOn, bV, nSkip)}
 
 Static Function DropWhileOpen(nOn, bV, nSkip)
@@ -1832,7 +1905,13 @@ Static Function DropWhileOpen(nOn, bV, nSkip)
   OnLocal("setlocal", nOn)
 Return Nil
 
-Static Function MkExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
+Static Function MkExpandOpen(bV0, nBag0, nJ0, nInner0, nOut0, nTo0)
+  Local bV := bV0
+  Local nBag := nBag0
+  Local nJ := nJ0
+  Local nInner := nInner0
+  Local nOut := nOut0
+  Local nTo := nTo0
 Return {|| ExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)}
 
 Static Function ExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
@@ -1852,16 +1931,32 @@ Static Function ExpandOpen(bV, nBag, nJ, nInner, nOut, nTo)
   OnLocal("setlocal", nTo)
 Return Nil
 
-Static Function MkExpandClose(nJ, nInner, nOut)
+Static Function MkExpandClose(nJ0, nInner0, nOut0)
+  Local nJ := nJ0
+  Local nInner := nInner0
+  Local nOut := nOut0
 Return {|| OnLocal("local", nJ), Num(1), Op("add"), OnLocal("setlocal", nJ), Jump("jump", nInner), Place(nOut)}
 
-Static Function MkScanOpen(aL, nFa, nFrom, nTo)
+Static Function MkScanOpen(aL0, nFa0, nFrom0, nTo0)
+  Local aL := aL0
+  Local nFa := nFa0
+  Local nFrom := nFrom0
+  Local nTo := nTo0
 Return {|| Bound2(aL, nFa, nFrom), OnLocal("setlocal", nFa), OnLocal("local", nFa), OnLocal("setlocal", nTo)}
 
-Static Function MkPairwiseAhead(nLast, nSeen)
+Static Function MkPairwiseAhead(nLast0, nSeen0)
+  Local nLast := nLast0
+  Local nSeen := nSeen0
 Return {|| Op("nil"), OnLocal("setlocal", nLast), Op("false"), OnLocal("setlocal", nSeen)}
 
-Static Function MkPairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
+Static Function MkPairwiseOpen(nLast0, nSeen0, nBefore0, nPair0, nSkip0, bE0, nTo0)
+  Local nLast := nLast0
+  Local nSeen := nSeen0
+  Local nBefore := nBefore0
+  Local nPair := nPair0
+  Local nSkip := nSkip0
+  Local bE := bE0
+  Local nTo := nTo0
 Return {|| PairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)}
 
 Static Function PairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
@@ -1881,17 +1976,29 @@ Static Function PairwiseOpen(nLast, nSeen, nBefore, nPair, nSkip, bE, nTo)
   OnLocal("setlocal", nTo)
 Return Nil
 
-Static Function MkNewHashInto(nL)
+Static Function MkNewHashInto(nL0)
+  Local nL := nL0
 Return {|| Op("new", "0 THashMap New"), OnLocal("setlocal", nL)}
 
-Static Function MkDistinctOpen(nSeen, bE, nSkip)
+Static Function MkDistinctOpen(nSeen0, bE0, nSkip0)
+  Local nSeen := nSeen0
+  Local bE := bE0
+  Local nSkip := nSkip0
 Return {|| OnLocal("local", nSeen), Eval(bE), EmitCall(2, "u_xtpl_seen"), Jump("jumpt", nSkip)}
 
-Static Function MkAdjacentAhead(nSeen, nLast, nKey)
+Static Function MkAdjacentAhead(nSeen0, nLast0, nKey0)
+  Local nSeen := nSeen0
+  Local nLast := nLast0
+  Local nKey := nKey0
 Return {|| Op("false"), OnLocal("setlocal", nSeen), Op("nil"), OnLocal("setlocal", nLast), Op("nil"), ;
            OnLocal("setlocal", nKey)}
 
-Static Function MkAdjacentOpen(bK, nKey, nSeen, nLast, nSkip)
+Static Function MkAdjacentOpen(bK0, nKey0, nSeen0, nLast0, nSkip0)
+  Local bK := bK0
+  Local nKey := nKey0
+  Local nSeen := nSeen0
+  Local nLast := nLast0
+  Local nSkip := nSkip0
 Return {|| AdjacentOpen(bK, nKey, nSeen, nLast, nSkip)}
 
 Static Function AdjacentOpen(bK, nKey, nSeen, nLast, nSkip)
@@ -1913,7 +2020,9 @@ Return Nil
 
 // ---- the terminal's parts ---------------------------------------------------
 // 'fo := what' before the loop.
-Static Function MkStart(cWhat, nFo)
+Static Function MkStart(cWhat0, nFo0)
+  Local cWhat := cWhat0
+  Local nFo := nFo0
 Return {|| StartFo(cWhat, nFo)}
 
 Static Function StartFo(cWhat, nFo)
@@ -1935,7 +2044,12 @@ Static Function StartFo(cWhat, nFo)
 Return Nil
 
 // 'If c; fo := x; Exit; EndIf', or with c false.
-Static Function MkStopIf(lWhen, bX, bC, nFo, nEnd)
+Static Function MkStopIf(lWhen0, bX0, bC0, nFo0, nEnd0)
+  Local lWhen := lWhen0
+  Local bX := bX0
+  Local bC := bC0
+  Local nFo := nFo0
+  Local nEnd := nEnd0
 Return {|| StopIf(lWhen, bX, bC, nFo, nEnd)}
 
 Static Function StopIf(lWhen, bX, bC, nFo, nEnd)
@@ -1948,10 +2062,15 @@ Static Function StopIf(lWhen, bX, bC, nFo, nEnd)
   Place(nGo)
 Return Nil
 
-Static Function MkSumOpen(nFo, bE, cOp)
+Static Function MkSumOpen(nFo0, bE0, cOp0)
+  Local nFo := nFo0
+  Local bE := bE0
+  Local cOp := cOp0
 Return {|| OnLocal("local", nFo), Eval(bE), Op(cOp), OnLocal("setlocal", nFo)}
 
-Static Function MkCountOpen(bC, nFo)
+Static Function MkCountOpen(bC0, nFo0)
+  Local bC := bC0
+  Local nFo := nFo0
 Return {|| CountOpen(bC, nFo)}
 
 Static Function CountOpen(bC, nFo)
@@ -1967,10 +2086,18 @@ Static Function CountOpen(bC, nFo)
   Place(nSkip)
 Return Nil
 
-Static Function MkFirstOpen(bE, nFo, nEnd)
+Static Function MkFirstOpen(bE0, nFo0, nEnd0)
+  Local bE := bE0
+  Local nFo := nFo0
+  Local nEnd := nEnd0
 Return {|| Eval(bE), OnLocal("setlocal", nFo), Jump("jump", nEnd)}
 
-Static Function MkMaxOpen(cT, aL, nFo, nFrom, bE)
+Static Function MkMaxOpen(cT0, aL0, nFo0, nFrom0, bE0)
+  Local cT := cT0
+  Local aL := aL0
+  Local nFo := nFo0
+  Local nFrom := nFrom0
+  Local bE := bE0
 Return {|| MaxOpen(cT, aL, nFo, nFrom, bE)}
 
 Static Function MaxOpen(cT, aL, nFo, nFrom, bE)
@@ -1994,7 +2121,10 @@ Static Function MaxOpen(cT, aL, nFo, nFrom, bE)
   Place(nDone)
 Return Nil
 
-Static Function MkJoinAhead(nFsp, aX, nFo)
+Static Function MkJoinAhead(nFsp0, aX0, nFo0)
+  Local nFsp := nFsp0
+  Local aX := aX0
+  Local nFo := nFo0
 Return {|| JoinAhead(nFsp, aX, nFo)}
 
 Static Function JoinAhead(nFsp, aX, nFo)
@@ -2006,10 +2136,14 @@ Static Function JoinAhead(nFsp, aX, nFo)
   OnLocal("setlocal", nFo)
 Return Nil
 
-Static Function MkAAddOpen(nFo, bE)
+Static Function MkAAddOpen(nFo0, bE0)
+  Local nFo := nFo0
+  Local bE := bE0
 Return {|| OnLocal("local", nFo), Eval(bE), EmitCall(2, "AAdd"), Op("pop")}
 
-Static Function MkJoinFinish(nFo, bSep)
+Static Function MkJoinFinish(nFo0, bSep0)
+  Local nFo := nFo0
+  Local bSep := bSep0
 Return {|| JoinFinish(nFo, bSep)}
 
 Static Function JoinFinish(nFo, bSep)
@@ -2021,15 +2155,30 @@ Static Function JoinFinish(nFo, bSep)
   OnLocal("setlocal", nFo)
 Return Nil
 
-Static Function MkReduceOpen(aL, nFo, nFrom)
+Static Function MkReduceOpen(aL0, nFo0, nFrom0)
+  Local aL := aL0
+  Local nFo := nFo0
+  Local nFrom := nFrom0
 Return {|| Bound2(aL, nFo, nFrom), OnLocal("setlocal", nFo)}
 
-Static Function MkChunkAhead(nChunk, nKey, nSeen, nNow, nFo)
+Static Function MkChunkAhead(nChunk0, nKey0, nSeen0, nNow0, nFo0)
+  Local nChunk := nChunk0
+  Local nKey := nKey0
+  Local nSeen := nSeen0
+  Local nNow := nNow0
+  Local nFo := nFo0
 Return {|| Op("array", "0"), OnLocal("setlocal", nChunk), Op("nil"), OnLocal("setlocal", nKey), Op("false"), ;
            OnLocal("setlocal", nSeen), Op("nil"), OnLocal("setlocal", nNow), Op("array", "0"), ;
            OnLocal("setlocal", nFo)}
 
-Static Function MkChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
+Static Function MkChunkOpen(bC0, bE0, nChunk0, nKey0, nSeen0, nNow0, nFo0)
+  Local bC := bC0
+  Local bE := bE0
+  Local nChunk := nChunk0
+  Local nKey := nKey0
+  Local nSeen := nSeen0
+  Local nNow := nNow0
+  Local nFo := nFo0
 Return {|| ChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)}
 
 Static Function ChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
@@ -2064,7 +2213,10 @@ Static Function ChunkOpen(bC, bE, nChunk, nKey, nSeen, nNow, nFo)
   Op("pop")
 Return Nil
 
-Static Function MkChunkFinish(nSeen, nFo, nChunk)
+Static Function MkChunkFinish(nSeen0, nFo0, nChunk0)
+  Local nSeen := nSeen0
+  Local nFo := nFo0
+  Local nChunk := nChunk0
 Return {|| ChunkFinish(nSeen, nFo, nChunk)}
 
 Static Function ChunkFinish(nSeen, nFo, nChunk)
@@ -2078,11 +2230,22 @@ Static Function ChunkFinish(nSeen, nFo, nChunk)
   Place(nSkip)
 Return Nil
 
-Static Function MkMaxByAhead(nBest, nSeen, nKey, nFo)
+Static Function MkMaxByAhead(nBest0, nSeen0, nKey0, nFo0)
+  Local nBest := nBest0
+  Local nSeen := nSeen0
+  Local nKey := nKey0
+  Local nFo := nFo0
 Return {|| Op("nil"), OnLocal("setlocal", nBest), Op("false"), OnLocal("setlocal", nSeen), Op("nil"), ;
            OnLocal("setlocal", nKey), Op("nil"), OnLocal("setlocal", nFo)}
 
-Static Function MkMaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)
+Static Function MkMaxByOpen(cT0, bC0, bE0, nBest0, nSeen0, nKey0, nFo0)
+  Local cT := cT0
+  Local bC := bC0
+  Local bE := bE0
+  Local nBest := nBest0
+  Local nSeen := nSeen0
+  Local nKey := nKey0
+  Local nFo := nFo0
 Return {|| MaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)}
 
 Static Function MaxByOpen(cT, bC, bE, nBest, nSeen, nKey, nFo)
@@ -2249,16 +2412,19 @@ Static Function WholeValue(aSt)
   EndIf
 Return .F.
 
-Static Function MkStore(aV)
+Static Function MkStore(aV0)
+  Local aV := aV0
 Return {|| Store(aV)}
 
-Static Function MkLoad(aV)
+Static Function MkLoad(aV0)
+  Local aV := aV0
 Return {|| Load(aV)}
 
 // ---- assignments ------------------------------------------------------------
 // Where an assignment writes (T_*): Nil, and the problem said, for what
 // cannot be written.
-Static Function TargetOf(aT)
+Static Function TargetOf(aT0)
+  Local aT := aT0
   Local nK
   Local aV
   Local cF
@@ -2327,10 +2493,13 @@ Static Function IndexPush(aX)
   Expr(ATail(aX[IDX_INDICES]))
 Return Nil
 
-Static Function MkFieldTarget(aRec, cF)
+Static Function MkFieldTarget(aRec0, cF0)
+  Local aRec := aRec0
+  Local cF := cF0
 Return {0, Nil, {|| RecField(aRec, cF, .F.)}, {|| RecField(aRec, cF, .T.)}}
 
-Static Function FieldPutWrite(bAlias, aName)
+Static Function FieldPutWrite(bAlias, aName0)
+  Local aName := aName0
   Local nValue := Temp()
   OnLocal("setlocal", nValue)
   InArea(bAlias, {|| Expr(aName), EmitCall(1, "FieldPos"), OnLocal("local", nValue), EmitCall(2, "FieldPut")})
@@ -2779,7 +2948,9 @@ Return Nil
 
 // A Local's store, declaring it the first time it runs -- a guard's two
 // branches store it both.
-Static Function MkDeclStore(aI, cName)
+Static Function MkDeclStore(aI0, cName0)
+  Local aI := aI0
+  Local cName := cName0
 Return {|| DeclStore(aI, cName)}
 
 Static Function DeclStore(aI, cName)
@@ -3243,7 +3414,8 @@ Return Nil
 
 // 'using alias': the area selected, and put back -- with its record and its
 // order -- at its end and on every way out.
-Static Function UsingAlias(aU)
+Static Function UsingAlias(aU0)
+  Local aU := aU0
   Local aV := Resolve(aU[UA_AREA])
   Local bAlias
   Local nFal
@@ -3282,10 +3454,16 @@ Static Function UsingAlias(aU)
   Eval(bRestore)
 Return Nil
 
-Static Function MkRestore(bAlias, nFar, nFrc, nFol)
+Static Function MkRestore(bAlias0, nFar0, nFrc0, nFol0)
+  Local bAlias := bAlias0
+  Local nFar := nFar0
+  Local nFrc := nFrc0
+  Local nFol := nFol0
 Return {|| Restore(bAlias, nFar, nFrc, nFol)}
 
-Static Function Restore(bAlias, nFar, nFrc, nFol)
+Static Function Restore(bAlias, nFar, nFrc0, nFol0)
+  Local nFrc := nFrc0
+  Local nFol := nFol0
   Local nSkip
   If nFol >= 0
     InArea(bAlias, {|| OnLocal("local", nFol), EmitCall(1, "DbSetOrder")})
@@ -3305,7 +3483,8 @@ Return Nil
 
 // 'Try ... Catch e ... Finally ... EndTry': the Finally after the body and
 // after the Catch, and on a way out of either.
-Static Function TryStmt(aT)
+Static Function TryStmt(aT0)
+  Local aT := aT0
   Local nCaught := Label()
   Local nEnd := Label()
   Local lFin := Len(aT[TRY_FINALLY]) > 0

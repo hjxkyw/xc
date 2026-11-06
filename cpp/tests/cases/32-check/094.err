@@ -1,0 +1,1 @@
+094.xtpl:7: warning: 'cParm', a parameter, is used in a code block that leaves the function: on the AppServer the block sees the parameter of the function's last call, not of the call that made it -- copy it into a Local, and use that

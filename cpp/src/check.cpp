@@ -404,6 +404,7 @@ namespace xc
     {
       Scope* outer = nullptr;
       bool closure = false;
+      bool escapes = false;          // a closure that leaves its function: returned, kept
       std::unordered_map<std::string, Var*> names;
     };
 
@@ -412,6 +413,7 @@ namespace xc
     {
       Var* v = nullptr;
       bool captured = false;
+      bool escaped = false;          // a closure between that leaves its function
       explicit operator bool() const { return v != nullptr; }
     };
 
@@ -494,6 +496,10 @@ namespace xc
       void warning(const std::string& m) { warned.push_back({ line_, m }); }
       void then_cond(const Expr* cond, const std::string& where);
       void keyword_name(const std::string& name, int line);
+      void param_in_block(const Found& v, const std::string& name);
+      void escaping(const Expr* v);
+      void escaping_in(const Body& body);
+      std::unordered_set<const Expr*> escaping_;
       void language_name(const std::string& name, int line);
       std::unordered_set<std::string> keyword_seen_;   // line and name, said once
 
@@ -504,7 +510,7 @@ namespace xc
 
       Scope* new_scope(Scope* outer, bool closure)
       {
-        scopes_.push_back(Scope{ outer, closure, {} });
+        scopes_.push_back(Scope{ outer, closure, false, {} });
         return &scopes_.back();
       }
 
@@ -562,6 +568,8 @@ namespace xc
 
     void Checker::program(const Program* p)
     {
+      for (const FunctionDef* f : p->functions) { escaping_in(f->body); }
+      for (const MethodImpl* m : p->methods) { escaping_in(m->body); }
       for (const FunctionDef* f : p->functions)
       {
         // A User Function's name is the AppServer's with 'U_' before it (a
@@ -1047,10 +1055,12 @@ namespace xc
     Found Checker::find(const std::string& k) const
     {
       bool crossed = false;
+      bool escaped = false;
       for (Scope* s = scope_; s; s = s->outer)
       {
-        if (auto it = s->names.find(k); it != s->names.end()) { return Found{ it->second, crossed }; }
+        if (auto it = s->names.find(k); it != s->names.end()) { return Found{ it->second, crossed, escaped }; }
         crossed = crossed || s->closure;
+        escaped = escaped || (s->closure && s->escapes);
       }
       return Found{};
     }
@@ -1071,6 +1081,63 @@ namespace xc
       }
     }
 
+    // A parameter a code block uses, where the block leaves its function --
+    // returned, or kept in a variable, an array, a hash: the AppServer's block
+    // sees the parameter of its function's last call, not of the call that
+    // made it, so a block made in one call and run after another saw the
+    // other's (24.3.1.9: the compiler written in xtpl; interp/xbc.xtpl's
+    // XbcMakeBlock()). A Local is the block's own. A block run before the
+    // function is called again -- given to aScan(), say -- sees the right one.
+    // xc's machines keep each call's.
+    void Checker::param_in_block(const Found& v, const std::string& name)
+    {
+      if (bytecode_ || !v.escaped || v.v->kind != "param") { return; }
+      if (!warned_names_.insert("param-block " + lc(name) + " " + num(v.v->line)).second) { return; }
+      warning("'" + name + "', a parameter, is used in a code block that leaves the function: on the AppServer the "
+              "block sees the parameter of the function's last call, not of the call that made it -- copy it into a "
+              "Local, and use that");
+    }
+
+    // The blocks a value leaves its function in: the value itself, what an
+    // array or a hash of it holds.
+    void Checker::escaping(const Expr* v)
+    {
+      if (!v) { return; }
+      if (is(v, EK::CodeBlock) || is(v, EK::Lambda)) { escaping_.insert(v); }
+      else if (is(v, EK::ArrayLit))
+      {
+        for (const Expr* x : static_cast<const ArrayLit*>(v)->items) { escaping(x); }
+      }
+      else if (is(v, EK::HashLit))
+      {
+        for (const KeyValue* kv : static_cast<const HashLit*>(v)->pairs) { escaping(kv->value); }
+      }
+    }
+
+    // Every block a body returns or keeps.
+    void Checker::escaping_in(const Body& body)
+    {
+      walk(body, [&](Stmt* s)
+      {
+        switch (s->kind)
+        {
+          case SK::Assignment: escaping(static_cast<Assignment*>(s)->value); break;
+          case SK::ReturnStmt: escaping(static_cast<ReturnStmt*>(s)->value); break;
+          case SK::Declaration:
+            for (const Declarator* d : static_cast<Declaration*>(s)->declarators) { escaping(d->init); }
+            break;
+          default: break;
+        }
+        for (Expr* e : exprs_of(s))
+        {
+          walk_expr(e, [&](Expr* x)
+          {
+            if (x->kind == EK::AssignExpr) { escaping(static_cast<AssignExpr*>(x)->value); }
+          });
+        }
+      });
+    }
+
     void Checker::read(const std::string& name)
     {
       std::string k = lc(name);
@@ -1078,6 +1145,7 @@ namespace xc
       {
         v.v->reads++;
         leaves(v.v, name, v.captured || in_defer_);
+        param_in_block(v, name);
         return;
       }
       if (auto r = retired_.find(k); r != retired_.end())
@@ -1105,6 +1173,7 @@ namespace xc
           problem("'" + name + "' is <const> (declared on line " + num(v.v->line) + ") and cannot be assigned.");
         }
         leaves(v.v, name, v.captured || in_defer_);
+        param_in_block(v, name);
         return;
       }
       if (auto r = retired_.find(k); r != retired_.end())
@@ -1773,6 +1842,7 @@ namespace xc
           auto c = static_cast<CodeBlock*>(e);
           Scope* outer = scope_;
           scope_ = new_scope(outer, true);
+          scope_->escapes = escaping_.count(e) > 0;
           for (const std::string& p : c->params) { declare(p, line_, {}, "block-param"); }
           for (Expr* x : c->body) { expr(x); }
           scope_ = outer;
