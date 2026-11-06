@@ -1,7 +1,8 @@
 # The compiler written in xtpl (selfhost/), held to the C++ xc: xc compiles
 # it to bytecode, xc-vm runs it -- after xtpl's runtime -- over each source
-# of the folders given, and the tree it reads each into must be the one
-# 'xc-ast --bare' writes, byte for byte.
+# of the folders given, and the tree it reads each into, marked, with what
+# the passes after the parser find in it, must be what 'xc-ast --bare
+# --facts' writes, byte for byte.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DAST=cpp/build/xc-ast
 #         -DROOT=. -DWORK=cpp/build/selfhost -P cpp/tests/selfhost.cmake
@@ -27,7 +28,9 @@ file(MAKE_DIRECTORY ${WORK}/expect ${WORK}/got)
 # ---- the compiler, as bytecode -----------------------------------------------
 set(modules "")
 foreach(m ${ROOT}/runtime/xtpl_runtime.tlpp ${ROOT}/selfhost/ast.xtpl ${ROOT}/selfhost/dump.xtpl
-          ${ROOT}/selfhost/parse.xtpl ${ROOT}/selfhost/xcb.xtpl)
+          ${ROOT}/selfhost/parse.xtpl ${ROOT}/selfhost/walk.xtpl ${ROOT}/selfhost/chains.xtpl
+          ${ROOT}/selfhost/decimal.xtpl ${ROOT}/selfhost/typed.xtpl ${ROOT}/selfhost/facts.xtpl
+          ${ROOT}/selfhost/xcb.xtpl)
   get_filename_component(name ${m} NAME_WE)
   execute_process(COMMAND ${XC} --bytecode ${m} ${WORK}/${name}.xbc
                   RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
@@ -50,7 +53,7 @@ set(n 0)
 foreach(s ${sources})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
-  set(mode --bare)
+  set(mode --bare --facts)
   if(s MATCHES "[.]val$")
     set(mode --values)
   endif()
@@ -68,7 +71,7 @@ endforeach()
 file(WRITE ${WORK}/list.txt "${list}")
 file(WRITE ${WORK}/values.txt "${vlist}")
 
-foreach(what ast values)
+foreach(what facts values)
   set(l ${WORK}/list.txt)
   if(what STREQUAL "values")
     set(l ${WORK}/values.txt)

@@ -1,0 +1,364 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// decimal.xtpl -- TL++'s Decimal (cpp/src/decimal.cpp): what is one in a
+// file, and which values of a function go into one, or into a number. The
+// C++ Decimals is an array here (DC_*), made by u_xcb_decimals() and given
+// to each of these; its sets are hashes of names in lower case. Nothing is
+// a Decimal until u_xcb_decfile() is called: a .prw has none.
+// -----------------------------------------------------------------------------
+
+#define DC_ON            1
+#define DC_STATICS       2
+#define DC_STATICNUMS    3
+// The function's own names, beside the statics'.
+#define DC_NAMES         4
+#define DC_NUMERICS      5
+#define DC_FUNCTIONS     6
+#define DC_NUMFUNCTIONS  7
+#define DC_PARAMS        8
+#define DC_NUMPARAMS     9
+
+Static cDecCalls := "|dec_create|dec_add|dec_sub|dec_mul|dec_div|dec_mod|dec_pow|dec_resize|dec_rescale|" ;
+                    + "dec_round|"
+
+// A Decimals, with nothing in it.
+User Function xcb_decimals()
+Return {.F., { => }, { => }, { => }, { => }, { => }, { => }, { => }, { => }}
+
+// A type as written -- 'Decimal', or 'as Decimal' -- that is TL++'s
+// Decimal; one that is a number: Numeric, Integer or Double. Nil: none.
+User Function xcb_decimalword(xWritten)
+Return LastWord(xWritten) == "decimal"
+
+User Function xcb_numericword(xWritten)
+  Local cW := LastWord(xWritten)
+Return cW == "numeric" .Or. cW == "integer" .Or. cW == "double"
+
+// '+' '-' '*' '/' '%' '**' '^', whose Decimal form is a DEC_ function.
+User Function xcb_arithmetic(cOp)
+Return cOp == "+" .Or. cOp == "-" .Or. cOp == "*" .Or. cOp == "/" .Or. cOp == "%" .Or. cOp == "**" .Or. cOp == "^"
+
+User Function xcb_comparison(cOp)
+Return cOp == "==" .Or. cOp == "=" .Or. cOp == "!=" .Or. cOp == "<>" .Or. cOp == "#" .Or. cOp == "<" ;
+       .Or. cOp == ">" .Or. cOp == "<=" .Or. cOp == ">="
+
+User Function xcb_decop(cOp)
+  Do Case
+    Case cOp == "+"
+      Return "DEC_ADD"
+    Case cOp == "-"
+      Return "DEC_SUB"
+    Case cOp == "*"
+      Return "DEC_MUL"
+    Case cOp == "/"
+      Return "DEC_DIV"
+    Case cOp == "%"
+      Return "DEC_MOD"
+  EndCase
+Return "DEC_POW"
+
+User Function xcb_numberlit(aE)
+Return aE != Nil .And. aE[N_KIND] == EK_LITERAL .And. aE[LIT_TYPE] == "Numeric"
+
+// ---- what is a Decimal in a file --------------------------------------------
+// The file's functions declared so, the parameters of its functions that
+// are, its statics that are; with those declared as numbers.
+User Function xcb_decfile(aDec, aProg)
+  Local nI
+  Local nJ
+  Local aF
+  Local cName
+  Local aDs
+  Local aNs
+  Local lAny
+  Local lAnyN
+  Local aQ
+  Local aV
+  aDec[DC_ON] := .T.
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    cName := CalledAs(aF)
+    If cName == ""
+      Loop
+    EndIf
+    If u_xcb_decimalword(aF[FN_RETWORD])
+      aDec[DC_FUNCTIONS]{cName} := .T.
+    EndIf
+    If u_xcb_numericword(aF[FN_RETWORD])
+      aDec[DC_NUMFUNCTIONS]{cName} := .T.
+    EndIf
+    aDs := {}
+    aNs := {}
+    lAny := .F.
+    lAnyN := .F.
+    For nJ := 1 To Len(aF[FN_PARAMS])
+      aQ := aF[FN_PARAMS][nJ]
+      AAdd(aDs, aQ != Nil .And. u_xcb_decimalword(aQ[PRM_TYPEWORD]))
+      AAdd(aNs, aQ != Nil .And. u_xcb_numericword(aQ[PRM_TYPEWORD]))
+      lAny := lAny .Or. ATail(aDs)
+      lAnyN := lAnyN .Or. ATail(aNs)
+    Next
+    If lAny
+      aDec[DC_PARAMS]{cName} := aDs
+    EndIf
+    If lAnyN
+      aDec[DC_NUMPARAMS]{cName} := aNs
+    EndIf
+  Next
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      aV := aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ]
+      If u_xcb_decimalword(aV[DCL_TYPESPEC])
+        aDec[DC_STATICS]{u_xcb_lc(aV[DCL_NAME])} := .T.
+      EndIf
+      If u_xcb_numericword(aV[DCL_TYPESPEC])
+        aDec[DC_STATICNUMS]{u_xcb_lc(aV[DCL_NAME])} := .T.
+      EndIf
+    Next
+  Next
+  aDec[DC_NAMES] := { => }
+  aDec[DC_NUMERICS] := { => }
+Return Nil
+
+// The names a function declares a Decimal, or a number -- beside the
+// file's statics.
+User Function xcb_decfunc(aDec, aParams, aBody)
+  Local nI
+  Local nJ
+  Local aQ
+  Local aAll
+  Local aSt
+  Local aV
+  aDec[DC_NAMES] := { => }
+  aDec[DC_NUMERICS] := { => }
+  For nI := 1 To Len(aParams)
+    aQ := aParams[nI]
+    If aQ != Nil .And. u_xcb_decimalword(aQ[PRM_TYPEWORD])
+      aDec[DC_NAMES]{u_xcb_lc(aQ[PRM_NAME])} := .T.
+    EndIf
+    If aQ != Nil .And. u_xcb_numericword(aQ[PRM_TYPEWORD])
+      aDec[DC_NUMERICS]{u_xcb_lc(aQ[PRM_NAME])} := .T.
+    EndIf
+  Next
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    If aSt[N_KIND] != SK_DECLARATION
+      Loop
+    EndIf
+    For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+      aV := aSt[DECL_DECLARATORS][nJ]
+      If u_xcb_decimalword(aV[DCL_TYPESPEC])
+        aDec[DC_NAMES]{u_xcb_lc(aV[DCL_NAME])} := .T.
+      EndIf
+      If u_xcb_numericword(aV[DCL_TYPESPEC])
+        aDec[DC_NUMERICS]{u_xcb_lc(aV[DCL_NAME])} := .T.
+      EndIf
+    Next
+  Next
+Return Nil
+
+// A name declared 'as Decimal', a DEC_ call, a function of the file
+// declared so, Round() or NoRound() of one, If() with one in a branch, '-'
+// before one, an operator with one on a side, an assignment to one.
+User Function xcb_isdecimal(aDec, aE)
+  Local nK
+  Local cN
+  Local aA
+  If aE == Nil .Or. !aDec[DC_ON]
+    Return .F.
+  EndIf
+  nK := aE[N_KIND]
+  Do Case
+    Case nK == EK_NAME
+      cN := u_xcb_lc(aE[NAME_NAME])
+      Return (aDec[DC_STATICS] has cN) .Or. (aDec[DC_NAMES] has cN)
+    Case nK == EK_CALL
+      cN := u_xcb_lc(aE[CALL_NAME])
+      aA := aE[CALL_ARGS]
+      If ("|" + cN + "|" $ cDecCalls) .Or. (aDec[DC_FUNCTIONS] has cN)
+        Return .T.
+      EndIf
+      If (cN == "if" .Or. cN == "iif") .And. Len(aA) == 3
+        Return u_xcb_isdecimal(aDec, aA[2]) .Or. u_xcb_isdecimal(aDec, aA[3])
+      EndIf
+      If (cN == "round" .Or. cN == "noround") .And. Len(aA) == 2
+        Return u_xcb_isdecimal(aDec, aA[1])
+      EndIf
+      Return .F.
+    Case nK == EK_BINARY
+      If aE[BIN_OP] == "neg"
+        Return u_xcb_isdecimal(aDec, aE[BIN_RIGHT])
+      EndIf
+      Return u_xcb_arithmetic(aE[BIN_OP]) .And. (u_xcb_isdecimal(aDec, aE[BIN_LEFT]) ;
+                                                 .Or. u_xcb_isdecimal(aDec, aE[BIN_RIGHT]))
+    Case nK == EK_ASSIGNEXPR
+      Return u_xcb_isdecimal(aDec, aE[AE_TARGET])
+  EndCase
+Return .F.
+
+// A name declared as a number, a function of the file declared so,
+// DEC_TO_DBL(), or arithmetic with one and no Decimal.
+User Function xcb_isnumeric(aDec, aE)
+  Local cN
+  If aE == Nil .Or. u_xcb_isdecimal(aDec, aE)
+    Return .F.
+  EndIf
+  If aE[N_KIND] == EK_NAME
+    cN := u_xcb_lc(aE[NAME_NAME])
+    Return ((aDec[DC_STATICNUMS] has cN) .Or. (aDec[DC_NUMERICS] has cN)) ;
+           .And. !((aDec[DC_STATICS] has cN) .Or. (aDec[DC_NAMES] has cN))
+  EndIf
+  If aE[N_KIND] == EK_CALL
+    cN := u_xcb_lc(aE[CALL_NAME])
+    Return cN == "dec_to_dbl" .Or. (aDec[DC_NUMFUNCTIONS] has cN)
+  EndIf
+  If aE[N_KIND] == EK_BINARY
+    If aE[BIN_OP] == "neg"
+      Return u_xcb_isnumeric(aDec, aE[BIN_RIGHT])
+    EndIf
+    Return u_xcb_arithmetic(aE[BIN_OP]) .And. (u_xcb_isnumeric(aDec, aE[BIN_LEFT]) ;
+                                               .Or. u_xcb_isnumeric(aDec, aE[BIN_RIGHT]))
+  EndIf
+Return .F.
+
+// A number literal, '-' before one, or arithmetic of those and of
+// Decimals: what goes into a Decimal as one.
+User Function xcb_isconstant(aDec, aE)
+  If u_xcb_numberlit(aE)
+    Return .T.
+  EndIf
+  If aE == Nil .Or. aE[N_KIND] != EK_BINARY
+    Return .F.
+  EndIf
+  If aE[BIN_OP] == "neg"
+    Return u_xcb_isconstant(aDec, aE[BIN_RIGHT])
+  EndIf
+Return u_xcb_arithmetic(aE[BIN_OP]) ;
+       .And. (u_xcb_isconstant(aDec, aE[BIN_LEFT]) .Or. u_xcb_isdecimal(aDec, aE[BIN_LEFT])) ;
+       .And. (u_xcb_isconstant(aDec, aE[BIN_RIGHT]) .Or. u_xcb_isdecimal(aDec, aE[BIN_RIGHT]))
+
+// For a call of a function of the file, which of its parameters are
+// Decimals, or numbers: an array of Logicals, or Nil for any other call.
+User Function xcb_decparams(aDec, aCall)
+  If aCall == Nil .Or. aCall[N_KIND] != EK_CALL
+    Return Nil
+  EndIf
+Return aDec[DC_PARAMS]{u_xcb_lc(aCall[CALL_NAME])}
+
+User Function xcb_numparams(aDec, aCall)
+  If aCall == Nil .Or. aCall[N_KIND] != EK_CALL
+    Return Nil
+  EndIf
+Return aDec[DC_NUMPARAMS]{u_xcb_lc(aCall[CALL_NAME])}
+
+// ---- where a value goes -----------------------------------------------------
+// The values of a function that go into a Decimal, and those that go into
+// a number (DV_*): a declaration's, an assignment's, a return's in a
+// function declared so, an argument a parameter declared so takes. aDec
+// has been given the function.
+User Function xcb_decvalues(aDec, aBody, lRetDecimal, lRetNumeric)
+  Local aOut := {{ => }, { => }}
+  Local aAll := u_xcb_walk(aBody)
+  Local nI
+  Local nJ
+  Local nX
+  Local aSt
+  Local aV
+  Local xValue
+  Local aEs
+  Local aXs
+  Local aX
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    Do Case
+      Case aSt[N_KIND] == SK_DECLARATION
+        For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+          aV := aSt[DECL_DECLARATORS][nJ]
+          If aV[DCL_INIT] != Nil .And. u_xcb_decimalword(aV[DCL_TYPESPEC])
+            aOut[DV_DECIMAL]{aV[DCL_INIT][N_ID]} := .T.
+          EndIf
+          If aV[DCL_INIT] != Nil .And. u_xcb_numericword(aV[DCL_TYPESPEC])
+            aOut[DV_NUMERIC]{aV[DCL_INIT][N_ID]} := .T.
+          EndIf
+        Next
+      Case aSt[N_KIND] == SK_ASSIGNMENT
+        If aSt[ASG_OP] == ":=" .Or. aSt[ASG_OP] == "="
+          Into(aDec, aOut, aSt[ASG_TARGET], aSt[ASG_VALUE])
+        EndIf
+      Case aSt[N_KIND] == SK_RETURNSTMT
+        xValue := aSt[RET_VALUE]
+        If lRetDecimal .And. xValue != Nil
+          aOut[DV_DECIMAL]{xValue[N_ID]} := .T.
+        EndIf
+        If lRetNumeric .And. xValue != Nil
+          aOut[DV_NUMERIC]{xValue[N_ID]} := .T.
+        EndIf
+    EndCase
+    aEs := u_xcb_exprsof(aSt)
+    For nJ := 1 To Len(aEs)
+      aXs := u_xcb_walkexpr(aEs[nJ])
+      For nX := 1 To Len(aXs)
+        aX := aXs[nX]
+        If aX[N_KIND] == EK_ASSIGNEXPR
+          If aX[AE_OP] == ":=" .Or. aX[AE_OP] == "="
+            Into(aDec, aOut, aX[AE_TARGET], aX[AE_VALUE])
+          EndIf
+        ElseIf aX[N_KIND] == EK_CALL
+          Args(aDec, aOut, aX)
+        EndIf
+      Next
+    Next
+  Next
+Return aOut
+
+Static Function Into(aDec, aOut, aTarget, aValue)
+  If aValue == Nil
+    Return Nil
+  EndIf
+  If u_xcb_isdecimal(aDec, aTarget)
+    aOut[DV_DECIMAL]{aValue[N_ID]} := .T.
+  ElseIf aTarget != Nil .And. aTarget[N_KIND] == EK_NAME .And. u_xcb_isnumeric(aDec, aTarget)
+    aOut[DV_NUMERIC]{aValue[N_ID]} := .T.
+  EndIf
+Return Nil
+
+Static Function Args(aDec, aOut, aCall)
+  Local aDs := u_xcb_decparams(aDec, aCall)
+  Local aNs := u_xcb_numparams(aDec, aCall)
+  Local aA := aCall[CALL_ARGS]
+  Local nI
+  For nI := 1 To Len(aA)
+    If aA[nI] == Nil
+      Loop
+    EndIf
+    If aDs != Nil .And. nI <= Len(aDs) .And. aDs[nI]
+      aOut[DV_DECIMAL]{aA[nI][N_ID]} := .T.
+    EndIf
+    If aNs != Nil .And. nI <= Len(aNs) .And. aNs[nI]
+      aOut[DV_NUMERIC]{aA[nI][N_ID]} := .T.
+    EndIf
+  Next
+Return Nil
+
+// ---- words ------------------------------------------------------------------
+// The last word of a type as written, in lower case: '' for none.
+Static Function LastWord(xWritten)
+  Local aW
+  If xWritten == Nil
+    Return ""
+  EndIf
+  aW := u_xcb_words(xWritten)
+Return If(Len(aW) == 0, "", u_xcb_lc(ATail(aW)))
+
+// How a function of the file is called: a user function with its 'u_'.
+Static Function CalledAs(aF)
+  Local cT := u_xcb_lc(aF[FN_TYPE])
+  If cT == "user"
+    Return "u_" + u_xcb_lc(aF[FN_NAME])
+  EndIf
+  If cT == "" .Or. cT == "static"
+    Return u_xcb_lc(aF[FN_NAME])
+  EndIf
+Return ""

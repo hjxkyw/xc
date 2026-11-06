@@ -225,6 +225,50 @@ User Function xcb_codes(cText)
   EndDo
 Return aOut
 
+// Raku's .lc, for the passes after the parser.
+User Function xcb_lc(cS)
+  Classes()
+Return Lc(cS)
+
+// A byte of \w, or not.
+User Function xcb_isw(nCh)
+  Classes()
+Return IsW(nCh)
+
+// The words of a text, the blanks of \s between them (text.cpp's words).
+User Function xcb_words(cS)
+  Local aOut := {}
+  Local nI := 1
+  Local nB
+  Local nLen := Len(cS)
+  Classes()
+  While nI <= nLen
+    While nI <= nLen .And. IsS(Asc(SubStr(cS, nI, 1)))
+      nI++
+    EndDo
+    nB := nI
+    While nI <= nLen .And. !IsS(Asc(SubStr(cS, nI, 1)))
+      nI++
+    EndDo
+    If nI > nB
+      AAdd(aOut, SubStr(cS, nB, nI - nB))
+    EndIf
+  EndDo
+Return aOut
+
+// The type a typespec names -- 'as Numeric', 'As Array//{...}' --: the word
+// characters its second word starts with, or '' (text.cpp's type_word_of).
+User Function xcb_typeword(cSpec)
+  Local aW := u_xcb_words(cSpec)
+  Local nE := 0
+  If Len(aW) < 2
+    Return ""
+  EndIf
+  While nE < Len(aW[2]) .And. IsW(Asc(SubStr(aW[2], nE + 1, 1)))
+    nE++
+  EndDo
+Return Left(aW[2], nE)
+
 // ---- the source -------------------------------------------------------------
 // The text, its lines as Raku's .lines splits them -- at "\n", "\r\n" and
 // "\r" -- for the line a node is on, and the lines, with what each holds

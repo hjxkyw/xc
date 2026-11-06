@@ -28,6 +28,7 @@ add_library(xclib STATIC
   src/driver.cpp
   src/dump.cpp
   src/emit.cpp
+  src/facts.cpp
   src/lower.cpp
   src/parser.cpp
   src/statements.cpp

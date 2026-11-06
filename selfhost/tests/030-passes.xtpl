@@ -1,0 +1,57 @@
+#include "totvs.ch"
+
+// What the passes after the parser find: a set's and a bag's 'h{k}', a
+// 'for ... in' over a hash, the Decimals, which chains run as loops.
+
+Static sSeen as Set<c> := setOf()
+Static nRate as Decimal := 0.25
+
+Class Depot
+  Data sCodes as Set<c>
+  Data hStock as Hash<c, n>
+  Method New() Constructor
+  Method Stock() as Hash<c, n>
+EndClass
+
+Method New() Class Depot
+  ::sCodes := setOf("A", "B")
+  ::hStock := {"A" => 1}
+Return Self
+
+Method Stock() Class Depot
+Return ::hStock
+
+User Function passes(cCode as Character, nQty as Numeric)
+  Local oD as Depot := Depot():New()
+  Local bTags := bagOf("x", "y", "x")
+  Local hNames := {"a" => "Ann"}
+  Local nTotal as Decimal := 1.5
+  Local nN as Numeric := 2
+  Local aNums := {3, 1, 2}
+  Local cK
+  Local cV
+  If oD:sCodes{cCode}
+    sSeen{cCode} := .T.
+  EndIf
+  bTags{"z"} := bTags{"x"} + 1
+  for cK, cV in hNames
+    ConOut(cK + cV)
+  next
+  for cK, cV in oD:Stock()
+    ConOut(cK)
+  next
+  nTotal := nTotal * 2 + nRate
+  nTotal := Total(nTotal, nN) - 1
+  nN := DEC_TO_DBL(nTotal) + nQty
+  nN := aNums |> filter([n] n > 1) |> map([n] n * 2) |> asum()
+  aNums := 1..10 |> filter([n] n %% 2) |> take(3)
+  nN := rows("SA1") |> map([r] r:A1_COD) |> count()
+  rows("SA1", 1) |> filter([r] r > 1) |> tap([r] ConOut(r:A1_COD))
+  lines("in.txt") |> take() |> first()
+  nN := aNums |> sortBy([n] -n) |> reduce([a, b] a + b, 0)
+  aNums |> map(cValToChar) |> tap([c] ConOut(c))
+  nN := aNums |> scan([a, b] a := b, 0) |> count
+Return sSeen (elem) setOf(cCode)
+
+Static Function Total(nA as Decimal, nB as Numeric) as Decimal
+Return nA + DEC_CREATE("1", 1, 0)

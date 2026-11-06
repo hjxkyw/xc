@@ -1,0 +1,1359 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// typed.xtpl -- what each name holds (cpp/src/typed.cpp), worked out as far
+// as the back end needs it: a set's or a bag's 'h{k}' (HIX_SETKIND), and a
+// 'for ... in' over a hash, a set, a bag or a JSON object (FIN_KEYED). The
+// types are typed.cpp's strings: 'N', 'A<C>', 'H<C,N>', 'S<C>', 'M<C>', '!'
+// before a fixed one, 'O:Depot:Stock' -- the class, then those it inherits
+// from in the file --, '' for Nil (fits every type), '?' for what xc cannot
+// tell, '_' for nothing known yet. What typed.cpp refuses, the C++ xc says.
+// -----------------------------------------------------------------------------
+
+#define T_NIL        ""
+#define T_UNKNOWN    "?"
+#define T_NONE       "_"
+
+// A name: what it is called, whether its type is declared (or one xc does
+// not work out), what it holds.
+#define V_NAME       1
+#define V_PINNED     2
+#define V_TYPE       3
+
+// What a function does to a name (typed.cpp's Event), as far as what the
+// names hold goes: declares it -- the value, its init --, assigns it, counts
+// with it, walks something with it, or gives it what xc cannot tell.
+#define EV_KIND      1
+#define EV_VAR       2
+#define EV_INDEX     3
+#define EV_VALUE     4
+#define EV_TARGET    5
+#define EV_OP        6
+#define EV_INCDEC    7
+
+#define EVK_DECL     1
+#define EVK_ASSIGN   2
+#define EVK_COUNTER  3
+#define EVK_FORIN    4
+#define EVK_UNKNOWN  5
+
+// A function's events -- the file's statics' too --, and the class of a
+// method.
+#define U_EVENTS     1
+#define U_CLS        2
+
+// A class of the file: its name, those it inherits from and implements (in
+// lower case), the types of its Data, its methods' signatures and
+// implementations -- each a hash by its name in lower case.
+#define CI_NAME      1
+#define CI_SUPERS    2
+#define CI_DATA      3
+#define CI_SIGS      4
+#define CI_IMPLS     5
+
+Static aVars := {}
+Static aScopes := {}
+Static hNames := Nil          // what each Name is, by its node's number
+Static hBlockParams := Nil    // a block's parameters, by its node's number
+Static aHashes := {}          // every 'h{k}', and the class it is in
+Static aWalks := {}           // every 'for ... in', and the class it is in
+Static hClasses := Nil
+Static cCls := ""
+Static aUnits := {}
+Static hReturns := Nil        // what the file's functions return
+Static hFunctions := Nil
+Static lChanged := .F.
+Static hBuiltins := Nil       // TL++'s functions, and what each gives
+
+Static cLogical := "|==|=|!=|<>|#|<|>|<=|>=|$|.and.|.or.|!|in|has|%%|(elem)|(cont)|(<=)|(<)|(>=)|(>)|(==)|"
+
+// The runtime's verbs that give an array of what they walk, as they walk
+// it: some of it, or in another order.
+Static cKeeps := "|filter|reject|tap|take|drop|takewhile|dropwhile|distinct|distinctadjacent|sort|sortby|" ;
+                 + "reverse|apick|aroll|"
+
+// The marks of a program's tree: what a 'for ... in' walks and a 'h{k}'
+// reads, worked out for every file.
+User Function xcb_typed(aProg)
+  Local nI
+  Local nJ
+  Local aC
+  Local aCi
+  Local cK
+  Local aD
+  Local cT
+  Local aF
+  Local cName
+  Local aM
+  Local hFile
+  Local aH
+  aVars := {}
+  aScopes := {}
+  hNames := { => }
+  hBlockParams := { => }
+  aHashes := {}
+  aWalks := {}
+  hClasses := { => }
+  cCls := ""
+  aUnits := {}
+  hReturns := { => }
+  hFunctions := { => }
+  If hBuiltins == Nil
+    hBuiltins := Builtins()
+  EndIf
+  // The file's classes: their names first -- a Data's type may be one
+  // declared further on --, then their Data and their methods.
+  For nI := 1 To Len(aProg[PG_CLASSES])
+    aC := aProg[PG_CLASSES][nI]
+    cK := u_xcb_lc(aC[CD_NAME])
+    If !(hClasses has cK)
+      hClasses{cK} := {"", {}, { => }, { => }, { => }}
+    EndIf
+    aCi := hClasses{cK}
+    aCi[CI_NAME] := aC[CD_NAME]
+    // An object of a class is one of the interfaces it implements too.
+    For nJ := 1 To Len(aC[CD_SUPERS])
+      AAdd(aCi[CI_SUPERS], u_xcb_lc(aC[CD_SUPERS][nJ]))
+    Next
+    For nJ := 1 To Len(aC[CD_IFACES])
+      AAdd(aCi[CI_SUPERS], u_xcb_lc(aC[CD_IFACES][nJ]))
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_CLASSES])
+    aC := aProg[PG_CLASSES][nI]
+    aCi := hClasses{u_xcb_lc(aC[CD_NAME])}
+    For nJ := 1 To Len(aC[CD_MEMBERS])
+      aD := aC[CD_MEMBERS][nJ]
+      cT := If(aD[DM_TYPE] != Nil, WordType(aD[DM_TYPE]), T_UNKNOWN)
+      aCi[CI_DATA]{u_xcb_lc(aD[DM_NAME])} := If(!(aD[DM_CONTAINER] == ""), aD[DM_CONTAINER], cT)
+    Next
+    For nJ := 1 To Len(aC[CD_METHODS])
+      aCi[CI_SIGS]{u_xcb_lc(aC[CD_METHODS][nJ][MS_NAME])} := aC[CD_METHODS][nJ]
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    cName := CalledAs(aF)
+    If cName == ""
+      Loop
+    EndIf
+    If !(aF[FN_RETCONTAINER] == "")
+      hReturns{cName} := aF[FN_RETCONTAINER]
+    ElseIf aF[FN_RETWORD] != Nil
+      hReturns{cName} := WordType(aF[FN_RETWORD])
+    EndIf
+    hFunctions{cName} := .T.
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    cK := u_xcb_lc(aM[MI_CLASS])
+    If hClasses has cK
+      hClasses{cK}[CI_IMPLS]{u_xcb_lc(aM[MI_NAME])} := aM
+    EndIf
+  Next
+  // The file's statics -- only its functions give them anything, so what
+  // they hold is worked out over all of them.
+  aScopes := {{ => }}
+  AAdd(aUnits, {{}, ""})
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      TDeclarator(aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ], "static")
+    Next
+  Next
+  // Nothing is declared into the file's scope after this: each function
+  // starts from it, and declares into its own.
+  hFile := aScopes[1]
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aScopes := {hFile}
+    aF := aProg[PG_FUNCTIONS][nI]
+    TFunction(aF[FN_PARAMS], aF[FN_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aScopes := {hFile}
+    aM := aProg[PG_METHODS][nI]
+    cCls := u_xcb_lc(aM[MI_CLASS])
+    TFunction(aM[MI_PARAMS], aM[MI_BODY])
+    ATail(aUnits)[U_CLS] := cCls
+    cCls := ""
+  Next
+  Infer()
+  // A set's or a bag's 'h{k}': Raku's reads and writes.
+  For nI := 1 To Len(aHashes)
+    aH := aHashes[nI]
+    cCls := aH[2]
+    cK := KindOf(TypeOf(aH[1][HIX_BASE]))
+    If cK == "S" .Or. cK == "M"
+      aH[1][HIX_SETKIND] := Asc(cK)
+    EndIf
+  Next
+  // 'for k in h', 'for k, v in h': its keys, and what each holds.
+  For nI := 1 To Len(aWalks)
+    cCls := aWalks[nI][2]
+    cK := KindOf(TypeOf(aWalks[nI][1][FIN_SOURCE]))
+    aWalks[nI][1][FIN_KEYED] := IsKeyed(cK) .Or. cK == "J"
+  Next
+  cCls := ""
+Return Nil
+
+// ---- types ------------------------------------------------------------------
+Static Function IsFixed(cT)
+Return Left(cT, 1) == "!"
+
+Static Function BareT(cT)
+Return If(IsFixed(cT), SubStr(cT, 2), cT)
+
+// Its kind: its letter, '' for Nil.
+Static Function KindOf(cT)
+Return If(IsFixed(cT), SubStr(cT, 2, 1), Left(cT, 1))
+
+Static Function IsGeneric(cT)
+  Local nAt := If(IsFixed(cT), 1, 0)
+Return Len(cT) > nAt + 2 .And. SubStr(cT, nAt + 2, 1) == "<"
+
+// An array, a hash, a set or a bag: what holds others.
+Static Function IsBox(cK)
+Return cK == "A" .Or. cK == "H" .Or. cK == "S" .Or. cK == "M"
+
+// A hash, a set or a bag: what is read by its keys.
+Static Function IsKeyed(cK)
+Return cK == "H" .Or. cK == "S" .Or. cK == "M"
+
+// An object of a class of the file: 'O:Depot:Stock'.
+Static Function IsClassed(cT)
+Return Len(cT) > 2 .And. Left(cT, 2) == "O:"
+
+// Its class, and those it inherits from: 'Depot', 'Stock'.
+Static Function Lineage(cT)
+  Local aOut := {}
+  Local nFrom := 3
+  Local nI
+  If !IsClassed(cT)
+    Return aOut
+  EndIf
+  For nI := 3 To Len(cT) + 1
+    If nI > Len(cT) .Or. SubStr(cT, nI, 1) == ":"
+      AAdd(aOut, SubStr(cT, nFrom, nI - nFrom))
+      nFrom := nI + 1
+    EndIf
+  Next
+Return aOut
+
+// Whether an object of type t is one of that class -- or of one that
+// inherits from it.
+Static Function IsA(cT, cClass)
+  Local aL := Lineage(cT)
+  Local cC := u_xcb_lc(cClass)
+  Local nI
+  For nI := 1 To Len(aL)
+    If u_xcb_lc(aL[nI]) == cC
+      Return .T.
+    EndIf
+  Next
+Return .F.
+
+// Fixed, if it holds others, or is what xc cannot tell: what is read from
+// a fixed one.
+Static Function FixT(cT)
+Return If(IsFixed(cT) .Or. !(IsBox(KindOf(cT)) .Or. cT == T_UNKNOWN), cT, "!" + cT)
+
+// Nothing fixed in it: what AClone() gives.
+Static Function UnfixT(cT)
+Return StrTran(cT, "!", "")
+
+// The types between the '<' and the '>' of 'A<T>' or 'H<K,V>'.
+Static Function ArgsOf(cT0)
+  Local aOut := {}
+  Local cT
+  Local nDepth := 0
+  Local nFrom := 2
+  Local nI
+  Local cC
+  If !IsGeneric(cT0)
+    Return aOut
+  EndIf
+  cT := BareT(cT0)
+  // Offsets from 0, as typed.cpp's.
+  For nI := 2 To Len(cT) - 2
+    cC := SubStr(cT, nI + 1, 1)
+    If cC == "<"
+      nDepth++
+    ElseIf cC == ">"
+      nDepth--
+    ElseIf cC == "," .And. nDepth == 0
+      AAdd(aOut, SubStr(cT, nFrom + 1, nI - nFrom))
+      nFrom := nI + 1
+    EndIf
+  Next
+  AAdd(aOut, SubStr(cT, nFrom + 1, Len(cT) - 1 - nFrom))
+Return aOut
+
+// What an element of an array of type t is; a key, a value of a hash --
+// fixed, read from a fixed one. nN from 0.
+Static Function PartOf(cT, cK, nN)
+  Local cR
+  If cT == T_NONE
+    Return T_NONE
+  EndIf
+  If !(KindOf(cT) == cK)
+    Return T_UNKNOWN
+  EndIf
+  cR := If(IsGeneric(cT), ArgsOf(cT)[nN + 1], T_UNKNOWN)
+Return If(IsFixed(cT), FixT(cR), cR)
+
+Static Function ElemOf(cT)
+Return PartOf(cT, "A", 0)
+
+// A set's or a bag's keys are its one type; what one reads at a key, a
+// Logical and a Numeric.
+Static Function KeyOf(cT)
+  Local cK := KindOf(cT)
+Return If(cK == "S" .Or. cK == "M", PartOf(cT, cK, 0), PartOf(cT, "H", 0))
+
+Static Function ValueOf(cT)
+  If cT == T_NONE
+    Return T_NONE
+  EndIf
+  If KindOf(cT) == "S"
+    Return "L"
+  EndIf
+  If KindOf(cT) == "M"
+    Return "N"
+  EndIf
+Return PartOf(cT, "H", 1)
+
+Static Function ArrayOf(cT)
+  If cT == T_NONE
+    Return T_NONE
+  EndIf
+Return If(cT == "" .Or. BareT(cT) == T_UNKNOWN, "A", "A<" + cT + ">")
+
+// A type TL++ declares, as its letter: 'Numeric' is 'N'.
+Static Function LetterOf(cDeclared)
+  Local cD := u_xcb_lc(cDeclared)
+  Do Case
+    Case cD == "numeric" .Or. cD == "integer" .Or. cD == "double"
+      Return "N"
+    Case cD == "character"
+      Return "C"
+    Case cD == "logical"
+      Return "L"
+    Case cD == "date"
+      Return "D"
+    Case cD == "array"
+      Return "A"
+    Case cD == "object"
+      Return "O"
+    Case cD == "codeblock"
+      Return "B"
+    Case cD == "json"
+      Return "J"
+    Case cD == "decimal"
+      Return "F"
+  EndCase
+Return T_UNKNOWN
+
+// What a name holds, given two of its values -- fixed, if one is.
+Static Function JoinT(cA, cB)
+  Local cX
+  Local cY
+  Local cR
+  Local aLx
+  Local nI
+  Local nJ
+  If cA == T_NONE .Or. cA == ""
+    Return cB
+  EndIf
+  If cB == T_NONE .Or. cB == ""
+    Return cA
+  EndIf
+  If cA == cB
+    Return cA
+  EndIf
+  cX := BareT(cA)
+  cY := BareT(cB)
+  cR := T_UNKNOWN
+  If cX == cY
+    cR := cX
+  ElseIf !(cX == T_UNKNOWN) .And. !(cY == T_UNKNOWN) .And. Left(cX, 1) == Left(cY, 1) .And. IsBox(Left(cX, 1))
+    cR := Left(cX, 1)
+  ElseIf Left(cX, 1) == "O" .And. Left(cY, 1) == "O"
+    // Two objects: of the nearest class both are of, or just objects.
+    cR := "O"
+    aLx := Lineage(cX)
+    nI := 1
+    While nI <= Len(aLx) .And. cR == "O"
+      If IsA(cY, aLx[nI])
+        cR := "O"
+        For nJ := nI To Len(aLx)
+          cR += ":" + aLx[nJ]
+        Next
+      EndIf
+      nI++
+    EndDo
+  EndIf
+Return If(IsFixed(cA) .Or. IsFixed(cB), FixT(cR), cR)
+
+Static Function IsLogical(cOp)
+Return "|" + cOp + "|" $ cLogical
+
+// What a set built from t has for keys: an array's elements, a hash's, a
+// set's or a bag's keys, a value itself.
+Static Function MemberOf(cT)
+  Local cK
+  Local cM
+  If cT == T_NONE .Or. cT == ""
+    Return cT
+  EndIf
+  cK := KindOf(cT)
+  cM := If(cK == "A", ElemOf(cT), If(IsKeyed(cK), KeyOf(cT), BareT(cT)))
+Return BareT(cM)
+
+// A set or a bag of what each of two holds -- 'S<K>' or 'M<K>'; '-' for
+// cB: of the one.
+Static Function KeysOf(cK, cA, cB)
+  Local cX := MemberOf(cA)
+  Local cY := If(cB == "-", cX, MemberOf(cB))
+  Local cM
+  If cX == T_NONE .Or. cY == T_NONE
+    Return T_NONE
+  EndIf
+  cM := If(cX == "", cY, If(cY == "" .Or. cX == cY, cX, T_UNKNOWN))
+Return If(cM == "" .Or. cM == T_UNKNOWN, cK, cK + "<" + cM + ">")
+
+// What a set operation gives: a bag where a bag goes in, else a set; a bag
+// always from '(+)' and '(.)'.
+Static Function SetOp(cOp, cA, cB)
+  Local lBag
+  If IsLogical(cOp)
+    Return "L"
+  EndIf
+  lBag := cOp == "(+)" .Or. cOp == "(.)" .Or. KindOf(cA) == "M" .Or. KindOf(cB) == "M"
+Return KeysOf(If(lBag, "M", "S"), cA, cB)
+
+// An operator's result, given its operands'.
+Static Function BinOp(cOp, cL0, cR0)
+  Local cL
+  Local cR
+  If IsLogical(cOp)
+    Return "L"
+  EndIf
+  If cOp == "?:"
+    If cL0 == T_NONE .Or. cR0 == T_NONE
+      Return T_NONE
+    EndIf
+    Return If(cL0 == cR0 .Or. cR0 == "", cL0, If(cL0 == "", cR0, If(JoinT(cL0, cR0) == cL0, cL0, T_UNKNOWN)))
+  EndIf
+  cL := BareT(cL0)
+  cR := BareT(cR0)
+  If cOp == "neg"
+    Return If(cR == T_NONE, T_NONE, If(cR == "N" .Or. cR == "F", cR, T_UNKNOWN))
+  EndIf
+  If cL == T_NONE .Or. cR == T_NONE
+    Return T_NONE
+  EndIf
+  If (cL == "N" .Or. cL == "F") .And. (cR == "N" .Or. cR == "F")
+    Return If(cL == "F" .Or. cR == "F", "F", "N")
+  EndIf
+  If cOp == "+" .Or. cOp == "-"
+    // A string and something xc cannot tell: a string, or an error.
+    If (cL == "C" .And. (cR == "C" .Or. cR == T_UNKNOWN)) .Or. (cR == "C" .And. cL == T_UNKNOWN)
+      Return "C"
+    EndIf
+  EndIf
+  If cOp == "+"
+    If cL == "C" .And. cR == "C"
+      Return "C"
+    EndIf
+    If (cL == "D" .And. cR == "N") .Or. (cL == "N" .And. cR == "D")
+      Return "D"
+    EndIf
+  EndIf
+  If cOp == "-"
+    If cL == "C" .And. cR == "C"
+      Return "C"
+    EndIf
+    If cL == "D" .And. cR == "N"
+      Return "D"
+    EndIf
+    If cL == "D" .And. cR == "D"
+      Return "N"
+    EndIf
+  EndIf
+Return T_UNKNOWN
+
+Static Function Chop(cS)
+Return If(cS == "", cS, Left(cS, Len(cS) - 1))
+
+// TL++'s functions, and what each gives.
+Static Function Builtins()
+  Local hB := { => }
+  Local aEach := { ;
+    {"N", "len val at rat asc mod sqrt exp log year month day dow seconds ascan recno reccount lastrec " ;
+          + "fcount randomize"}, ;
+    {"C", "str strzero alltrim trim rtrim ltrim upper lower substr left right padl padr padc replicate " ;
+          + "space chr strtran stuff transform dtos dtoc time cvaltochar valtype capital cmonth cdow " ;
+          + "elaptime procname alias encodeutf8 decodeutf8 memoline"}, ;
+    {"L", "empty file isdigit isalpha isupper islower eof bof found deleted dbseek"}, ;
+    {"D", "date ctod stod msdate lastday firstday daysum daysub monthsum monthsub yearsum yearsub"}, ;
+    {"A", "array directory"}, ;
+    {"A<C>", "strtokarr strtokarr2 separa"}}
+  Local nI
+  Local nJ
+  Local aW
+  For nI := 1 To Len(aEach)
+    aW := u_xcb_words(aEach[nI][2])
+    For nJ := 1 To Len(aW)
+      hB{aW[nJ]} := aEach[nI][1]
+    Next
+  Next
+Return hB
+
+// How a function of the file is called: a user function with its 'u_'.
+Static Function CalledAs(aF)
+  Local cT := u_xcb_lc(aF[FN_TYPE])
+  If cT == "user"
+    Return "u_" + u_xcb_lc(aF[FN_NAME])
+  EndIf
+  If cT == "" .Or. cT == "static"
+    Return u_xcb_lc(aF[FN_NAME])
+  EndIf
+Return ""
+
+// ---- names ------------------------------------------------------------------
+Static Function DeclareVar(cName, lPinned, cType)
+  Local aV := {cName, lPinned, If(lPinned, cType, T_NONE)}
+  Local hScope := ATail(aScopes)
+  AAdd(aVars, aV)
+  hScope{u_xcb_lc(cName)} := aV
+Return aV
+
+Static Function FindVar(cName)
+  Local cK := u_xcb_lc(cName)
+  Local nI
+  For nI := Len(aScopes) To 1 Step -1
+    If aScopes[nI] has cK
+      Return aScopes[nI]{cK}
+    EndIf
+  Next
+Return Nil
+
+Static Function PushScope()
+  AAdd(aScopes, { => })
+Return Nil
+
+Static Function PopScope()
+  ASize(aScopes, Len(aScopes) - 1)
+Return Nil
+
+Static Function AddEvent(aEv)
+  AAdd(ATail(aUnits)[U_EVENTS], aEv)
+Return Nil
+
+// A declarator's name: declared as a typed array or hash -- by its type, or
+// by its value, '{ <n> }' --, with a type, or worked out from what it is
+// given (a Local's, a Static's).
+Static Function TDeclarator(aD, cScope)
+  Local cContainer
+  Local aInit := aD[DCL_INIT]
+  Local aV
+  Local nI
+  TExpr(aInit)
+  For nI := 1 To Len(aD[DCL_DIMS])
+    TExpr(aD[DCL_DIMS][nI])
+  Next
+  cContainer := aD[DCL_CONTAINER]
+  If cContainer == "" .And. aInit != Nil .And. (cScope == "local" .Or. cScope == "static")
+    If aInit[N_KIND] == EK_ARRAYLIT .And. !(aInit[ARR_ELEM] == "")
+      cContainer := TypeOf(aInit)
+    ElseIf aInit[N_KIND] == EK_HASHLIT .And. !(aInit[HASH_KEYTYPE] == "")
+      cContainer := TypeOf(aInit)
+    EndIf
+  EndIf
+  If !(cContainer == "")
+    aV := DeclareVar(aD[DCL_NAME], .T., cContainer)
+  ElseIf !(cScope == "local") .And. !(cScope == "static")
+    aV := DeclareVar(aD[DCL_NAME], .T., T_UNKNOWN)
+  ElseIf !(aD[DCL_DECLARED] == "?")
+    // 'as Order': an Order goes in, as into a typed array.
+    aV := DeclareVar(aD[DCL_NAME], .T., DeclType(aD))
+  Else
+    aV := DeclareVar(aD[DCL_NAME], .F., T_NONE)
+  EndIf
+  AddEvent({EVK_DECL, aV, Nil, aInit, Nil, "", ""})
+Return Nil
+
+// ---- classes ----------------------------------------------------------------
+// The type of a Data of a class of the file, or of one it inherits from
+// there: Nil for none.
+Static Function DataOf(cClass, cName, nDepth)
+  Local aC
+  Local cN := u_xcb_lc(cName)
+  Local nI
+  Local xD
+  If !(hClasses has cClass) .Or. nDepth > 20
+    Return Nil
+  EndIf
+  aC := hClasses{cClass}
+  If aC[CI_DATA] has cN
+    Return aC[CI_DATA]{cN}
+  EndIf
+  For nI := 1 To Len(aC[CI_SUPERS])
+    xD := DataOf(aC[CI_SUPERS][nI], cName, nDepth + 1)
+    If ValType(xD) == "C"
+      Return xD
+    EndIf
+  Next
+Return Nil
+
+// The class of the file -- cls or one it inherits from -- that has a method
+// by that name.
+Static Function ClassOfMethod(cClass, cName, nDepth)
+  Local aC
+  Local cN := u_xcb_lc(cName)
+  Local nI
+  Local aX
+  If !(hClasses has cClass) .Or. nDepth > 20
+    Return Nil
+  EndIf
+  aC := hClasses{cClass}
+  If (aC[CI_SIGS] has cN) .Or. (aC[CI_IMPLS] has cN)
+    Return aC
+  EndIf
+  For nI := 1 To Len(aC[CI_SUPERS])
+    aX := ClassOfMethod(aC[CI_SUPERS][nI], cName, nDepth + 1)
+    If aX != Nil
+      Return aX
+    EndIf
+  Next
+Return Nil
+
+// '::' -- or Self, by name -- in a method.
+Static Function IsSelf(aE)
+Return !(cCls == "") .And. aE != Nil ;
+       .And. (aE[N_KIND] == EK_SELFREF .Or. (aE[N_KIND] == EK_NAME .And. u_xcb_lc(aE[NAME_NAME]) == "self"))
+
+// An object of a class of the file: 'O:Depot:Stock' -- the class, then
+// those it inherits from there, by the names they are declared with.
+Static Function ClassType(cClass)
+  Local cOut := "O"
+  Local hSeen := { => }
+  Local nSeen := 0
+  Local aTodo := {cClass}
+  Local cK
+  Local aC
+  Local nI
+  While Len(aTodo) > 0 .And. nSeen < 20
+    cK := aTodo[1]
+    ADel(aTodo, 1)
+    ASize(aTodo, Len(aTodo) - 1)
+    If !(hClasses has cK)
+      Loop
+    EndIf
+    If hSeen has cK
+      Loop
+    EndIf
+    hSeen{cK} := .T.
+    nSeen++
+    aC := hClasses{cK}
+    cOut += ":" + aC[CI_NAME]
+    For nI := 1 To Len(aC[CI_SUPERS])
+      AAdd(aTodo, aC[CI_SUPERS][nI])
+    Next
+  EndDo
+Return cOut
+
+// A type as declared: TL++'s word, or a class of the file's name.
+Static Function WordType(cWord)
+  Local cT := LetterOf(cWord)
+  If cT == T_UNKNOWN .And. (hClasses has u_xcb_lc(cWord))
+    Return ClassType(u_xcb_lc(cWord))
+  EndIf
+Return cT
+
+// What a declarator is declared as, if it is: 'Local nX as Numeric' is
+// 'N', 'Local oX as Order' an Order, 'Local aX[10]' an array.
+Static Function DeclType(aD)
+  Local cW := u_xcb_typeword(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC]))
+  If !(cW == "")
+    Return WordType(cW)
+  EndIf
+Return If(aD[DCL_DECLARED] == "Array", "A", T_UNKNOWN)
+
+// The class of the file an object is of, in lower case: '::' in a method,
+// or a value known to be one -- or ''.
+Static Function ObjClass(aE)
+  Local cT
+  If IsSelf(aE)
+    Return cCls
+  EndIf
+  cT := TypeOf(aE)
+Return If(IsClassed(cT), u_xcb_lc(Lineage(cT)[1]), "")
+
+// What 'o:m()' gives: its return type, as declared.
+Static Function MethodType(cClass, cName)
+  Local aC := ClassOfMethod(cClass, cName, 0)
+  Local cN := u_xcb_lc(cName)
+  Local aI
+  Local aG
+  If aC == Nil
+    Return T_UNKNOWN
+  EndIf
+  aI := aC[CI_IMPLS]{cN}
+  aG := aC[CI_SIGS]{cN}
+  If aI != Nil .And. !(aI[MI_RETCONTAINER] == "")
+    Return aI[MI_RETCONTAINER]
+  EndIf
+  If aG != Nil .And. !(aG[MS_RETCONTAINER] == "")
+    Return aG[MS_RETCONTAINER]
+  EndIf
+  If aI != Nil .And. aI[MI_RETURNS] != Nil
+    Return WordType(aI[MI_RETURNS])
+  EndIf
+  If aG != Nil .And. aG[MS_RETURNS] != Nil
+    Return WordType(aG[MS_RETURNS])
+  EndIf
+Return T_UNKNOWN
+
+// ---- the walk ---------------------------------------------------------------
+Static Function TFunction(aParams, aBody)
+  Local nI
+  Local aQ
+  Local cT
+  AAdd(aUnits, {{}, ""})
+  PushScope()
+  For nI := 1 To Len(aParams)
+    aQ := aParams[nI]
+    If aQ == Nil
+      Loop
+    EndIf
+    cT := If(!(aQ[PRM_CONTAINER] == ""), aQ[PRM_CONTAINER], ;
+             If(aQ[PRM_TYPEWORD] != Nil, WordType(aQ[PRM_TYPEWORD]), T_UNKNOWN))
+    DeclareVar(aQ[PRM_NAME], .T., cT)
+  Next
+  TBody(aBody)
+  PopScope()
+Return Nil
+
+Static Function TBody(aBody)
+  Local nI
+  PushScope()
+  For nI := 1 To Len(aBody)
+    TStmt(aBody[nI])
+  Next
+  PopScope()
+Return Nil
+
+Static Function TStmt(aSt)
+  Local nK
+  Local nI
+  Local aV
+  Local aEv
+  Local aEs
+  If aSt == Nil
+    Return Nil
+  EndIf
+  nK := aSt[N_KIND]
+  Do Case
+    Case nK == SK_DECLARATION
+      For nI := 1 To Len(aSt[DECL_DECLARATORS])
+        TDeclarator(aSt[DECL_DECLARATORS][nI], u_xcb_lc(aSt[DECL_SCOPE]))
+      Next
+    Case nK == SK_ASSIGNMENT
+      TExpr(aSt[ASG_TARGET])
+      TExpr(aSt[ASG_VALUE])
+      AddEvent({EVK_ASSIGN, Nil, Nil, aSt[ASG_VALUE], aSt[ASG_TARGET], aSt[ASG_OP], ""})
+    Case nK == SK_CALLSTMT
+      TExpr(aSt[CS_CALL])
+    Case nK == SK_RETURNSTMT
+      TExpr(aSt[RET_VALUE])
+    Case nK == SK_IFSTMT
+      PushScope()
+      If aSt[IF_HEADER] != Nil
+        TDeclarator(aSt[IF_HEADER], "local")
+      EndIf
+      For nI := 1 To Len(aSt[IF_BRANCHES])
+        TExpr(aSt[IF_BRANCHES][nI][BR_COND])
+        TBody(aSt[IF_BRANCHES][nI][BR_BODY])
+      Next
+      TBody(aSt[IF_OTHERWISE])
+      PopScope()
+    Case nK == SK_CASESTMT
+      PushScope()
+      If aSt[CASE_SUBJDECL] != Nil
+        TDeclarator(aSt[CASE_SUBJDECL], "local")
+      EndIf
+      If aSt[CASE_SUBJASSIGN] != Nil
+        TStmt(aSt[CASE_SUBJASSIGN])
+      EndIf
+      For nI := 1 To Len(aSt[CASE_BRANCHES])
+        TExpr(aSt[CASE_BRANCHES][nI][BR_COND])
+        TBody(aSt[CASE_BRANCHES][nI][BR_BODY])
+      Next
+      TBody(aSt[CASE_OTHERWISE])
+      PopScope()
+    Case nK == SK_WHILESTMT
+      PushScope()
+      If aSt[WH_HEADER] != Nil
+        TDeclarator(aSt[WH_HEADER], "local")
+      EndIf
+      TExpr(aSt[WH_COND])
+      TBody(aSt[WH_BODY])
+      PopScope()
+    Case nK == SK_FORSTMT
+      TExpr(aSt[FOR_FROM])
+      TExpr(aSt[FOR_TO])
+      TExpr(aSt[FOR_STEP])
+      PushScope()
+      aV := If(aSt[FOR_VARLOCAL], DeclareVar(aSt[FOR_VAR], .F., T_NONE), FindVar(aSt[FOR_VAR]))
+      If aV != Nil
+        AddEvent({EVK_COUNTER, aV, Nil, Nil, Nil, "", ""})
+      EndIf
+      TBody(aSt[FOR_BODY])
+      PopScope()
+    Case nK == SK_FORINSTMT
+      AAdd(aWalks, {aSt, cCls})
+      TExpr(aSt[FIN_SOURCE])
+      PushScope()
+      aEv := {EVK_FORIN, Nil, Nil, aSt[FIN_SOURCE], Nil, "", ""}
+      aEv[EV_VAR] := DeclareVar(aSt[FIN_ELEM], .F., T_NONE)
+      If aSt[FIN_INDEX] != Nil
+        aEv[EV_INDEX] := DeclareVar(aSt[FIN_INDEX], .F., T_NONE)
+      EndIf
+      AddEvent(aEv)
+      TBody(aSt[FIN_BODY])
+      PopScope()
+    Case nK == SK_FORTIMESSTMT
+      TExpr(aSt[FT_COUNT])
+      TBody(aSt[FT_BODY])
+    Case nK == SK_MODIFIED
+      TExpr(aSt[MOD_COND])
+      TStmt(aSt[MOD_STMT])
+    Case nK == SK_DEFERRED
+      TStmt(aSt[DEF_STMT])
+    Case nK == SK_USINGALIAS
+      TExpr(aSt[UA_ORDER])
+      TBody(aSt[UA_BODY])
+    Case nK == SK_WITHOBJECT
+      TExpr(aSt[WO_SUBJECT])
+      TBody(aSt[WO_BODY])
+    Case nK == SK_RAWSTMT
+      // TL++ as written: a name in it may be given anything.
+      For nI := 1 To Len(aSt[RAW_LINES])
+        RawNames(aSt[RAW_LINES][nI])
+      Next
+    Case nK == SK_TRYSTMT
+      TBody(aSt[TRY_BODY])
+      If aSt[TRY_ERRVAR] != Nil
+        Unknown(FindVar(aSt[TRY_ERRVAR]))
+      EndIf
+      TBody(aSt[TRY_HANDLER])
+      TBody(aSt[TRY_FINALLY])
+    Case nK == SK_TRANSACTIONSTMT
+      TBody(aSt[TX_BODY])
+    Case nK == SK_SEQUENCESTMT
+      TBody(aSt[SEQ_BODY])
+      If aSt[SEQ_ERRVAR] != Nil
+        Unknown(FindVar(aSt[SEQ_ERRVAR]))
+      EndIf
+      TBody(aSt[SEQ_RECOVER])
+    Case nK == SK_DEFAULTSTMT
+      For nI := 1 To Len(aSt[DFL_PAIRS])
+        TStmt(aSt[DFL_PAIRS][nI])
+      Next
+    Otherwise
+      aEs := u_xcb_exprsof(aSt)
+      For nI := 1 To Len(aEs)
+        TExpr(aEs[nI])
+      Next
+  EndCase
+Return Nil
+
+// A name xc cannot tell what it is given.
+Static Function Unknown(aV)
+  If aV != Nil
+    AddEvent({EVK_UNKNOWN, aV, Nil, Nil, Nil, "", ""})
+  EndIf
+Return Nil
+
+// The names of a line of TL++ that are the function's.
+Static Function RawNames(cLine)
+  Local cW := ""
+  Local nI
+  Local nC
+  For nI := 1 To Len(cLine) + 1
+    nC := If(nI <= Len(cLine), Asc(SubStr(cLine, nI, 1)), 32)
+    If u_xcb_isw(nC)
+      cW += Chr(nC)
+      Loop
+    EndIf
+    If !(cW == "")
+      Unknown(FindVar(cW))
+    EndIf
+    cW := ""
+  Next
+Return Nil
+
+Static Function TExpr(aE)
+  Local nK
+  Local nI
+  Local nJ
+  Local aPs
+  Local aSub
+  Local aV
+  Local aSt
+  If aE == Nil
+    Return Nil
+  EndIf
+  nK := aE[N_KIND]
+  Do Case
+    Case nK == EK_NAME
+      aV := FindVar(aE[NAME_NAME])
+      If aV != Nil
+        hNames{aE[N_ID]} := aV
+      EndIf
+    Case nK == EK_LAMBDA .Or. nK == EK_CODEBLOCK
+      PushScope()
+      aPs := {}
+      For nI := 1 To Len(aE[CB_PARAMS])
+        AAdd(aPs, DeclareVar(aE[CB_PARAMS][nI], .T., T_UNKNOWN))
+      Next
+      hBlockParams{aE[N_ID]} := aPs
+      For nI := 1 To Len(aE[CB_BODY])
+        TExpr(aE[CB_BODY][nI])
+      Next
+      PopScope()
+    Case nK == EK_ASSIGNEXPR
+      TExpr(aE[AE_TARGET])
+      TExpr(aE[AE_VALUE])
+      AddEvent({EVK_ASSIGN, Nil, Nil, aE[AE_VALUE], aE[AE_TARGET], aE[AE_OP], aE[AE_INCDEC]})
+    Case nK == EK_REF
+      TExpr(aE[REF_TARGET])
+      If aE[REF_TARGET] != Nil .And. aE[REF_TARGET][N_KIND] == EK_NAME
+        Unknown(FindVar(aE[REF_TARGET][NAME_NAME]))
+      EndIf
+    Case nK == EK_CALL
+      For nI := 1 To Len(aE[CALL_ARGS])
+        TExpr(aE[CALL_ARGS][nI])
+      Next
+    Case nK == EK_METHODCALL .Or. nK == EK_SAFECALL
+      TExpr(aE[MC_BASE])
+      For nI := 1 To Len(aE[MC_ARGS])
+        TExpr(aE[MC_ARGS][nI])
+      Next
+    Case nK == EK_HASHINDEX
+      AAdd(aHashes, {aE, cCls})
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        TExpr(aSub[nI])
+      Next
+    Case nK == EK_PIPELINE
+      TExpr(aE[PIPE_SOURCE])
+      For nI := 1 To Len(aE[PIPE_STAGES])
+        aSt := aE[PIPE_STAGES][nI]
+        For nJ := 1 To Len(aSt[CALL_ARGS])
+          TExpr(aSt[CALL_ARGS][nJ])
+        Next
+      Next
+    Otherwise
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        TExpr(aSub[nI])
+      Next
+  EndCase
+Return Nil
+
+// ---- what each name holds ---------------------------------------------------
+// Every value a Local or a Static is given, over and over until nothing
+// changes: what it holds, when they agree.
+Static Function Infer()
+  Local nRound := 0
+  Local nU
+  Local nE
+  Local aEv
+  Local aT
+  Local aV
+  Local cT
+  Local cK
+  Local cOp
+  lChanged := .T.
+  While lChanged .And. nRound < 20
+    lChanged := .F.
+    For nU := 1 To Len(aUnits)
+      cCls := aUnits[nU][U_CLS]
+      For nE := 1 To Len(aUnits[nU][U_EVENTS])
+        aEv := aUnits[nU][U_EVENTS][nE]
+        Do Case
+          Case aEv[EV_KIND] == EVK_DECL
+            If aEv[EV_VALUE] != Nil
+              Give(aEv[EV_VAR], TypeOf(aEv[EV_VALUE]))
+            EndIf
+          Case aEv[EV_KIND] == EVK_ASSIGN
+            aT := aEv[EV_TARGET]
+            If aT == Nil .Or. aT[N_KIND] != EK_NAME
+              Loop
+            EndIf
+            aV := hNames{aT[N_ID]}
+            If aV == Nil
+              Loop
+            EndIf
+            cOp := aEv[EV_OP]
+            If !(aEv[EV_INCDEC] == "")
+              Give(aV, BinOp("+", aV[V_TYPE], "N"))
+            ElseIf cOp == ":=" .Or. cOp == "=" .Or. cOp == "?="
+              Give(aV, TypeOf(aEv[EV_VALUE]))
+            Else
+              Give(aV, BinOp(Chop(cOp), aV[V_TYPE], TypeOf(aEv[EV_VALUE])))
+            EndIf
+          Case aEv[EV_KIND] == EVK_COUNTER
+            Give(aEv[EV_VAR], "N")
+          Case aEv[EV_KIND] == EVK_FORIN
+            // Over a hash, a set, a bag, a JSON object: each key, and what
+            // it holds there.
+            cT := TypeOf(aEv[EV_VALUE])
+            cK := KindOf(cT)
+            If IsKeyed(cK) .Or. cK == "J"
+              Give(aEv[EV_VAR], If(cK == "J", "C", BareT(KeyOf(cT))))
+              Give(aEv[EV_INDEX], If(cK == "J", T_UNKNOWN, ValueOf(cT)))
+            Else
+              Give(aEv[EV_VAR], ElemIn(aEv[EV_VALUE]))
+              Give(aEv[EV_INDEX], "N")
+            EndIf
+          Case aEv[EV_KIND] == EVK_UNKNOWN
+            Give(aEv[EV_VAR], T_UNKNOWN)
+        EndCase
+      Next
+    Next
+    nRound++
+  EndDo
+  cCls := ""
+  For nU := 1 To Len(aVars)
+    If !aVars[nU][V_PINNED] .And. aVars[nU][V_TYPE] == T_NONE
+      aVars[nU][V_TYPE] := T_UNKNOWN
+    EndIf
+  Next
+Return Nil
+
+Static Function Give(aV, cT)
+  Local cN
+  If aV == Nil .Or. aV[V_PINNED]
+    Return Nil
+  EndIf
+  cN := JoinT(aV[V_TYPE], cT)
+  If !(cN == aV[V_TYPE])
+    aV[V_TYPE] := cN
+    lChanged := .T.
+  EndIf
+Return Nil
+
+// What a 'for ... in' gives its name, walking source.
+Static Function ElemIn(aSource)
+  Local cT
+  If aSource != Nil .And. aSource[N_KIND] == EK_INTERVAL
+    Return "N"
+  EndIf
+  cT := TypeOf(aSource)
+  If cT == T_NONE
+    Return T_NONE
+  EndIf
+  If cT == "C"
+    Return "C"
+  EndIf
+Return ElemOf(cT)
+
+// ---- what an expression is --------------------------------------------------
+Static Function TypeOf(aE)
+  Local nK
+  Local cT
+  Local nI
+  Local aV
+  Local cN
+  Local xD
+  Local cC
+  Local aB
+  If aE == Nil
+    Return T_UNKNOWN
+  EndIf
+  nK := aE[N_KIND]
+  Do Case
+    Case nK == EK_LITERAL
+      cT := aE[LIT_TYPE]
+      Do Case
+        Case cT == "Numeric"
+          Return "N"
+        Case cT == "Character"
+          Return "C"
+        Case cT == "Logical"
+          Return "L"
+        Case cT == "Variant" .And. u_xcb_lc(aE[LIT_TEXT]) == "nil"
+          Return T_NIL
+      EndCase
+      Return T_UNKNOWN
+    Case nK == EK_INTERP
+      Return "C"
+    Case nK == EK_ARRAYLIT
+      Return If(aE[ARR_ELEM] == "", "A", "A<" + aE[ARR_ELEM] + ">")
+    Case nK == EK_HASHLIT
+      If aE[HASH_SETKIND] != 0
+        cC := Chr(aE[HASH_SETKIND])
+        Return If(aE[HASH_KEYTYPE] == "", cC, cC + "<" + aE[HASH_KEYTYPE] + ">")
+      EndIf
+      Return If(aE[HASH_KEYTYPE] == "", "H", "H<" + aE[HASH_KEYTYPE] + "," + aE[HASH_VALTYPE] + ">")
+    Case nK == EK_JSONLIT
+      Return "J"
+    Case nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+      Return "B"
+    Case nK == EK_NAME
+      aV := hNames{aE[N_ID]}
+      If aV != Nil
+        Return aV[V_TYPE]
+      EndIf
+      Return If(IsSelf(aE), ClassType(cCls), T_UNKNOWN)
+    Case nK == EK_SELFREF
+      Return If(cCls == "", T_UNKNOWN, ClassType(cCls))
+    Case nK == EK_INDEX
+      cT := TypeOf(aE[IDX_BASE])
+      For nI := 1 To Len(aE[IDX_INDICES])
+        cT := ElemOf(cT)
+      Next
+      Return cT
+    Case nK == EK_HASHINDEX
+      Return ValueOf(TypeOf(aE[HIX_BASE]))
+    Case nK == EK_BINARY
+      If IsLogical(aE[BIN_OP])
+        Return "L"
+      EndIf
+      If Left(aE[BIN_OP], 1) == "("
+        Return SetOp(aE[BIN_OP], TypeOf(aE[BIN_LEFT]), TypeOf(aE[BIN_RIGHT]))
+      EndIf
+      Return BinOp(aE[BIN_OP], If(aE[BIN_LEFT] != Nil, TypeOf(aE[BIN_LEFT]), T_UNKNOWN), TypeOf(aE[BIN_RIGHT]))
+    Case nK == EK_ASSIGNEXPR
+      If !(aE[AE_INCDEC] == "")
+        Return BinOp("+", TypeOf(aE[AE_TARGET]), "N")
+      EndIf
+      If aE[AE_OP] == ":=" .Or. aE[AE_OP] == "="
+        Return TypeOf(aE[AE_VALUE])
+      EndIf
+      Return BinOp(Chop(aE[AE_OP]), TypeOf(aE[AE_TARGET]), TypeOf(aE[AE_VALUE]))
+    Case nK == EK_CALL
+      // 'Order()', a class of the file's: the object New() is then called
+      // on.
+      cN := u_xcb_lc(aE[CALL_NAME])
+      If Len(aE[CALL_ARGS]) == 0 .And. (hClasses has cN) .And. !(hFunctions has cN)
+        Return ClassType(cN)
+      EndIf
+      Return CallType(cN, aE[CALL_ARGS], Nil)
+    Case nK == EK_PIPELINE
+      Return ChainType(aE, Len(aE[PIPE_STAGES]))
+    Case nK == EK_GUARD
+      Return BinOp("?:", TypeOf(aE[GRD_EXPR]), TypeOf(aE[GRD_FALLBACK]))
+    Case nK == EK_MEMBER
+      // '::x' in a method, 'o:x' of an object of a class of the file: the
+      // Data, as its class declares it.
+      xD := DataOf(ObjClass(aE[MEM_BASE]), aE[MEM_NAME], 0)
+      Return If(ValType(xD) == "C", xD, T_UNKNOWN)
+    Case nK == EK_METHODCALL
+      // 'Name():New()': THashMap's a hash, JsonObject's a JSON, a class of
+      // the file's an object of it, any other an object. '::m()', 'o:m()'
+      // of an object of a class of the file: what m is declared to give.
+      If u_xcb_lc(aE[MC_NAME]) == "new" .And. aE[MC_BASE] != Nil .And. aE[MC_BASE][N_KIND] == EK_CALL
+        aB := aE[MC_BASE]
+        cC := u_xcb_lc(aB[CALL_NAME])
+        If Len(aB[CALL_ARGS]) == 0 .And. (hClasses has cC) .And. !(hFunctions has cC)
+          Return ClassType(cC)
+        EndIf
+        Return If(cC == "thashmap", "H", If(cC == "jsonobject", "J", "O"))
+      EndIf
+      cC := ObjClass(aE[MC_BASE])
+      Return If(cC == "", T_UNKNOWN, MethodType(cC, aE[MC_NAME]))
+    Case nK == EK_EXPRLIST
+      Return If(Len(aE[EL_ITEMS]) == 0, T_UNKNOWN, TypeOf(ATail(aE[EL_ITEMS])))
+  EndCase
+  // A field's type is the dictionary's, and there is none here.
+Return T_UNKNOWN
+
+// The type of a call's argument, from 0 -- the first what a chain feeds it,
+// when it does (cFed).
+Static Function ArgType(aArgs, cFed, nI)
+  Local nOff := If(cFed != Nil, 1, 0)
+  If cFed != Nil .And. nI == 0
+    Return cFed
+  EndIf
+Return If(nI - nOff < Len(aArgs), TypeOf(aArgs[nI - nOff + 1]), T_UNKNOWN)
+
+// What a call gives -- cFed the type of what a chain feeds it, its first
+// argument then; Nil when it is not a stage.
+Static Function CallType(cName, aArgs, cFed)
+  Local nOff := If(cFed != Nil, 1, 0)
+  Local cA
+  Local nI
+  Local cK
+  Local cM
+  Local cT
+  Local cS
+  Local aF
+  Local aPs
+  Local aWas
+  Local cR
+  Local cOp
+  If hBuiltins has cName
+    Return hBuiltins{cName}
+  EndIf
+  If cName == "round" .Or. cName == "noround" .Or. cName == "int" .Or. cName == "abs"
+    cA := ArgType(aArgs, cFed, 0)
+    Return If(cA == T_NONE, T_NONE, If(cA == "F", "F", "N"))
+  EndIf
+  If cName == "max" .Or. cName == "min" .Or. cName == "if" .Or. cName == "iif"
+    nI := If(Left(cName, 1) == "m", 0, 1)
+    Return BinOp("?:", ArgType(aArgs, cFed, nI), ArgType(aArgs, cFed, nI + 1))
+  EndIf
+  If cName == "aclone"
+    Return UnfixT(ArgType(aArgs, cFed, 0))
+  EndIf
+  If cName == "asort" .Or. cName == "asize" .Or. cName == "adel" .Or. cName == "ains" .Or. cName == "afill"
+    Return ArgType(aArgs, cFed, 0)
+  EndIf
+  If cName == "aadd" .Or. cName == "acopy"
+    Return ArgType(aArgs, cFed, 1)
+  EndIf
+  If cName == "atail"
+    Return ElemOf(ArgType(aArgs, cFed, 0))
+  EndIf
+  // The runtime's verbs: sets and bags.
+  If cName == "setof" .Or. cName == "bagof"
+    cK := If(Left(cName, 1) == "s", "S", "M")
+    If Len(aArgs) + nOff == 1
+      Return KeysOf(cK, ArgType(aArgs, cFed, 0), "-")
+    EndIf
+    cM := T_NIL
+    For nI := 0 To Len(aArgs) + nOff - 1
+      cT := BareT(ArgType(aArgs, cFed, nI))
+      If cT == T_NONE
+        Return T_NONE
+      EndIf
+      cM := If(cM == "", cT, If(cT == "" .Or. cT == cM, cM, T_UNKNOWN))
+    Next
+    Return If(cM == "" .Or. cM == T_UNKNOWN .Or. IsBox(KindOf(cM)), cK, cK + "<" + cM + ">")
+  EndIf
+  cOp := SetOpOf(cName)
+  If !(cOp == "")
+    Return SetOp(cOp, ArgType(aArgs, cFed, 0), ArgType(aArgs, cFed, 1))
+  EndIf
+  If cName == "elems" .Or. cName == "totalof"
+    Return "N"
+  EndIf
+  If cName == "heap" .Or. cName == "heapof" .Or. cName == "queue"
+    Return "O"
+  EndIf
+  If cName == "kxxv"
+    Return ArrayOf(MemberOf(ArgType(aArgs, cFed, 0)))
+  EndIf
+  If cName == "minpairs" .Or. cName == "maxpairs"
+    Return "A<A>"
+  EndIf
+  // The runtime's verbs.
+  cS := ArgType(aArgs, cFed, 0)
+  // A copy: fixed no more, but for what it holds.
+  If "|" + cName + "|" $ cKeeps
+    Return If(cS == T_NONE, T_NONE, If(!(KindOf(cS) == "A"), "A", If(IsFixed(cS), ArrayOf(ElemOf(cS)), cS)))
+  EndIf
+  If cName == "map"
+    aF := If(1 >= nOff .And. 1 - nOff < Len(aArgs), aArgs[1 - nOff + 1], Nil)
+    If aF != Nil .And. (aF[N_KIND] == EK_LAMBDA .Or. aF[N_KIND] == EK_CODEBLOCK)
+      aPs := hBlockParams{aF[N_ID]}
+      If Len(aF[CB_BODY]) == 0 .Or. aPs == Nil
+        Return "A"
+      EndIf
+      cT := ElemOf(cS)
+      aWas := {}
+      For nI := 1 To Len(aPs)
+        AAdd(aWas, aPs[nI][V_TYPE])
+      Next
+      If Len(aPs) > 0
+        aPs[1][V_TYPE] := If(cT == T_NONE, T_UNKNOWN, cT)
+      EndIf
+      cR := TypeOf(ATail(aF[CB_BODY]))
+      For nI := 1 To Len(aPs)
+        aPs[nI][V_TYPE] := aWas[nI]
+      Next
+      Return If(cS == T_NONE, T_NONE, ArrayOf(cR))
+    EndIf
+    If aF != Nil .And. aF[N_KIND] == EK_NAME .And. !(hNames has aF[N_ID])
+      cT := u_xcb_lc(aF[NAME_NAME])
+      If hBuiltins has cT
+        Return ArrayOf(hBuiltins{cT})
+      EndIf
+      If hReturns has cT
+        Return ArrayOf(hReturns{cT})
+      EndIf
+    EndIf
+    Return "A"
+  EndIf
+  Do Case
+    Case cName == "count"
+      Return "N"
+    Case cName == "asum" .Or. cName == "aprod"
+      Return If(ElemOf(cS) == "F", "F", "N")
+    Case cName == "amax" .Or. cName == "amin" .Or. cName == "first" .Or. cName == "maxby" .Or. cName == "minby"
+      Return ElemOf(cS)
+    Case cName == "anyof" .Or. cName == "allof" .Or. cName == "noneof"
+      Return "L"
+    Case cName == "chunks" .Or. cName == "chunkby" .Or. cName == "pairwise"
+      Return If(cS == T_NONE, T_NONE, If(IsGeneric(cS) .And. KindOf(cS) == "A", "A<" + cS + ">", "A<A>"))
+    Case cName == "enumerate" .Or. cName == "zip" .Or. cName == "pairs"
+      Return "A<A>"
+    Case cName == "flatten" .Or. cName == "expand"
+      Return "A"
+    Case cName == "keys"
+      Return If(cS == T_NONE, T_NONE, ArrayOf(KeyOf(cS)))
+    Case cName == "values"
+      Return If(cS == T_NONE, T_NONE, ArrayOf(ValueOf(cS)))
+    Case cName == "split"
+      Return "A<C>"
+    Case cName == "join"
+      Return "C"
+    Case cName == "starts" .Or. cName == "ends" .Or. cName == "contains"
+      Return "L"
+  EndCase
+  If hReturns has cName
+    Return hReturns{cName}
+  EndIf
+Return T_UNKNOWN
+
+// The set operator a verb is: 'union' is '(|)' -- '' for any other.
+Static Function SetOpOf(cName)
+  Do Case
+    Case cName == "union"
+      Return "(|)"
+    Case cName == "intersect"
+      Return "(&)"
+    Case cName == "minus"
+      Return "(-)"
+    Case cName == "symdiff"
+      Return "(^)"
+    Case cName == "bagsum"
+      Return "(+)"
+    Case cName == "bagprod"
+      Return "(.)"
+    Case cName == "subset"
+      Return "(<=)"
+    Case cName == "psubset"
+      Return "(<)"
+    Case cName == "superset"
+      Return "(>=)"
+    Case cName == "psuperset"
+      Return "(>)"
+    Case cName == "sameset"
+      Return "(==)"
+  EndCase
+Return ""
+
+// What a chain gives after its first n stages.
+Static Function ChainType(aP, nStages)
+  Local cT := TypeOf(aP[PIPE_SOURCE])
+  Local nI
+  Local aC
+  For nI := 1 To Min(nStages, Len(aP[PIPE_STAGES]))
+    aC := aP[PIPE_STAGES][nI]
+    cT := CallType(u_xcb_lc(aC[CALL_NAME]), aC[CALL_ARGS], cT)
+  Next
+Return cT

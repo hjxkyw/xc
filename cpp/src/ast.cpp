@@ -1,7 +1,7 @@
 // xc-ast -- the tree xc reads a source into, as text (dump.h): what the
 // parser written in xtpl (selfhost/) is held to.
 //
-//   xc-ast [--includes=DIRS] [--bare] [--values] file.xtpl [out.txt]
+//   xc-ast [--includes=DIRS] [--bare] [--values] [--facts] file.xtpl [out.txt]
 //
 // A source xc cannot parse gives 'not parsed at N', N the byte xc got
 // furthest to. --bare: the source's own commands and translations are not
@@ -11,6 +11,8 @@
 // none) -- a value, a guarded one, a condition, an expression, a target, a
 // call made a statement, a chain run for its effect --, where it starts in
 // the whole text: '@START form F end END', then the node, or 'nil'.
+// --facts: the tree marked by typed_problems() -- a set's 'h{k}', a 'for
+// ... in' over a hash --, then what facts.h writes of it.
 
 #include <fstream>
 #include <iostream>
@@ -20,7 +22,9 @@
 #include "commands.h"
 #include "driver.h"
 #include "dump.h"
+#include "facts.h"
 #include "parser.h"
+#include "typed.h"
 
 int main(int argc, char** argv)
 {
@@ -28,11 +32,13 @@ int main(int argc, char** argv)
   std::vector<std::string> includes;
   bool bare = false;
   bool values = false;
+  bool facts = false;
   for (int i = 1; i < argc; i++)
   {
     std::string a = argv[i];
     if (a == "--bare") { bare = true; }
     else if (a == "--values") { values = true; }
+    else if (a == "--facts") { facts = true; }
     else if (a.rfind("--includes=", 0) == 0)
     {
       std::string list = a.substr(11);
@@ -49,7 +55,7 @@ int main(int argc, char** argv)
   }
   if (files.empty() || files.size() > 2)
   {
-    std::cerr << "usage: xc-ast [--includes=DIRS] [--bare] [--values] file.xtpl [out.txt]\n";
+    std::cerr << "usage: xc-ast [--includes=DIRS] [--bare] [--values] [--facts] file.xtpl [out.txt]\n";
     return 2;
   }
   std::string src;
@@ -93,7 +99,15 @@ int main(int argc, char** argv)
   else
   {
     xc::Program* prog = parser.parse();
-    text = prog ? xc::dump(prog) : "not parsed at " + std::to_string(parser.furthest()) + "\n";
+    if (prog && facts)
+    {
+      xc::typed_problems(prog, xc::Dictionary{});
+      text = xc::dump(prog) + xc::facts(prog, xc::is_advpl(files[0]));
+    }
+    else
+    {
+      text = prog ? xc::dump(prog) : "not parsed at " + std::to_string(parser.furthest()) + "\n";
+    }
   }
   if (files.size() == 2)
   {

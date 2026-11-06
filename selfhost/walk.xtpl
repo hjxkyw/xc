@@ -1,0 +1,248 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// walk.xtpl -- walking the tree (cpp/src/walk.cpp): the expressions right
+// below one, every one inside it, the expressions and the bodies a
+// statement holds, every statement of a body. Missing parts -- the empty
+// side of a '!', the base of an 'SA1->' -- do not appear; what is inside
+// comes in reading order. Where the C++ calls a function on each, these
+// give the list, to walk with a 'For'.
+// -----------------------------------------------------------------------------
+
+// The expressions right below e.
+User Function xcb_subexprs(aE)
+  Local aOut := {}
+  Local nK := aE[N_KIND]
+  Local nI
+  Do Case
+    Case nK == EK_USERTRANS
+      Add1(aOut, aE[UT_BASE])
+    Case nK == EK_CALL
+      AddAll(aOut, aE[CALL_ARGS])
+    Case nK == EK_BINARY
+      Add1(aOut, aE[BIN_LEFT])
+      Add1(aOut, aE[BIN_RIGHT])
+    Case nK == EK_INDEX
+      Add1(aOut, aE[IDX_BASE])
+      AddAll(aOut, aE[IDX_INDICES])
+    Case nK == EK_MEMBER .Or. nK == EK_SAFEMEMBER
+      Add1(aOut, aE[MEM_BASE])
+    Case nK == EK_HASHINDEX
+      Add1(aOut, aE[HIX_BASE])
+      Add1(aOut, aE[HIX_KEY])
+    Case nK == EK_INTERVAL
+      Add1(aOut, aE[IVL_LO])
+      Add1(aOut, aE[IVL_HI])
+    Case nK == EK_METHODCALL .Or. nK == EK_SAFECALL
+      Add1(aOut, aE[MC_BASE])
+      AddAll(aOut, aE[MC_ARGS])
+    Case nK == EK_ALIASFIELD
+      Add1(aOut, aE[AF_BASE])
+      Add1(aOut, aE[AF_MACRO])
+    Case nK == EK_INALIAS
+      Add1(aOut, aE[IA_BASE])
+      Add1(aOut, aE[IA_EXPR])
+    Case nK == EK_MACRO
+      Add1(aOut, aE[MAC_TARGET])
+      AddAll(aOut, aE[MAC_ARGS])
+    Case nK == EK_REF
+      Add1(aOut, aE[REF_TARGET])
+    Case nK == EK_EXPRLIST
+      AddAll(aOut, aE[EL_ITEMS])
+    Case nK == EK_ASSIGNEXPR
+      Add1(aOut, aE[AE_TARGET])
+      Add1(aOut, aE[AE_VALUE])
+    Case nK == EK_ARRAYLIT
+      AddAll(aOut, aE[ARR_ITEMS])
+    Case nK == EK_INTERP
+      For nI := 1 To Len(aE[INTERP_PARTS])
+        If ValType(aE[INTERP_PARTS][nI]) == "A"
+          Add1(aOut, aE[INTERP_PARTS][nI])
+        EndIf
+      Next
+    Case nK == EK_JSONLIT
+      AddPairs(aOut, aE[JSON_PAIRS])
+    Case nK == EK_HASHLIT
+      AddPairs(aOut, aE[HASH_PAIRS])
+    Case nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+      AddAll(aOut, aE[CB_BODY])
+    Case nK == EK_GUARD
+      Add1(aOut, aE[GRD_EXPR])
+      Add1(aOut, aE[GRD_FALLBACK])
+    Case nK == EK_PIPELINE
+      Add1(aOut, aE[PIPE_SOURCE])
+      AddAll(aOut, aE[PIPE_STAGES])
+  EndCase
+Return aOut
+
+// Every expression from e down, e first, in reading order: what
+// walk_expr() calls its function on.
+User Function xcb_walkexpr(aE)
+  Local aOut := {}
+  AllExprs(aE, aOut)
+Return aOut
+
+// The expressions a statement holds, without going into its bodies.
+User Function xcb_exprsof(aSt)
+  Local aOut := {}
+  Local nK := aSt[N_KIND]
+  Local nI
+  Do Case
+    Case nK == SK_DECLARATION
+      For nI := 1 To Len(aSt[DECL_DECLARATORS])
+        Add1(aOut, aSt[DECL_DECLARATORS][nI][DCL_INIT])
+      Next
+    Case nK == SK_ASSIGNMENT
+      Add1(aOut, aSt[ASG_TARGET])
+      Add1(aOut, aSt[ASG_VALUE])
+    Case nK == SK_CALLSTMT
+      Add1(aOut, aSt[CS_CALL])
+    Case nK == SK_RETURNSTMT
+      Add1(aOut, aSt[RET_VALUE])
+    Case nK == SK_ANNOTATION
+      AddAll(aOut, aSt[ANN_ARGS])
+    Case nK == SK_MODIFIED
+      Add1(aOut, aSt[MOD_COND])
+    Case nK == SK_IFSTMT
+      If aSt[IF_HEADER] != Nil
+        Add1(aOut, aSt[IF_HEADER][DCL_INIT])
+      EndIf
+      For nI := 1 To Len(aSt[IF_BRANCHES])
+        Add1(aOut, aSt[IF_BRANCHES][nI][BR_COND])
+      Next
+    Case nK == SK_CASESTMT
+      If aSt[CASE_SUBJDECL] != Nil
+        Add1(aOut, aSt[CASE_SUBJDECL][DCL_INIT])
+      EndIf
+      If aSt[CASE_SUBJASSIGN] != Nil
+        Add1(aOut, aSt[CASE_SUBJASSIGN][ASG_VALUE])
+      EndIf
+      For nI := 1 To Len(aSt[CASE_BRANCHES])
+        Add1(aOut, aSt[CASE_BRANCHES][nI][BR_COND])
+      Next
+    Case nK == SK_WHILESTMT
+      If aSt[WH_HEADER] != Nil
+        Add1(aOut, aSt[WH_HEADER][DCL_INIT])
+      EndIf
+      Add1(aOut, aSt[WH_COND])
+    Case nK == SK_FORSTMT
+      Add1(aOut, aSt[FOR_FROM])
+      Add1(aOut, aSt[FOR_TO])
+      Add1(aOut, aSt[FOR_STEP])
+    Case nK == SK_FORINSTMT
+      Add1(aOut, aSt[FIN_SOURCE])
+    Case nK == SK_FORTIMESSTMT
+      Add1(aOut, aSt[FT_COUNT])
+    Case nK == SK_USINGALIAS
+      Add1(aOut, aSt[UA_ORDER])
+    Case nK == SK_WITHOBJECT
+      Add1(aOut, aSt[WO_SUBJECT])
+    Case nK == SK_BREAKSTMT
+      Add1(aOut, aSt[BRK_VALUE])
+    Case nK == SK_DEFAULTSTMT
+      For nI := 1 To Len(aSt[DFL_PAIRS])
+        Add1(aOut, aSt[DFL_PAIRS][nI][ASG_TARGET])
+        Add1(aOut, aSt[DFL_PAIRS][nI][ASG_VALUE])
+      Next
+  EndCase
+Return aOut
+
+// The bodies a statement holds, in reading order -- the statement a
+// modifier or a 'defer' holds a body of its own.
+User Function xcb_bodiesof(aSt)
+  Local aOut := {}
+  Local nK := aSt[N_KIND]
+  Local nI
+  Do Case
+    Case nK == SK_IFSTMT
+      For nI := 1 To Len(aSt[IF_BRANCHES])
+        AAdd(aOut, aSt[IF_BRANCHES][nI][BR_BODY])
+      Next
+      AAdd(aOut, aSt[IF_OTHERWISE])
+    Case nK == SK_CASESTMT
+      For nI := 1 To Len(aSt[CASE_BRANCHES])
+        AAdd(aOut, aSt[CASE_BRANCHES][nI][BR_BODY])
+      Next
+      AAdd(aOut, aSt[CASE_OTHERWISE])
+    Case nK == SK_WHILESTMT
+      AAdd(aOut, aSt[WH_BODY])
+    Case nK == SK_FORSTMT
+      AAdd(aOut, aSt[FOR_BODY])
+    Case nK == SK_FORINSTMT
+      AAdd(aOut, aSt[FIN_BODY])
+    Case nK == SK_FORTIMESSTMT
+      AAdd(aOut, aSt[FT_BODY])
+    Case nK == SK_USINGALIAS
+      AAdd(aOut, aSt[UA_BODY])
+    Case nK == SK_WITHOBJECT
+      AAdd(aOut, aSt[WO_BODY])
+    Case nK == SK_TRANSACTIONSTMT
+      AAdd(aOut, aSt[TX_BODY])
+    Case nK == SK_SEQUENCESTMT
+      AAdd(aOut, aSt[SEQ_BODY])
+      AAdd(aOut, aSt[SEQ_RECOVER])
+    Case nK == SK_TRYSTMT
+      AAdd(aOut, aSt[TRY_BODY])
+      AAdd(aOut, aSt[TRY_HANDLER])
+      AAdd(aOut, aSt[TRY_FINALLY])
+    Case nK == SK_MODIFIED
+      AAdd(aOut, {aSt[MOD_STMT]})
+    Case nK == SK_DEFERRED
+      AAdd(aOut, {aSt[DEF_STMT]})
+  EndCase
+Return aOut
+
+// Every statement of a body, and the ones inside, in reading order: what
+// walk() calls its function on.
+User Function xcb_walk(aBody)
+  Local aOut := {}
+  AllStmts(aBody, aOut)
+Return aOut
+
+// ---- lists ------------------------------------------------------------------
+Static Function AllExprs(aE, aOut)
+  Local aKids
+  Local nI
+  If aE == Nil
+    Return Nil
+  EndIf
+  AAdd(aOut, aE)
+  aKids := u_xcb_subexprs(aE)
+  For nI := 1 To Len(aKids)
+    AllExprs(aKids[nI], aOut)
+  Next
+Return Nil
+
+Static Function AllStmts(aBody, aOut)
+  Local nI
+  Local aBodies
+  Local nB
+  For nI := 1 To Len(aBody)
+    AAdd(aOut, aBody[nI])
+    aBodies := u_xcb_bodiesof(aBody[nI])
+    For nB := 1 To Len(aBodies)
+      AllStmts(aBodies[nB], aOut)
+    Next
+  Next
+Return Nil
+
+Static Function Add1(aOut, aE)
+  If aE != Nil
+    AAdd(aOut, aE)
+  EndIf
+Return Nil
+
+Static Function AddAll(aOut, aList)
+  Local nI
+  For nI := 1 To Len(aList)
+    Add1(aOut, aList[nI])
+  Next
+Return Nil
+
+Static Function AddPairs(aOut, aPairs)
+  Local nI
+  For nI := 1 To Len(aPairs)
+    Add1(aOut, aPairs[nI][KV_KEY])
+    Add1(aOut, aPairs[nI][KV_VALUE])
+  Next
+Return Nil

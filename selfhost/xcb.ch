@@ -293,4 +293,15 @@
 #define PG_EXTERNALS      13
 #define PG_STATICS        14
 
+// ---- what the passes give ---------------------------------------------------
+// A chain's stages, split (chains.xtpl): those that fuse, the terminal or
+// Nil, the rest.
+#define SP_FUSED          1
+#define SP_TERMINAL       2
+#define SP_REST           3
+// The values of a function that go into a Decimal, and into a number
+// (decimal.xtpl): hashes of their nodes' numbers.
+#define DV_DECIMAL        1
+#define DV_NUMERIC        2
+
 #endif

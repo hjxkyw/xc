@@ -1,0 +1,445 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// chains.xtpl -- xtpl's chains (cpp/src/chains.cpp): the runtime's verbs,
+// which stages of a chain run as a loop where it stands, and what keeps one
+// from a source from being one. A function's names, declared_names(), are a
+// hash of each in lower case; a split is {the stages that fuse, the
+// terminal or Nil, the rest} (SP_*).
+// -----------------------------------------------------------------------------
+
+// xtpl's runtime verbs: a call to one of these names -- not a method -- is
+// the runtime's 'u_xtpl_<name>', wherever it is.
+Static cVerbs := "|map|filter|reject|reduce|fold|take|drop|distinct|sort|sortby|reverse|flatten|enumerate|" ;
+                 + "chunks|zip|asum|aprod|amax|amin|anyof|allof|noneof|keys|values|pairs|takewhile|" ;
+                 + "dropwhile|chunkby|first|count|distinctadjacent|maxby|minby|scan|expand|tap|pairwise|" ;
+                 + "queue|split|join|starts|ends|contains|apick|aroll|setmaxroll|setof|bagof|union|" ;
+                 + "intersect|minus|symdiff|bagsum|bagprod|subset|psubset|superset|psuperset|sameset|" ;
+                 + "elems|totalof|minpairs|maxpairs|kxxv|heap|heapof|"
+
+Static cFused := "|filter|reject|map|tap|take|takewhile|drop|dropwhile|expand|distinctadjacent|scan|" ;
+                 + "pairwise|distinct|"
+
+Static cTerminal := "|asum|count|anyof|allof|noneof|first|aprod|amax|amin|join|reduce|fold|maxby|minby|" ;
+                    + "chunkby|"
+
+// The stages a chain from a source has fused from the start.
+Static cFirstFused := "|filter|reject|map|tap|take|takewhile|drop|dropwhile|expand|distinctadjacent|"
+
+// The terminals a chain from a source has had from the start.
+Static cFirstTerminals := "|asum|count|anyof|allof|noneof|first|"
+
+// The stages that stop the walk with an 'Exit': after an 'expand' they
+// apply to what was collected instead.
+Static cExits := "|take|takewhile|anyof|allof|noneof|first|"
+
+Static cTakesBlock := "|map|filter|reject|tap|takewhile|dropwhile|expand|maxby|minby|sortby|chunkby|" ;
+                      + "distinctadjacent|first|count|anyof|allof|noneof|"
+
+Static cNeedsLambda := "|filter|reject|map|tap|takewhile|dropwhile|expand|anyof|allof|noneof|"
+
+// Whether a name, in lower case, is a runtime verb.
+User Function xcb_isverb(cName)
+Return Among(u_xcb_lc(cName), cVerbs)
+
+// A set operator's function: '(|)' is u_xtpl_union -- '' for any other.
+User Function xcb_setfunction(cOp)
+  Do Case
+    Case cOp == "(|)"
+      Return "u_xtpl_union"
+    Case cOp == "(&)"
+      Return "u_xtpl_intersect"
+    Case cOp == "(-)"
+      Return "u_xtpl_minus"
+    Case cOp == "(^)"
+      Return "u_xtpl_symdiff"
+    Case cOp == "(+)"
+      Return "u_xtpl_bagsum"
+    Case cOp == "(.)"
+      Return "u_xtpl_bagprod"
+    Case cOp == "(elem)"
+      Return "u_xtpl_in"
+    Case cOp == "(cont)"
+      Return "u_xtpl_cont"
+    Case cOp == "(<=)"
+      Return "u_xtpl_subset"
+    Case cOp == "(<)"
+      Return "u_xtpl_psubset"
+    Case cOp == "(>=)"
+      Return "u_xtpl_superset"
+    Case cOp == "(>)"
+      Return "u_xtpl_psuperset"
+    Case cOp == "(==)"
+      Return "u_xtpl_sameset"
+  EndCase
+Return ""
+
+// setOf(), bagOf() of other than one argument: the runtime's takes them as
+// one array.
+User Function xcb_onearray(cName, nArgs)
+  Local cN := u_xcb_lc(cName)
+Return (cN == "setof" .Or. cN == "bagof") .And. nArgs != 1
+
+// What reads and writes a 'h{k}': a set's, a bag's, a hash's.
+User Function xcb_keyreader(aH)
+Return If(aH[HIX_SETKIND] == 83, "u_xtpl_sget", If(aH[HIX_SETKIND] == 77, "u_xtpl_bget", "u_xtpl_hget"))
+
+User Function xcb_keywriter(aH)
+Return If(aH[HIX_SETKIND] == 83, "u_xtpl_sset", If(aH[HIX_SETKIND] == 77, "u_xtpl_bset", "u_xtpl_hset"))
+
+// Whether a verb, in lower case, takes a block.
+User Function xcb_takesblock(cLcName)
+Return Among(cLcName, cTakesBlock)
+
+// The source a chain walks -- a range, rows(), lines() --, alone or at the
+// head of the chain; Nil for any other value.
+User Function xcb_sourcecall(aE)
+  If aE != Nil .And. aE[N_KIND] == EK_PIPELINE .And. u_xcb_issource(aE[PIPE_SOURCE])
+    Return aE[PIPE_SOURCE]
+  EndIf
+  If u_xcb_issource(aE)
+    Return aE
+  EndIf
+Return Nil
+
+User Function xcb_sourcekind(aSrc)
+Return If(aSrc[N_KIND] == EK_INTERVAL, "range", u_xcb_lc(aSrc[CALL_NAME]))
+
+User Function xcb_issource(aE)
+  Local cN
+  If aE == Nil
+    Return .F.
+  EndIf
+  If aE[N_KIND] == EK_INTERVAL
+    Return .T.
+  EndIf
+  If aE[N_KIND] != EK_CALL
+    Return .F.
+  EndIf
+  cN := u_xcb_lc(aE[CALL_NAME])
+Return cN == "rows" .Or. cN == "lines"
+
+// The split of stages, from wherever the walk starts: over an array
+// (lArray), or over a source.
+User Function xcb_splitstages(aStages, lArray, hDeclared)
+  Local aSp := {{}, Nil, {}}
+  Local lExpanded := .F.
+  Local nI
+  Local aSt
+  Local cN
+  Local lFree
+  For nI := 1 To Len(aStages)
+    aSt := aStages[nI]
+    cN := u_xcb_lc(aSt[CALL_NAME])
+    lFree := Len(aSp[SP_REST]) == 0 .And. aSp[SP_TERMINAL] == Nil .And. !(lExpanded .And. Among(cN, cExits))
+    If lFree .And. Among(cN, cFused) .And. ((!lArray .And. Among(cN, cFirstFused)) .Or. StageInlinable(aSt, hDeclared))
+      AAdd(aSp[SP_FUSED], aSt)
+      lExpanded := lExpanded .Or. cN == "expand"
+    ElseIf lFree .And. Among(cN, cTerminal) ;
+           .And. ((!lArray .And. Among(cN, cFirstTerminals)) .Or. StageInlinable(aSt, hDeclared))
+      aSp[SP_TERMINAL] := aSt
+    Else
+      AAdd(aSp[SP_REST], aSt)
+    EndIf
+  Next
+Return aSp
+
+// Where, among an array chain's stages, the ones that run as a loop start,
+// from 0: -1 when none do.
+User Function xcb_fusefrom(aStages, hDeclared, lForEffect)
+  Local nI
+  Local nJ
+  Local aFrom
+  Local aSp
+  For nI := 1 To Len(aStages)
+    aFrom := {}
+    For nJ := nI To Len(aStages)
+      AAdd(aFrom, aStages[nJ])
+    Next
+    aSp := u_xcb_splitstages(aFrom, .T., hDeclared)
+    If ArrayChainFuses(aSp, lForEffect .And. Len(aSp[SP_REST]) == 0)
+      Return nI - 1
+    EndIf
+  Next
+Return -1
+
+// The names a function declares -- its parameters, its Locals and the like,
+// a 'for' counter it declares --, each in lower case.
+User Function xcb_declarednames(aParams, aBody)
+  Local hOut := { => }
+  Local nI
+  Local nD
+  Local aAll
+  Local aSt
+  Local nK
+  For nI := 1 To Len(aParams)
+    If aParams[nI] != Nil
+      hOut{u_xcb_lc(aParams[nI][PRM_NAME])} := .T.
+    EndIf
+  Next
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    nK := aSt[N_KIND]
+    Do Case
+      Case nK == SK_DECLARATION
+        For nD := 1 To Len(aSt[DECL_DECLARATORS])
+          hOut{u_xcb_lc(aSt[DECL_DECLARATORS][nD][DCL_NAME])} := .T.
+        Next
+      Case nK == SK_FORSTMT
+        If aSt[FOR_VARLOCAL]
+          hOut{u_xcb_lc(aSt[FOR_VAR])} := .T.
+        EndIf
+      Case nK == SK_FORINSTMT
+        hOut{u_xcb_lc(aSt[FIN_ELEM])} := .T.
+        If aSt[FIN_INDEX] != Nil
+          hOut{u_xcb_lc(aSt[FIN_INDEX])} := .T.
+        EndIf
+      Case nK == SK_IFSTMT
+        If aSt[IF_HEADER] != Nil
+          hOut{u_xcb_lc(aSt[IF_HEADER][DCL_NAME])} := .T.
+        EndIf
+      Case nK == SK_WHILESTMT
+        If aSt[WH_HEADER] != Nil
+          hOut{u_xcb_lc(aSt[WH_HEADER][DCL_NAME])} := .T.
+        EndIf
+      Case nK == SK_CASESTMT
+        If aSt[CASE_SUBJDECL] != Nil
+          hOut{u_xcb_lc(aSt[CASE_SUBJDECL][DCL_NAME])} := .T.
+        EndIf
+    EndCase
+  Next
+Return hOut
+
+// Whether a lambda's element -- its first parameter -- is used other than
+// as the base of a field: 'r:A1_COD' is one, 'r' alone is not.
+User Function xcb_recordmisused(aL)
+  Local cP := u_xcb_lc(aL[CB_PARAMS][1])
+  Local hBase := { => }
+  Local nB
+  Local nX
+  Local aAll
+  Local aX
+  Local aBase
+  For nB := 1 To Len(aL[CB_BODY])
+    aAll := u_xcb_walkexpr(aL[CB_BODY][nB])
+    For nX := 1 To Len(aAll)
+      aX := aAll[nX]
+      If aX[N_KIND] == EK_MEMBER .Or. aX[N_KIND] == EK_SAFEMEMBER
+        aBase := aX[MEM_BASE]
+        If IsName(aBase) .And. u_xcb_lc(aBase[NAME_NAME]) == cP
+          hBase{aBase[N_ID]} := .T.
+        EndIf
+      EndIf
+    Next
+  Next
+  For nB := 1 To Len(aL[CB_BODY])
+    aAll := u_xcb_walkexpr(aL[CB_BODY][nB])
+    For nX := 1 To Len(aAll)
+      aX := aAll[nX]
+      If aX[N_KIND] == EK_NAME .And. u_xcb_lc(aX[NAME_NAME]) == cP .And. !(hBase has aX[N_ID])
+        Return .T.
+      EndIf
+    Next
+  Next
+Return .F.
+
+// What keeps a chain from a source from running as a loop.
+User Function xcb_chainproblems(aChain, lForEffect, hDeclared)
+  Local aP := {}
+  Local aCall := u_xcb_sourcecall(aChain)
+  Local cKind := u_xcb_sourcekind(aCall)
+  Local aStages := {}
+  Local lArray
+  Local aSp
+  Local nN
+  Local cWhat
+  Local aRun
+  Local nI
+  Local aSt
+  Local cN
+  Local aA
+  Local lNeeds
+  Local lOne
+  Local lMapped
+  Local aL
+  Local cT
+  Local lNeedsValue
+  If aChain[N_KIND] == EK_PIPELINE
+    aStages := aChain[PIPE_STAGES]
+  EndIf
+  lArray := aChain[N_KIND] == EK_PIPELINE .And. !u_xcb_issource(aChain[PIPE_SOURCE])
+  aSp := u_xcb_splitstages(aStages, lArray, hDeclared)
+  If cKind == "rows"
+    nN := Len(aCall[CALL_ARGS])
+    If !(1 <= nN .And. nN <= 2)
+      AAdd(aP, "'rows()' with no alias, or more than an alias and a key")
+    EndIf
+  EndIf
+  If cKind == "lines" .And. Len(aCall[CALL_ARGS]) != 1
+    AAdd(aP, "'lines()' with no path, or more than one")
+  EndIf
+  cWhat := If(cKind == "range", "a range", cKind + "()")
+  aRun := AClone(aSp[SP_FUSED])
+  If aSp[SP_TERMINAL] != Nil
+    AAdd(aRun, aSp[SP_TERMINAL])
+  EndIf
+  For nI := 1 To Len(aRun)
+    aSt := aRun[nI]
+    cN := u_xcb_lc(aSt[CALL_NAME])
+    aA := aSt[CALL_ARGS]
+    lNeeds := Among(cN, cNeedsLambda) .Or. ((cN == "count" .Or. cN == "first" .Or. cN == "distinctadjacent") ;
+                                            .And. Len(aA) > 0)
+    lOne := Len(aA) == 1 .And. ((IsLambda(aA[1]) .And. Len(aA[1][CB_PARAMS]) == 1) ;
+                                .Or. FunctionName(cN, aA[1], hDeclared))
+    If lNeeds .And. !lOne
+      AAdd(aP, "'" + cN + "' over " + cWhat + " without its lambda written in the stage")
+    EndIf
+    If (cN == "take" .Or. cN == "drop") .And. Len(aA) != 1
+      AAdd(aP, "'" + cN + "' over " + cWhat + " without a count")
+    EndIf
+  Next
+  If cKind == "rows"
+    lMapped := .F.
+    For nI := 1 To Len(aRun)
+      If lMapped
+        Exit
+      EndIf
+      aSt := aRun[nI]
+      aL := If(Len(aSt[CALL_ARGS]) == 0, Nil, aSt[CALL_ARGS][1])
+      cN := u_xcb_lc(aSt[CALL_NAME])
+      If (IsLambda(aL) .And. Len(aL[CB_PARAMS]) == 1 .And. u_xcb_recordmisused(aL)) ;
+         .Or. FunctionName(cN, aL, hDeclared)
+        AAdd(aP, "over rows() the element is the current record, so it can only name a field")
+      EndIf
+      If cN == "distinctadjacent" .And. Len(aSt[CALL_ARGS]) == 0
+        AAdd(aP, "over rows() 'distinctAdjacent' needs a key: the record is not a value to compare")
+      EndIf
+      If cN == "scan" .Or. cN == "pairwise"
+        AAdd(aP, "over rows() '" + cN + "' needs a value -- map the record to one first")
+      EndIf
+      If cN == "map" .Or. cN == "expand"
+        lMapped := .T.
+      EndIf
+    Next
+    cT := If(aSp[SP_TERMINAL] != Nil, u_xcb_lc(aSp[SP_TERMINAL][CALL_NAME]), "")
+    lNeedsValue := (!(cT == "") .And. !(cT == "anyof") .And. !(cT == "allof") .And. !(cT == "noneof") ;
+                    .And. !(cT == "count")) .Or. (cT == "" .And. (Len(aSp[SP_REST]) > 0 .Or. !lForEffect))
+    If lNeedsValue .And. !lMapped
+      AAdd(aP, "over rows() nothing to collect before a 'map' makes the record a value")
+    EndIf
+  EndIf
+Return aP
+
+// ---- stages -----------------------------------------------------------------
+// Whether a name, in lower case, is one of a set written '|a|b|'.
+Static Function Among(cName, cSet)
+Return "|" + cName + "|" $ cSet
+
+Static Function IsLambda(aE)
+Return aE != Nil .And. aE[N_KIND] == EK_LAMBDA
+
+Static Function IsName(aE)
+Return aE != Nil .And. aE[N_KIND] == EK_NAME
+
+// A Name that is not a variable, where the verb takes a block: a function.
+Static Function FunctionName(cVerb, aE, hDeclared)
+Return Among(cVerb, cTakesBlock) .And. IsName(aE) .And. !(hDeclared has u_xcb_lc(aE[NAME_NAME]))
+
+// Whether a step assigns one of its own parameters.
+Static Function WritesParams(aL)
+  Local hParams := { => }
+  Local nI
+  Local nB
+  Local nX
+  Local aAll
+  Local aT
+  For nI := 1 To Len(aL[CB_PARAMS])
+    hParams{u_xcb_lc(aL[CB_PARAMS][nI])} := .T.
+  Next
+  For nB := 1 To Len(aL[CB_BODY])
+    aAll := u_xcb_walkexpr(aL[CB_BODY][nB])
+    For nX := 1 To Len(aAll)
+      If aAll[nX][N_KIND] == EK_ASSIGNEXPR
+        aT := aAll[nX][AE_TARGET]
+        If IsName(aT) .And. (hParams has u_xcb_lc(aT[NAME_NAME]))
+          Return .T.
+        EndIf
+      EndIf
+    Next
+  Next
+Return .F.
+
+// Whether a stage can be written into a loop: its block written in the
+// stage (a function name is one too), with what it needs.
+Static Function StageInlinable(aSt, hDeclared)
+  Local cN := u_xcb_lc(aSt[CALL_NAME])
+  Local aA := aSt[CALL_ARGS]
+  Local nA := Len(aA)
+  Local lBlock
+  // A lambda of one parameter, or a function's name -- a Name that is not
+  // a variable of the function, where the verb takes a block.
+  lBlock := nA == 1 .And. ((IsLambda(aA[1]) .And. Len(aA[1][CB_PARAMS]) == 1) ;
+                           .Or. (Among(cN, cTakesBlock) .And. IsName(aA[1]) ;
+                                 .And. !(hDeclared has u_xcb_lc(aA[1][NAME_NAME]))))
+  If cN == "take" .Or. cN == "drop"
+    Return nA == 1
+  EndIf
+  If cN == "distinct"
+    Return nA == 0
+  EndIf
+  If cN == "distinctadjacent" .Or. cN == "count" .Or. cN == "first"
+    Return nA == 0 .Or. lBlock
+  EndIf
+  If cN == "asum" .Or. cN == "aprod" .Or. cN == "amax" .Or. cN == "amin" .Or. cN == "pairwise"
+    Return nA == 0
+  EndIf
+  If cN == "scan"
+    If nA != 2 .Or. !IsLambda(aA[1])
+      Return .F.
+    EndIf
+    If Len(aA[1][CB_PARAMS]) != 2
+      Return .F.
+    EndIf
+    Return !WritesParams(aA[1])
+  EndIf
+  If cN == "join"
+    Return nA <= 1
+  EndIf
+  If cN == "reduce" .Or. cN == "fold"
+    // A step that assigns its own parameters cannot have them written as
+    // the loop's variables: xtpl binds them, xc leaves it a call.
+    If nA != If(cN == "reduce", 2, 1) .Or. !IsLambda(aA[1])
+      Return .F.
+    EndIf
+    If Len(aA[1][CB_PARAMS]) != 2
+      Return .F.
+    EndIf
+    Return !WritesParams(aA[1])
+  EndIf
+Return lBlock
+
+// Whether an array chain, split, runs as a loop where it stands: two
+// stages that fuse, or one that carries a block. Run for its effects: all
+// of its stages fuse, and none is a terminal.
+Static Function ArrayChainFuses(aSp, lForEffect)
+  Local nFused := Len(aSp[SP_FUSED])
+  Local nTerminal := If(aSp[SP_TERMINAL] != Nil, 1, 0)
+  Local aSt
+  Local nI
+  If lForEffect
+    Return nFused >= 1 .And. nTerminal == 0 .And. Len(aSp[SP_REST]) == 0
+  EndIf
+  If nFused + nTerminal >= 2
+    Return .T.
+  EndIf
+  If nFused + nTerminal != 1
+    Return .F.
+  EndIf
+  aSt := If(nFused > 0, aSp[SP_FUSED][1], aSp[SP_TERMINAL])
+  For nI := 1 To Len(aSt[CALL_ARGS])
+    If IsLambda(aSt[CALL_ARGS][nI])
+      Return .T.
+    EndIf
+  Next
+Return Among(u_xcb_lc(aSt[CALL_NAME]), cTakesBlock) .And. Len(aSt[CALL_ARGS]) > 0 .And. IsName(aSt[CALL_ARGS][1])

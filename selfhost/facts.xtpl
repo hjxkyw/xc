@@ -1,0 +1,241 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// facts.xtpl -- what the passes between the parser and the back end find in
+// a tree, as 'xc-ast --facts' writes it (cpp/src/facts.h): a unit to a
+// function, each statement of it in walk order, and below it each
+// expression with what decimal.xtpl and chains.xtpl say of it.
+// -----------------------------------------------------------------------------
+
+Static aOut := {}
+Static aDec := Nil
+Static aDv := Nil
+Static hDecl := Nil
+
+// The facts of a program whose tree u_xcb_typed() has marked.
+User Function xcb_facts(aProg, lAdvpl)
+  Local cText := ""
+  Local nI
+  Local nJ
+  Local aV
+  Local aF
+  Local aM
+  aOut := {"facts"}
+  aDec := u_xcb_decimals()
+  If !lAdvpl
+    u_xcb_decfile(aDec, aProg)
+  EndIf
+  AAdd(aOut, "unit statics")
+  u_xcb_decfunc(aDec, {}, {})
+  aDv := {{ => }, { => }}
+  hDecl := { => }
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      aV := aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ]
+      If aV[DCL_INIT] != Nil .And. u_xcb_decimalword(aV[DCL_TYPESPEC])
+        aDv[DV_DECIMAL]{aV[DCL_INIT][N_ID]} := .T.
+      EndIf
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      aV := aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ]
+      AAdd(aOut, "v " + aV[DCL_NAME] + WordsOf(aV[DCL_TYPESPEC]))
+      Exprs(aV[DCL_INIT])
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    Unit("fn " + aF[FN_NAME], aF[FN_PARAMS], aF[FN_BODY], aF[FN_RETWORD])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    Unit("method " + aM[MI_CLASS] + ":" + aM[MI_NAME], aM[MI_PARAMS], aM[MI_BODY], aM[MI_RETURNS])
+  Next
+  For nI := 1 To Len(aOut)
+    cText += aOut[nI] + Chr(10)
+  Next
+  aOut := {}
+Return cText
+
+Static Function Unit(cHead, aParams, aBody, xReturns)
+  Local aNames
+  Local cT := "declared"
+  Local nI
+  Local nJ
+  Local aAll
+  Local aSt
+  Local aEs
+  AAdd(aOut, "unit " + cHead + WordsOf(xReturns))
+  u_xcb_decfunc(aDec, aParams, aBody)
+  aDv := u_xcb_decvalues(aDec, aBody, u_xcb_decimalword(xReturns), u_xcb_numericword(xReturns))
+  hDecl := u_xcb_declarednames(aParams, aBody)
+  aNames := Sorted(keys(hDecl))
+  For nI := 1 To Len(aNames)
+    cT += " " + aNames[nI]
+  Next
+  AAdd(aOut, cT)
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    AAdd(aOut, "s " + N(aSt[N_KIND]) + " " + N(aSt[N_LINE]) + " " + N(aSt[N_FROM]))
+    aEs := u_xcb_exprsof(aSt)
+    For nJ := 1 To Len(aEs)
+      Exprs(aEs[nJ])
+    Next
+  Next
+Return Nil
+
+// An expression and those inside it, each a line.
+Static Function Exprs(aE)
+  Local aAll := u_xcb_walkexpr(aE)
+  Local nI
+  For nI := 1 To Len(aAll)
+    OneExpr(aAll[nI])
+  Next
+Return Nil
+
+Static Function OneExpr(aE)
+  Local nK := aE[N_KIND]
+  Local cT := "e " + N(nK) + " " + N(aE[N_FROM]) + " " + N(aE[N_TO])
+  Local aP := {}
+  Local aB
+  Local cF
+  Local aSt
+  Local aSrc
+  Local nE
+  Local aM
+  Local nI
+  If u_xcb_isdecimal(aDec, aE)
+    cT += " D"
+  EndIf
+  If u_xcb_isnumeric(aDec, aE)
+    cT += " N"
+  EndIf
+  If u_xcb_isconstant(aDec, aE)
+    cT += " K"
+  EndIf
+  If aDv[DV_DECIMAL] has aE[N_ID]
+    cT += " >D"
+  EndIf
+  If aDv[DV_NUMERIC] has aE[N_ID]
+    cT += " >N"
+  EndIf
+  Do Case
+    Case nK == EK_CALL
+      If u_xcb_isverb(aE[CALL_NAME])
+        cT += " verb"
+      EndIf
+      If u_xcb_takesblock(u_xcb_lc(aE[CALL_NAME]))
+        cT += " block"
+      EndIf
+      If u_xcb_onearray(aE[CALL_NAME], Len(aE[CALL_ARGS]))
+        cT += " one"
+      EndIf
+      aB := u_xcb_decparams(aDec, aE)
+      If aB != Nil
+        cT += " dp=" + Bits(aB)
+      EndIf
+      aB := u_xcb_numparams(aDec, aE)
+      If aB != Nil
+        cT += " np=" + Bits(aB)
+      EndIf
+    Case nK == EK_BINARY
+      cF := u_xcb_setfunction(aE[BIN_OP])
+      If !(cF == "")
+        cT += " set=" + cF
+      EndIf
+    Case nK == EK_HASHINDEX
+      cT += " read=" + u_xcb_keyreader(aE) + " write=" + u_xcb_keywriter(aE)
+    Case nK == EK_LAMBDA
+      If Len(aE[CB_PARAMS]) > 0 .And. u_xcb_recordmisused(aE)
+        cT += " misused"
+      EndIf
+    Case nK == EK_PIPELINE
+      aSt := aE[PIPE_STAGES]
+      cT += " split=" + SplitText(aSt, u_xcb_splitstages(aSt, .T., hDecl))
+      cT += " ssplit=" + SplitText(aSt, u_xcb_splitstages(aSt, .F., hDecl))
+      cT += " fuse=" + N(u_xcb_fusefrom(aSt, hDecl, .F.)) + "," + N(u_xcb_fusefrom(aSt, hDecl, .T.))
+  EndCase
+  If u_xcb_issource(aE)
+    cT += " src"
+  EndIf
+  aSrc := u_xcb_sourcecall(aE)
+  If aSrc != Nil
+    cT += " src=" + u_xcb_sourcekind(aSrc)
+    For nE := 0 To 1
+      aM := u_xcb_chainproblems(aE, nE == 1, hDecl)
+      For nI := 1 To Len(aM)
+        AAdd(aP, "! " + N(nE) + " " + aM[nI])
+      Next
+    Next
+  EndIf
+  AAdd(aOut, cT)
+  For nI := 1 To Len(aP)
+    AAdd(aOut, aP[nI])
+  Next
+Return Nil
+
+// ---- text -------------------------------------------------------------------
+Static Function N(nN)
+Return AllTrim(Str(nN))
+
+Static Function Bits(aB)
+  Local cOut := ""
+  Local nI
+  For nI := 1 To Len(aB)
+    cOut += If(aB[nI], "1", "0")
+  Next
+Return cOut
+
+Static Function WordsOf(xWritten)
+Return If(u_xcb_decimalword(xWritten), " dw", "") + If(u_xcb_numericword(xWritten), " nw", "")
+
+// Where each of some stages is among all of them, from 0: '-' for none.
+Static Function Places(aAll, aSome)
+  Local cOut := ""
+  Local nI
+  Local nId
+  Local nAt
+  For nI := 1 To Len(aSome)
+    nId := aSome[nI][N_ID]
+    nAt := AScan(aAll, {|x| x[N_ID] == nId})
+    cOut += If(cOut == "", "", ",") + N(nAt - 1)
+  Next
+Return If(cOut == "", "-", cOut)
+
+Static Function SplitText(aAll, aSp)
+  Local cT := "-"
+  If aSp[SP_TERMINAL] != Nil
+    cT := Places(aAll, {aSp[SP_TERMINAL]})
+  EndIf
+Return Places(aAll, aSp[SP_FUSED]) + "/" + cT + "/" + Places(aAll, aSp[SP_REST])
+
+// Names in byte order, as std::sort leaves them.
+Static Function Sorted(aIn)
+  Local aOut := {}
+  Local nI
+  Local nJ
+  For nI := 1 To Len(aIn)
+    nJ := Len(aOut)
+    While nJ >= 1 .And. Before(aIn[nI], aOut[nJ])
+      nJ--
+    EndDo
+    AAdd(aOut, Nil)
+    AIns(aOut, nJ + 1)
+    aOut[nJ + 1] := aIn[nI]
+  Next
+Return aOut
+
+Static Function Before(cA, cB)
+  Local nI
+  Local nA
+  Local nB
+  For nI := 1 To Min(Len(cA), Len(cB))
+    nA := Asc(SubStr(cA, nI, 1))
+    nB := Asc(SubStr(cB, nI, 1))
+    If nA != nB
+      Return nA < nB
+    EndIf
+  Next
+Return Len(cA) < Len(cB)
