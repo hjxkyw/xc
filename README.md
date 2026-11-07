@@ -95,7 +95,8 @@ checks find what `xc-ast --bare --checks` writes, what it says what `xc
 -env=NAME prog.xtpl` runs a source, made bytecode as it loads, and
 `appserver -run=u_xcb -env=NAME bytecode prog.xtpl` writes its `.xbc`
 (`docs/bytecode.md`, The compiler in xtpl; `run-protheus.raku
---selfhost`). The source's own commands are not read yet.
+--selfhost`). A source's own commands and translations (`#command`,
+`#translate`) are found where it uses them, as xc finds them.
 
 ## Running the tests
 

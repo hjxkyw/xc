@@ -2,15 +2,15 @@
 # it to bytecode, xc-vm runs it -- after xtpl's runtime -- over each source
 # of the folders given, and the tree it reads each into, marked, with what
 # the passes after the parser find in it, must be what 'xc-ast --bare
-# --facts' writes, byte for byte; what its checks find, what 'xc-ast --bare
-# --checks' writes; of each of those sources that 'xc --bytecode' compiles,
-# the .xbc it writes must be xc's -- of one it does not compile only for
-# what cannot become bytecode yet, what it says of that --; and what it
-# says of each source, compiling it, what 'xc --bytecode' says, but the
-# line that says where the .xbc went -- of a source with no commands of
-# its own (#command, #translate), which xc reads and it does not. What xc
-# makes of every source comes from one run of 'xc-ast --list', the
-# compile of 'xc --bytecode' among it.
+# --facts' writes, byte for byte -- the source's own commands (#command,
+# #translate) not looked for --; what its checks find, what 'xc-ast --bare
+# --checks' writes; of each source 'xc --bytecode' compiles -- its own
+# commands looked for, as xc does --, the .xbc it writes must be xc's -- of
+# one it does not compile only for what cannot become bytecode yet, what it
+# says of that --; and what it says of each source, compiling it, what 'xc
+# --bytecode' says, but the line that says where the .xbc went. What xc
+# makes of every source comes from one run of 'xc-ast --list', the compile
+# of 'xc --bytecode' among it.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DAST=cpp/build/xc-ast
 #         -DROOT=. -DWORK=cpp/build/selfhost -P cpp/tests/selfhost.cmake
@@ -69,7 +69,8 @@ set(modules "")
 foreach(m ${ROOT}/runtime/xtpl_runtime.tlpp ${ROOT}/selfhost/ast.xtpl ${ROOT}/selfhost/dump.xtpl
           ${ROOT}/selfhost/parse.xtpl ${ROOT}/selfhost/walk.xtpl ${ROOT}/selfhost/chains.xtpl
           ${ROOT}/selfhost/decimal.xtpl ${ROOT}/selfhost/typed.xtpl ${ROOT}/selfhost/facts.xtpl
-          ${ROOT}/selfhost/check.xtpl ${ROOT}/selfhost/bytecode.xtpl ${ROOT}/selfhost/xcb.xtpl)
+          ${ROOT}/selfhost/check.xtpl ${ROOT}/selfhost/commands.xtpl ${ROOT}/selfhost/bytecode.xtpl
+          ${ROOT}/selfhost/xcb.xtpl)
   get_filename_component(name ${m} NAME_WE)
   execute_process(COMMAND ${XC} --bytecode ${m} ${WORK}/${name}.xbc
                   RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
@@ -114,31 +115,20 @@ foreach(s ${sources})
     string(APPEND vlist "${s}\t${WORK}/got/${key}.ast\n")
   else()
     list(APPEND checked ${s})
-    # What xc says of a source with no commands of its own, which it reads
-    # and the compiler in xtpl does not -- nor those of an include file.
-    file(READ ${s} text)
-    string(REGEX MATCH "#[ \t]*[xX]?([cC][oO][mM][mM][aA][nN][dD]|[tT][rR][aA][nN][sS][lL][aA][tT][eE])" own "${text}")
-    if(NOT own)
-      list(APPEND spoken ${s})
-    endif()
-    # The .xbc of a source the tree of 'xc-ast --bare' holds: not of one
-    # that needs its own commands.
-    file(STRINGS ${WORK}/expect/${key}.ast head LIMIT_COUNT 1)
-    if(NOT head MATCHES "^not parsed")
-      if(EXISTS ${WORK}/expect/${key}.xbc)
+    list(APPEND spoken ${s})
+    if(EXISTS ${WORK}/expect/${key}.xbc)
+      list(APPEND compiled ${s})
+    else()
+      # Refused only for what cannot become bytecode yet, its warnings
+      # aside: those lines, each 'LINE: what cannot become bytecode yet'.
+      file(READ ${WORK}/expect/${key}.said said)
+      string(REPLACE "${s}:" "" said "${said}")
+      string(REGEX REPLACE "[0-9]+: warning: [^\n]*\n" "" said "${said}")
+      string(REGEX REPLACE "[0-9]+: [^\n]* cannot become bytecode yet\n" "" rest "${said}")
+      if(NOT said STREQUAL "" AND rest STREQUAL "")
+        file(WRITE ${WORK}/expect/${key}.xbc "${said}")
         list(APPEND compiled ${s})
-      else()
-        # Refused only for what cannot become bytecode yet, its warnings
-        # aside: those lines, each 'LINE: what cannot become bytecode yet'.
-        file(READ ${WORK}/expect/${key}.said said)
-        string(REPLACE "${s}:" "" said "${said}")
-        string(REGEX REPLACE "[0-9]+: warning: [^\n]*\n" "" said "${said}")
-        string(REGEX REPLACE "[0-9]+: [^\n]* cannot become bytecode yet\n" "" rest "${said}")
-        if(NOT said STREQUAL "" AND rest STREQUAL "")
-          file(WRITE ${WORK}/expect/${key}.xbc "${said}")
-          list(APPEND compiled ${s})
-          list(APPEND told ${s})
-        endif()
+        list(APPEND told ${s})
       endif()
     endif()
     string(APPEND list "${s}\t${WORK}/got/${key}.ast\t${WORK}/got/${key}.xbc\t${WORK}/got/${key}.chk\t"

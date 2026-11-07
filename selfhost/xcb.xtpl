@@ -32,8 +32,9 @@
 // reads it.
 //
 // What xc refuses although it parses is refused here too, and its warnings
-// said, as xc says them; a source's own commands (#command, #translate)
-// are not read: such a source does not parse.
+// said, as xc says them; a source's own commands (#command, #translate),
+// and its include files', are found where it uses them, as xc finds them
+// (commands.xtpl).
 // -----------------------------------------------------------------------------
 
 // The arguments as the AppServer gives them -- the program, its options
@@ -69,6 +70,7 @@ User Function xcb_compile(cPath, aDirs)
   Local cWhy
   Local aProg
   Local aDefines
+  Local aSpans
   If aDirs == Nil
     aDirs := {}
   EndIf
@@ -80,9 +82,10 @@ User Function xcb_compile(cPath, aDirs)
   If cWhy != Nil
     Return {Nil, {cPath + ": " + cWhy}}
   EndIf
-  aProg := u_xcb_parse(aSource[1], aSource[2])
+  aSpans := Spans(aSource[1], FolderOf(cPath), aDirs)
+  aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
   If aProg == Nil
-    Return {Nil, NotParsed(aSource[1], cPath, u_xcb_furthest())}
+    Return {Nil, NotParsed(aSource[1], cPath, u_xcb_furthest(), aSpans)}
   EndIf
   aDefines := IncludeDefines(aSource[1], FolderOf(cPath), aDirs)
 Return Made(cPath, aProg, aSource[1], aDefines, ;
@@ -203,7 +206,8 @@ Return "it is UTF-8 -- the first character beyond ASCII is on line " ;
 
 // What is said when a source does not parse, a line each: the line it
 // stopped at, and why, as far as can be told (driver.cpp's not_parsed).
-Static Function NotParsed(cSrc, cPath, nFurthest)
+// aSpans: where it uses its own commands, as it was read.
+Static Function NotParsed(cSrc, cPath, nFurthest, aSpans)
   Local nLine
   Local aL
   Local cText
@@ -222,7 +226,7 @@ Static Function NotParsed(cSrc, cPath, nFurthest)
   // say the line does not parse. Read again with any name allowed, the
   // checks say which name and why.
   u_xcb_anyname(.T.)
-  aProg := u_xcb_parse(cSrc, Nil)
+  aProg := u_xcb_parse(cSrc, Nil, aSpans)
   If aProg != Nil
     aNames := u_xcb_checknames(aProg)
   Else
@@ -305,14 +309,11 @@ Static Function Lists(cWhat, cList)
   Local cSource
   Local cText
   Local aCols
-  Local aBc
   Local nP
-  Local oErr
   Local aChecked
   Local aDefines
   Local cChecks
   Local nB
-  Local cWhy
   aLines := StrTran(ReadAll(cList)[1], Chr(13), "") |> split(Chr(10))
   For nI := 1 To Len(aLines)
     nTab := At(Chr(9), aLines[nI])
@@ -326,17 +327,12 @@ Static Function Lists(cWhat, cList)
       Loop
     EndIf
     aCols := SubStr(aLines[nI], nTab + 1) |> split(Chr(9))
-    aProg := u_xcb_parse(aSource[1], aSource[2])
-    aChecked := Nil
+    // As xc-ast --bare reads it: the source's own commands not looked for.
+    aProg := u_xcb_parse(aSource[1], aSource[2], Nil)
     If aProg == Nil
       cText := "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10)
       If cWhat == "facts" .And. Len(aCols) > 2
         MemoWrite(aCols[3], cText)
-      EndIf
-      If cWhat == "facts" .And. Len(aCols) > 3
-        cWhy := Utf8Reason(aSource[1])
-        MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
-                                      NotParsed(aSource[1], cSource, u_xcb_furthest()))))
       EndIf
     ElseIf cWhat == "facts"
       // The checks first, on the tree as it was read, as 'xc-ast --checks'
@@ -363,31 +359,68 @@ Static Function Lists(cWhat, cList)
       cText := u_xcb_dump(aProg)
     EndIf
     MemoWrite(aCols[1], cText)
-    If aProg != Nil .And. cWhat == "facts" .And. Len(aCols) > 1
-      // A source xc refuses may take the back end where the C++ reads
-      // what is not there: what goes wrong is said, and the next one read.
-      Try
-        aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cSource), SourceName(cSource), aDefines)
-      Catch oErr
-        aBc := {"error: " + oErr:Description + Chr(10), {}}
-      EndTry
-      cText := aBc[1]
-      If cText == Nil
-        cText := ""
-        For nP := 1 To Len(aBc[2])
-          cText += AllTrim(Str(aBc[2][nP][1])) + ": " + Cp1252ToUtf8(aBc[2][nP][2]) + " cannot become bytecode yet" ;
-                   + Chr(10)
-        Next
-      EndIf
-      MemoWrite(aCols[2], cText)
-      If Len(aCols) > 3 .And. aChecked != Nil
-        cWhy := Utf8Reason(aSource[1])
-        MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
-                                      Made(cSource, aProg, aSource[1], aDefines, aChecked, aBc)[2])))
-      EndIf
+    If cWhat == "facts" .And. Len(aCols) > 1
+      Compiled(cSource, aSource, aProg, aCols)
     EndIf
   Next
 Return 0
+
+// What xc makes of a source -- read with the commands it brings, when it
+// brings some (aBare: as it was read without them) --, for 'facts': its
+// bytecode, or what cannot become bytecode yet, a line each, to aCols[2];
+// what compiling it says to aCols[4].
+Static Function Compiled(cSource, aSource, aBare, aCols)
+  Local aSpans := Spans(aSource[1], FolderOf(cSource), {})
+  Local aProg := aBare
+  Local cWhy := Utf8Reason(aSource[1])
+  Local aDefines := IncludeDefines(aSource[1], FolderOf(cSource), {})
+  Local aChecked
+  Local aBc
+  Local oErr
+  Local cText
+  Local nP
+  If aSpans != Nil
+    aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
+  EndIf
+  If aProg == Nil
+    If Len(aCols) > 3
+      MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
+                                    NotParsed(aSource[1], cSource, u_xcb_furthest(), aSpans))))
+    EndIf
+    Return Nil
+  EndIf
+  aChecked := u_xcb_checkall(aProg, Len(LinesOf(aSource[1], .F.)), aSource[1], IsAdvpl(cSource), .T., aDefines)
+  // A source xc refuses may take the back end where the C++ reads what is
+  // not there: what goes wrong is said, and the next one read.
+  Try
+    aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cSource), SourceName(cSource), aDefines)
+  Catch oErr
+    aBc := {"error: " + oErr:Description + Chr(10), {}}
+  EndTry
+  cText := aBc[1]
+  If cText == Nil
+    cText := ""
+    For nP := 1 To Len(aBc[2])
+      cText += AllTrim(Str(aBc[2][nP][1])) + ": " + Cp1252ToUtf8(aBc[2][nP][2]) + " cannot become bytecode yet" ;
+               + Chr(10)
+    Next
+  EndIf
+  MemoWrite(aCols[2], cText)
+  If Len(aCols) > 3
+    MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
+                                  Made(cSource, aProg, aSource[1], aDefines, aChecked, aBc)[2])))
+  EndIf
+Return Nil
+
+// Where a source uses its own commands and translations, for u_xcb_parse()
+// -- Nil for nowhere (commands.cpp's user_spans).
+Static Function Spans(cText, cDir, aDirs)
+  Local aSp
+  If !u_xcb_mentionsdirective(cText)
+    Return Nil
+  EndIf
+  aSp := u_xcb_userspans(cText, IncludeTexts(cText, cDir, aDirs))
+Return If(Len(keys(aSp[1])) == 0 .And. Len(keys(aSp[2])) == 0, Nil, aSp)
 
 // Lines, each ended.
 Static Function Joined(aLines)
@@ -455,10 +488,17 @@ Return Max(RAt("/", cPath), RAt("\", cPath))
 
 // ---- include files ----------------------------------------------------------
 // The '#define' lines of the include files a source names, and those they
-// name -- each found beside the source, then in each folder of aDirs, each
-// once (commands.cpp's include_defines). TOTVS' compressed ones ('#zip')
-// are skipped.
+// name (commands.cpp's include_defines).
 Static Function IncludeDefines(cText, cDir, aDirs)
+  Local aOut := {}
+  AEval(IncludeTexts(cText, cDir, aDirs), {|t| DefinesOf(t, aOut)})
+Return aOut
+
+// The texts of the include files a source names, and of those they name --
+// each found beside the source, then in each folder of aDirs, each once, in
+// the order found (commands.cpp's each_include). TOTVS' compressed ones
+// ('#zip') are skipped.
+Static Function IncludeTexts(cText, cDir, aDirs)
   Local aOut := {}
   Local hSeen := { => }
   Local aTodo := IncludesOf(cText)
@@ -484,7 +524,7 @@ Static Function IncludeDefines(cText, cDir, aDirs)
       EndIf
       cT := IncludeText(InFolder(aPlaces[nP], cName))
       If cT != Nil
-        DefinesOf(cT, aOut)
+        AAdd(aOut, cT)
         AEval(IncludesOf(cT), {|x| AAdd(aTodo, x)})
       EndIf
       Exit

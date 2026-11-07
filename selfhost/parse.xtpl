@@ -12,8 +12,9 @@
 // file's statics: one source at a time.
 //
 // The source's own commands and translations ('#xcommand', '#xtranslate')
-// are not looked for: xc-ast --bare reads a source so, and is what this one
-// is held to (cpp/tests/selfhost.cmake).
+// are where u_xcb_parse() is told they are used (commands.xtpl): without
+// them, it reads a source as xc-ast --bare does, which is what its tree is
+// held to (cpp/tests/selfhost.cmake); with them, as xc does.
 // -----------------------------------------------------------------------------
 
 // ---- the characters ---------------------------------------------------------
@@ -135,12 +136,25 @@ Static aStmtKeywords := {"return", "local", "private", "public", "static", "if",
                          "while", "enddo", "for", "next", "exit", "loop", "do", "case", "endcase", "otherwise", ;
                          "begin", "recover", "end", "namespace", "using"}
 
-// The whole source, its text and its bytes' codes: the tree, or Nil when
-// it does not read.
-User Function xcb_parse(cText, aCodes)
+// The source's own commands and translations, where it uses them
+// (commands.xtpl's u_xcb_userspans): translations by where they start, to
+// where they end; commands by where they start, to {where they end,
+// whether they stand for a function's header} -- the keys the offsets as
+// strings. lUserOn: there are some.
+Static lUserOn := .F.
+Static hTrans := Nil
+Static hCmd := Nil
+
+// The whole source, its text and its bytes' codes, and where it uses its
+// own commands and translations ({translations, commands}, or Nil for
+// none): the tree, or Nil when it does not read.
+User Function xcb_parse(cText, aCodes, aSpans)
   Local aProg
   Local nSave
   Start(cText, aCodes)
+  hTrans := If(aSpans == Nil, { => }, aSpans[1])
+  hCmd := If(aSpans == Nil, { => }, aSpans[2])
+  lUserOn := Len(keys(hTrans)) > 0 .Or. Len(keys(hCmd)) > 0
   nP := 0
   nFurthest := 0
   lInWith := .F.
@@ -180,6 +194,7 @@ Return nFurthest
 // out).
 User Function xcb_source(cText, aCodes)
   Start(cText, aCodes)
+  lUserOn := .F.
 Return Nil
 
 // One form at an offset of the text u_xcb_source() was given: {the node or
@@ -288,6 +303,12 @@ Return IsH(nCh)
 User Function xcb_isw(nCh)
   Classes()
 Return IsW(nCh)
+
+// The classes of each byte (chars.h's CHAR_CLASS), each a list of 256
+// logicals, the byte's code + 1: {\w, \h, \v, \N, \d, \s}.
+User Function xcb_classes()
+  Classes()
+Return {aIsW, aIsH, aIsV, aIsNN, aIsD, aIsS}
 
 // A letter of ASCII, or '_' (chars.h's is_alpha).
 User Function xcb_isletter(nCh)
@@ -457,6 +478,34 @@ Return If(nAt >= 0 .And. nAt < nN, aC[nAt + 1], -1)
 // The text from one offset to another.
 Static Function Text(nFrom, nTo)
 Return SubStr(cSrc, nFrom + 1, nTo - nFrom)
+
+// Where a translation of the source's own that starts at an offset ends,
+// or -1.
+Static Function TransEnd(nAt)
+  Local cK
+  If !lUserOn
+    Return -1
+  EndIf
+  cK := AllTrim(Str(nAt))
+Return If(hTrans has cK, hTrans{cK}, -1)
+
+// token usercmd / userhead: a use of the source's own commands at the
+// cursor, of the kind asked -- where it ends, or 0.
+Static Function UserCmd(lHeader)
+  Local cK
+  Local aU
+  If !lUserOn
+    Return 0
+  EndIf
+  cK := AllTrim(Str(nP))
+  If !(hCmd has cK)
+    Return 0
+  EndIf
+  aU := hCmd{cK}
+  If !(aU[2] == lHeader) .Or. aU[1] <= nP
+    Return 0
+  EndIf
+Return aU[1]
 
 // A byte -- or -1 -- of each class.
 Static Function IsW(nCh)
@@ -1515,6 +1564,20 @@ Static Function Trailer(aT)
   Local aX
   Local aY
   Local nSave
+  Local nE
+  If lUserOn
+    nE := TransEnd(nStart)
+    If nE > nStart
+      aT[TR_KIND] := T_TRANS
+      aT[TR_NAME] := Text(nStart, nE)
+      nP := nE
+      If Ws()
+        aT[TR_END] := nP
+        Return .T.
+      EndIf
+      nP := nStart
+    EndIf
+  EndIf
   If nCh == 58
     // rule tmethod { [ '::' || ':' ] <member> '(' ~ ')' <arglist> }
     // rule tmember { [ '::' || ':' ] <member> }
@@ -1758,6 +1821,19 @@ Static Function Primary()
   Local aNm
   Local aE
   Local aList
+  Local nE
+  If lUserOn
+    nE := TransEnd(nStart)
+    If nE > nStart
+      nP := nE
+      aE := Span(u_xcb_new(EK_USERTRANS), nStart, nE)
+      aE[UT_TEXT] := Text(nStart, nE)
+      If Ws()
+        Return aE
+      EndIf
+      nP := nStart
+    EndIf
+  EndIf
   If IsLetter(nCh)
     nWe := NameEnd(nStart)
     If C(nWe) == 46 .And. IsW(C(nWe + 1))
@@ -3435,8 +3511,6 @@ Return .F.
 //        || <cmdst> || <annotation> ] <.eol> ]
 //   || [ <?{ user-active() }> <datadecl> <.eol> ]
 // }
-// The source's own commands are not looked for: no <userfunc>, <usercmd>,
-// <datadecl> here.
 Static Function TopLevel(aProg)
   Local nStart := nP
   Local aF
@@ -3449,6 +3523,16 @@ Static Function TopLevel(aProg)
   Local aD
   Local aA
   Local nI
+  If lUserOn
+    aM := UserFunc()
+    If aM != Nil
+      If Ws()
+        AAdd(aProg[PG_METHODS], aM)
+        Return .T.
+      EndIf
+      nP := nStart
+    EndIf
+  EndIf
   aF := FunctionDefE()
   If aF != Nil
     If Ws()
@@ -3486,14 +3570,26 @@ Static Function TopLevel(aProg)
 
   // One line: what it makes goes in only once its line has ended.
   aOne := u_xcb_new(NK_PROGRAM)
-  nE := PreProc()
-  If nE >= 0
-    nP := nE
-    If Ws()
-      AAdd(aOne[PG_DIRECTIVES], TrimS(Text(nStart, nE)))
-      lAny := .T.
-    Else
-      nP := nStart
+  If lUserOn
+    nE := UserCmd(.F.)
+    If nE > 0
+      nP := nE
+      lAny := Ws()
+      If !lAny
+        nP := nStart
+      EndIf
+    EndIf
+  EndIf
+  If !lAny
+    nE := PreProc()
+    If nE >= 0
+      nP := nE
+      If Ws()
+        AAdd(aOne[PG_DIRECTIVES], TrimS(Text(nStart, nE)))
+        lAny := .T.
+      Else
+        nP := nStart
+      EndIf
     EndIf
   EndIf
   If !lAny
@@ -3579,7 +3675,41 @@ Static Function TopLevel(aProg)
     Return .T.
   EndIf
   nP := nStart
+  // A Data on its own, where the source has commands of its own: what a
+  // class of theirs declares.
+  If lUserOn
+    If DataDecl({}) .And. Eol(.T.) .And. Ws()
+      Return .T.
+    EndIf
+    nP := nStart
+  EndIf
 Return .F.
+
+// rule userfunc { <userhead> <.nl> <funcbody> }: a function's header that
+// is one of the source's own commands, and its body.
+Static Function UserFunc()
+  Local nStart := nP
+  Local nE := UserCmd(.T.)
+  Local aM
+  Local aW
+  If nE <= 0
+    Return Nil
+  EndIf
+  nP := nE
+  If !Ws() .Or. !Nl() .Or. !Ws()
+    nP := nStart
+    Return Nil
+  EndIf
+  aM := u_xcb_new(NK_METHODIMPL)
+  aM[N_LINE] := Line(nStart)
+  aW := Words(Text(nStart, nE))
+  aM[MI_NAME] := If(Len(aW) == 0, "command", aW[1])
+  aM[MI_BODY] := FuncBody()
+  If !Ws()
+    nP := nStart
+    Return Nil
+  EndIf
+Return aM
 
 // The items of one list put at the end of another.
 Static Function Append(aTo, aFrom)
@@ -4866,7 +4996,21 @@ Static Function Statement()
   Local nCh
   Local aMod
   Local aM
-  If StmtStart()
+  Local nE
+  If lUserOn
+    nE := UserCmd(.F.)
+    If nE > 0
+      nP := nE
+      If Ws()
+        aNode := u_xcb_new(SK_RAWSTMT)
+        AAdd(aNode[RAW_LINES], Text(nStart, nE))
+        aNode[N_LINE] := Line(nStart)
+      Else
+        nP := nStart
+      EndIf
+    EndIf
+  EndIf
+  If aNode == Nil .And. StmtStart()
     For nI := 1 To 20
       If aNode != Nil
         Exit
@@ -7170,7 +7314,7 @@ Static Function ReturnSt()
     EndIf
   EndIf
   If !lDone
-    If (ModKw(nP) < 0 .Or. IfCall(nP)) .And. !(IWordAt(nP, "else") .And. !IsW(C(nP + 4)))
+    If (TransEnd(nP) > nP .Or. ModKw(nP) < 0 .Or. IfCall(nP)) .And. !(IWordAt(nP, "else") .And. !IsW(C(nP + 4)))
       aG := GuardExpr()
       If aG != Nil
         If Ws()

@@ -665,23 +665,26 @@ into this bytecode itself: the parser (`parse.xtpl`), the passes the back
 end needs -- what each name holds (`typed.xtpl`), the Decimals
 (`decimal.xtpl`), the chains (`chains.xtpl`) --, the checks -- what xc
 refuses although it parses, and what it warns of (`check.xtpl`, with what
-`typed.xtpl` and `decimal.xtpl` refuse) -- and the back end
+`typed.xtpl` and `decimal.xtpl` refuse) --, the source's own commands and
+translations (`commands.xtpl`: `#command`, `#translate`, in the source
+or in its include files, and where it uses them) and the back end
 (`bytecode.xtpl`), the C++ ones written again routine by routine. xc
 compiles it to bytecode, and xc-vm runs it:
 
 ```text
 xc-vm --run=U_XCB xtpl_runtime.xbc ast.xbc dump.xbc parse.xbc walk.xbc chains.xbc
-      decimal.xbc typed.xbc facts.xbc check.xbc bytecode.xbc xcb.xbc -- facts LIST
+      decimal.xbc typed.xbc facts.xbc check.xbc commands.xbc bytecode.xbc xcb.xbc -- facts LIST
 ```
 
 Each line of LIST names a source, a file for its tree and what the passes
-find in it, a file for its `.xbc`, one for what the checks find -- for
-TL++, then for bytecode, as `xc-ast --bare --checks` writes it -- and one
-for what compiling it says, tabs between them. ctest's `selfhost` holds
-what it writes to xc's: the `.xbc` of each source `xc --bytecode`
-compiles has to be the same, byte for byte -- the compiler's own sources
-among them --, and what it says of each source what `xc --bytecode` says,
-warnings, errors and all, but for a source with commands of its own.
+find in it -- its own commands not looked for, as `xc-ast --bare` reads
+it --, a file for its `.xbc`, one for what the checks find -- for TL++,
+then for bytecode, as `xc-ast --bare --checks` writes it -- and one for
+what compiling it says, tabs between them. ctest's `selfhost` holds what
+it writes to xc's: the `.xbc` of each source `xc --bytecode` compiles has
+to be the same, byte for byte -- the compiler's own sources among them,
+and those with commands of their own --, and what it says of each source
+what `xc --bytecode` says, warnings, errors and all.
 There is no dictionary here: what an exported SX3 would tell xc
 (`--dictionary`) is not said.
 
@@ -714,9 +717,6 @@ source), and `rakupp run-protheus.raku --selfhost` on an AppServer: each
 `.xbc` the compiler makes there has to be xc's, what it says of each --
 and of the checks' cases, most of which xc refuses -- what xc says, and
 each case run from its source has to do what xc-vm does.
-
-Not yet: a source's own commands (`#command`, `#translate`), and those
-of its include files: such a source does not parse.
 
 ## xc-vm
 

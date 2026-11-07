@@ -1,0 +1,987 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// commands.xtpl -- the commands and translations a source brings with it
+// (cpp/src/commands.cpp): '#command', '#xcommand', '#translate' and
+// '#xtranslate', in the source itself or in an include file beside it, and
+// where the source uses each -- matched as the preprocessor matches them,
+// against the line, and not applied: what is written goes out as written.
+// A use is a command, a whole statement, taken whole as raw text; a command
+// that stands for a function's header, its body read like any other; or a
+// translation inside an expression, a value nothing here looks into.
+//
+// u_xcb_userspans() gives the parser (u_xcb_parse) where each use is. The
+// offsets are the C++ ones, bytes from 0; so are the indices of a token
+// list in the matching, as commands.cpp has them.
+// -----------------------------------------------------------------------------
+
+// An element of a pattern: a word or a sign ('lit'), a match marker, or an
+// optional clause ('[ ... ]') with the elements inside it.
+#define EL_KIND        1
+#define EL_TEXT        2              // a lit's text, lower case
+#define EL_WORDS       3              // a restricted marker's words, lower case
+#define EL_INNER       4              // an optional clause's elements
+
+#define ELK_LIT        1
+#define ELK_REGULAR    2
+#define ELK_LIST       3
+#define ELK_RESTRICTED 4
+#define ELK_WILD       5
+#define ELK_OPT        6
+
+// A rule: a command or a translation, 'x' or not (every word in full; else
+// four letters do), its pattern, whether it stands for a function's header.
+#define RU_COMMAND     1
+#define RU_EXACT       2
+#define RU_PATTERN     3
+#define RU_HEADER      4
+
+// A token of a line: its text, where it starts and ends in the source.
+#define TK_TEXT        1
+#define TK_FROM        2
+#define TK_TO          3
+
+// The classes of each byte (u_xcb_classes), each a list of logicals.
+Static aIsW := Nil
+Static aIsH
+Static aIsV
+Static aIsNN
+Static aIsD
+Static aIsS
+
+// The translations by their first word, for one inside a marker's
+// expression.
+Static hByFirst := Nil
+
+// Where a source uses its own commands and translations: {translations,
+// commands} -- a translation by where it starts, to where it ends; a
+// command by where it starts, to {where it ends, whether it stands for a
+// function's header}, the keys the offsets as strings. aIncludes: the texts
+// of the include files it brings, in the order found (as commands.cpp's
+// each_include finds them).
+User Function xcb_userspans(cText, aIncludes)
+  Local hTrans := { => }
+  Local hCmd := { => }
+  Local aRules
+  Local aCommands := {}
+  Local aTranslates := {}
+  Local nI
+  Local nR
+  Local aR
+  Local cF
+  Local cCode
+  Local aLines
+  Local nOffset := 0
+  Local nN := 1
+  Local aToks
+  Local cL
+  Local nB
+  Local cBody
+  Local lDone
+  Local nCount
+  Local nEnd
+  ClassesC()
+  aRules := RulesOf(cText)
+  For nI := 1 To Len(aIncludes)
+    AEval(RulesOf(aIncludes[nI]), {|r| AAdd(aRules, r)})
+  Next
+  If Len(aRules) == 0
+    Return {hTrans, hCmd}
+  EndIf
+  // The last defined first.
+  For nI := Len(aRules) To 1 Step -1
+    aR := aRules[nI]
+    If aR[RU_COMMAND]
+      AAdd(aCommands, aR)
+    ElseIf FirstWord(aR) != Nil
+      AAdd(aTranslates, aR)
+    EndIf
+  Next
+  hByFirst := { => }
+  For nI := 1 To Len(aTranslates)
+    cF := FirstWord(aTranslates[nI])
+    If !(hByFirst has cF)
+      hByFirst{cF} := {}
+    EndIf
+    AAdd(hByFirst{cF}, aTranslates[nI])
+  Next
+
+  cCode := WithoutComments(cText)
+  aLines := LinesOfC(cCode, .F.)
+  While nN <= Len(aLines)
+    // A logical line: on through the lines that end in ';'.
+    aToks := {}
+    While .T.
+      cL := aLines[nN]
+      nB := Len(cL)
+      While nB > 0 .And. IsVc(Asc(SubStr(cL, nB, 1)))
+        nB--
+      EndDo
+      cBody := Left(cL, nB)
+      TokensOf(cBody, nOffset, aToks)
+      nOffset += Len(cL)
+      nN++
+      If !(EndsWithSemi(cBody) .And. nN <= Len(aLines))
+        Exit
+      EndIf
+      If Len(aToks) > 0 .And. ATail(aToks)[TK_TEXT] == ";"
+        ASize(aToks, Len(aToks) - 1)
+      EndIf
+    EndDo
+    If Len(aToks) == 0 .Or. aToks[1][TK_TEXT] == "#"
+      Loop
+    EndIf
+    lDone := .F.
+    For nR := 1 To Len(aCommands)
+      aR := aCommands[nR]
+      cF := FirstWord(aR)
+      If cF == Nil .Or. !SameWord(cF, aToks[1][TK_TEXT], aR[RU_EXACT])
+        Loop
+      EndIf
+      If MatchElems(aR[RU_PATTERN], aToks, 0, aR[RU_EXACT], {}) == Len(aToks)
+        hCmd{OffsetKey(aToks[1][TK_FROM])} := {ATail(aToks)[TK_TO], aR[RU_HEADER]}
+        lDone := .T.
+        Exit
+      EndIf
+    Next
+    If lDone
+      Loop
+    EndIf
+    nI := 0
+    nCount := Len(aToks)
+    While nI < nCount
+      nEnd := -1
+      For nR := 1 To Len(aTranslates)
+        aR := aTranslates[nR]
+        If !SameWord(FirstWord(aR), aToks[nI + 1][TK_TEXT], aR[RU_EXACT])
+          Loop
+        EndIf
+        nEnd := MatchElems(aR[RU_PATTERN], aToks, nI, aR[RU_EXACT], {})
+        If nEnd > nI
+          Exit
+        EndIf
+      Next
+      If nEnd > nI
+        // A translation that starts the statement takes it whole.
+        If nI == 0
+          hCmd{OffsetKey(aToks[1][TK_FROM])} := {ATail(aToks)[TK_TO], .F.}
+          Exit
+        EndIf
+        hTrans{OffsetKey(aToks[nI + 1][TK_FROM])} := aToks[nEnd][TK_TO]
+        nI := nEnd
+      Else
+        nI++
+      EndIf
+    EndDo
+  EndDo
+Return {hTrans, hCmd}
+
+// Whether a text brings a directive these look for, or an include file:
+// m:i/ '#' \h* [ 'x'? [ 'command' || 'translate' ] || 'include' ] /
+User Function xcb_mentionsdirective(cText)
+  Local nI := At("#", cText)
+  Local nK
+  Local nX
+  ClassesC()
+  While nI > 0
+    nK := nI
+    While IsHc(ByteAt(cText, nK))
+      nK++
+    EndDo
+    nX := If(LowerC(ByteAt(cText, nK)) == 120, nK + 1, nK)
+    If IPrefix(cText, nX, "command") .Or. IPrefix(cText, nX, "translate") .Or. IPrefix(cText, nK, "command") ;
+       .Or. IPrefix(cText, nK, "translate") .Or. IPrefix(cText, nK, "include")
+      Return .T.
+    EndIf
+    nI := At("#", cText, nI + 1)
+  EndDo
+Return .F.
+
+// ---- characters -------------------------------------------------------------
+Static Function ClassesC()
+  Local aCl
+  If aIsW != Nil
+    Return Nil
+  EndIf
+  aCl := u_xcb_classes()
+  aIsW := aCl[1]
+  aIsH := aCl[2]
+  aIsV := aCl[3]
+  aIsNN := aCl[4]
+  aIsD := aCl[5]
+  aIsS := aCl[6]
+Return Nil
+
+Static Function IsWc(nCh)
+Return nCh >= 0 .And. aIsW[nCh + 1]
+
+Static Function IsHc(nCh)
+Return nCh >= 0 .And. aIsH[nCh + 1]
+
+Static Function IsVc(nCh)
+Return nCh >= 0 .And. aIsV[nCh + 1]
+
+Static Function IsNNc(nCh)
+Return nCh >= 0 .And. aIsNN[nCh + 1]
+
+Static Function IsDc(nCh)
+Return nCh >= 0 .And. aIsD[nCh + 1]
+
+Static Function IsSc(nCh)
+Return nCh >= 0 .And. aIsS[nCh + 1]
+
+// chars.h's is_alpha: an ASCII letter, or '_'.
+Static Function IsAlphaC(nCh)
+Return (nCh >= 97 .And. nCh <= 122) .Or. (nCh >= 65 .And. nCh <= 90) .Or. nCh == 95
+
+Static Function AsciiLetter(nCh)
+Return (nCh >= 97 .And. nCh <= 122) .Or. (nCh >= 65 .And. nCh <= 90)
+
+Static Function LowerC(nCh)
+Return If(nCh >= 65 .And. nCh <= 90, nCh + 32, nCh)
+
+// The byte at an offset from 0, or -1 past the end.
+Static Function ByteAt(cS, nI)
+Return If(nI >= 0 .And. nI < Len(cS), Asc(SubStr(cS, nI + 1, 1)), -1)
+
+// A hash's key for an offset.
+Static Function OffsetKey(nAt)
+Return AllTrim(Str(nAt))
+
+// Whether a word, in lower case, is at an offset of a text, any case.
+Static Function IPrefix(cS, nI, cW)
+  Local nK
+  If nI + Len(cW) > Len(cS)
+    Return .F.
+  EndIf
+  For nK := 1 To Len(cW)
+    If LowerC(Asc(SubStr(cS, nI + nK, 1))) != Asc(SubStr(cW, nK, 1))
+      Return .F.
+    EndIf
+  Next
+Return .T.
+
+// ---- tokens -----------------------------------------------------------------
+// Where a token at i ends, or 0 when there is none (a blank): strings
+// (closed or not), '.and.'-like words, numbers, names, two-sign operators,
+// and single signs.
+//
+//   '"' <-["]>* '"'? || "'" <-[']>* "'"? || '.' <[A..Za..z]>+ '.' || \d+ [ '.' \d+ ]?
+//   || '.' \d+ || <[A..Za..z_]> \w* || ':=' || ... || '=>' || \S
+Static Function TokenEnd(cS, nI)
+  Local nCh := ByteAt(cS, nI)
+  Local nK
+  Local nClose
+  Local aTwos
+  Local nT
+  Local cTwo
+  If nCh == 34 .Or. nCh == 39
+    nClose := At(Chr(nCh), cS, nI + 2)
+    Return If(nClose == 0, Len(cS), nClose)
+  EndIf
+  If nCh == 46 .And. AsciiLetter(ByteAt(cS, nI + 1))
+    nK := nI + 1
+    While AsciiLetter(ByteAt(cS, nK))
+      nK++
+    EndDo
+    If ByteAt(cS, nK) == 46
+      Return nK + 1
+    EndIf
+  EndIf
+  If IsDc(nCh)
+    nK := nI
+    While IsDc(ByteAt(cS, nK))
+      nK++
+    EndDo
+    If ByteAt(cS, nK) == 46 .And. IsDc(ByteAt(cS, nK + 1))
+      nK++
+      While IsDc(ByteAt(cS, nK))
+        nK++
+      EndDo
+    EndIf
+    Return nK
+  EndIf
+  If nCh == 46 .And. IsDc(ByteAt(cS, nI + 1))
+    nK := nI + 1
+    While IsDc(ByteAt(cS, nK))
+      nK++
+    EndDo
+    Return nK
+  EndIf
+  If IsAlphaC(nCh)
+    nK := nI + 1
+    While IsWc(ByteAt(cS, nK))
+      nK++
+    EndDo
+    Return nK
+  EndIf
+  aTwos := {":=", "+=", "-=", "*=", "/=", "==", "!=", "<>", "<=", ">=", "->", "::", "++", "--", "**", "=>"}
+  cTwo := SubStr(cS, nI + 1, 2)
+  For nT := 1 To Len(aTwos)
+    If cTwo == aTwos[nT]
+      Return nI + 2
+    EndIf
+  Next
+  If nCh >= 0 .And. !IsSc(nCh)
+    Return nI + 1
+  EndIf
+Return 0
+
+// The tokens of one line, the offsets from nBase.
+Static Function TokensOf(cLine, nBase, aOut)
+  Local nI := 0
+  Local nE
+  While nI < Len(cLine)
+    nE := TokenEnd(cLine, nI)
+    If nE == 0
+      nI++
+      Loop
+    EndIf
+    AAdd(aOut, {SubStr(cLine, nI + 1, nE - nI), nBase + nI, nBase + nE})
+    nI := nE
+  EndDo
+Return Nil
+
+// ---- lines ------------------------------------------------------------------
+// Where the line at an offset ends: the first "\r" or "\n".
+Static Function LineEnd(cT, nFrom)
+  Local nR := At(Chr(13), cT, nFrom + 1)
+  Local nL := At(Chr(10), cT, nFrom + 1)
+  If nR == 0 .And. nL == 0
+    Return Len(cT)
+  EndIf
+  If nR == 0 .Or. (nL > 0 .And. nL < nR)
+    Return nL - 1
+  EndIf
+Return nR - 1
+
+// The lines of a text as Raku's .lines splits them -- at "\r\n", "\n" and
+// "\r" --, each with its break (lChomp: without).
+Static Function LinesOfC(cT, lChomp)
+  Local aOut := {}
+  Local nStart := 0
+  Local nLen := Len(cT)
+  Local nE
+  Local nBrk
+  While nStart < nLen
+    nE := LineEnd(cT, nStart)
+    If nE >= nLen
+      AAdd(aOut, SubStr(cT, nStart + 1))
+      Exit
+    EndIf
+    nBrk := If(ByteAt(cT, nE) == 13 .And. ByteAt(cT, nE + 1) == 10, 2, 1)
+    AAdd(aOut, SubStr(cT, nStart + 1, If(lChomp, nE, nE + nBrk) - nStart))
+    nStart := nE + nBrk
+  EndDo
+Return aOut
+
+Static Function EndsWithSemi(cS)
+  Local nK := Len(cS)
+  While nK > 0 .And. IsHc(Asc(SubStr(cS, nK, 1)))
+    nK--
+  EndDo
+Return nK > 0 .And. SubStr(cS, nK, 1) == ";"
+
+Static Function WithoutSemi(cS)
+  Local nK := Len(cS)
+  While nK > 0 .And. IsHc(Asc(SubStr(cS, nK, 1)))
+    nK--
+  EndDo
+Return Left(cS, nK - 1)
+
+// ---- the directives ---------------------------------------------------------
+// Each directive with its continuation lines -- each ending in ';' -- as
+// one: {command, exact, its text after the word}.
+// m:i/ ^ \h* '#' \h* (x?) (command || translate) >> \h* (.*) $ /
+Static Function Directives(cText)
+  Local aOut := {}
+  Local aL := LinesOfC(cText, .T.)
+  Local nI := 1
+  Local cL
+  Local nK
+  Local lCmd
+  Local lExact
+  Local nLen
+  Local cRest
+  While nI <= Len(aL)
+    cL := aL[nI]
+    nK := 0
+    While IsHc(ByteAt(cL, nK))
+      nK++
+    EndDo
+    If ByteAt(cL, nK) != 35
+      nI++
+      Loop
+    EndIf
+    nK++
+    While IsHc(ByteAt(cL, nK))
+      nK++
+    EndDo
+    lCmd := .F.
+    lExact := .F.
+    // 'x?' -- given back when what follows is no directive
+    If LowerC(ByteAt(cL, nK)) == 120 .And. (IPrefix(cL, nK + 1, "command") .Or. IPrefix(cL, nK + 1, "translate"))
+      lExact := .T.
+      nK++
+    EndIf
+    If IPrefix(cL, nK, "command")
+      lCmd := .T.
+      nLen := 7
+    ElseIf IPrefix(cL, nK, "translate")
+      nLen := 9
+    Else
+      nI++
+      Loop
+    EndIf
+    nK += nLen
+    If IsWc(ByteAt(cL, nK))
+      nI++
+      Loop
+    EndIf
+    While IsHc(ByteAt(cL, nK))
+      nK++
+    EndDo
+    cRest := SubStr(cL, nK + 1)
+    While EndsWithSemi(cRest) .And. nI < Len(aL)
+      nI++
+      cRest := WithoutSemi(cRest) + " " + aL[nI]
+    EndDo
+    AAdd(aOut, {lCmd, lExact, cRest})
+    nI++
+  EndDo
+Return aOut
+
+// Past the blanks of \s from an offset; past a word of \w.
+Static Function SkipS(cS, nK)
+  While IsSc(ByteAt(cS, nK))
+    nK++
+  EndDo
+Return nK
+
+Static Function SkipW(cS, nK)
+  While IsWc(ByteAt(cS, nK))
+    nK++
+  EndDo
+Return nK
+
+// A match marker at i: where it ends, or 0 -- aInside[1] given its inside.
+//
+//   '<' \s* ( '*' \s* \w+ \s* '*' || '(' \s* \w+ \s* ')' || '!' \s* \w+ \s* '!' || '"' \s* \w+ \s* '"'
+//            || '#'? \w+ \s* [ ',' \s* '...' || ':' <-[>]>+ ]? ) \s* '>'
+Static Function MarkerEnd(cS, nI, aInside)
+  Local nK
+  Local nFrom
+  Local lOk := .F.
+  Local nCh
+  Local aPairs := {{42, 42}, {40, 41}, {33, 33}, {34, 34}}
+  Local nPr
+  Local nSave
+  Local nB
+  Local nAfter
+  Local nTo
+  If ByteAt(cS, nI) != 60
+    Return 0
+  EndIf
+  nK := SkipS(cS, nI + 1)
+  nFrom := nK
+  nCh := ByteAt(cS, nK)
+  // the bracketed forms: '*' x '*', '(' x ')', '!' x '!', '"' x '"'
+  For nPr := 1 To Len(aPairs)
+    If nCh != aPairs[nPr][1]
+      Loop
+    EndIf
+    nSave := nK
+    nK := SkipS(cS, nK + 1)
+    nB := nK
+    nK := SkipW(cS, nK)
+    If nK > nB
+      nK := SkipS(cS, nK)
+      If ByteAt(cS, nK) == aPairs[nPr][2]
+        nK++
+        lOk := .T.
+      EndIf
+    EndIf
+    If !lOk
+      nK := nSave
+    EndIf
+    Exit
+  Next
+  If !lOk
+    nK := nFrom
+    If ByteAt(cS, nK) == 35
+      nK++
+    EndIf
+    nB := nK
+    nK := SkipW(cS, nK)
+    If nK == nB
+      Return 0
+    EndIf
+    nAfter := nK
+    nK := SkipS(cS, nK)
+    If ByteAt(cS, nK) == 44
+      nK := SkipS(cS, nK + 1)
+      If SubStr(cS, nK + 1, 3) == "..."
+        nK += 3
+      Else
+        nK := nAfter
+      EndIf
+    ElseIf ByteAt(cS, nK) == 58 .And. ByteAt(cS, nK + 1) >= 0 .And. ByteAt(cS, nK + 1) != 62
+      nK++
+      While ByteAt(cS, nK) >= 0 .And. ByteAt(cS, nK) != 62
+        nK++
+      EndDo
+    Else
+      nK := nAfter
+    EndIf
+  EndIf
+  nTo := nK
+  nK := SkipS(cS, nK)
+  If ByteAt(cS, nK) != 62
+    Return 0
+  EndIf
+  aInside[1] := SubStr(cS, nFrom + 1, nTo - nFrom)
+Return nK + 1
+
+// The pattern's elements, from its text: '<x>', '<x,...>', '<x: a, b>',
+// '<*x*>', '<(x)>', '<!x!>', '[ ... ]', and the rest word by word.
+Static Function ElementsOf(cS)
+  Local aStack := {{}}
+  Local nPos := 0
+  Local nLen := Len(cS)
+  Local nCh
+  Local aIn
+  Local nE
+  Local cM
+  Local aEl
+  Local aWords
+  Local aParts
+  Local nW
+  Local cW
+  While nPos < nLen
+    nCh := ByteAt(cS, nPos)
+    If IsSc(nCh)
+      nPos := SkipS(cS, nPos)
+      Loop
+    EndIf
+    If nCh == 92 .And. ByteAt(cS, nPos + 1) >= 0 .And. !IsSc(ByteAt(cS, nPos + 1))
+      AAdd(ATail(aStack), {ELK_LIT, u_xcb_lc(SubStr(cS, nPos + 2, 1)), {}, {}})
+      nPos += 2
+      Loop
+    EndIf
+    aIn := {""}
+    nE := MarkerEnd(cS, nPos, aIn)
+    If nE > 0
+      cM := aIn[1]
+      aEl := {ELK_REGULAR, "", {}, {}}
+      If Left(cM, 1) == "*"
+        aEl[EL_KIND] := ELK_WILD
+      ElseIf "..." $ cM
+        aEl[EL_KIND] := ELK_LIST
+      ElseIf ":" $ cM
+        aEl[EL_KIND] := ELK_RESTRICTED
+        aWords := {}
+        aParts := SubStr(cM, At(":", cM) + 1) |> split(",")
+        For nW := 1 To Len(aParts)
+          cW := u_xcb_lc(u_xcb_trim(aParts[nW]))
+          If !(cW == "")
+            AAdd(aWords, cW)
+          EndIf
+        Next
+        aEl[EL_WORDS] := aWords
+      EndIf
+      AAdd(ATail(aStack), aEl)
+      nPos := nE
+      Loop
+    EndIf
+    If nCh == 91
+      AAdd(aStack, {})
+      nPos++
+      Loop
+    EndIf
+    If nCh == 93 .And. Len(aStack) > 1
+      aEl := {ELK_OPT, "", {}, ATail(aStack)}
+      ASize(aStack, Len(aStack) - 1)
+      AAdd(ATail(aStack), aEl)
+      nPos++
+      Loop
+    EndIf
+    nE := TokenEnd(cS, nPos)
+    If nE == 0
+      Exit
+    EndIf
+    AAdd(ATail(aStack), {ELK_LIT, u_xcb_lc(SubStr(cS, nPos + 1, nE - nPos)), {}, {}})
+    nPos := nE
+  EndDo
+Return aStack[1]
+
+// Whether what a rule stands for opens a function: its first statement
+// (up to ';;') starts as a function's header does.
+Static Function IsHeader(cResult)
+  Local nCut := At(";;", cResult)
+  Local cF := u_xcb_lc(u_xcb_trim(If(nCut == 0, cResult, Left(cResult, nCut - 1))))
+  Local aWords := {"user", "static", "main", "web", "html"}
+  Local nI
+  Local cW
+  Local nK
+  For nI := 1 To Len(aWords)
+    cW := aWords[nI]
+    If Left(cF, Len(cW)) == cW .And. IsSc(ByteAt(cF, Len(cW)))
+      nK := SkipS(cF, Len(cW))
+      If WordAt(cF, nK, "function")
+        Return .T.
+      EndIf
+      Exit
+    EndIf
+  Next
+  If WordAt(cF, 0, "function")
+    Return .T.
+  EndIf
+  If WordAt(cF, 0, "method")
+    For nK := 0 To Len(cF) - 6
+      If IsSc(ByteAt(cF, nK)) .And. WordAt(cF, nK + 1, "class")
+        Return .T.
+      EndIf
+    Next
+  EndIf
+Return WordAt(cF, 0, "wsmethod")
+
+// A whole word at an offset of a text.
+Static Function WordAt(cF, nI, cW)
+Return SubStr(cF, nI + 1, Len(cW)) == cW .And. !IsWc(ByteAt(cF, nI + Len(cW)))
+
+// The rules of a text, in the order defined.
+Static Function RulesOf(cText)
+  Local aOut := {}
+  Local aDs := Directives(cText)
+  Local nI
+  Local cT
+  Local nArrow
+  Local aPat
+  For nI := 1 To Len(aDs)
+    cT := aDs[nI][3]
+    nArrow := At("=>", cT)
+    aPat := ElementsOf(If(nArrow == 0, cT, Left(cT, nArrow - 1)))
+    If Len(aPat) > 0
+      AAdd(aOut, {aDs[nI][1], aDs[nI][2], aPat, IsHeader(If(nArrow == 0, "", SubStr(cT, nArrow + 2)))})
+    EndIf
+  Next
+Return aOut
+
+// The first word of a rule, lower case -- Nil when its pattern starts with
+// a marker.
+Static Function FirstWord(aR)
+  Local aP := aR[RU_PATTERN]
+Return If(Len(aP) > 0 .And. aP[1][EL_KIND] == ELK_LIT, aP[1][EL_TEXT], Nil)
+
+// ---- matching ---------------------------------------------------------------
+// A word of the pattern against a word of the source: the same, any case;
+// for '#command', the first four letters or more of it.
+Static Function SameWord(cPat, cSrc, lExact)
+  Local cS := u_xcb_lc(cSrc)
+  Local nI
+  If cS == cPat
+    Return .T.
+  EndIf
+  If lExact .Or. Len(cS) < 4 .Or. Len(cS) >= Len(cPat) .Or. !(Left(cPat, Len(cS)) == cS)
+    Return .F.
+  EndIf
+  For nI := 1 To Len(cPat)
+    If !IsWc(Asc(SubStr(cPat, nI, 1)))
+      Return .F.
+    EndIf
+  Next
+Return .T.
+
+// The words that can come after element nK (from 1; 0: before the first):
+// where a marker before them stops.
+Static Function StopsAfter(aElems, nK, aOut)
+  Local nJ
+  Local aE
+  For nJ := nK + 1 To Len(aElems)
+    aE := aElems[nJ]
+    If aE[EL_KIND] == ELK_LIT
+      AAdd(aOut, aE[EL_TEXT])
+      Return Nil
+    EndIf
+    If aE[EL_KIND] == ELK_OPT
+      FirstsOf(aE, aOut)
+      Loop
+    EndIf
+    Return Nil
+  Next
+Return Nil
+
+// The words an optional clause can start with, the empty ones left out.
+Static Function FirstsOf(aOpt, aOut)
+  Local aGot := {}
+  Local nI
+  StopsAfter(aOpt[EL_INNER], 0, aGot)
+  For nI := 1 To Len(aGot)
+    If !(aGot[nI] == "")
+      AAdd(aOut, aGot[nI])
+    EndIf
+  Next
+Return Nil
+
+Static Function EndsOperand(cT)
+  Local nC := ByteAt(cT, 0)
+Return IsWc(nC) .Or. nC == 34 .Or. nC == 39 .Or. nC == 41 .Or. nC == 93 .Or. nC == 125 .Or. DotLogical(cT)
+
+Static Function StartsOperand(cT)
+  Local nC := ByteAt(cT, 0)
+Return IsWc(nC) .Or. nC == 34 .Or. nC == 39 .Or. nC == 123 .Or. DotLogical(cT)
+
+Static Function DotLogical(cT)
+Return Len(cT) >= 3 .And. Left(cT, 1) == "." .And. (LowerC(ByteAt(cT, 1)) == 116 .Or. LowerC(ByteAt(cT, 1)) == 102) ;
+       .And. SubStr(cT, 3, 1) == "."
+
+// An expression's tokens from i: brackets balanced, to a stop word at depth
+// zero, a comma -- unless lCommas -- or where a second expression starts.
+// Where it ends, or -1.
+Static Function ExpressionEnd(aToks, nI, aStops, lCommas, lExact)
+  Local nStart := nI
+  Local nDepth := 0
+  Local nN := Len(aToks)
+  Local cT
+  Local lStop
+  Local nS
+  Local nInner
+  While nI < nN
+    cT := aToks[nI + 1][TK_TEXT]
+    If nDepth == 0 .And. nI > nStart
+      If !lCommas .And. cT == ","
+        Exit
+      EndIf
+      lStop := .F.
+      For nS := 1 To Len(aStops)
+        If SameWord(aStops[nS], cT, lExact)
+          lStop := .T.
+          Exit
+        EndIf
+      Next
+      If lStop
+        Exit
+      EndIf
+      If EndsOperand(aToks[nI][TK_TEXT]) .And. StartsOperand(cT)
+        Exit
+      EndIf
+    EndIf
+    // A translation inside it is one piece.
+    nInner := TranslationEnd(aToks, nI)
+    If nInner > nI
+      nI := nInner
+      Loop
+    EndIf
+    If cT == "(" .Or. cT == "[" .Or. cT == "{"
+      nDepth++
+    ElseIf cT == ")" .Or. cT == "]" .Or. cT == "}"
+      If nDepth == 0
+        Exit
+      EndIf
+      nDepth--
+    EndIf
+    nI++
+  EndDo
+Return If(nI > nStart, nI, -1)
+
+// Where a translation of the source's that starts at token i ends, or -1.
+Static Function TranslationEnd(aToks, nI)
+  Local cK := u_xcb_lc(aToks[nI + 1][TK_TEXT])
+  Local aRs
+  Local nR
+  Local nEnd
+  If !(hByFirst has cK)
+    Return -1
+  EndIf
+  aRs := hByFirst{cK}
+  For nR := 1 To Len(aRs)
+    nEnd := MatchElems(aRs[nR][RU_PATTERN], aToks, nI, aRs[nR][RU_EXACT], {})
+    If nEnd > nI
+      Return nEnd
+    EndIf
+  Next
+Return -1
+
+// The elements against the tokens from i: where the match ends, or -1.
+Static Function MatchElems(aElems, aToks, nI, lExact, aOuter)
+  Local nK := 1
+  Local nN := Len(aToks)
+  Local aE
+  Local nLast
+  Local aAfter
+  Local aStops
+  Local aDone
+  Local lMoved
+  Local nR
+  Local nEnd
+  Local lAny
+  Local nW
+  While nK <= Len(aElems)
+    aE := aElems[nK]
+    If aE[EL_KIND] == ELK_OPT
+      // A run of optional clauses, in any order, each at most once.
+      nLast := nK
+      While nLast + 1 <= Len(aElems) .And. aElems[nLast + 1][EL_KIND] == ELK_OPT
+        nLast++
+      EndDo
+      aAfter := {}
+      StopsAfter(aElems, nLast, aAfter)
+      AEval(aOuter, {|w| AAdd(aAfter, w)})
+      aStops := {}
+      For nR := nK To nLast
+        FirstsOf(aElems[nR], aStops)
+      Next
+      AEval(aAfter, {|w| AAdd(aStops, w)})
+      aDone := {}
+      For nR := nK To nLast
+        AAdd(aDone, .F.)
+      Next
+      While .T.
+        lMoved := .F.
+        For nR := nK To nLast
+          If aDone[nR - nK + 1]
+            Loop
+          EndIf
+          nEnd := MatchElems(aElems[nR][EL_INNER], aToks, nI, lExact, aStops)
+          If nEnd > nI
+            nI := nEnd
+            aDone[nR - nK + 1] := .T.
+            lMoved := .T.
+          EndIf
+        Next
+        If !lMoved
+          Exit
+        EndIf
+      EndDo
+      nK := nLast + 1
+      Loop
+    EndIf
+    If nI >= nN
+      Return -1
+    EndIf
+    Do Case
+      Case aE[EL_KIND] == ELK_LIT
+        If !SameWord(aE[EL_TEXT], aToks[nI + 1][TK_TEXT], lExact)
+          Return -1
+        EndIf
+        nI++
+      Case aE[EL_KIND] == ELK_RESTRICTED
+        lAny := .F.
+        For nW := 1 To Len(aE[EL_WORDS])
+          If SameWord(aE[EL_WORDS][nW], aToks[nI + 1][TK_TEXT], lExact)
+            lAny := .T.
+            Exit
+          EndIf
+        Next
+        If !lAny
+          Return -1
+        EndIf
+        nI++
+      Case aE[EL_KIND] == ELK_WILD
+        nI := nN
+      Otherwise
+        aStops := {}
+        StopsAfter(aElems, nK, aStops)
+        AEval(aOuter, {|w| AAdd(aStops, w)})
+        nEnd := ExpressionEnd(aToks, nI, aStops, aE[EL_KIND] == ELK_LIST, lExact)
+        If nEnd < 0
+          Return -1
+        EndIf
+        nI := nEnd
+    EndCase
+    nK++
+  EndDo
+Return nI
+
+// ---- the uses in a source ---------------------------------------------------
+// Clipper's comment lines, '*' first on the line, blanked too -- not a line
+// a ';' carries the one before on to, where a '*' multiplies.
+Static Function StarLinesBlank(cText)
+  Local cOut := ""
+  Local nPos := 0
+  Local nN := Len(cText)
+  Local lCont := .F.
+  Local nEnd
+  Local cLine
+  Local nK
+  Local nBrk
+  While nPos < nN
+    nEnd := LineEnd(cText, nPos)
+    cLine := SubStr(cText, nPos + 1, nEnd - nPos)
+    nK := 0
+    While IsHc(ByteAt(cLine, nK))
+      nK++
+    EndDo
+    If !lCont .And. ByteAt(cLine, nK) == 42
+      cOut += Space(Len(cLine))
+    Else
+      cOut += cLine
+      lCont := EndsWithSemi(cLine)
+    EndIf
+    nBrk := If(nEnd >= nN, 0, ;
+               If(ByteAt(cText, nEnd) == 13 .And. nEnd + 1 < nN .And. ByteAt(cText, nEnd + 1) == 10, 2, 1))
+    cOut += SubStr(cText, nEnd + 1, nBrk)
+    nPos := nEnd + nBrk
+    If nBrk == 0
+      Exit
+    EndIf
+  EndDo
+Return cOut
+
+// Comments blanked to spaces, the line ends kept: what is left is code and
+// strings, at the same offsets.
+Static Function WithoutComments(cText)
+  Local cOut := ""
+  Local nN := Len(cText)
+  Local nPos := 0
+  Local aMarks := {'"', "'", "//", "/*", "&&"}
+  Local aNext := {-2, -2, -2, -2, -2}
+  Local nBest
+  Local nKind
+  Local nM
+  Local nF
+  Local nEnd
+  Local nClose
+  Local nEol
+  Local nK
+  Local cC
+  While nPos < nN
+    // the first of '"', "'", '//', '/*', '&&' from nPos: each mark's next
+    // place, found again only once passed
+    nBest := nN
+    nKind := 0
+    For nM := 1 To 5
+      If aNext[nM] != -1 .And. aNext[nM] < nPos
+        nF := At(aMarks[nM], cText, nPos + 1)
+        aNext[nM] := If(nF == 0, -1, nF - 1)
+      EndIf
+      If aNext[nM] >= 0 .And. aNext[nM] < nBest
+        nBest := aNext[nM]
+        nKind := nM
+      EndIf
+    Next
+    cOut += SubStr(cText, nPos + 1, nBest - nPos)
+    If nBest >= nN
+      Exit
+    EndIf
+    If nKind <= 2
+      // A string: to its quote, or to the end of its line.
+      nClose := At(aMarks[nKind], cText, nBest + 2)
+      nClose := If(nClose == 0, nN, nClose - 1)
+      nEol := LineEnd(cText, nBest + 1)
+      nEnd := If(nClose < nEol, nClose + 1, nEol)
+      cOut += SubStr(cText, nBest + 1, nEnd - nBest)
+    ElseIf nKind == 3 .Or. nKind == 5
+      nEnd := LineEnd(cText, nBest)
+      cOut += Space(nEnd - nBest)
+    Else
+      nClose := At("*/", cText, nBest + 3)
+      nEnd := If(nClose == 0, nN, nClose + 1)
+      For nK := nBest + 1 To nEnd
+        cC := SubStr(cText, nK, 1)
+        cOut += If(IsNNc(Asc(cC)), " ", cC)
+      Next
+    EndIf
+    nPos := nEnd
+  EndDo
+Return StarLinesBlank(cOut)
