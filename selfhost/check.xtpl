@@ -348,7 +348,9 @@ Static Function LiteralKind(aE)
 Return Nil
 
 // Each finding once -- the first of a line and message -- in the order of
-// the lines, those of a line in the order found.
+// the lines, those of a line in the order found. The key is the line, a
+// blank, the message: on the AppServer a hash's key ends at a Chr(0)
+// (24.3.1.9), and the findings of a line were all one.
 Static Function Tidy(aIn)
   Local aOut := {}
   Local hSeen := { => }
@@ -356,7 +358,7 @@ Static Function Tidy(aIn)
   Local nI
   Local nJ
   For nI := 1 To Len(aIn)
-    cK := N(aIn[nI][1]) + Chr(0) + aIn[nI][2]
+    cK := N(aIn[nI][1]) + " " + aIn[nI][2]
     If !(hSeen has cK)
       hSeen{cK} := .T.
       AAdd(aOut, aIn[nI])
