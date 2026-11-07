@@ -19,8 +19,7 @@
 # folders whose .xtpl and .prw are read; when none is given, selfhost/tests,
 # cpp/tests/bytecode and each folder of cpp/tests/cases. A .val is read a
 # line at a time, each in every form a statement holds an expression as --
-# 'xc-ast --values'. A source with a NAME.later beside it is what the
-# compiler in xtpl does not read yet, and is left out.
+# 'xc-ast --values'.
 
 get_filename_component(ROOT "${ROOT}" ABSOLUTE)
 
@@ -85,12 +84,7 @@ endforeach()
 set(sources "")
 foreach(d ${DIRS})
   file(GLOB found ${ROOT}/${d}/*.xtpl ${ROOT}/${d}/*.prw ${ROOT}/${d}/*.val)
-  foreach(f ${found})
-    string(REGEX REPLACE "\\.[^.]*$" ".later" later ${f})
-    if(NOT EXISTS ${later})
-      list(APPEND sources ${f})
-    endif()
-  endforeach()
+  list(APPEND sources ${found})
 endforeach()
 list(SORT sources)
 set(list "")

@@ -581,7 +581,7 @@ Static Function Expr(aE0)
       MemberBase(aE[MEM_BASE])
       Op("member", aE[MEM_NAME])
     Case nK == EK_SAFEMEMBER
-      Safe(aE[MEM_BASE], {|| Op("member", aE[MEM_NAME])})
+      Safe(aE[MEM_BASE], {|| SafeMemberRest(aE)})
     Case nK == EK_HASHINDEX
       Expr(aE[HIX_BASE])
       Expr(aE[HIX_KEY])
@@ -692,7 +692,31 @@ Static Function Expr(aE0)
       Op("pop")
     Case nK == EK_PIPELINE
       Pipeline(aE)
+    Case nK == EK_DOT
+      // A type's field: the element at its position.
+      Expr(aE[DOT_BASE])
+      Op("num", NumText(aE[DOT_POS]))
+      Op("index")
+    Case nK == EK_DOTCALL
+      // A type's method: its static function, the value first.
+      Expr(aE[DC_BASE])
+      For nI := 1 To Len(aE[DC_ARGS])
+        Arg(aE[DC_ARGS][nI])
+      Next
+      EmitCall(Len(aE[DC_ARGS]) + 1, MethodOf(aE[DC_TYPE], aE[DC_NAME]))
+    Case nK == EK_NAMED
+      Expr(aE[NMD_VALUE])
   EndCase
+Return Nil
+
+// 'x?.f' when x is not Nil: an object's member, or a type's field.
+Static Function SafeMemberRest(aM)
+  If Empty(aM[MEM_TYPE])
+    Op("member", aM[MEM_NAME])
+    Return Nil
+  EndIf
+  Op("num", NumText(aM[MEM_POS]))
+  Op("index")
 Return Nil
 
 Static Function SafeCallRest(aM)
@@ -700,8 +724,98 @@ Static Function SafeCallRest(aM)
   For nI := 1 To Len(aM[MC_ARGS])
     Arg(aM[MC_ARGS][nI])
   Next
-  Op("method", NumText(Len(aM[MC_ARGS])) + " " + aM[MC_NAME])
+  If Empty(aM[MC_TYPE])
+    Op("method", NumText(Len(aM[MC_ARGS])) + " " + aM[MC_NAME])
+  Else
+    EmitCall(Len(aM[MC_ARGS]) + 1, MethodOf(aM[MC_TYPE], aM[MC_NAME]))
+  EndIf
 Return Nil
+
+// ---- types ------------------------------------------------------------------
+// The type of the file 'Name(...)' makes a value of, or Nil.
+Static Function MadeType(aE)
+  Local cN
+  Local nI
+  If !IsK(aE, EK_CALL)
+    Return Nil
+  EndIf
+  cN := Lc(aE[CALL_NAME])
+  For nI := 1 To Len(aProg[PG_TYPES])
+    If Lc(aProg[PG_TYPES][nI][TD_NAME]) == cN
+      Return aProg[PG_TYPES][nI]
+    EndIf
+  Next
+Return Nil
+
+// 'Item(...)': an array of each field's value -- given by its place or by
+// its name, or its default, or what its type starts at.
+Static Function Made(aC)
+  Local aT := MadeType(aC)
+  Local aGiven := {}
+  Local nAt := 0
+  Local nI
+  Local nJ
+  Local aA
+  Local aD
+  Local cK
+  For nI := 1 To Len(aT[TD_FIELDS])
+    AAdd(aGiven, Nil)
+  Next
+  For nI := 1 To Len(aC[CALL_ARGS])
+    aA := aC[CALL_ARGS][nI]
+    If IsK(aA, EK_NAMED)
+      For nJ := 1 To Len(aT[TD_FIELDS])
+        If Lc(aT[TD_FIELDS][nJ][TF_DECL][DCL_NAME]) == Lc(aA[NMD_NAME])
+          aGiven[nJ] := aA[NMD_VALUE]
+        EndIf
+      Next
+      Loop
+    EndIf
+    nAt++
+    If nAt <= Len(aGiven) .And. !IsK(aA, EK_OMITTED)
+      aGiven[nAt] := aA
+    EndIf
+  Next
+  For nI := 1 To Len(aT[TD_FIELDS])
+    aD := aT[TD_FIELDS][nI][TF_DECL]
+    If aGiven[nI] != Nil
+      Expr(aGiven[nI])
+    ElseIf aD[DCL_INIT] != Nil
+      Expr(aD[DCL_INIT])
+    Else
+      cK := u_xcb_fieldstart(aD)
+      Do Case
+        Case cK == "N"
+          Op("num", "0")
+        Case cK == "C"
+          EmitStr("")
+        Case cK == "L"
+          Op("false")
+        Otherwise
+          Op("nil")
+      EndCase
+    EndIf
+  Next
+  Op("array", NumText(Len(aT[TD_FIELDS])))
+Return Nil
+
+// The static function a method is: TYPE_METHOD, as the type declares it.
+Static Function MethodOf(cType, cName)
+  Local nI
+  Local nJ
+  Local aT
+  For nI := 1 To Len(aProg[PG_TYPES])
+    aT := aProg[PG_TYPES][nI]
+    If !(Lc(aT[TD_NAME]) == Lc(cType))
+      Loop
+    EndIf
+    For nJ := 1 To Len(aT[TD_METHODS])
+      If Lc(aT[TD_METHODS][nJ][FN_METHOD]) == Lc(cName)
+        Return aT[TD_METHODS][nJ][FN_NAME]
+      EndIf
+    Next
+  Next
+Return cType + "_" + cName
 
 // An expression for what it does: an assignment wants no value back.
 Static Function Effect(aE)
@@ -824,6 +938,10 @@ Static Function CallExpr(aC)
   Local lVerb
   Local nI
   Local nCount
+  If MadeType(aC) != Nil
+    Made(aC)
+    Return Nil
+  EndIf
   If (cN == "iif" .Or. cN == "if") .And. Len(aC[CALL_ARGS]) == 3
     // Only the branch taken is evaluated.
     nOther := Label()
@@ -2447,6 +2565,9 @@ Static Function TargetOf(aT0)
       EndIf
       Return {1, {|| MemberBase(aT[MEM_BASE])}, {|| Op("dup"), Op("member", aT[MEM_NAME])}, ;
               {|| Op("setmember", aT[MEM_NAME])}}
+    Case nK == EK_DOT
+      Return {2, {|| Expr(aT[DOT_BASE]), Op("num", NumText(aT[DOT_POS]))}, {|| Op("dup2"), Op("index")}, ;
+              {|| Op("setindex")}}
     Case nK == EK_HASHINDEX
       Return {2, {|| Expr(aT[HIX_BASE]), Expr(aT[HIX_KEY])}, {|| Op("dup2"), EmitCall(2, u_xcb_keyreader(aT))}, ;
               {|| EmitCall(3, u_xcb_keywriter(aT)), Op("pop")}}

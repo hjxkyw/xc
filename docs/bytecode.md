@@ -688,12 +688,10 @@ then for bytecode, as `xc-ast --bare --checks` writes it -- and one for
 what compiling it says, tabs between them. ctest's `selfhost` holds what
 it writes to xc's: the `.xbc` of each source `xc --bytecode` compiles has
 to be the same, byte for byte -- the compiler's own sources among them,
-and those with commands of their own --, and what it says of each source
-what `xc --bytecode` says, warnings, errors and all.
+those with commands of their own and those with types --, and what it says
+of each source what `xc --bytecode` says, warnings, errors and all.
 There is no dictionary here: what an exported SX3 would tell xc
-(`--dictionary`) is not said. Nor does it read a type (`type` ...
-`endtype`) yet: a source with one does not parse, and the tests leave out
-those marked `NAME.later` (`cpp/tests/README.md`).
+(`--dictionary`) is not said.
 
 On an AppServer it is TL++ in the RPO, as the interpreter is: xc compiles
 `selfhost/*.xtpl` and `interp/xbc.xtpl`, and the AppServer compiles them

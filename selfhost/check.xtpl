@@ -66,6 +66,7 @@ Static aStaticOrder := {}
 Static hDefines := Nil
 Static hPrivates := Nil
 Static hClasses := Nil
+Static hTypesC := Nil          // the file's types, by their names in lower case
 Static hMade := Nil
 Static hIncludes := Nil
 Static lTcqueryOk := .T.
@@ -156,6 +157,7 @@ User Function xcb_checkall(aProg, nLinesIn, cText, lAdvplIn, lBytecodeIn, aDefin
   hDefines := { => }
   hPrivates := { => }
   hClasses := { => }
+  hTypesC := { => }
   hMade := { => }
   hIncludes := { => }
   lTcqueryOk := .T.
@@ -432,6 +434,8 @@ Return Nil
 // ---- the file ---------------------------------------------------------------
 Static Function CheckProgram(aProg)
   Local nI
+  Local aTy
+  Local cWhy
   Local nJ
   Local aF
   Local cType
@@ -480,6 +484,18 @@ Static Function CheckProgram(aProg)
       AAdd(aFound, {aF[N_LINE], "'" + aF[FN_NAME] + "' is the name of one of xtpl's verbs: a call to " ;
                                 + Lc(aF[FN_NAME]) + "() is the runtime's u_xtpl_" + Lc(aF[FN_NAME]) ;
                                 + ", never a function of the file. Give it another name."})
+    EndIf
+  Next
+  // A type is called to make one: no function of the AppServer's
+  // language, no verb, no reserved word is one.
+  For nI := 1 To Len(aProg[PG_TYPES])
+    aTy := aProg[PG_TYPES][nI]
+    cWhy := If(Among(Lc(aTy[TD_NAME]), cLanguageFunctions), "a function of the AppServer's language", ;
+               If(u_xcb_isverb(aTy[TD_NAME]), "the name of one of xtpl's verbs", ;
+                  If(u_xcb_isreserved(aTy[TD_NAME]), "a reserved word", "")))
+    If !(cWhy == "")
+      AAdd(aFound, {aTy[N_LINE], "'" + aTy[TD_NAME] + "' is " + cWhy + ", and '" + aTy[TD_NAME] ;
+                                 + "(...)' would make a value of the type: give it another name."})
     EndIf
   Next
   // A .prw counts a function's name to 10 characters, its prefix included
@@ -546,6 +562,7 @@ Static Function CheckProgram(aProg)
     AAdd(aEnds, aM[N_LINE])
     KeywordName(aM[MI_NAME], aM[N_LINE])
   Next
+  AEval(aProg[PG_TYPES], {|t| hTypesC{Lc(t[TD_NAME])} := .T.})
   For nI := 1 To Len(aProg[PG_CLASSES])
     aC := aProg[PG_CLASSES][nI]
     AAdd(aEnds, aC[N_LINE])
@@ -849,7 +866,8 @@ Static Function TypeWord(xWord, nAt, lStrict)
   cW := Lc(xWord)
   If !(Len(xWord) == 1 .Or. cW == "char" .Or. cW == "block")
     If lStrict .And. !lAdvpl .And. !Among(cW, "|numeric|character|logical|date|array|object|codeblock|json|" ;
-                                              + "variant|integer|decimal|double|variadic|") .And. !(hClasses has cW)
+                                              + "variant|integer|decimal|double|variadic|") .And. !(hClasses has cW) ;
+       .And. !(hTypesC has cW)
       nLine := nAt
       Problem("'as " + xWord + "': TL++ has no type '" + xWord + "', and this file declares no class by that name.")
     EndIf

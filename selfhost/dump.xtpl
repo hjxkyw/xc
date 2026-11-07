@@ -10,7 +10,7 @@ Static aOut := {}
 Static aExprKinds := {"Literal", "Name", "UserTrans", "Call", "Binary", "Index", "SelfRef", "SubjectRef", ;
                       "Member", "SafeMember", "HashIndex", "Interval", "MethodCall", "SafeCall", "AliasField", ;
                       "InAlias", "Macro", "Ref", "Omitted", "ExprList", "AssignExpr", "ArrayLit", "Interp", ;
-                      "JsonLit", "HashLit", "CodeBlock", "Lambda", "Guard", "Pipeline"}
+                      "JsonLit", "HashLit", "CodeBlock", "Lambda", "Guard", "Pipeline", "Dot", "DotCall", "Named"}
 Static aStmtKinds := {"Declaration", "Assignment", "CallStmt", "ReturnStmt", "ExitStmt", "LoopStmt", ;
                       "Annotation", "IfStmt", "CaseStmt", "WhileStmt", "ForStmt", "ForInStmt", "ForTimesStmt", ;
                       "Modified", "Deferred", "UsingAlias", "WithObject", "RawStmt", "TryStmt", ;
@@ -37,6 +37,11 @@ User Function xcb_dump(aProg)
   AEval(aProg[PG_EXTERNALS], {|x| ExternalDef(4, x)})
   Many(2, "statics", Len(aProg[PG_STATICS]))
   AEval(aProg[PG_STATICS], {|d| Stmt(4, d)})
+  // Only a file that has a type says it has any.
+  If Len(aProg[PG_TYPES]) > 0
+    Many(2, "types", Len(aProg[PG_TYPES]))
+    AEval(aProg[PG_TYPES], {|t| TypeDef(4, t)})
+  EndIf
   For nI := 1 To Len(aOut)
     cText += aOut[nI] + Chr(10)
   Next
@@ -175,6 +180,10 @@ Static Function Expr(nIn, aE)
     Case nK == EK_MEMBER .Or. nK == EK_SAFEMEMBER
       Child(nF, "base", aE[MEM_BASE])
       Text(nF, "name", aE[MEM_NAME])
+      If !Empty(aE[MEM_TYPE])
+        Text(nF, "of_type", aE[MEM_TYPE])
+        Num(nF, "pos", aE[MEM_POS])
+      EndIf
     Case nK == EK_HASHINDEX
       Child(nF, "base", aE[HIX_BASE])
       Child(nF, "key", aE[HIX_KEY])
@@ -186,6 +195,7 @@ Static Function Expr(nIn, aE)
       Child(nF, "base", aE[MC_BASE])
       Text(nF, "name", aE[MC_NAME])
       Exprs(nF, "args", aE[MC_ARGS])
+      If !Empty(aE[MC_TYPE]) exec Text(nF, "of_type", aE[MC_TYPE])
     Case nK == EK_ALIASFIELD
       Child(nF, "base", aE[AF_BASE])
       Opt(nF, "alias", aE[AF_ALIAS])
@@ -247,6 +257,19 @@ Static Function Expr(nIn, aE)
       Child(nF, "source", aE[PIPE_SOURCE])
       Exprs(nF, "stages", aE[PIPE_STAGES])
       Flag(nF, "then", aE[PIPE_THEN])
+    Case nK == EK_DOT
+      Child(nF, "base", aE[DOT_BASE])
+      Text(nF, "name", aE[DOT_NAME])
+      Text(nF, "of_type", aE[DOT_TYPE])
+      Num(nF, "pos", aE[DOT_POS])
+    Case nK == EK_DOTCALL
+      Child(nF, "base", aE[DC_BASE])
+      Text(nF, "name", aE[DC_NAME])
+      Exprs(nF, "args", aE[DC_ARGS])
+      Text(nF, "of_type", aE[DC_TYPE])
+    Case nK == EK_NAMED
+      Text(nF, "name", aE[NMD_NAME])
+      Child(nF, "value", aE[NMD_VALUE])
   EndCase
 Return Nil
 
@@ -437,6 +460,36 @@ Static Function FunctionDef(nIn, aD)
   Num(nF, "ret_from", aD[FN_RETFROM])
   Num(nF, "ret_to", aD[FN_RETTO])
   Text(nF, "ret_tlpp", aD[FN_RETTLPP])
+  If !Empty(aD[FN_OFTYPE])
+    Text(nF, "of_type", aD[FN_OFTYPE])
+    Text(nF, "method", aD[FN_METHOD])
+    Num(nF, "head_from", aD[FN_HEADFROM])
+    Num(nF, "head_to", aD[FN_HEADTO])
+    Num(nF, "paren", aD[FN_PAREN])
+  EndIf
+Return Nil
+
+// A type: its fields' declarators, its methods' names.
+Static Function TypeDef(nIn, aT)
+  Local nF := nIn + 2
+  Local aNames := {}
+  Head(nIn, "TypeDef")
+  Text(nF, "name", aT[TD_NAME])
+  Num(nF, "line", aT[N_LINE])
+  Num(nF, "from", aT[N_FROM])
+  Num(nF, "head_to", aT[TD_HEADTO])
+  Num(nF, "end_from", aT[TD_ENDFROM])
+  Num(nF, "end_to", aT[TD_ENDTO])
+  Num(nF, "end_line", aT[TD_ENDLINE])
+  Many(nF, "fields", Len(aT[TD_FIELDS]))
+  for aF in aT[TD_FIELDS]
+    Head(nF + 2, "TypeField")
+    Num(nF + 4, "from", aF[N_FROM])
+    Num(nF + 4, "to", aF[N_TO])
+    Declarator(nF + 4, "decl", aF[TF_DECL])
+  next
+  AEval(aT[TD_METHODS], {|m| AAdd(aNames, m[FN_NAME])})
+  Strs(nF, "methods", aNames)
 Return Nil
 
 Static Function ClassDef(nIn, aC)

@@ -47,6 +47,9 @@
 #define EK_LAMBDA      27
 #define EK_GUARD       28
 #define EK_PIPELINE    29
+#define EK_DOT         30
+#define EK_DOTCALL     31
+#define EK_NAMED       32
 
 // A literal's, and every literal kind's: its type's name, its text.
 #define LIT_TYPE       6
@@ -62,18 +65,22 @@
 #define BIN_RIGHT      8
 #define IDX_BASE       6
 #define IDX_INDICES    7
-// Member, SafeMember.
+// Member, SafeMember -- 'x?.f' of a type's value: of that type, the field
+// at its position (typed.xtpl).
 #define MEM_BASE       6
 #define MEM_NAME       7
+#define MEM_TYPE       8
+#define MEM_POS        9
 #define HIX_BASE       6
 #define HIX_KEY        7
 #define HIX_SETKIND    8
 #define IVL_LO         6
 #define IVL_HI         7
-// MethodCall, SafeCall.
+// MethodCall, SafeCall -- 'x?.m()' of a type's value: of that type.
 #define MC_BASE        6
 #define MC_NAME        7
 #define MC_ARGS        8
+#define MC_TYPE        9
 #define AF_BASE        6
 #define AF_ALIAS       7
 #define AF_FIELD       8
@@ -107,6 +114,19 @@
 #define PIPE_SOURCE    6
 #define PIPE_STAGES    7
 #define PIPE_THEN      8
+// A type's field, 'x.f', and method, 'x.m()': of the type typed.xtpl knows
+// the base to be of ('' while it does not), the field at its position.
+#define DOT_BASE       6
+#define DOT_NAME       7
+#define DOT_TYPE       8
+#define DOT_POS        9
+#define DC_BASE        6
+#define DC_NAME        7
+#define DC_ARGS        8
+#define DC_TYPE        9
+// A field given by its name where a type's value is made: 'Item(n => 2)'.
+#define NMD_NAME       6
+#define NMD_VALUE      7
 
 // ---- statements -------------------------------------------------------------
 #define SK_DECLARATION      101
@@ -208,6 +228,8 @@
 #define NK_METHODIMPL   209
 #define NK_EXTERNAL     210
 #define NK_PROGRAM      211
+#define NK_TYPEFIELD    212
+#define NK_TYPEDEF      213
 
 #define KV_KEY            6
 #define KV_VALUE          7
@@ -246,6 +268,13 @@
 #define FN_RETFROM        13
 #define FN_RETTO          14
 #define FN_RETTLPP        15
+// A type's method: its type, its own name -- the function is TYPE_METHOD,
+// its first parameter 'Self' --, where 'method NAME' is, and its '('.
+#define FN_OFTYPE         16
+#define FN_METHOD         17
+#define FN_HEADFROM       18
+#define FN_HEADTO         19
+#define FN_PAREN          20
 #define DM_NAME           6
 #define DM_TYPE           7
 #define DM_VISIBILITY     8
@@ -292,6 +321,19 @@
 #define PG_METHODS        12
 #define PG_EXTERNALS      13
 #define PG_STATICS        14
+#define PG_TYPES          15
+// A type's field: its declarator, the line's code at N_FROM, N_TO. A type:
+// its line N_LINE, where it starts N_FROM; where its first line's code
+// ends, where its last line starts and ends, that line; its fields, its
+// methods (also among the program's functions).
+#define TF_DECL           6
+#define TD_NAME           6
+#define TD_HEADTO         7
+#define TD_ENDFROM        8
+#define TD_ENDTO          9
+#define TD_ENDLINE        10
+#define TD_FIELDS         11
+#define TD_METHODS        12
 
 // ---- what the passes give ---------------------------------------------------
 // A chain's stages, split (chains.xtpl): those that fuse, the terminal or

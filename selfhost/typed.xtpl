@@ -25,6 +25,29 @@
 #define V_TYPE       3
 #define V_CONTAINER  4
 #define V_LINE       5
+#define V_BLOCK      6       // a lambda's or a code block's parameter
+
+// A type of the file: its name, its TypeDef, its fields (TFD_*) at their
+// positions from 1, the place of each by its name in lower case, its
+// methods by theirs. A field: its name, what it holds, what xc checks goes
+// in (or ''), whether it is <const>, its position, its declarator. Where an
+// 'x.f', a value made, a verb is: {the node, the class and the type it is
+// in, its line}.
+#define TI_NAME      1
+#define TI_DEF       2
+#define TI_FIELDS    3
+#define TI_BYNAME    4
+#define TI_METHODS   5
+#define TFD_NAME     1
+#define TFD_TYPE     2
+#define TFD_SLOT     3
+#define TFD_CONST    4
+#define TFD_POS      5
+#define TFD_DECL     6
+#define AT_E         1
+#define AT_CLS       2
+#define AT_TYP       3
+#define AT_LINE      4
 
 // What a function does (typed.cpp's Event), and on what line: declares a
 // name -- the value, its init, and the declarator --, assigns one, counts
@@ -109,6 +132,20 @@ Static cRet := ""             // what the function checked returns, if it is a t
 Static cRetName := ""
 Static aErrors := {}
 Static aWarnings := {}
+Static hTypes := Nil          // the file's types, by their names in lower case
+Static hTypeWords := Nil      // and how the file declares each
+Static cTyp := ""             // the type of the method walked, in lower case
+// Each 'x.f', 'x.m()', each 'x?.f', each 'with object''s subject, each
+// value of a type made, each verb that walks with a lambda (AT_*).
+Static aDots := {}
+Static aSafes := {}
+Static aWiths := {}
+Static aMakes := {}
+Static aVerbs := {}
+
+// The verbs whose lambda is given what they walk.
+Static cWalkers := "|map|filter|reject|tap|takewhile|dropwhile|expand|distinctadjacent|sort|sortby|chunkby|scan|" ;
+                   + "reduce|fold|count|first|anyof|allof|noneof|maxby|minby|heapof|"
 
 Static cLogical := "|==|=|!=|<>|#|<|>|<=|>=|$|.and.|.or.|!|in|has|%%|(elem)|(cont)|(<=)|(<)|(>=)|(>)|(==)|"
 
@@ -164,9 +201,18 @@ User Function xcb_typedproblems(aProg)
   aUnits := {}
   hReturns := { => }
   hFunctions := { => }
+  hTypes := { => }
+  hTypeWords := { => }
+  cTyp := ""
+  aDots := {}
+  aSafes := {}
+  aWiths := {}
+  aMakes := {}
+  aVerbs := {}
   If hBuiltins == Nil
     hBuiltins := Builtins()
   EndIf
+  Types(aProg)
   // The file's classes: their names first -- a Data's type may be one
   // declared further on --, then their Data and their methods.
   For nI := 1 To Len(aProg[PG_CLASSES])
@@ -193,7 +239,7 @@ User Function xcb_typedproblems(aProg)
       cT := If(aD[DM_TYPE] != Nil, WordType(aD[DM_TYPE]), T_UNKNOWN)
       aCi[CI_DATA]{u_xcb_lc(aD[DM_NAME])} := {If(!(aD[DM_CONTAINER] == ""), aD[DM_CONTAINER], cT), ;
                                                If(!(aD[DM_CONTAINER] == ""), aD[DM_CONTAINER], ;
-                                                  If(IsClassed(cT), cT, "")), aD[DM_NAME], aD[N_LINE]}
+                                                  If(IsCheckedSlot(cT), cT, "")), aD[DM_NAME], aD[N_LINE]}
     Next
     For nJ := 1 To Len(aC[CD_METHODS])
       aCi[CI_SIGS]{u_xcb_lc(aC[CD_METHODS][nJ][MS_NAME])} := aC[CD_METHODS][nJ]
@@ -237,10 +283,12 @@ User Function xcb_typedproblems(aProg)
     aF := aProg[PG_FUNCTIONS][nI]
     cRetW := aF[FN_RETCONTAINER]
     cWord := If(aF[FN_RETWORD] != Nil, WordType(aF[FN_RETWORD]), "")
-    If cRetW == "" .And. IsClassed(cWord)
+    If cRetW == "" .And. IsCheckedSlot(cWord)
       cRetW := cWord
     EndIf
+    cTyp := u_xcb_lc(aF[FN_OFTYPE])
     TFunction(aF[FN_PARAMS], aF[FN_BODY], cRetW, aF[FN_NAME], aF[N_LINE])
+    cTyp := ""
   Next
   For nI := 1 To Len(aProg[PG_METHODS])
     aScopes := {hFile}
@@ -254,7 +302,7 @@ User Function xcb_typedproblems(aProg)
     If cRetW == "" .And. aSig != Nil
       cRetW := aSig[MS_RETCONTAINER]
     EndIf
-    If cRetW == "" .And. IsClassed(MethodType(cCls, aM[MI_NAME]))
+    If cRetW == "" .And. IsCheckedSlot(MethodType(cCls, aM[MI_NAME]))
       cRetW := MethodType(cCls, aM[MI_NAME])
     EndIf
     TFunction(aM[MI_PARAMS], aM[MI_BODY], cRetW, "::" + aM[MI_NAME], aM[N_LINE])
@@ -263,6 +311,9 @@ User Function xcb_typedproblems(aProg)
     cCls := ""
   Next
   Infer()
+  // What each 'x.f' and 'x.m()' is of -- for the back end, in every file.
+  Lambdas()
+  Resolve(aProg)
   // A set's or a bag's 'h{k}': Raku's reads and writes.
   For nI := 1 To Len(aHashes)
     aH := aHashes[nI]
@@ -286,6 +337,19 @@ User Function xcb_typedproblems(aProg)
   For nU := 1 To Len(aUnits)
     CheckUnit(aUnits[nU])
   Next
+  For nI := 1 To Len(aMakes)
+    cCls := aMakes[nI][AT_CLS]
+    nLineT := aMakes[nI][AT_LINE]
+    Made(aMakes[nI][AT_E])
+  Next
+  For nI := 1 To Len(aDots)
+    cCls := aDots[nI][AT_CLS]
+    nLineT := aDots[nI][AT_LINE]
+    If IsKT(aDots[nI][AT_E], EK_DOTCALL)
+      DotArgs(aDots[nI][AT_E])
+    EndIf
+  Next
+  cCls := ""
   // A fixed Data is given its value by the constructor: one the file
   // implements, that never does, is refused.
   aK := keys(hClasses)
@@ -302,6 +366,7 @@ User Function xcb_typedproblems(aProg)
         If !(aU[U_CLS] == aK[nI]) .Or. !aU[U_CTOR]
           Loop
         EndIf
+        cCls := aU[U_CLS]
         lGiven := .F.
         For nE := 1 To Len(aU[U_EVENTS])
           aEv := aU[U_EVENTS][nE]
@@ -320,6 +385,489 @@ User Function xcb_typedproblems(aProg)
 Return {aErrors, aWarnings}
 
 // ---- types ------------------------------------------------------------------
+// A value of a type of the file: 'T:item' -- its name in lower case, as the
+// parser writes it in a typed array's type (and hTypeWords has how the file
+// declares it).
+Static Function IsTypedValue(cT)
+Return Len(cT) > 2 .And. Left(cT, 2) == "T:"
+
+// What xc checks goes in: an object of a class, a type's value.
+Static Function IsCheckedSlot(cT)
+Return IsClassed(cT) .Or. IsTypedValue(cT)
+
+Static Function TypeWordT(cT)
+  Local cK := SubStr(cT, 3)
+  If hTypeWords != Nil .And. (hTypeWords has cK)
+    Return hTypeWords{cK}
+  EndIf
+Return cK
+
+// The file's types: each field's position and what it holds, each method
+// -- and what is wrong with them.
+Static Function Types(aProg)
+  Local hFns := { => }
+  Local nI
+  Local nJ
+  Local nK
+  Local aT
+  Local cK
+  Local aTi
+  Local lCls
+  Local aD
+  Local aTd
+  Local cW
+  Local cA
+  Local cN
+  Local aM
+  Local aX
+  Local aSts
+  For nI := 1 To Len(aProg[PG_TYPES])
+    aT := aProg[PG_TYPES][nI]
+    cK := u_xcb_lc(aT[TD_NAME])
+    If hTypes has cK
+      AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is declared twice, on line " ;
+                                 + AllTrim(Str(hTypes{cK}[TI_DEF][N_LINE])) + " and here."})
+      Loop
+    EndIf
+    hTypes{cK} := {aT[TD_NAME], aT, {}, { => }, { => }}
+    hTypeWords{cK} := aT[TD_NAME]
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    If Empty(aProg[PG_FUNCTIONS][nI][FN_OFTYPE])
+      hFns{u_xcb_lc(aProg[PG_FUNCTIONS][nI][FN_NAME])} := .T.
+    EndIf
+  Next
+  For nI := 1 To Len(aProg[PG_TYPES])
+    aT := aProg[PG_TYPES][nI]
+    aTi := hTypes{u_xcb_lc(aT[TD_NAME])}
+    If aTi[TI_DEF][N_ID] != aT[N_ID]
+      Loop
+    EndIf
+    lCls := .F.
+    For nJ := 1 To Len(aProg[PG_CLASSES])
+      lCls := lCls .Or. u_xcb_lc(aProg[PG_CLASSES][nJ][CD_NAME]) == u_xcb_lc(aT[TD_NAME])
+    Next
+    If (hFns has u_xcb_lc(aT[TD_NAME])) .Or. lCls
+      AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is a type of the file and a " + If(lCls, "class", "function") ;
+                                 + " of it: '" + aT[TD_NAME] + "(...)' makes a value of the type."})
+    EndIf
+    For nJ := 1 To Len(aT[TD_FIELDS])
+      aD := aT[TD_FIELDS][nJ][TF_DECL]
+      cW := u_xcb_typeword(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC]))
+      aTd := {aD[DCL_NAME], "", "", .F., Len(aTi[TI_FIELDS]) + 1, aD}
+      aTd[TFD_TYPE] := If(!(aD[DCL_CONTAINER] == ""), aD[DCL_CONTAINER], If(!(cW == ""), WordType(cW), T_UNKNOWN))
+      aTd[TFD_SLOT] := If(aTd[TFD_TYPE] == T_UNKNOWN, "", aTd[TFD_TYPE])
+      For nK := 1 To Len(aD[DCL_ATTRS])
+        cA := aD[DCL_ATTRS][nK]
+        If cA == "const"
+          aTd[TFD_CONST] := .T.
+        Else
+          AAdd(aErrors, {aD[N_LINE], "the field '" + aD[DCL_NAME] + "' of " + aT[TD_NAME] + " is <" + cA ;
+                                     + ">: a field takes <const>, nothing else."})
+        EndIf
+      Next
+      cN := u_xcb_lc(aD[DCL_NAME])
+      If cN == "and" .Or. cN == "or" .Or. cN == "not" .Or. cN == "t" .Or. cN == "f" .Or. cN == "y" .Or. cN == "n"
+        AAdd(aErrors, {aD[N_LINE], "a field cannot be called '" + aD[DCL_NAME] + "': '." + aD[DCL_NAME] ;
+                                   + ".' is TL++'s own."})
+      EndIf
+      If aTi[TI_BYNAME] has cN
+        AAdd(aErrors, {aD[N_LINE], "'" + aD[DCL_NAME] + "' is a field of " + aT[TD_NAME] + " twice."})
+        Loop
+      EndIf
+      If hFns has u_xcb_lc(aT[TD_NAME] + "_" + aD[DCL_NAME])
+        AAdd(aErrors, {aD[N_LINE], "'" + aT[TD_NAME] + "_" + aD[DCL_NAME] + "' is the position of " + aT[TD_NAME] ;
+                                   + "'s field '" + aD[DCL_NAME] + "', and a function of the file."})
+      EndIf
+      // Its default is made where a value is: no variable is there.
+      If aD[DCL_INIT] != Nil .And. !aD[DCL_INITMADE]
+        aX := u_xcb_walkexpr(aD[DCL_INIT])
+        For nK := 1 To Len(aX)
+          If IsKT(aX[nK], EK_NAME)
+            AAdd(aErrors, {aD[N_LINE], "the field '" + aD[DCL_NAME] + "' of " + aT[TD_NAME] ;
+                                       + " starts at a value made where one is: it cannot read '" ;
+                                       + aX[nK][NAME_NAME] + "'."})
+          EndIf
+        Next
+      EndIf
+      aTi[TI_BYNAME]{cN} := Len(aTi[TI_FIELDS]) + 1
+      AAdd(aTi[TI_FIELDS], aTd)
+    Next
+    For nJ := 1 To Len(aT[TD_METHODS])
+      aM := aT[TD_METHODS][nJ]
+      For nK := 2 To Len(aM[FN_PARAMS])
+        OwnSelf(aM, aM[FN_PARAMS][nK][PRM_NAME], aM[N_LINE])
+      Next
+      aSts := u_xcb_walk(aM[FN_BODY])
+      For nK := 1 To Len(aSts)
+        If aSts[nK][N_KIND] == SK_DECLARATION
+          AEval(aSts[nK][DECL_DECLARATORS], {|v| OwnSelf(aM, v[DCL_NAME], v[N_LINE])})
+        EndIf
+      Next
+      If hFns has u_xcb_lc(aM[FN_NAME])
+        AAdd(aErrors, {aM[N_LINE], "'" + aM[FN_NAME] + "' is the function " + aT[TD_NAME] + "'s method " ;
+                                   + aM[FN_METHOD] + "() is, and a function of the file."})
+      EndIf
+      cN := u_xcb_lc(aM[FN_METHOD])
+      If (aTi[TI_METHODS] has cN) .Or. (aTi[TI_BYNAME] has cN)
+        AAdd(aErrors, {aM[N_LINE], "'" + aM[FN_METHOD] + "' is " + If(aTi[TI_METHODS] has cN, "a method", "a field") ;
+                                   + " of " + aT[TD_NAME] + " already."})
+        Loop
+      EndIf
+      aTi[TI_METHODS]{cN} := aM
+    Next
+  Next
+Return Nil
+
+// Self is TL++'s aSelf, the function's first parameter: a type's method
+// declares no other.
+Static Function OwnSelf(aM, cName, nLine)
+  If u_xcb_lc(cName) == "self" .Or. u_xcb_lc(cName) == "aself"
+    AAdd(aErrors, {nLine, "'" + cName + "' is the value " + aM[FN_METHOD] + "() is called on -- 'aSelf' in TL++: " ;
+                          + "a type's method declares no other."})
+  EndIf
+Return Nil
+
+// The type of the file a value of type cT is of (TI_*), or Nil.
+Static Function TypeInfoOf(cT)
+  If !IsTypedValue(cT) .Or. !(hTypes has SubStr(cT, 3))
+    Return Nil
+  EndIf
+Return hTypes{SubStr(cT, 3)}
+
+Static Function FieldOf(cT, cName)
+  Local aTi := TypeInfoOf(cT)
+  Local cK := u_xcb_lc(cName)
+  If aTi == Nil .Or. !(aTi[TI_BYNAME] has cK)
+    Return Nil
+  EndIf
+Return aTi[TI_FIELDS][aTi[TI_BYNAME]{cK}]
+
+// What a type's method gives: its typed array or hash, its type, or '?'.
+Static Function MethodRet(aTi, cName)
+  Local aF
+  If aTi == Nil .Or. !(aTi[TI_METHODS] has u_xcb_lc(cName))
+    Return T_UNKNOWN
+  EndIf
+  aF := aTi[TI_METHODS]{u_xcb_lc(cName)}
+  If !(aF[FN_RETCONTAINER] == "")
+    Return aF[FN_RETCONTAINER]
+  EndIf
+Return If(aF[FN_RETWORD] != Nil, WordType(aF[FN_RETWORD]), T_UNKNOWN)
+
+// 'x.f' as a message names it: 'aIt', 'aOrd.oCli', 'Self'; '' for what has
+// no name.
+Static Function DotName(aE)
+  Local cB
+  If IsKT(aE, EK_NAME)
+    Return aE[NAME_NAME]
+  EndIf
+  If IsKT(aE, EK_DOT)
+    cB := DotName(aE[DOT_BASE])
+    Return If(cB == "", "", cB + "." + aE[DOT_NAME])
+  EndIf
+Return ""
+
+// A field written to, said so: "'aIt.nQtd' is Numeric".
+Static Function FieldWho(aD)
+  Local aF := FieldOf(TypeOf(aD[DOT_BASE]), aD[DOT_NAME])
+  Local cN := DotName(aD)
+Return "'" + If(cN == "", "." + aD[DOT_NAME], cN) + "' is " + ShownT(If(aF != Nil, aF[TFD_TYPE], T_UNKNOWN))
+
+// A lambda a verb walks a type's values with: its parameter is one -- what
+// xc knows of the array, worked out.
+Static Function Lambdas()
+  Local nI
+  Local nJ
+  Local aV
+  Local aP
+  For nI := 1 To Len(aVerbs)
+    aV := aVerbs[nI]
+    cCls := aV[AT_CLS]
+    If IsKT(aV[AT_E], EK_PIPELINE)
+      aP := aV[AT_E]
+      For nJ := 1 To Len(aP[PIPE_STAGES])
+        GiveLambda(aP[PIPE_STAGES][nJ], ChainType(aP, nJ - 1), 1)
+      Next
+    ElseIf Len(aV[AT_E][CALL_ARGS]) > 0
+      GiveLambda(aV[AT_E], TypeOf(aV[AT_E][CALL_ARGS][1]), 2)
+    EndIf
+  Next
+  cCls := ""
+Return Nil
+
+// A verb's -- or TL++'s ASort()'s, AEval()'s, AScan()'s, whose block is
+// given an array's elements -- lambdas and code blocks from its argument
+// nFrom: the parameter that takes an element is one.
+Static Function GiveLambda(aC, cFed, nFrom)
+  Local cN := u_xcb_lc(aC[CALL_NAME])
+  Local cEl := ElemOf(cFed)
+  Local nK
+  Local nI
+  Local nJ
+  Local aPs
+  Local aArg
+  If !(("|" + cN + "|") $ cWalkers .Or. (("|" + cN + "|") $ "|asort|aeval|ascan|" .And. nFrom == 2)) ;
+     .Or. !IsTypedValue(BareT(cEl))
+    Return Nil
+  EndIf
+  If cN == "asort"
+    cN := "sort"
+  EndIf
+  nK := If(cN == "reduce" .Or. cN == "fold" .Or. cN == "scan", 2, 1)
+  For nI := nFrom To Len(aC[CALL_ARGS])
+    aArg := aC[CALL_ARGS][nI]
+    If aArg == Nil .Or. !(hBlockParams has aArg[N_ID])
+      Loop
+    EndIf
+    aPs := hBlockParams{aArg[N_ID]}
+    For nJ := 1 To Len(aPs)
+      If (nJ == nK .Or. cN == "sort") .And. aPs[nJ][V_TYPE] == T_UNKNOWN
+        aPs[nJ][V_TYPE] := BareT(cEl)
+      EndIf
+    Next
+  Next
+Return Nil
+
+// Each 'x.f', 'x.m()': the type x is of, the field's position -- or why xc
+// cannot tell.
+Static Function Resolve(aProg)
+  Local aSaid := {}
+  Local nI
+  Local nJ
+  Local aA
+  Local lCall
+  Local aBase
+  Local cName
+  Local cWhat
+  Local cT
+  Local aTi
+  Local cWho
+  Local aHave
+  Local aX
+  Local lHas
+  Local lCan
+  Local cHint
+  For nI := 1 To Len(aDots)
+    AAdd(aSaid, {})
+  Next
+  // The innermost first: what one cannot tell is not said again of the
+  // field read from it -- the messages then go in the order found.
+  For nI := Len(aDots) To 1 Step -1
+    aA := aDots[nI]
+    cCls := aA[AT_CLS]
+    nLineT := aA[AT_LINE]
+    lCall := IsKT(aA[AT_E], EK_DOTCALL)
+    aBase := If(lCall, aA[AT_E][DC_BASE], aA[AT_E][DOT_BASE])
+    cName := If(lCall, aA[AT_E][DC_NAME], aA[AT_E][DOT_NAME])
+    cWhat := "'." + cName + If(lCall, "()'", "'")
+    cT := TypeOf(aBase)
+    aTi := TypeInfoOf(cT)
+    If aTi == Nil
+      // Read from a field xc could not work out: said of that one.
+      If (IsKT(aBase, EK_DOT) .And. Empty(aBase[DOT_TYPE])) .Or. (IsKT(aBase, EK_DOTCALL) .And. Empty(aBase[DC_TYPE]))
+        Loop
+      EndIf
+      cWho := DotName(aBase)
+      cWho := If(cWho == "", "this", "'" + cWho + "'")
+      If !(BareT(cT) == T_UNKNOWN) .And. !(cT == T_NONE) .And. !(cT == "")
+        AAdd(aSaid[nI], {nLineT, cWho + " is " + ShownT(cT) + ", no type's value: " + cWhat + " is a type's " ;
+                                 + If(lCall, "method.", "field.") ;
+                                 + If(IsClassed(cT), " Its class's are read with ':'.", "")})
+        Loop
+      EndIf
+      // The types that have it: one, and its name says how to declare it.
+      aHave := {}
+      For nJ := 1 To Len(aProg[PG_TYPES])
+        aX := hTypes{u_xcb_lc(aProg[PG_TYPES][nJ][TD_NAME])}
+        lHas := If(lCall, aX[TI_METHODS] has u_xcb_lc(cName), aX[TI_BYNAME] has u_xcb_lc(cName))
+        If aX[TI_DEF][N_ID] == aProg[PG_TYPES][nJ][N_ID] .And. lHas
+          AAdd(aHave, aProg[PG_TYPES][nJ][TD_NAME])
+        EndIf
+      Next
+      // A name the function declares can say so; a block's parameter
+      // cannot.
+      lCan := .F.
+      If IsKT(aBase, EK_NAME) .And. (hNames has aBase[N_ID])
+        lCan := !hNames{aBase[N_ID]}[V_BLOCK]
+      EndIf
+      cHint := If(Len(aHave) == 1 .And. lCan, " -- '" + SubStr(cWho, 2, Len(cWho) - 2) + " as " + aHave[1] ;
+                                              + "' says it is one.", "")
+      AAdd(aSaid[nI], {nLineT, cWhat + ": xc cannot tell that " + cWho + " is a type's value" ;
+                               + If(cHint == "", ".", cHint)})
+      Loop
+    EndIf
+    If lCall
+      If !(aTi[TI_METHODS] has u_xcb_lc(cName))
+        AAdd(aSaid[nI], {nLineT, "'" + aTi[TI_NAME] + "' has no method '" + cName + "()'."})
+        Loop
+      EndIf
+      aA[AT_E][DC_TYPE] := aTi[TI_NAME]
+      Loop
+    EndIf
+    If !(aTi[TI_BYNAME] has u_xcb_lc(cName))
+      AAdd(aSaid[nI], {nLineT, "'" + aTi[TI_NAME] + "' has no field '" + cName + "'."})
+      Loop
+    EndIf
+    // Its position is a #define of the type's: there only after it.
+    If aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
+      AAdd(aSaid[nI], {nLineT, "'" + aTi[TI_NAME] + "' is declared on line " + AllTrim(Str(aTi[TI_DEF][N_LINE])) ;
+                               + ": its fields are read after it."})
+      Loop
+    EndIf
+    aA[AT_E][DOT_TYPE] := aTi[TI_NAME]
+    aA[AT_E][DOT_POS] := aTi[TI_FIELDS][aTi[TI_BYNAME]{u_xcb_lc(cName)}][TFD_POS]
+  Next
+  For nI := 1 To Len(aSaid)
+    AEval(aSaid[nI], {|f| AAdd(aErrors, f)})
+  Next
+  // 'with object' takes an object: a type's value has its fields.
+  For nI := 1 To Len(aWiths)
+    aA := aWiths[nI]
+    cCls := aA[AT_CLS]
+    nLineT := aA[AT_LINE]
+    cT := TypeOf(aA[AT_E])
+    If !IsTypedValue(cT)
+      Loop
+    EndIf
+    cWho := DotName(aA[AT_E])
+    AAdd(aErrors, {nLineT, "'with object' takes an object, and " + If(cWho == "", "this", "'" + cWho + "'") + " is " ;
+                           + ShownT(cT) + ": its fields are '" + If(cWho == "", "x", cWho) + ".x'."})
+  Next
+  // 'x?.f', 'x?.m()' of a type's value: Nil if x is, else its field, its
+  // method -- of an object, what they always were.
+  For nI := 1 To Len(aSafes)
+    aA := aSafes[nI]
+    cCls := aA[AT_CLS]
+    nLineT := aA[AT_LINE]
+    lCall := IsKT(aA[AT_E], EK_SAFECALL)
+    aBase := If(lCall, aA[AT_E][MC_BASE], aA[AT_E][MEM_BASE])
+    cName := If(lCall, aA[AT_E][MC_NAME], aA[AT_E][MEM_NAME])
+    aTi := TypeInfoOf(TypeOf(aBase))
+    If aTi == Nil
+      Loop
+    EndIf
+    If lCall
+      If !(aTi[TI_METHODS] has u_xcb_lc(cName))
+        AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' has no method '" + cName + "()'."})
+        Loop
+      EndIf
+      aA[AT_E][MC_TYPE] := aTi[TI_NAME]
+      Loop
+    EndIf
+    If !(aTi[TI_BYNAME] has u_xcb_lc(cName))
+      AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' has no field '" + cName + "'."})
+      Loop
+    EndIf
+    If aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
+      AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' is declared on line " + AllTrim(Str(aTi[TI_DEF][N_LINE])) ;
+                             + ": its fields are read after it."})
+      Loop
+    EndIf
+    aA[AT_E][MEM_TYPE] := aTi[TI_NAME]
+    aA[AT_E][MEM_POS] := aTi[TI_FIELDS][aTi[TI_BYNAME]{u_xcb_lc(cName)}][TFD_POS]
+  Next
+  cCls := ""
+Return Nil
+
+// A type's value made: the fields, by their places and by their names.
+Static Function Made(aC)
+  Local aTi := TypeInfoOf("T:" + u_xcb_lc(aC[CALL_NAME]))
+  Local aGiven := {}
+  Local lByName := .F.
+  Local nAt := 0
+  Local nI
+  Local aA
+  Local cK
+  Local nF
+  If aTi == Nil
+    Return Nil
+  EndIf
+  For nI := 1 To Len(aTi[TI_FIELDS])
+    AAdd(aGiven, .F.)
+  Next
+  For nI := 1 To Len(aC[CALL_ARGS])
+    aA := aC[CALL_ARGS][nI]
+    If IsKT(aA, EK_NAMED)
+      lByName := .T.
+      cK := u_xcb_lc(aA[NMD_NAME])
+      If !(aTi[TI_BYNAME] has cK)
+        AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' has no field '" + aA[NMD_NAME] + "'."})
+        Loop
+      EndIf
+      nF := aTi[TI_BYNAME]{cK}
+      If aGiven[nF]
+        AAdd(aErrors, {nLineT, aTi[TI_NAME] + "(): '" + aA[NMD_NAME] + "' is given twice."})
+        Loop
+      EndIf
+      aGiven[nF] := .T.
+      Put(aA[NMD_VALUE], aTi[TI_FIELDS][nF][TFD_SLOT], MadeWho(aTi, aTi[TI_FIELDS][nF]))
+      Loop
+    EndIf
+    If lByName
+      AAdd(aErrors, {nLineT, aTi[TI_NAME] + "(): the values by their places come before those by their names."})
+      Return Nil
+    EndIf
+    If nAt >= Len(aTi[TI_FIELDS])
+      AAdd(aErrors, {nLineT, aTi[TI_NAME] + "() has " + AllTrim(Str(Len(aTi[TI_FIELDS]))) + " field" ;
+                             + If(Len(aTi[TI_FIELDS]) == 1, "", "s") + ": this gives it more."})
+      Return Nil
+    EndIf
+    nAt++
+    aGiven[nAt] := .T.
+    If !IsKT(aA, EK_OMITTED)
+      Put(aA, aTi[TI_FIELDS][nAt][TFD_SLOT], MadeWho(aTi, aTi[TI_FIELDS][nAt]))
+    EndIf
+  Next
+Return Nil
+
+Static Function MadeWho(aTi, aF)
+Return "the field '" + aF[TFD_NAME] + "' of " + aTi[TI_NAME] + "() is " + ShownT(aF[TFD_TYPE])
+
+// 'x.m(...)': what its parameters are declared as -- Self aside.
+Static Function DotArgs(aD)
+  Local aTi := TypeInfoOf(TypeOf(aD[DC_BASE]))
+  Local aM
+  Local aPs
+  Local nI
+  Local cSlot
+  If aTi == Nil .Or. !(aTi[TI_METHODS] has u_xcb_lc(aD[DC_NAME]))
+    Return Nil
+  EndIf
+  aM := aTi[TI_METHODS]{u_xcb_lc(aD[DC_NAME])}
+  aPs := aM[FN_PARAMS]
+  For nI := 1 To Min(Len(aPs) - 1, Len(aD[DC_ARGS]))
+    cSlot := SlotOf(aPs[nI + 1])
+    If cSlot == ""
+      Loop
+    EndIf
+    GoesInto(aD[DC_ARGS][nI], cSlot, "the parameter '" + aPs[nI + 1][PRM_NAME] + "' of " + aTi[TI_NAME] + "." ;
+                                     + aM[FN_METHOD] + "() is " + ShownT(cSlot), .F.)
+  Next
+Return Nil
+
+// A value that goes into a field: GoesInto() for what xc checks of arrays,
+// hashes, objects and types; for TL++'s types, what is known to be another
+// -- a Decimal aside (decimal.xtpl).
+Static Function Put(aE, cSlot, cWho)
+  Local cT
+  If aE == Nil .Or. cSlot == ""
+    Return Nil
+  EndIf
+  If IsBox(KindOf(cSlot)) .Or. IsCheckedSlot(cSlot) .Or. IsFixed(cSlot)
+    GoesInto(aE, cSlot, cWho, .F.)
+    Return Nil
+  EndIf
+  cT := TypeOf(aE)
+  If BareT(cT) == "F" .Or. cSlot == "F" .Or. IsKT(aE, EK_REF) .Or. IsKT(aE, EK_OMITTED)
+    Return Nil
+  EndIf
+  If Fits(cT, cSlot) == FIT_WRONG
+    AAdd(aErrors, {nLineT, cWho + ": this is " + ShownT(cT) + "."})
+  EndIf
+Return Nil
+
+// ---- the types' strings -----------------------------------------------------
 Static Function IsFixed(cT)
 Return Left(cT, 1) == "!"
 
@@ -645,7 +1193,7 @@ Return ""
 
 // ---- names ------------------------------------------------------------------
 Static Function DeclareVar(cName, lPinned, cType, cContainer)
-  Local aV := {cName, lPinned, If(lPinned, cType, T_NONE), If(cContainer == Nil, "", cContainer), nLineT}
+  Local aV := {cName, lPinned, If(lPinned, cType, T_NONE), If(cContainer == Nil, "", cContainer), nLineT, .F.}
   Local hScope := ATail(aScopes)
   AAdd(aVars, aV)
   hScope{u_xcb_lc(cName)} := aV
@@ -704,7 +1252,7 @@ Static Function TDeclarator(aD, cScope)
   ElseIf !(aD[DCL_DECLARED] == "?")
     // 'as Order': an Order goes in, as into a typed array.
     cT := DeclType(aD)
-    aV := DeclareVar(aD[DCL_NAME], .T., cT, If(IsClassed(cT), cT, ""))
+    aV := DeclareVar(aD[DCL_NAME], .T., cT, If(IsCheckedSlot(cT), cT, ""))
   Else
     aV := DeclareVar(aD[DCL_NAME], .F., T_NONE, "")
   EndIf
@@ -798,6 +1346,9 @@ Static Function WordType(cWord)
   Local cT := LetterOf(cWord)
   If cT == T_UNKNOWN .And. (hClasses has u_xcb_lc(cWord))
     Return ClassType(u_xcb_lc(cWord))
+  EndIf
+  If cT == T_UNKNOWN .And. (hTypes has u_xcb_lc(cWord))
+    Return "T:" + u_xcb_lc(cWord)
   EndIf
 Return cT
 
@@ -971,6 +1522,7 @@ Static Function TStmt(aSt)
       TExpr(aSt[UA_ORDER])
       TBody(aSt[UA_BODY])
     Case nK == SK_WITHOBJECT
+      AAdd(aWiths, {aSt[WO_SUBJECT], cCls, cTyp, nLineT})
       TExpr(aSt[WO_SUBJECT])
       TBody(aSt[WO_BODY])
     Case nK == SK_RAWSTMT
@@ -1039,6 +1591,8 @@ Static Function TExpr(aE)
   Local aV
   Local aSt
   Local aEv
+  Local cN
+  Local lMake
   If aE == Nil
     Return Nil
   EndIf
@@ -1053,7 +1607,9 @@ Static Function TExpr(aE)
       PushScope()
       aPs := {}
       For nI := 1 To Len(aE[CB_PARAMS])
-        AAdd(aPs, DeclareVar(aE[CB_PARAMS][nI], .T., T_UNKNOWN, ""))
+        aV := DeclareVar(aE[CB_PARAMS][nI], .T., T_UNKNOWN, "")
+        aV[V_BLOCK] := .T.
+        AAdd(aPs, aV)
       Next
       hBlockParams{aE[N_ID]} := aPs
       For nI := 1 To Len(aE[CB_BODY])
@@ -1073,13 +1629,53 @@ Static Function TExpr(aE)
         EndIf
       EndIf
     Case nK == EK_CALL
+      cN := u_xcb_lc(aE[CALL_NAME])
+      lMake := (hTypes has cN) .And. !(hFunctions has cN)
+      If lMake
+        AAdd(aMakes, {aE, cCls, cTyp, nLineT})
+      EndIf
       For nI := 1 To Len(aE[CALL_ARGS])
+        If IsKT(aE[CALL_ARGS][nI], EK_LAMBDA) .Or. IsKT(aE[CALL_ARGS][nI], EK_CODEBLOCK)
+          AAdd(aVerbs, {aE, cCls, cTyp, nLineT})
+          Exit
+        EndIf
+      Next
+      For nI := 1 To Len(aE[CALL_ARGS])
+        If !lMake .And. IsKT(aE[CALL_ARGS][nI], EK_NAMED)
+          AAdd(aErrors, {nLineT, "'" + aE[CALL_ARGS][nI][NMD_NAME] + " =>': a field by its name, and " ;
+                                 + aE[CALL_NAME] + "() makes no type's value."})
+        EndIf
         TExpr(aE[CALL_ARGS][nI])
       Next
       aEv := {EVK_CALLE, Nil, Nil, Nil, Nil, "", ""}
       AddEvent(aEv)
       aEv[EV_CALL] := aE
+    Case nK == EK_DOT .Or. nK == EK_DOTCALL
+      AAdd(aDots, {aE, cCls, cTyp, nLineT})
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        TExpr(aSub[nI])
+      Next
+    Case nK == EK_MEMBER .Or. nK == EK_SAFEMEMBER
+      If nK == EK_SAFEMEMBER
+        AAdd(aSafes, {aE, cCls, cTyp, nLineT})
+      EndIf
+      If !Empty(cTyp) .And. IsKT(aE[MEM_BASE], EK_SELFREF)
+        AAdd(aErrors, {nLineT, "'::" + aE[MEM_NAME] + "' is a class's: in a type's method, a field is '." ;
+                               + aE[MEM_NAME] + "'."})
+      EndIf
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        TExpr(aSub[nI])
+      Next
     Case nK == EK_METHODCALL .Or. nK == EK_SAFECALL
+      If nK == EK_SAFECALL
+        AAdd(aSafes, {aE, cCls, cTyp, nLineT})
+      EndIf
+      If !Empty(cTyp) .And. IsKT(aE[MC_BASE], EK_SELFREF)
+        AAdd(aErrors, {nLineT, "'::" + aE[MC_NAME] + "()' is a class's: in a type's method, a method is '." ;
+                               + aE[MC_NAME] + "()'."})
+      EndIf
       TExpr(aE[MC_BASE])
       For nI := 1 To Len(aE[MC_ARGS])
         TExpr(aE[MC_ARGS][nI])
@@ -1094,6 +1690,7 @@ Static Function TExpr(aE)
         TExpr(aSub[nI])
       Next
     Case nK == EK_PIPELINE
+      AAdd(aVerbs, {aE, cCls, cTyp, nLineT})
       TExpr(aE[PIPE_SOURCE])
       For nI := 1 To Len(aE[PIPE_STAGES])
         aSt := aE[PIPE_STAGES][nI]
@@ -1222,6 +1819,8 @@ Static Function TypeOf(aE)
   Local xD
   Local cC
   Local aB
+  Local cB
+  Local aFd
   If aE == Nil
     Return T_UNKNOWN
   EndIf
@@ -1290,10 +1889,37 @@ Static Function TypeOf(aE)
       // 'Order()', a class of the file's: the object New() is then called
       // on.
       cN := u_xcb_lc(aE[CALL_NAME])
+      If (hTypes has cN) .And. !(hFunctions has cN)
+        Return "T:" + cN
+      EndIf
       If Len(aE[CALL_ARGS]) == 0 .And. (hClasses has cN) .And. !(hFunctions has cN)
         Return ClassType(cN)
       EndIf
       Return CallType(cN, aE[CALL_ARGS], Nil)
+    Case nK == EK_DOT
+      cB := TypeOf(aE[DOT_BASE])
+      If cB == T_NONE
+        Return T_NONE
+      EndIf
+      aFd := FieldOf(cB, aE[DOT_NAME])
+      Return If(aFd != Nil, aFd[TFD_TYPE], T_UNKNOWN)
+    Case nK == EK_DOTCALL
+      cB := TypeOf(aE[DC_BASE])
+      If cB == T_NONE
+        Return T_NONE
+      EndIf
+      Return MethodRet(TypeInfoOf(cB), aE[DC_NAME])
+    Case nK == EK_NAMED
+      Return TypeOf(aE[NMD_VALUE])
+    Case nK == EK_SAFEMEMBER
+      cB := TypeOf(aE[MEM_BASE])
+      If IsTypedValue(cB)
+        aFd := FieldOf(cB, aE[MEM_NAME])
+        Return If(aFd != Nil, aFd[TFD_TYPE], T_UNKNOWN)
+      EndIf
+      Return T_UNKNOWN
+    Case nK == EK_SAFECALL
+      Return MethodRet(TypeInfoOf(TypeOf(aE[MC_BASE])), aE[MC_NAME])
     Case nK == EK_PIPELINE
       Return ChainType(aE, Len(aE[PIPE_STAGES]))
     Case nK == EK_GUARD
@@ -1525,6 +2151,9 @@ Static Function AnyTyped(aProg)
   Local aC
   Local aM
   Local aF
+  If Len(aProg[PG_TYPES]) > 0
+    Return .T.
+  EndIf
   For nI := 1 To Len(aProg[PG_CLASSES])
     aC := aProg[PG_CLASSES][nI]
     For nJ := 1 To Len(aC[CD_MEMBERS])
@@ -1671,7 +2300,7 @@ Static Function SlotOf(aQ)
     Return aQ[PRM_CONTAINER]
   EndIf
   cT := If(aQ[PRM_TYPEWORD] != Nil, WordType(aQ[PRM_TYPEWORD]), T_UNKNOWN)
-Return If(IsClassed(cT), cT, "")
+Return If(IsCheckedSlot(cT), cT, "")
 
 // A method's parameters: the implementation's, or the signature's.
 Static Function MethodParams(cClass, cName)
@@ -1739,6 +2368,9 @@ Static Function ShowT(cT)
   If IsClassed(cT)
     Return Lineage(cT)[1]
   EndIf
+  If IsTypedValue(cT)
+    Return TypeWordT(cT)
+  EndIf
   Do Case
     Case cT == "N"
       Return "Numeric"
@@ -1781,7 +2413,7 @@ Static Function BoxName(cK)
 Return ""
 
 Static Function Inner(cT)
-Return If(IsGeneric(cT) .Or. IsFixed(cT) .Or. IsClassed(cT), ShowT(cT), u_xcb_lc(cT))
+Return If(IsGeneric(cT) .Or. IsFixed(cT) .Or. IsClassed(cT) .Or. IsTypedValue(cT), ShowT(cT), u_xcb_lc(cT))
 
 // With its article, for an array or a hash: 'an Array<n>', 'Character'.
 Static Function ShownT(cT)
@@ -1792,7 +2424,7 @@ Static Function ShownT(cT)
   If IsKeyed(KindOf(cT))
     Return "a " + ShowT(cT)
   EndIf
-  If IsClassed(cT)
+  If IsClassed(cT) .Or. IsTypedValue(cT)
     cN := ShowT(cT)
     Return If(Len(cN) > 0 .And. Left(cN, 1) $ "aeiouAEIOU", "an ", "a ") + cN
   EndIf
@@ -1814,8 +2446,21 @@ Static Function Fits(cV, cSlot)
   If cSlot == "" .Or. cSlot == T_UNKNOWN .Or. cV == ""
     Return FIT_OK
   EndIf
+  If IsTypedValue(cSlot)
+    // A type's value is an array: one xc cannot tell is taken for one --
+    // what TOTVS' functions give --, an array known to hold this or that
+    // is not.
+    If BareT(cV) == T_UNKNOWN .Or. cV == T_NONE .Or. BareT(cV) == "A"
+      Return FIT_OK
+    EndIf
+    Return If(BareT(cV) == cSlot, FIT_OK, FIT_WRONG)
+  EndIf
   If BareT(cV) == T_UNKNOWN .Or. cV == T_NONE
     Return FIT_UNKNOWN
+  EndIf
+  // And goes where an array does.
+  If IsTypedValue(cV)
+    Return If(KindOf(cSlot) == "A" .And. !IsGeneric(cSlot), FIT_OK, FIT_WRONG)
   EndIf
   cVk := KindOf(cV)
   cSk := KindOf(cSlot)
@@ -1884,6 +2529,10 @@ Static Function GoesInto(aE, cSlot, cWho, lKey)
   Local cWhat
   Local nF
   If aE == Nil .Or. cSlot == "" .Or. cSlot == T_UNKNOWN .Or. IsKT(aE, EK_REF) .Or. IsKT(aE, EK_OMITTED)
+    Return Nil
+  EndIf
+  If IsTypedValue(cSlot) .And. IsKT(aE, EK_ARRAYLIT)
+    AAdd(aErrors, {nLineT, cWho + ": an array written out is none -- " + ShowT(cSlot) + "(...) makes one."})
     Return Nil
   EndIf
   // setOf(), bagOf(): an empty set or bag, of whatever is wanted.
@@ -2121,6 +2770,9 @@ Static Function CheckUnit(aU)
   Local aPs
   Local nI
   Local aCall
+  Local aTi
+  Local aFd
+  Local cN
   cRet := aU[U_RET]
   cRetName := aU[U_NAME]
   cCls := aU[U_CLS]
@@ -2155,6 +2807,21 @@ Static Function CheckUnit(aU)
           ElseIf aV != Nil .And. !(aV[V_CONTAINER] == "") .And. aEv[EV_INCDEC] == "" ;
                  .And. (cOp == ":=" .Or. cOp == "=" .Or. cOp == "?=")
             GoesInto(aEv[EV_VALUE], aV[V_CONTAINER], "'" + aV[V_NAME] + "' is " + ShownT(aV[V_CONTAINER]), .F.)
+          EndIf
+        ElseIf IsKT(aT, EK_DOT)
+          // 'x.f := v': as the type declares it -- a '<const>' one only
+          // where a value is made.
+          aTi := TypeInfoOf(TypeOf(aT[DOT_BASE]))
+          aFd := FieldOf(TypeOf(aT[DOT_BASE]), aT[DOT_NAME])
+          If aFd != Nil
+            If aFd[TFD_CONST]
+              cN := DotName(aT)
+              AAdd(aErrors, {nLineT, "'" + If(cN == "", "." + aT[DOT_NAME], cN) + "' is <const>: it takes its value " ;
+                                     + "where " + ShownT(If(aTi != Nil, "T:" + u_xcb_lc(aTi[TI_NAME]), T_UNKNOWN)) ;
+                                     + " is made."})
+            ElseIf aEv[EV_INCDEC] == "" .And. (cOp == ":=" .Or. cOp == "=" .Or. cOp == "?=")
+              Put(aEv[EV_VALUE], aFd[TFD_SLOT], FieldWho(aT))
+            EndIf
           EndIf
         ElseIf IsKT(aT, EK_MEMBER)
           // '::x := v', 'o:x := v': as the class declares it -- a fixed one

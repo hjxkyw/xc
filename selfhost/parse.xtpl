@@ -47,6 +47,12 @@ Static nInSq := 0
 Static nInExp := 0             // in '%exp:...%': a '%' is its end
 Static lAnyName := .F.         // no declared name is refused
 Static lGeneratedOk := .F.     // a name of xc's shape may be declared
+Static cTypeName := ""         // in a type's method: the type -- '.x' is Self's
+Static nDotOk := -1            // where a '.x' follows no value: Self's
+// The names the function declares so far, and the file's statics, in lower
+// case: 'a.b()' is a type's method on one, a namespace's function otherwise.
+Static hVars := Nil
+Static hFileVars := Nil
 // The lines -- where each starts, where it ends, what it holds that Sees()
 // looks for, its last ';' carrying it on (-2: not yet known) -- by their
 // number from 1; the one LineOf() found last.
@@ -88,6 +94,8 @@ Static nOpLen := 0
 #define T_INDEX    6
 #define T_INALS    7
 #define T_FIELD    8
+#define T_DOT      9
+#define T_DOTCALL  10
 #define TR_KIND    1
 #define TR_END     2
 #define TR_NAME    3
@@ -370,6 +378,10 @@ Static Function Start(cText, aCodes)
   Local nCh
   Local nF := 0
   Classes()
+  hVars := { => }
+  hFileVars := { => }
+  cTypeName := ""
+  nDotOk := -1
   cSrc := cText
   aC := If(aCodes == Nil, u_xcb_codes(cText), aCodes)
   nN := Len(aC)
@@ -958,6 +970,15 @@ Static Function Applied(aBase, aT)
       aM := u_xcb_new(EK_INALIAS)
       aM[IA_BASE] := aBase
       aM[IA_EXPR] := aT[TR_X]
+    Case nK == T_DOT
+      aM := u_xcb_new(EK_DOT)
+      aM[DOT_BASE] := aBase
+      aM[DOT_NAME] := aT[TR_NAME]
+    Case nK == T_DOTCALL
+      aM := u_xcb_new(EK_DOTCALL)
+      aM[DC_BASE] := aBase
+      aM[DC_NAME] := aT[TR_NAME]
+      aM[DC_ARGS] := aT[TR_LIST]
     Otherwise
       aM := u_xcb_new(EK_USERTRANS)
       aM[UT_BASE] := aBase
@@ -980,6 +1001,44 @@ Static Function Trailed(aBase, nBf, nBt, aTrailers, nFrom, lOuter)
     aE[N_TO] := aTrailers[nI][TR_END]
   Next
 Return aE
+
+// ---- names ------------------------------------------------------------------
+// The words TL++ writes between dots -- '.And.', '.T.' --, which no field
+// is called.
+Static Function DotWord(cW)
+  Local cL := Lc(cW)
+Return cL == "and" .Or. cL == "or" .Or. cL == "not" .Or. cL == "t" .Or. cL == "f" .Or. cL == "y" .Or. cL == "n"
+
+Static Function IsVar(cName)
+  Local cK := Lc(cName)
+  Local nV := hVars{cK}
+Return (nV != Nil .And. nV > 0) .Or. hFileVars{cK} != Nil
+
+Static Function Var(cName, nBy)
+  Local cK := Lc(cName)
+  Local nV := hVars{cK}
+  hVars{cK} := If(nV == Nil, 0, nV) + If(nBy == Nil, 1, nBy)
+Return Nil
+
+// 'a.b' at an offset, 'a' no variable: a namespace's name.
+Static Function NsAt(nAt)
+  Local nE := NameEnd(nAt)
+Return nE >= 0 .And. C(nE) == 46 .And. IsLetter(C(nE + 1)) .And. !IsVar(Text(nAt, nE))
+
+// '.x' where a value starts, in a type's method: Self's field.
+Static Function SelfDotAt(nAt)
+  Local nE
+  If Empty(cTypeName) .Or. C(nAt) != 46 exec Return .F.
+  nE := NameEnd(nAt + 1)
+Return nE >= 0 .And. !DotWord(Text(nAt + 1, nE))
+
+// Self, in a type's method, before a '.x' that follows no value: a name of
+// no length, where the '.' is.
+Static Function SelfName(nAt)
+  Local aNm := u_xcb_new(EK_NAME)
+  aNm[NAME_NAME] := "Self"
+  nDotOk := nAt
+Return aNm
 
 // ---- small pieces of an expression ------------------------------------------
 // A set operator at p -- Raku's, in ASCII -- its length, or 0; the
@@ -1655,7 +1714,41 @@ Static Function Trailer(aT)
   If nCh == 63
     Return TSafe(aT)
   EndIf
+  If nCh == 46
+    Return TDot(aT)
+  EndIf
 Return .F.
+
+// rule tdot { <?after <[\w)\]}]>> '.' <!dotword> <name> [ '(' ~ ')' <arglist> ]? }
+// A type's field, or its method: right after a value -- or Self's, in a
+// type's method, where the value is left out.
+Static Function TDot(aT)
+  Local nStart := nP
+  Local nB := If(nStart > 0, C(nStart - 1), -1)
+  Local nMe
+  Local aL
+  If !(IsW(nB) .Or. nB == 41 .Or. nB == 93 .Or. nB == 125) .And. nStart != nDotOk
+    Return .F.
+  EndIf
+  nMe := NameEnd(nStart + 1)
+  If nMe < 0 .Or. DotWord(Text(nStart + 1, nMe))
+    Return .F.
+  EndIf
+  aT[TR_NAME] := Text(nStart + 1, nMe)
+  nP := nMe
+  If !Ws()
+    Back(nStart)
+    Return .F.
+  EndIf
+  aL := CallArgs()
+  If aL != Nil
+    aT[TR_KIND] := T_DOTCALL
+    aT[TR_LIST] := aL
+  Else
+    aT[TR_KIND] := T_DOT
+  EndIf
+  aT[TR_END] := nP
+Return .T.
 
 // rule thash { <?after <[\w)\]}]>> '{' ~ '}' <key> }
 Static Function THash(aT)
@@ -1836,7 +1929,7 @@ Static Function Primary()
   EndIf
   If IsLetter(nCh)
     nWe := NameEnd(nStart)
-    If C(nWe) == 46 .And. IsW(C(nWe + 1))
+    If C(nWe) == 46 .And. IsW(C(nWe + 1)) .And. !IsVar(Text(nStart, nWe))
       aX := NsCall()
     EndIf
     If aX == Nil
@@ -1860,6 +1953,8 @@ Static Function Primary()
     EndIf
   ElseIf nCh == 40
     Return Parens()
+  ElseIf SelfDotAt(nStart)
+    aX := SelfName(nStart)
   ElseIf nCh == 58
     aX := SelfAcc()
     If aX == Nil
@@ -2091,11 +2186,34 @@ Static Function ArgList()
 Return aSl
 
 // rule arg { [<?[@]><byref>] || [ <.sees('assign item')> <assignment> ] || <expr> }
+// 'name => value': a field by its name, where a type's value is made.
 Static Function Arg()
   Local nStart := nP
   Local aR
   Local aA
   Local aE
+  Local nE
+  Local nQ
+  Local aV
+  Local aNd
+  If IsLetter(C(nStart))
+    nE := NameEnd(nStart)
+    nQ := nE
+    While IsH(C(nQ))
+      nQ++
+    EndDo
+    If C(nQ) == 61 .And. C(nQ + 1) == 62
+      nP := nQ + 2
+      aV := If(Ws(), Expr(), Nil)
+      If aV != Nil
+        aNd := u_xcb_new(EK_NAMED)
+        aNd[NMD_NAME] := Text(nStart, nE)
+        aNd[NMD_VALUE] := aV
+        Return Span(aNd, nStart, nP)
+      EndIf
+      nP := nStart
+    EndIf
+  EndIf
   If C(nStart) == 64
     aR := ByRef()
     If aR != Nil
@@ -2398,7 +2516,9 @@ Static Function LambdaE()
     Return Back(nStart)
   EndIf
   nInBlock++
+  AEval(aParams, {|c| Var(c)})
   aBody := BlockExpr()
+  AEval(aParams, {|c| Var(c, -1)})
   nInBlock--
   If aBody == Nil
     Return Back(nStart)
@@ -2479,6 +2599,7 @@ Static Function CodeBlockE()
     Return Back(nStart)
   EndIf
   nInBlock++
+  AEval(aParams, {|c| Var(c)})
   aB := BlockExpr()
   If aB != Nil
     AAdd(aBody, aB)
@@ -2493,6 +2614,7 @@ Static Function CodeBlockE()
       AAdd(aBody, aY)
     EndDo
   EndIf
+  AEval(aParams, {|c| Var(c, -1)})
   nInBlock--
   If !Ws() .Or. C(nP) != 125
     Return Back(nStart)
@@ -2707,9 +2829,9 @@ Static Function TypedLiteral()
 Return aH
 
 // What a typed array or hash holds: a type's letter -- n, c, l, d, a, h, o,
-// b, j, f --, 'Array<T>', 'Hash<K, V>', 'Set<K>' or 'Bag<K>', letter case
-// aside; 'fixed' first makes one fixed. Where it ends, or -1; the type as
-// ast.h writes it, in aOut[1].
+// b, j, f --, a type's name, 'Array<T>', 'Hash<K, V>', 'Set<K>' or
+// 'Bag<K>', letter case aside; 'fixed' first makes one fixed. Where it
+// ends, or -1; the type as ast.h writes it, in aOut[1].
 Static Function ElemType(nAt, aOut)
   Local aArgs := {}
   Local aFixed := {.F.}
@@ -2717,6 +2839,7 @@ Static Function ElemType(nAt, aOut)
   Local lSet
   Local cK
   Local nCh
+  Local lLetter
   If IWordAt(nAt, "array") .And. C(nAt + 5) == 60
     nE := TypeArgs(nAt + 5, 1, aArgs, aFixed)
     If nE >= 0
@@ -2742,11 +2865,19 @@ Static Function ElemType(nAt, aOut)
     Return nE
   EndIf
   nCh := CLower(C(nAt))
-  If nCh < 0 .Or. IsW(C(nAt + 1)) .Or. !(Chr(nCh) $ "nclahdobjf")
+  lLetter := nCh >= 0 .And. Chr(nCh) $ "nclahdobjf"
+  If lLetter .And. !IsW(C(nAt + 1))
+    aOut[1] := Chr(nCh - 32)
+    Return nAt + 1
+  EndIf
+  // A type of the file's, by its name: 'T:item', in lower case (typed.xtpl
+  // says if it is one).
+  nE := NameEnd(nAt)
+  If nE < 0
     Return -1
   EndIf
-  aOut[1] := Chr(nCh - 32)
-Return nAt + 1
+  aOut[1] := "T:" + Lc(Text(nAt, nE))
+Return nE
 
 // '<' T [ ',' T ]* '>', n types, blanks around them: where it ends, or -1.
 // aFixed: 'fixed' may come first (aFixed[1] then .T.), the types then
@@ -3094,6 +3225,8 @@ Static Function LValue()
       aBase := SubjAcc()
     EndIf
     nBt := nP
+  ElseIf SelfDotAt(nBf)
+    aBase := SelfName(nBf)
   EndIf
   If aBase == Nil
     nE := NameEnd(nBf)
@@ -3107,6 +3240,10 @@ Static Function LValue()
     nBt := nE
     If !Ws()
       Return Back(nStart)
+    EndIf
+    // 'ns.x': a namespace's, no variable's -- nothing to assign.
+    If NsAt(nBf)
+      Return Span(Trailed(aBase, nBf, nBt, {}, nStart, .T.), nStart, nP)
     EndIf
   EndIf
   aTr := Trailers()
@@ -3164,7 +3301,7 @@ Static Function CallSt()
     nP := nAt
     nE := NameEnd(nAt)
     nP := nE
-    If Ws()
+    If !NsAt(nAt) .And. Ws()
       aTr := Trailers()
       If Len(aTr) > 0
         aNm := u_xcb_new(EK_NAME)
@@ -3183,6 +3320,14 @@ Static Function CallSt()
       nBt := nP
       aTr := Trailers()
       Return Span(Trailed(aSl, nAt, nBt, aTr, nStart, .T.), nStart, nP)
+    EndIf
+    nP := nAt
+  EndIf
+  If SelfDotAt(nAt)
+    aSl := SelfName(nAt)
+    aTr := Trailers()
+    If Len(aTr) > 0
+      Return Span(Trailed(aSl, nAt, nAt, aTr, nStart, .T.), nStart, nP)
     EndIf
     nP := nAt
   EndIf
@@ -3551,6 +3696,15 @@ Static Function TopLevel(aProg)
       nP := nStart
     EndIf
   Next
+  aX := TypeDecl()
+  If aX != Nil
+    If Ws()
+      AAdd(aProg[PG_TYPES], aX)
+      Append(aProg[PG_FUNCTIONS], aX[TD_METHODS])
+      Return .T.
+    EndIf
+    nP := nStart
+  EndIf
   aM := MethodImplE()
   If aM != Nil
     If Ws()
@@ -3692,6 +3846,7 @@ Static Function UserFunc()
   Local nE := UserCmd(.T.)
   Local aM
   Local aW
+  hVars := { => }
   If nE <= 0
     Return Nil
   EndIf
@@ -3739,6 +3894,7 @@ Static Function FunctionDefE()
   Local aPs
   Local aG
   Local aSpec
+  hVars := { => }
   While .T.
     nSave := nP
     aA := AnnotationE()
@@ -3880,6 +4036,7 @@ Static Function OneParam()
   aQ := u_xcb_new(NK_PARAM)
   aQ[PRM_NAME] := cName
   aQ[PRM_DECLARED] := "?"
+  Var(cName)
   nAe := Attrs(nP)
   If nAe >= 0
     aQ[PRM_ATTRS] := AttrWords(Text(nP, nAe))
@@ -4045,6 +4202,257 @@ Static Function DottedEnd()
     nQ := nR
   EndDo
 Return nQ
+
+// rule typedecl
+// {
+//   :i 'type' <tname=name> <.nl>
+//   [ <typefield> <.nl> ]*
+//   <typemethod>*
+//   :i [ 'endtype' || 'end' 'type' ]
+// }
+Static Function TypeDecl()
+  Local nStart := nP
+  Local aE := {0}
+  Local cName
+  Local aT
+  Local nSave
+  Local aF
+  Local aM
+  If !ILit("type") .Or. !IsH(C(nP)) .Or. !Ws()
+    Return Back(nStart)
+  EndIf
+  cName := NameText(aE)
+  If aE[1] < 0
+    Return Back(nStart)
+  EndIf
+  aT := u_xcb_new(NK_TYPEDEF)
+  aT[TD_NAME] := cName
+  aT[N_LINE] := Line(nStart)
+  aT[N_FROM] := nStart
+  aT[TD_HEADTO] := aE[1]
+  nP := aE[1]
+  If !Ws() .Or. !Nl() .Or. !Ws()
+    Return Back(nStart)
+  EndIf
+  While .T.
+    nSave := nP
+    If MethodAt() .Or. TypeEndAt()
+      Exit
+    EndIf
+    aF := TypeField()
+    If aF == Nil .Or. !Ws() .Or. !Nl() .Or. !Ws()
+      nP := nSave
+      Exit
+    EndIf
+    AAdd(aT[TD_FIELDS], aF)
+  EndDo
+  While .T.
+    nSave := nP
+    aM := If(MethodAt(), TypeMethod(cName), Nil)
+    If aM == Nil
+      nP := nSave
+      Exit
+    EndIf
+    AAdd(aT[TD_METHODS], aM)
+  EndDo
+  If !TypeEndAt()
+    Return Back(nStart)
+  EndIf
+  aT[TD_ENDFROM] := nP
+  aT[TD_ENDLINE] := Line(nP)
+  If !ILit("endtype")
+    ILit("end")
+    While IsH(C(nP))
+      nP++
+    EndDo
+    ILit("type")
+  EndIf
+  aT[TD_ENDTO] := nP
+  If !Ws()
+    Return Back(nStart)
+  EndIf
+Return aT
+
+// rule typefield { <name> <attrs>? [ 'as' <typespec> ]? [ ':=' [ <chained> || <guardexpr> ] ]? }
+// A field: as a Local's declarator, its type and its value -- what one
+// made without it starts at -- optional.
+Static Function TypeField()
+  Local nStart := nP
+  Local aE := {0}
+  Local cName
+  Local aD
+  Local nAe
+  Local aSpec := {0, ""}
+  Local aGen := NewGeneric()
+  Local lTyped
+  Local nSave
+  Local nVat
+  Local aV
+  Local aF
+  cName := NameText(aE)
+  If aE[1] < 0
+    Return Back(nStart)
+  EndIf
+  nP := aE[1]
+  If !Ws() .Or. Refused(cName) .Or. !Ws()
+    Return Back(nStart)
+  EndIf
+  aD := u_xcb_new(NK_DECLARATOR)
+  aD[DCL_NAME] := cName
+  aD[N_LINE] := Line(nStart)
+  aD[DCL_DECLARED] := "?"
+  nAe := Attrs(nP)
+  If nAe >= 0
+    aD[DCL_ATTRS] := AttrWords(Text(nP, nAe))
+    nP := nAe
+    If !Ws()
+      Return Back(nStart)
+    EndIf
+  EndIf
+  nSave := nP
+  lTyped := TypeSpec(aSpec, aGen)
+  If lTyped
+    aD[DCL_TYPESPEC] := TypeSpecOf(aGen, aSpec[1], nP)
+  Else
+    nP := nSave
+  EndIf
+  nSave := nP
+  If Lit(":=") .And. Ws()
+    nVat := nP
+    aV := Chained()
+    If aV == Nil
+      nP := nVat
+      aV := GuardExpr()
+    EndIf
+    If aV == Nil .Or. !Ws()
+      Return Back(nStart)
+    EndIf
+    aD[DCL_INIT] := aV
+  Else
+    nP := nSave
+  EndIf
+  If lTyped
+    aD[DCL_DECLARED] := TypeOfName(aSpec[2])
+    aD[DCL_CONTAINER] := aGen[G_CONTAINER]
+    If !Empty(aD[DCL_CONTAINER]) .And. !(Left(aD[DCL_CONTAINER], 1) == "!") .And. aD[DCL_INIT] == Nil
+      aD[DCL_INIT] := MadeEmpty(aD[DCL_CONTAINER])
+      aD[DCL_INITMADE] := .T.
+    EndIf
+  EndIf
+  aF := u_xcb_new(NK_TYPEFIELD)
+  aF[TF_DECL] := aD
+  aF[N_FROM] := nStart
+  aF[N_TO] := nP
+Return aF
+
+// rule typemethod
+// {
+//   :i 'method' <mname=name> [ '(' ~ ')' <params> ]? <rettype>? <.nl>
+//   <funcbody>
+// }
+// A static function, TYPE_NAME, whose first parameter is Self, the value
+// it is called on; in its body, '.x' is Self's.
+Static Function TypeMethod(cType)
+  Local nStart := nP
+  Local aE := {0}
+  Local aF
+  Local aSelf
+  Local nSave
+  Local lOk
+  Local aPs
+  Local aSpec
+  Local aG
+  Local cWas
+  If !ILit("method") .Or. !Ws()
+    Return Back(nStart)
+  EndIf
+  hVars := { => }
+  Var("self")
+  aF := u_xcb_new(NK_FUNCTIONDEF)
+  aF[FN_TYPE] := "static"
+  aF[FN_OFTYPE] := cType
+  aF[N_LINE] := Line(nStart)
+  aF[FN_HEADFROM] := nStart
+  aF[FN_METHOD] := NameText(aE)
+  If aE[1] < 0
+    Return Back(nStart)
+  EndIf
+  aF[FN_NAME] := cType + "_" + aF[FN_METHOD]
+  aF[FN_HEADTO] := aE[1]
+  nP := aE[1]
+  aSelf := u_xcb_new(NK_PARAM)
+  aSelf[PRM_NAME] := "Self"
+  aSelf[PRM_DECLARED] := TypeOfName(cType)
+  aSelf[PRM_TYPEWORD] := cType
+  AAdd(aF[FN_PARAMS], aSelf)
+  If !Ws()
+    Return Back(nStart)
+  EndIf
+  If C(nP) == 40
+    nSave := nP
+    nP++
+    lOk := .F.
+    If Ws()
+      lGenericOk := .T.
+      aPs := Params()
+      lGenericOk := .F.
+      If C(nP) == 41
+        nP++
+        If Ws()
+          aF[FN_PAREN] := nSave
+          Append(aF[FN_PARAMS], aPs)
+          lOk := .T.
+        EndIf
+      EndIf
+    EndIf
+    If !lOk
+      nP := nSave
+    EndIf
+  EndIf
+  If !Ws()
+    Return Back(nStart)
+  EndIf
+  nSave := nP
+  aSpec := {0, ""}
+  aG := NewGeneric()
+  If TypeSpec(aSpec, aG)
+    aF[FN_RETWORD] := aSpec[2]
+    aF[FN_RETCONTAINER] := aG[G_CONTAINER]
+    aF[FN_RETFROM] := aG[G_FROM]
+    aF[FN_RETTO] := aG[G_TO]
+    aF[FN_RETTLPP] := aG[G_TLPP]
+  Else
+    nP := nSave
+  EndIf
+  If !Ws() .Or. !Nl() .Or. !Ws()
+    Return Back(nStart)
+  EndIf
+  cWas := cTypeName
+  cTypeName := cType
+  aF[FN_BODY] := FuncBody()
+  cTypeName := cWas
+  If !Ws()
+    Return Back(nStart)
+  EndIf
+Return aF
+
+// A type's next method, or its end.
+Static Function MethodAt()
+Return IWordAt(nP, "method") .And. IsH(C(nP + 6))
+
+Static Function TypeEndAt()
+  Local nQ
+  If IWordAt(nP, "endtype") .And. !IsW(C(nP + 7))
+    Return .T.
+  EndIf
+  If !IWordAt(nP, "end") .Or. !IsH(C(nP + 3))
+    Return .F.
+  EndIf
+  nQ := nP + 3
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+Return IWordAt(nQ, "type") .And. !IsW(C(nQ + 4))
 
 // rule classmember { [ <annotation> <.nl> ]* [ <datadecl> || <methdecl> ] }
 // rule methdecl { [ <visib> || <mstatic> ]* :i [ 'method' || 'operator' ] <mname=name>
@@ -4369,6 +4777,7 @@ Static Function MethodImplE()
   Local aE := {0}
   Local cRet
   Local cAfter
+  hVars := { => }
   While .T.
     nSave := nP
     If AnnotationE() == Nil .Or. !Ws() .Or. !Nl() .Or. !Ws()
@@ -4488,6 +4897,7 @@ Static Function WsMethodImpl()
   Local nHeadEnd
   Local aM
   Local aW
+  hVars := { => }
   If !ILit("wsmethod") .Or. !NotWithinWord()
     Return Back(nStart)
   EndIf
@@ -4750,6 +5160,7 @@ Static Function FileStatic()
   If !Ws()
     Return Back(nStart)
   EndIf
+  for aV in aD[DECL_DECLARATORS] exec hFileVars{Lc(aV[DCL_NAME])} := .T.
 Return aD
 
 // token wsblock
@@ -4932,6 +5343,9 @@ Static Function FuncBody()
   lTopLevel := .T.
   While .T.
     nSave := nP
+    If !Empty(cTypeName) .And. (MethodAt() .Or. TypeEndAt())
+      Exit
+    EndIf
     aSt := Statement()
     If aSt == Nil .Or. !Ws() .Or. !Nl() .Or. !Ws()
       nP := nSave
@@ -5473,6 +5887,7 @@ Static Function DeclaratorE(lHdr)
   aD[DCL_NAME] := cName
   aD[N_LINE] := Line(nStart)
   aD[DCL_DECLARED] := "?"
+  Var(cName)
   aG := If(lHdr .Or. lGenericOk, aGen, Nil)
   If lHdr
     If !Lit(":=") .Or. !Ws()
@@ -6323,6 +6738,7 @@ Static Function ForStWith(lLocal, aTook)
   If aE[1] < 0
     Return Back(nStart)
   EndIf
+  Var(aSt[FOR_VAR])
   nP := aE[1]
   If !Ws() .Or. Refused(aSt[FOR_VAR]) .Or. !Ws()
     Return Back(nStart)
@@ -6413,6 +6829,7 @@ Static Function ForInSt()
   If aE[1] < 0
     Return Back(nStart)
   EndIf
+  Var(aSt[FIN_ELEM])
   nP := aE[1]
   If !Ws() .Or. Refused(aSt[FIN_ELEM]) .Or. !Ws()
     Return Back(nStart)
@@ -6428,6 +6845,7 @@ Static Function ForInSt()
         nP := aIe[1]
         If Ws() .And. !Refused(cIdx) .And. Ws() .And. Ws()
           aSt[FIN_INDEX] := cIdx
+          Var(cIdx)
           lOk := .T.
         EndIf
       EndIf

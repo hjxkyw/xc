@@ -72,8 +72,32 @@ User Function xcb_subexprs(aE)
     Case nK == EK_PIPELINE
       Add1(aOut, aE[PIPE_SOURCE])
       AddAll(aOut, aE[PIPE_STAGES])
+    Case nK == EK_DOT
+      Add1(aOut, aE[DOT_BASE])
+    Case nK == EK_DOTCALL
+      Add1(aOut, aE[DC_BASE])
+      AddAll(aOut, aE[DC_ARGS])
+    Case nK == EK_NAMED
+      Add1(aOut, aE[NMD_VALUE])
   EndCase
 Return aOut
+
+// What a type's field with no default starts at, where a value is made: a
+// Numeric's "N" (0), a Character's "C" (""), a Logical's "L" (.F.) -- as a
+// Local declared so --, or "": Nil.
+User Function xcb_fieldstart(aD)
+  Local cW
+  If !Empty(aD[DCL_CONTAINER]) exec Return ""
+  cW := Lower(u_xcb_typeword(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC])))
+  Do Case
+    Case cW == "numeric" .Or. cW == "integer" .Or. cW == "double"
+      Return "N"
+    Case cW == "character"
+      Return "C"
+    Case cW == "logical"
+      Return "L"
+  EndCase
+Return ""
 
 // Every expression from e down, e first, in reading order: what
 // walk_expr() calls its function on.

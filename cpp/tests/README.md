@@ -99,10 +99,7 @@ A `NAME.out` is written only where there is one; an empty one asks for it.
 `NAME.vmonly` marks a case that needs what only xc-vm does -- its own
 areas, as an AppServer run with `-run` has no tables; Decimals, which go
 wrong in the interpreter on the AppServer --, which `run-protheus.raku
---interp` leaves out. `NAME.later` marks one the compiler written in xtpl
-does not read yet -- and so does it beside a case of `cases/` --, which
-the `selfhost` test, the `interp` test's runs from the sources and
-`run-protheus.raku --selfhost` leave out.
+--interp` leaves out.
 
 ## interp
 

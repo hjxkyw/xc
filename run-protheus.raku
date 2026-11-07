@@ -67,18 +67,17 @@
 # the compiler -- interp/xbc.xtpl, selfhost/*.xtpl -- into build/selfhost/,
 # and the AppServer compiles them with the runtime, selfhost/xcb.ch in
 # build/selfhost-inc/ among its include folders; xc makes bytecode of the
-# runtime, of each case the interpreter runs (--interp) -- but one with a
-# NAME.later, which the compiler in xtpl does not read yet -- and of xtpl's
+# runtime, of each case the interpreter runs (--interp) and of xtpl's
 # self-test, into build/selfhost-xbc/. The sources go to xbc/ in the
 # RootPath, with the cases' include files, and the AppServer's compiler
 # makes them bytecode there, in one run --
 #   appserver -run=u_xcb -env=<name> bytecode \xbc\list.txt said
 # -- each .xbc has to be xc's, byte for byte, and how long each took is
 # shown; with them the sources of the checks' cases (cpp/tests/cases/
-# 32-check), most of which xc refuses, and those of a source's own
-# commands (44-user-commands, named uc-NAME there): what the compiler says
-# of each -- its warnings, its errors, in NAME.said beside the .xbc -- has
-# to be what xc says. Then the interpreter
+# 32-check), most of which xc refuses, those of a source's own commands
+# (44-user-commands, named uc-NAME there) and those of types (types,
+# ty-NAME): what the compiler says of each -- its warnings, its errors, in
+# NAME.said beside the .xbc -- has to be what xc says. Then the interpreter
 # runs each case from its source, the compiler making it bytecode as it
 # loads it --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xtpl
@@ -528,24 +527,26 @@ if $selfhost
   my $xbc = $out.parent.add('selfhost-xbc');
   my $inc = $out.parent.add('selfhost-inc');
   my $cases = $root.add('cpp/tests/bytecode');
-  # Not one with a NAME.later either: the compiler in xtpl does not read it
-  # yet.
   my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
-                        .grep({ !$cases.add("$_.vmonly").e && !$cases.add("$_.later").e }).sort;
+                        .grep({ !$cases.add("$_.vmonly").e }).sort;
   my @modules = <ast dump parse walk chains decimal typed facts check commands bytecode xcb>;
   sub source-of(Str $c --> IO::Path) { $cases.add("$c.xtpl").e ?? $cases.add("$c.xtpl") !! $cases.add("$c.prw") }
   # What the AppServer's compiler makes bytecode of: the runtime, the cases,
   # xtpl's self-test -- each NAME.xbc.
   my @sources = ($root.add('runtime/xtpl_runtime.tlpp'), |@cases.map({ source-of($_) }),
                  $root.add('xtpl/tests/54_selftest.xtpl'));
-  # What it says of these has to be what xc says: the checks' cases, and
-  # those of a source's own commands (named 'uc-NAME' there) -- each the
-  # source and its name on the AppServer, as a list: rakupp makes a Pair's
-  # key a Str.
+  # What it says of these has to be what xc says: the checks' cases, those
+  # of a source's own commands (named 'uc-NAME' there) and those of types
+  # ('ty-NAME', the .prw too, not what xc makes of it) -- each the source
+  # and its name on the AppServer, as a list: rakupp makes a Pair's key a
+  # Str.
   my @checked = |($root.add('cpp/tests/cases/32-check').dir.grep(*.extension eq 'xtpl').sort
                        .map(-> $f { ($f, $f.basename) })),
                 |($root.add('cpp/tests/cases/44-user-commands').dir.grep(*.extension eq 'xtpl').sort
-                       .map(-> $f { ($f, 'uc-' ~ $f.basename) }));
+                       .map(-> $f { ($f, 'uc-' ~ $f.basename) })),
+                |($root.add('cpp/tests/cases/types').dir
+                       .grep({ .extension eq 'xtpl' | 'prw' && !.basename.ends-with('.out.prw') }).sort
+                       .map(-> $f { ($f, 'ty-' ~ $f.basename) }));
   sub xbc-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.xbc') }
   sub said-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.said') }
   sub xbc-name(IO::Path $s --> Str) { xbc-of($s.basename) }
@@ -589,8 +590,8 @@ if $selfhost
       }
       spurt $xbc.add(said-name($s)), $said;
     }
-    say "xc: what it says of {+@checked} sources of the checks' cases and of commands of their own, into "
-        ~ shown($xbc);
+    say "xc: what it says of {+@checked} sources of the checks' cases, of commands of their own and of types, "
+        ~ "into {shown($xbc)}";
     for @checked -> ($s, $n)
     {
       my $q = xc('--bytecode', native($s), native($xbc.add(xbc-of($n))));
@@ -658,8 +659,8 @@ if $selfhost
   spurt $stage.add('list.txt'), (|@sources.map(*.basename), |@checked.map(*[1]))
                                     .map({ on-server($_) ~ "\t" ~ on-server(xbc-of($_)) ~ "\r\n" }).join;
 
-  say "\nProtheus: the compiler making {+@sources} sources bytecode, and {+@checked} of the checks' cases and of "
-      ~ "commands of their own, in one run";
+  say "\nProtheus: the compiler making {+@sources} sources bytecode, and {+@checked} of the checks' cases, of "
+      ~ "commands of their own and of types, in one run";
   my ($code, $text) = appserver($logs.add('run-u_xcb.log'), '-run=u_xcb', "-env={%opt<env>}", 'bytecode',
                                 on-server('list.txt'), 'said');
   # 'SOURCE -> OUT (N.NN s)': how long each took.
