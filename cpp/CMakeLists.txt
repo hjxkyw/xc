@@ -106,6 +106,13 @@ add_test(NAME selfhost
 add_test(NAME selftests
          COMMAND ${CMAKE_COMMAND} -DXC=$<TARGET_FILE:xc> -DVM=$<TARGET_FILE:xc-vm> -DROOT=${PROJECT_SOURCE_DIR}/..
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/selftests -P ${PROJECT_SOURCE_DIR}/tests/selftests.cmake)
+# Vim's syntax file for xtpl (editors/vim), when there is a Vim to run it.
+find_program(XC_VIM vim)
+if(XC_VIM)
+  add_test(NAME vim
+           COMMAND ${CMAKE_COMMAND} -DVIM=${XC_VIM} -DROOT=${PROJECT_SOURCE_DIR}/..
+                   -DWORK=${CMAKE_CURRENT_BINARY_DIR}/vim -P ${PROJECT_SOURCE_DIR}/tests/vim.cmake)
+endif()
 
 foreach(t xclib xc xc-outputs xc-cases xc-doc xc-vm xc-ast)
   if(MSVC)

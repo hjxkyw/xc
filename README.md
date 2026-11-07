@@ -195,6 +195,13 @@ checks as diagnostics on open and on save, and a command that compiles the
 file. See [its README](editors/vscode/README.md) for installing it -- a
 package, or the folder linked into VS Code's extensions.
 
+## Editing in Vim
+
+`editors/vim/` colors `.xtpl` files in Vim and Neovim as the VS Code
+extension does, and reads and writes them as windows-1252. See [its
+README](editors/vim/README.md) for installing it -- the folder linked in as
+a package, or put on the `runtimepath`.
+
 ## Installing rakupp
 
 For `run-protheus.raku`:
@@ -216,6 +223,7 @@ It runs under rakupp 5.3.0, and under Rakudo as well.
 | `cpp/` | xc: `src/` the compiler, `xc-vm` and the programs that test them, `tests/` the tests, as data |
 | `docs/` | the language reference, `language.md` -- `xc-doc` (ctest's `doc`) compiles its examples --, and the bytecode's, `bytecode.md` |
 | `editors/vscode/` | the extension for VS Code: highlighting and xc's checks |
+| `editors/vim/` | highlighting for Vim and Neovim |
 | `runtime/` | the functions the generated code calls, compiled into the RPO with it |
 | `selfhost/` | xc written in xtpl, a part at a time: the parser, the passes after it and the bytecode back end so far (`selfhost.cmake` holds them to `xc-ast` and `xc --bytecode`) |
 | `protheus/` | xc's self-test for an AppServer, in xtpl -- `run-protheus.raku` compiles and runs it |
