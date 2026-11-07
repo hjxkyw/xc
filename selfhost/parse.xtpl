@@ -48,7 +48,7 @@ Static nInExp := 0             // in '%exp:...%': a '%' is its end
 Static lAnyName := .F.         // no declared name is refused
 Static lGeneratedOk := .F.     // a name of xc's shape may be declared
 Static cTypeName := ""         // in a type's method: the type -- '.x' is Self's
-Static nDotOk := -1            // where a '.x' follows no value: Self's
+Static nDotOk := Nil           // where a '.x' follows no value: Self's (-1: none)
 // The names the function declares so far, and the file's statics, in lower
 // case: 'a.b()' is a type's method on one, a namespace's function otherwise.
 Static hVars := Nil
@@ -1014,7 +1014,7 @@ Static Function IsVar(cName)
   Local nV := hVars{cK}
 Return (nV != Nil .And. nV > 0) .Or. hFileVars{cK} != Nil
 
-Static Function Var(cName, nBy)
+Static Function SeeName(cName, nBy)
   Local cK := Lc(cName)
   Local nV := hVars{cK}
   hVars{cK} := If(nV == Nil, 0, nV) + If(nBy == Nil, 1, nBy)
@@ -2516,9 +2516,9 @@ Static Function LambdaE()
     Return Back(nStart)
   EndIf
   nInBlock++
-  AEval(aParams, {|c| Var(c)})
+  AEval(aParams, {|c| SeeName(c)})
   aBody := BlockExpr()
-  AEval(aParams, {|c| Var(c, -1)})
+  AEval(aParams, {|c| SeeName(c, -1)})
   nInBlock--
   If aBody == Nil
     Return Back(nStart)
@@ -2599,7 +2599,7 @@ Static Function CodeBlockE()
     Return Back(nStart)
   EndIf
   nInBlock++
-  AEval(aParams, {|c| Var(c)})
+  AEval(aParams, {|c| SeeName(c)})
   aB := BlockExpr()
   If aB != Nil
     AAdd(aBody, aB)
@@ -2614,7 +2614,7 @@ Static Function CodeBlockE()
       AAdd(aBody, aY)
     EndDo
   EndIf
-  AEval(aParams, {|c| Var(c, -1)})
+  AEval(aParams, {|c| SeeName(c, -1)})
   nInBlock--
   If !Ws() .Or. C(nP) != 125
     Return Back(nStart)
@@ -4036,7 +4036,7 @@ Static Function OneParam()
   aQ := u_xcb_new(NK_PARAM)
   aQ[PRM_NAME] := cName
   aQ[PRM_DECLARED] := "?"
-  Var(cName)
+  SeeName(cName)
   nAe := Attrs(nP)
   If nAe >= 0
     aQ[PRM_ATTRS] := AttrWords(Text(nP, nAe))
@@ -4367,7 +4367,7 @@ Static Function TypeMethod(cType)
     Return Back(nStart)
   EndIf
   hVars := { => }
-  Var("self")
+  SeeName("self")
   aF := u_xcb_new(NK_FUNCTIONDEF)
   aF[FN_TYPE] := "static"
   aF[FN_OFTYPE] := cType
@@ -5887,7 +5887,7 @@ Static Function DeclaratorE(lHdr)
   aD[DCL_NAME] := cName
   aD[N_LINE] := Line(nStart)
   aD[DCL_DECLARED] := "?"
-  Var(cName)
+  SeeName(cName)
   aG := If(lHdr .Or. lGenericOk, aGen, Nil)
   If lHdr
     If !Lit(":=") .Or. !Ws()
@@ -6738,7 +6738,7 @@ Static Function ForStWith(lLocal, aTook)
   If aE[1] < 0
     Return Back(nStart)
   EndIf
-  Var(aSt[FOR_VAR])
+  SeeName(aSt[FOR_VAR])
   nP := aE[1]
   If !Ws() .Or. Refused(aSt[FOR_VAR]) .Or. !Ws()
     Return Back(nStart)
@@ -6829,7 +6829,7 @@ Static Function ForInSt()
   If aE[1] < 0
     Return Back(nStart)
   EndIf
-  Var(aSt[FIN_ELEM])
+  SeeName(aSt[FIN_ELEM])
   nP := aE[1]
   If !Ws() .Or. Refused(aSt[FIN_ELEM]) .Or. !Ws()
     Return Back(nStart)
@@ -6845,7 +6845,7 @@ Static Function ForInSt()
         nP := aIe[1]
         If Ws() .And. !Refused(cIdx) .And. Ws() .And. Ws()
           aSt[FIN_INDEX] := cIdx
-          Var(cIdx)
+          SeeName(cIdx)
           lOk := .T.
         EndIf
       EndIf
