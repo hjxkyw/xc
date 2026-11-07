@@ -4,8 +4,8 @@
 // xcb.xtpl -- the compiler written in xtpl, from the command line: an
 // AppServer's, and xc-vm's (cpp/tests/selfhost.cmake).
 //
-//   appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS]
-//   appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS]
+//   appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS] [said]
+//   appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS] [said]
 //   xc-vm --run=U_XCB runtime.xbc ast.xbc ... xcb.xbc -- bytecode SOURCE [OUT]
 //
 // 'bytecode': a source -- .xtpl, .prw, .prx, .tlpp -- as bytecode, what
@@ -13,6 +13,9 @@
 // source of LIST, a line each, a tab and the .xbc after it. DIRS: the
 // include folders searched after the source's own, ';' or ',' between
 // them. It says 'SOURCE -> OUT (N.NN s)' for each, or why it is not made.
+// With 'said', what it says of each -- but where it went -- goes to a file
+// beside its .xbc too, NAME.said: the AppServer's console may break a long
+// line with what else it writes there.
 // u_xcb_compile() is the same, for a program: the interpreter
 // (interp/xbc.xtpl) runs a source with it.
 //
@@ -53,7 +56,8 @@ User Function xcb(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10)
   If Len(aArgs) >= 2 .And. (aArgs[1] == "ast" .Or. aArgs[1] == "facts" .Or. aArgs[1] == "values")
     Return Lists(aArgs[1], aArgs[2])
   EndIf
-  ConOut("usage: xcb bytecode SOURCE [OUT] [includes=DIRS] | bytecode LIST [includes=DIRS] | ast|facts|values LIST")
+  ConOut("usage: xcb bytecode SOURCE [OUT] [includes=DIRS] [said] | bytecode LIST [includes=DIRS] [said] | " ;
+         + "ast|facts|values LIST")
 Return 2
 
 // A source as bytecode: {the .xbc's text, what was said} -- the text Nil
@@ -123,17 +127,18 @@ Static Function Bytecodes(aArgs)
   Local nBad := 0
   Local nStart
   Local aMade
+  Local lSaid := .F.
   For nI := 2 To Len(aArgs)
     cArg := aArgs[nI]
     If Lower(Left(cArg, 9)) == "includes="
       aDirs := StrTran(SubStr(cArg, 10), ",", ";") |> split(";")
       aDirs := aDirs |> filter([d] !(d == ""))
     EndIf
+    lSaid := lSaid .Or. Lower(cArg) == "said"
   Next
   cArg := aArgs[2]
   If IsSource(cArg)
-    AAdd(aWork, {cArg, If(Len(aArgs) >= 3 .And. !(Lower(Left(aArgs[3], 9)) == "includes="), aArgs[3], ;
-                          Left(cArg, RAt(".", cArg)) + "xbc")})
+    AAdd(aWork, {cArg, If(Len(aArgs) >= 3 .And. !IsOption(aArgs[3]), aArgs[3], Left(cArg, RAt(".", cArg)) + "xbc")})
   Else
     aLines := StrTran(ReadAll(cArg)[1], Chr(13), "") |> split(Chr(10))
     For nI := 1 To Len(aLines)
@@ -147,6 +152,9 @@ Static Function Bytecodes(aArgs)
     nStart := Seconds()
     aMade := u_xcb_compile(aWork[nI][1], aDirs)
     AEval(aMade[2], {|l| ConOut(l)})
+    If lSaid
+      MemoWrite(SaidFile(aWork[nI][2]), Joined(aMade[2]))
+    EndIf
     If aMade[1] == Nil
       nBad++
       Loop
@@ -155,6 +163,15 @@ Static Function Bytecodes(aArgs)
     ConOut(aWork[nI][1] + " -> " + aWork[nI][2] + " (" + AllTrim(Str(Seconds() - nStart, 10, 2)) + " s)")
   Next
 Return If(nBad > 0, 1, 0)
+
+// An option of 'bytecode': 'includes=DIRS', 'said'.
+Static Function IsOption(cArg)
+Return Lower(Left(cArg, 9)) == "includes=" .Or. Lower(cArg) == "said"
+
+// The file beside an .xbc for what is said of its source: NAME.said.
+Static Function SaidFile(cXbc)
+  Local nDot := RAt(".", cXbc)
+Return If(nDot > FolderEnd(cXbc), Left(cXbc, nDot), cXbc + ".") + "said"
 
 // Whether a file is a source: .xtpl, .prw, .prx, .tlpp.
 Static Function IsSource(cPath)

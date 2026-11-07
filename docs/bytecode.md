@@ -690,8 +690,8 @@ On an AppServer it is TL++ in the RPO, as the interpreter is: xc compiles
 with the runtime, `selfhost/xcb.ch` among its include folders. Then
 
 ```text
-appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS]
-appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS]
+appserver -run=u_xcb -env=NAME bytecode SOURCE [OUT] [includes=DIRS] [said]
+appserver -run=u_xcb -env=NAME bytecode LIST [includes=DIRS] [said]
 appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module ...
 ```
 
@@ -700,7 +700,10 @@ The first writes a source's `.xbc` -- to OUT, else beside it -- as `xc
 as xc says it, its warnings first; the second does each source of LIST, a
 line each, a tab and the `.xbc` after it. DIRS are the include folders
 searched after the source's own, `;` between them; a TOTVS include file,
-compressed, is not read, as for xc. The third is the interpreter, whose
+compressed, is not read, as for xc. With `said`, what it says of each
+source -- but where its `.xbc` went -- goes to a file beside the `.xbc`
+too, `NAME.said`: the AppServer's console may break a long line with what
+else it writes there. The third is the interpreter, whose
 modules may be sources -- `.xtpl`, `.prw`, `.prx`, `.tlpp` -- each made
 bytecode as it loads (`u_xcb_compile()`), the runtime's own among them; a
 source that does not parse, that xc refuses, or that holds what cannot
