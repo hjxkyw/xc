@@ -8,7 +8,9 @@
 # what cannot become bytecode yet, what it says of that --; and what it
 # says of each source, compiling it, what 'xc --bytecode' says, but the
 # line that says where the .xbc went -- of a source with no commands of
-# its own (#command, #translate), which xc reads and it does not.
+# its own (#command, #translate), which xc reads and it does not. What xc
+# makes of every source comes from one run of 'xc-ast --list', the
+# compile of 'xc --bytecode' among it.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DAST=cpp/build/xc-ast
 #         -DROOT=. -DWORK=cpp/build/selfhost -P cpp/tests/selfhost.cmake
@@ -91,45 +93,44 @@ set(compiled "")
 set(checked "")
 set(spoken "")
 set(told "")
+# What xc makes of each source, in one run of xc-ast (a process for each is
+# slow where starting one is): its tree and facts, what its checks find,
+# what 'xc --bytecode' says of it and the .xbc it writes.
+set(batch "")
 foreach(s ${sources})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
-  set(mode --bare --facts)
-  if(s MATCHES "[.]val$")
-    set(mode --values)
-  endif()
-  execute_process(COMMAND ${AST} ${mode} ${s} ${WORK}/expect/${key}.ast RESULT_VARIABLE r)
-  if(NOT r EQUAL 0)
-    message(FATAL_ERROR "  xc-ast failed on ${rel}")
-  endif()
+  string(APPEND batch "${s}\t${WORK}/expect/${key}\n")
+endforeach()
+file(WRITE ${WORK}/expect.txt "${batch}")
+execute_process(COMMAND ${AST} --list=${WORK}/expect.txt RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
+if(NOT r EQUAL 0)
+  message(FATAL_ERROR "  xc-ast --list (exit ${r}):\n${said}")
+endif()
+foreach(s ${sources})
+  file(RELATIVE_PATH rel ${ROOT} ${s})
+  string(REPLACE "/" "~" key "${rel}")
   if(s MATCHES "[.]val$")
     string(APPEND vlist "${s}\t${WORK}/got/${key}.ast\n")
   else()
-    execute_process(COMMAND ${AST} --bare --checks ${s} ${WORK}/expect/${key}.chk RESULT_VARIABLE r)
-    if(NOT r EQUAL 0)
-      message(FATAL_ERROR "  xc-ast --checks failed on ${rel}")
-    endif()
     list(APPEND checked ${s})
     # What xc says of a source with no commands of its own, which it reads
     # and the compiler in xtpl does not -- nor those of an include file.
     file(READ ${s} text)
     string(REGEX MATCH "#[ \t]*[xX]?([cC][oO][mM][mM][aA][nN][dD]|[tT][rR][aA][nN][sS][lL][aA][tT][eE])" own "${text}")
-    execute_process(COMMAND ${XC} --bytecode ${s} ${WORK}/expect/${key}.xbc
-                    RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
     if(NOT own)
-      string(REPLACE "${s} -> ${WORK}/expect/${key}.xbc\n" "" spoke "${said}")
-      file(WRITE ${WORK}/expect/${key}.said "${spoke}")
       list(APPEND spoken ${s})
     endif()
     # The .xbc of a source the tree of 'xc-ast --bare' holds: not of one
     # that needs its own commands.
     file(STRINGS ${WORK}/expect/${key}.ast head LIMIT_COUNT 1)
     if(NOT head MATCHES "^not parsed")
-      if(r EQUAL 0 AND EXISTS ${WORK}/expect/${key}.xbc)
+      if(EXISTS ${WORK}/expect/${key}.xbc)
         list(APPEND compiled ${s})
       else()
         # Refused only for what cannot become bytecode yet, its warnings
         # aside: those lines, each 'LINE: what cannot become bytecode yet'.
+        file(READ ${WORK}/expect/${key}.said said)
         string(REPLACE "${s}:" "" said "${said}")
         string(REGEX REPLACE "[0-9]+: warning: [^\n]*\n" "" said "${said}")
         string(REGEX REPLACE "[0-9]+: [^\n]* cannot become bytecode yet\n" "" rest "${said}")
