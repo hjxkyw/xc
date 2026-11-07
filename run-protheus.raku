@@ -537,11 +537,12 @@ if $selfhost
                  $root.add('xtpl/tests/54_selftest.xtpl'));
   # What it says of these has to be what xc says: the checks' cases, and
   # those of a source's own commands (named 'uc-NAME' there) -- each the
-  # source and its name on the AppServer.
+  # source and its name on the AppServer, as a list: rakupp makes a Pair's
+  # key a Str.
   my @checked = |($root.add('cpp/tests/cases/32-check').dir.grep(*.extension eq 'xtpl').sort
-                       .map(-> $f { $f => $f.basename })),
+                       .map(-> $f { ($f, $f.basename) })),
                 |($root.add('cpp/tests/cases/44-user-commands').dir.grep(*.extension eq 'xtpl').sort
-                       .map(-> $f { $f => 'uc-' ~ $f.basename }));
+                       .map(-> $f { ($f, 'uc-' ~ $f.basename) }));
   sub xbc-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.xbc') }
   sub said-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.said') }
   sub xbc-name(IO::Path $s --> Str) { xbc-of($s.basename) }
@@ -587,10 +588,10 @@ if $selfhost
     }
     say "xc: what it says of {+@checked} sources of the checks' cases and of commands of their own, into "
         ~ shown($xbc);
-    for @checked -> $c
+    for @checked -> ($s, $n)
     {
-      my $q = xc('--bytecode', native($c.key), native($xbc.add(xbc-of($c.value))));
-      spurt $xbc.add(said-of($c.value)), $q.out.slurp(:close);
+      my $q = xc('--bytecode', native($s), native($xbc.add(xbc-of($n))));
+      spurt $xbc.add(said-of($n)), $q.out.slurp(:close);
     }
   }
   # What xc said of a source (named $n on the AppServer), and what the
@@ -646,12 +647,12 @@ if $selfhost
   say "\nThe sources into {native($stage)}, the cases' files into {native($start)}";
   mkdir $stage;
   .unlink for $stage.dir.grep({ .f && .extension eq 'xbc' | 'got' | 'said' });
-  my @staged = |(@sources.map(-> $f { $f => $f.basename })), |@checked,
-               |($cases.dir.grep(*.extension eq 'ch').map(-> $f { $f => $f.basename }));
-  spurt $stage.add(.value), .key.slurp(:bin) for @staged;
+  my @staged = |(@sources.map(-> $f { ($f, $f.basename) })), |@checked,
+               |($cases.dir.grep(*.extension eq 'ch').map(-> $f { ($f, $f.basename) }));
+  spurt $stage.add(.[1]), .[0].slurp(:bin) for @staged;
   my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
   spurt .key, .value.slurp(:bin) for @data;
-  spurt $stage.add('list.txt'), (|@sources.map(*.basename), |@checked.map(*.value))
+  spurt $stage.add('list.txt'), (|@sources.map(*.basename), |@checked.map(*[1]))
                                     .map({ on-server($_) ~ "\t" ~ on-server(xbc-of($_)) ~ "\r\n" }).join;
 
   say "\nProtheus: the compiler making {+@sources} sources bytecode, and {+@checked} of the checks' cases and of "
@@ -700,15 +701,15 @@ if $selfhost
   # What it says, warnings and errors: what xc says.
   my $wrong = 0;
   my $lines = 0;
-  for |(@sources.map(-> $f { $f => $f.basename })), |@checked -> $c
+  for |(@sources.map(-> $f { ($f, $f.basename) })), |@checked -> ($s, $n)
   {
-    my @e = xc-said($c.key, $c.value);
-    my @g = server-said($stage, $c.value);
+    my @e = xc-said($s, $n);
+    my @g = server-said($stage, $n);
     $lines += @e;
     next if @e eqv @g;
     $wrong++;
-    @bad.push("{$c.value} (said)");
-    say "    SAID  {$c.value}: not what xc says";
+    @bad.push("$n (said)");
+    say "    SAID  $n: not what xc says";
     for ^max(+@e, +@g) -> $i
     {
       next if @e[$i].defined && @g[$i].defined && @e[$i] eq @g[$i];
