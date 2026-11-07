@@ -1,0 +1,42 @@
+// A type's names: the functions and #defines it makes, Self's, a class's
+// or a function's of the file, the AppServer's functions, the verbs; a
+// namespace's function, still.
+type Order
+  cId as Character
+  hX as Hash<c, n>
+
+  method Who(aSelf)
+    Local Self := 1
+  Return .cId
+endtype
+
+type Order
+  nX
+endtype
+
+type Shop
+  nX
+endtype
+
+type Date
+  nX
+endtype
+
+type Count
+  nX
+endtype
+
+Class Shop
+  Method New() Constructor
+EndClass
+
+Static Function Order_Who()
+Return 1
+
+Static Function Order_cId()
+Return 1
+
+User Function Names(aO as Order)
+  totvs.framework.foo(aO.cId)
+  aO.hX{"a"} := 1
+Return tlpp.ns.bar(1)

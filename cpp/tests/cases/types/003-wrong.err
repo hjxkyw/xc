@@ -1,0 +1,26 @@
+003-wrong.xtpl:25: warning: 'aLit' is assigned but never read
+003-wrong.xtpl:3: 'Item' is declared on line 5: its fields are read after it.
+003-wrong.xtpl:7: the field 'nQtd' of Item starts at a value made where one is: it cannot read 'nX'.
+003-wrong.xtpl:8: the field 'aTags' of Item is <contained>: a field takes <const>, nothing else.
+003-wrong.xtpl:9: 'nQtd' is a field of Item twice.
+003-wrong.xtpl:10: a field cannot be called 'and': '.and.' is TL++'s own.
+003-wrong.xtpl:12: '::nQtd' is a class's: in a type's method, a field is '.nQtd'.
+003-wrong.xtpl:12: 'Item' has no field 'nPreco'.
+003-wrong.xtpl:14: 'aTags' is a field of Item already.
+003-wrong.xtpl:17: 'Total' is a method of Item already.
+003-wrong.xtpl:23: the field 'nQtd' of Item() is Numeric: this is Character.
+003-wrong.xtpl:23: Item(): 'nQtd' is given twice.
+003-wrong.xtpl:24: Item(): the values by their places come before those by their names.
+003-wrong.xtpl:26: 'aLit' is an Item: an array written out is none -- Item(...) makes one.
+003-wrong.xtpl:27: 'aLit' is an Item: this is an Array<n>, not an Item.
+003-wrong.xtpl:28: 'aLit' is an Item: this is Numeric, not an Item.
+003-wrong.xtpl:29: 'aOk.cCod' is <const>: it takes its value where an Item is made.
+003-wrong.xtpl:30: 'aOk.nQtd' is Numeric: this is Character.
+003-wrong.xtpl:31: 'Item' has no method 'Totl()'.
+003-wrong.xtpl:32: 'Item' has no field 'nQtx'.
+003-wrong.xtpl:33: 'nQtd =>': a field by its name, and Foo() makes no type's value.
+003-wrong.xtpl:34: 'aNums' is an Array<n>, no type's value: '.nQtd' is a type's field.
+003-wrong.xtpl:35: '.Total()': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.
+003-wrong.xtpl:36: '.aTags': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.
+003-wrong.xtpl:37: 'with object' takes an object, and 'aOk' is an Item: its fields are 'aOk.x'.
+003-wrong.xtpl:41: '.nQtd': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.

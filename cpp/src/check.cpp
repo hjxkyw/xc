@@ -467,6 +467,7 @@ namespace xc
       Set defines_;
       Set privates_;
       Set classes_;
+      Set types_;
       std::unordered_set<const Expr*> made_;   // the 'Name()' of each 'Name():M(...)'
       Set includes_;                 // the include files the file names, their names in lower case
       bool tcquery_ok_ = true;       // the file says where TCQUERY comes from, or might
@@ -597,6 +598,17 @@ namespace xc
                                      + ", never a function of the file. Give it another name." });
         }
       }
+      // A type is called to make one: no function of the AppServer's
+      // language, no verb, no reserved word is one.
+      for (const TypeDef* t : p->types)
+      {
+        std::string why = LANGUAGE_FUNCTIONS.count(lc(t->name)) ? "a function of the AppServer's language"
+                          : is_runtime_verb(t->name) ? "the name of one of xtpl's verbs"
+                          : is_reserved(t->name) ? "a reserved word" : "";
+        if (why.empty()) { continue; }
+        found.push_back({ t->line, "'" + t->name + "' is " + why + ", and '" + t->name + "(...)' would make a value of "
+                                   + "the type: give it another name." });
+      }
       // A .prw counts a function's name to 10 characters, its prefix
       // included: 'ProcessOrderCreated' and 'ProcessOrderUpdated' are one
       // function there, PROCESSORD (tried on 24.3.1.9).
@@ -650,6 +662,7 @@ namespace xc
         ends_.push_back(m->line);
         keyword_name(m->name, m->line);
       }
+      for (const TypeDef* t : p->types) { types_.insert(lc(t->name)); }
       for (const ClassDef* c : p->classes)
       {
         ends_.push_back(c->line);
@@ -860,7 +873,7 @@ namespace xc
           "numeric", "character", "logical", "date", "array", "object", "codeblock", "json", "variant", "integer",
           "decimal", "double", "variadic",
         };
-        if (strict && !advpl_ && !TYPES.count(lc(*word)) && !classes_.count(lc(*word)))
+        if (strict && !advpl_ && !TYPES.count(lc(*word)) && !classes_.count(lc(*word)) && !types_.count(lc(*word)))
         {
           line_ = line;
           problem("'as " + *word + "': TL++ has no type '" + *word + "', and this file declares no class by that "

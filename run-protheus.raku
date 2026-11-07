@@ -67,7 +67,8 @@
 # the compiler -- interp/xbc.xtpl, selfhost/*.xtpl -- into build/selfhost/,
 # and the AppServer compiles them with the runtime, selfhost/xcb.ch in
 # build/selfhost-inc/ among its include folders; xc makes bytecode of the
-# runtime, of each case the interpreter runs (--interp) and of xtpl's
+# runtime, of each case the interpreter runs (--interp) -- but one with a
+# NAME.later, which the compiler in xtpl does not read yet -- and of xtpl's
 # self-test, into build/selfhost-xbc/. The sources go to xbc/ in the
 # RootPath, with the cases' include files, and the AppServer's compiler
 # makes them bytecode there, in one run --
@@ -527,8 +528,10 @@ if $selfhost
   my $xbc = $out.parent.add('selfhost-xbc');
   my $inc = $out.parent.add('selfhost-inc');
   my $cases = $root.add('cpp/tests/bytecode');
+  # Not one with a NAME.later either: the compiler in xtpl does not read it
+  # yet.
   my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
-                        .grep({ !$cases.add("$_.vmonly").e }).sort;
+                        .grep({ !$cases.add("$_.vmonly").e && !$cases.add("$_.later").e }).sort;
   my @modules = <ast dump parse walk chains decimal typed facts check commands bytecode xcb>;
   sub source-of(Str $c --> IO::Path) { $cases.add("$c.xtpl").e ?? $cases.add("$c.xtpl") !! $cases.add("$c.prw") }
   # What the AppServer's compiler makes bytecode of: the runtime, the cases,

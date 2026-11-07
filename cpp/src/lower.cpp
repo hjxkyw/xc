@@ -1714,13 +1714,20 @@ namespace xc
         auto m = static_cast<const MethodCall*>(e);
         Lines args;
         for (const Expr* a : m->args) { args.push_back(part(a)); }
+        if (!m->of_type.empty())
+        {
+          // A type's method: its function, given the value -- held by a block.
+          std::string more = args.empty() ? "" : ", " + join(args, ", ");
+          return "Eval({|fbv_0_0| If(fbv_0_0 != Nil, " + method_name(m->of_type, m->name) + "(fbv_0_0" + more
+                 + "), Nil)}, " + expr(m->base) + ")";
+        }
         return safe(m->base, ":" + m->name + "(" + join(args, ", ") + ")");
       }
       case EK::SafeMember:
       {
         if (temps_ok()) { return safe_chain(e); }
         auto m = static_cast<const Member*>(e);
-        return safe(m->base, ":" + m->name);
+        return safe(m->base, m->of_type.empty() ? ":" + m->name : "[" + field_name(m->of_type, m->pos) + "]");
       }
       default:
         break;
@@ -1787,8 +1794,26 @@ namespace xc
     if (k == EK::Name)
     {
       auto it = subst_.find(lc(name_of(e)));
+      if (it == subst_.end() && !self_.empty() && lc(name_of(e)) == "self") { return self_; }
       return it != subst_.end() ? it->second : with_edits(e, {});
     }
+    // A type's field: an element of the array, at the position its #define
+    // names; a method: the static function, given the value first.
+    if (k == EK::Dot)
+    {
+      auto d = static_cast<const Dot*>(e);
+      std::string b = expr(d->base);
+      if (is_expr(d->base, EK::Binary) || is_expr(d->base, EK::AssignExpr)) { b = "(" + b + ")"; }
+      return b + "[" + field_name(d->of_type, d->pos) + "]";
+    }
+    if (k == EK::DotCall)
+    {
+      auto d = static_cast<const DotCall*>(e);
+      Lines args{ expr(d->base) };
+      for (const Expr* a : d->args) { args.push_back(part(a)); }
+      return method_name(d->of_type, d->name) + "(" + join(args, ", ") + ")";
+    }
+    if (k == EK::Call && made_type(e)) { return made(static_cast<const Call*>(e)); }
     if (k == EK::Member)
     {
       auto m = static_cast<const Member*>(e);
@@ -1847,9 +1872,11 @@ namespace xc
       case EK::JsonLit:
         return !native_json(e);
       case EK::Call:
-        return is_runtime_verb(static_cast<const Call*>(e)->name);
+        return is_runtime_verb(static_cast<const Call*>(e)->name) || made_type(e);
       case EK::Name:
-        return subst_.count(lc(name_of(e))) > 0;
+        return subst_.count(lc(name_of(e))) > 0 || (!self_.empty() && lc(name_of(e)) == "self");
+      case EK::Dot: case EK::DotCall: case EK::Named:
+        return true;
       case EK::Member:
       {
         const Expr* b = static_cast<const Member*>(e)->base;
@@ -2072,11 +2099,20 @@ namespace xc
       auto m = static_cast<const MethodCall*>(e);
       Lines args;
       for (const Expr* a : m->args) { args.push_back(part(a)); }
-      value = from + ":" + m->name + "(" + join(args, ", ") + ")";
+      if (!m->of_type.empty())
+      {
+        args.insert(args.begin(), from);
+        value = method_name(m->of_type, m->name) + "(" + join(args, ", ") + ")";
+      }
+      else
+      {
+        value = from + ":" + m->name + "(" + join(args, ", ") + ")";
+      }
     }
     else
     {
-      value = from + ":" + static_cast<const Member*>(e)->name;
+      auto m = static_cast<const Member*>(e);
+      value = from + (m->of_type.empty() ? ":" + m->name : "[" + field_name(m->of_type, m->pos) + "]");
     }
   }
 
@@ -2158,6 +2194,74 @@ namespace xc
   std::string Emitter::part(const Expr* e)
   {
     return !e || e->kind == EK::Omitted ? "" : expr(e);
+  }
+
+  // ---- types ----------------------------------------------------------------
+  // 'Item(...)', a type of the file's: the value it makes.
+  const TypeDef* Emitter::made_type(const Expr* e) const
+  {
+    if (!is_expr(e, EK::Call)) { return nullptr; }
+    auto it = types_.find(lc(static_cast<const Call*>(e)->name));
+    return it != types_.end() ? it->second : nullptr;
+  }
+
+  // The array: each field's value -- given by its place or by its name, or
+  // its default, or what its type starts at -- in the order of the fields.
+  std::string Emitter::made(const Call* c)
+  {
+    const TypeDef* t = made_type(c);
+    std::vector<const Expr*> given(t->fields.size(), nullptr);
+    std::size_t at = 0;
+    for (const Expr* a : c->args)
+    {
+      if (is_expr(a, EK::Named))
+      {
+        auto n = static_cast<const Named*>(a);
+        for (std::size_t i = 0; i < t->fields.size(); i++)
+        {
+          if (lc(t->fields[i]->decl->name) == lc(n->name)) { given[i] = n->value; }
+        }
+        continue;
+      }
+      if (at < given.size() && !is_expr(a, EK::Omitted)) { given[at] = a; }
+      at++;
+    }
+    Lines values;
+    for (std::size_t i = 0; i < t->fields.size(); i++)
+    {
+      const Declarator* d = t->fields[i]->decl;
+      if (given[i]) { values.push_back(expr(given[i])); }
+      else if (d->init) { values.push_back(expr(d->init)); }
+      else
+      {
+        char k = field_start(d);
+        values.push_back(k == 'N' ? "0" : k == 'C' ? "\"\"" : k == 'L' ? ".F." : "Nil");
+      }
+    }
+    return "{" + join(values, ", ") + "}";
+  }
+
+  // 'Item_nQtd': the #define of a field's position, as its type declares it.
+  std::string Emitter::field_name(const std::string& type, int pos) const
+  {
+    auto it = types_.find(lc(type));
+    if (it == types_.end() || pos < 1 || pos > static_cast<int>(it->second->fields.size()))
+    {
+      throw std::runtime_error("internal: a type's field not worked out");
+    }
+    return it->second->name + "_" + it->second->fields[static_cast<std::size_t>(pos - 1)]->decl->name;
+  }
+
+  // 'Item_Total': the static function a method is.
+  std::string Emitter::method_name(const std::string& type, const std::string& name) const
+  {
+    auto it = types_.find(lc(type));
+    if (it == types_.end()) { throw std::runtime_error("internal: a type's method not worked out"); }
+    for (const FunctionDef* m : it->second->methods)
+    {
+      if (lc(m->method) == lc(name)) { return m->name; }
+    }
+    throw std::runtime_error("internal: a type's method not worked out");
   }
 
   // A node's source, with the edits for the given expressions inside it, up

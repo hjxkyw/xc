@@ -59,7 +59,9 @@ the `DEC_` functions, and the numbers refused where they meet one;
 `defer/`, what a `defer` cannot be written as yet; `data-value/`, the
 warning for a `Data`'s `default` or `init` value, which the AppServer
 ignores; `oneline/`, the one-line forms -- `if c exec s, s else s` and the
-rest --, and what is refused of them.
+rest --, and what is refused of them; `types/`, a type's fields, methods
+and values in TL++ -- and in AdvPL --, a type as a type, and what is
+refused of them.
 
 A case holds the whole of what came out -- not, as a test in `t/` did, what
 it looks for --, so a change to the output shows in every case it touches. After a change
@@ -97,7 +99,10 @@ A `NAME.out` is written only where there is one; an empty one asks for it.
 `NAME.vmonly` marks a case that needs what only xc-vm does -- its own
 areas, as an AppServer run with `-run` has no tables; Decimals, which go
 wrong in the interpreter on the AppServer --, which `run-protheus.raku
---interp` leaves out.
+--interp` leaves out. `NAME.later` marks one the compiler written in xtpl
+does not read yet -- and so does it beside a case of `cases/` --, which
+the `selfhost` test, the `interp` test's runs from the sources and
+`run-protheus.raku --selfhost` leave out.
 
 ## interp
 

@@ -27,6 +27,9 @@ namespace xc
       return m;
     }
 
+    // What Self is in a type's method: its first parameter, an array.
+    const std::string SELF = "aSelf";
+
     const Declaration* as_decl(const Stmt* s)
     {
       return s->kind == SK::Declaration ? static_cast<const Declaration*>(s) : nullptr;
@@ -191,7 +194,8 @@ namespace xc
   // Its 'as T' as TL++ takes it: a class of the file's name is 'Object'.
   std::string tlpp_typespec(const Declarator* d)
   {
-    return d->as_class ? std::string("as Object") : d->typespec_text.value_or("");
+    if (d->as_class) { return "as Object"; }
+    return d->as_type ? std::string("as Array") : d->typespec_text.value_or("");
   }
 
   // 'kw a, b as T' -- a declaration's keyword and names, its values gone.
@@ -251,7 +255,7 @@ namespace xc
         {
           // TL++ takes no type after dimensions: 'Local aX[10] as Array' is
           // "C2003 Syntax Error" (tried on 24.3.1.9).
-          if (d->type_first || !d->attributes.empty() || !d->container.empty() || d->as_class
+          if (d->type_first || !d->attributes.empty() || !d->container.empty() || d->as_class || d->as_type
               || (!d->dims.empty() && d->typespec_text))
           {
             return true;
@@ -704,14 +708,20 @@ namespace xc
     // A class of the file named as a type -- 'Local oX as Order', 'Data
     // oCust as Customer' -- is TL++'s 'as Object': TL++ takes no class's
     // name there, and what it is is xc's to check (typed.cpp).
+    // A type of the file is TL++'s 'as Array'.
     std::unordered_set<std::string> classes;
     for (const ClassDef* c : p->classes) { classes.insert(lc(c->name)); }
+    types_.clear();
+    for (const TypeDef* t : p->types) { types_[lc(t->name)] = t; }
     auto named = [&](const OptStr& word) { return word && classes.count(lc(*word)) > 0; };
+    auto typed = [&](const OptStr& word) { return word && types_.count(lc(*word)) > 0; };
     auto mark = [&](Declarator* d)
     {
-      d->as_class = classes.count(lc(type_word_of(d->typespec_text.value_or("")))) > 0;
+      std::string w = lc(type_word_of(d->typespec_text.value_or("")));
+      d->as_class = classes.count(w) > 0;
+      d->as_type = types_.count(w) > 0;
     };
-    if (!classes.empty())
+    if (!classes.empty() || !types_.empty())
     {
       for (const Declaration* d : p->statics)
       {
@@ -734,6 +744,7 @@ namespace xc
     {
       if (!container.empty()) { edit(from, to, tlpp); }
       else if (from >= 0 && named(word)) { edit(from, to, "Object"); }
+      else if (from >= 0 && typed(word)) { edit(from, to, "Array"); }
     };
 
     std::vector<Finding> problems = not_lowered(p);
@@ -796,6 +807,44 @@ namespace xc
       no_temps_--;
     }
 
+    // A type: its first and last lines comments, each field the #define of
+    // its position; each method a static function, Self its first
+    // parameter, written a level less deep.
+    std::unordered_map<const FunctionDef*, int> ends;
+    for (const TypeDef* t : p->types)
+    {
+      std::size_t n = t->fields.size();
+      edit(t->from, t->head_to, "// " + text(t->from, t->head_to) + ": an array of " + std::to_string(n));
+      for (std::size_t i = 0; i < n; i++)
+      {
+        const TypeField* f = t->fields[i];
+        std::string raw = text(f->from, f->to);
+        int end = f->from + static_cast<int>(code_end(raw));
+        std::string def = "#define " + t->name + "_" + f->decl->name + " " + std::to_string(i + 1);
+        std::string notes = f->decl->attributes.empty() ? "" : attrs_text(f->decl->attributes);
+        std::string comment = split_comment(raw).second;
+        if (!notes.empty() && !comment.empty())
+        {
+          int at = end + static_cast<int>(raw.size() - code_end(raw)) - static_cast<int>(comment.size());
+          while (at < f->to && src_.compare(static_cast<std::size_t>(at), 2, "//") != 0
+                 && src_.compare(static_cast<std::size_t>(at), 2, "&&") != 0)
+          {
+            at++;
+          }
+          if (at + 2 <= f->to) { edit(at, at + 2, "// " + notes + " --"); }
+        }
+        else if (!notes.empty())
+        {
+          def += "  // " + notes;
+        }
+        edit(line_start(f->from), end, def);
+      }
+      edit(t->end_from, t->end_to, "// " + text(t->end_from, t->end_to));
+      for (std::size_t i = 0; i < t->methods.size(); i++)
+      {
+        ends[t->methods[i]] = line_start(i + 1 < t->methods.size() ? t->methods[i + 1]->head_from : t->end_from);
+      }
+    }
     for (const FunctionDef* f : p->functions)
     {
       ret_decimal_ = decimal_word(f->rettype_word);
@@ -805,7 +854,19 @@ namespace xc
       {
         if (q) { retype(q->type_word, q->container, q->type_from, q->type_to, q->type_tlpp); }
       }
+      if (!f->of_type.empty())
+      {
+        std::string self = SELF + " as Array";
+        edit(f->head_from, f->head_to, "Static Function " + f->name);
+        if (f->paren >= 0) { edit(f->paren + 1, f->paren + 1, self + (f->params.size() > 1 ? ", " : "")); }
+        else { edit(f->head_to, f->head_to, "(" + self + ")"); }
+        int from = line_start(f->head_from);
+        method_dedent_ = Dedent{ from, ends[f], f->head_from - from };
+        self_ = SELF;
+      }
       function(f->params, f->body);
+      method_dedent_.reset();
+      self_.clear();
     }
     for (const MethodImpl* m : p->methods)
     {
@@ -993,6 +1054,7 @@ namespace xc
     busy_.clear();
     typed_.clear();
     dedents_.clear();
+    if (method_dedent_) { dedents_.push_back(*method_dedent_); }
     body_indent_ = !body.empty() && !(body.size() == 1 && body[0]->kind == SK::ReturnStmt) ? indent_at(body[0]->from)
                                                                                          : "  ";
     for (const Param* q : params)

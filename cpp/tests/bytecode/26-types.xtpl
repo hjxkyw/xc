@@ -1,0 +1,50 @@
+// Types: arrays whose positions have names -- fields read and written,
+// methods as static functions, values made by place and by name, what a
+// field starts at, typed arrays and hashes of them, lambdas and code blocks
+// walking them, '?.'.
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+  aTags as Array<c>
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+
+  method Add(nMais as Numeric) as Item
+    .nQtd += nMais
+    AAdd(Self.aTags, "+" + cValToChar(nMais))
+  Return Self
+endtype
+
+type Order
+  cId as Character
+  aItems as Array<Item>
+  hNotes as Hash<c, c>
+
+  method Total() as Numeric
+    Local nSum := 0
+    for aIt in .aItems exec nSum += aIt.Total()
+  Return nSum
+
+  method Biggest() as Item
+  Return .aItems |> maxby([it] it.Total())
+endtype
+
+User Function Main()
+  Local aOrd := Order("P1")
+  Local aIt := Item("A", nPreco => 2.5)
+  Local aNone as Item
+  AAdd(aOrd.aItems, aIt)
+  AAdd(aOrd.aItems, Item("B", 3, 10))
+  AAdd(aOrd.aItems, Item(nPreco => 1, cCod => "C"))
+  aOrd.aItems[1].Add(3).Add(1)
+  aOrd.aItems[2].nQtd++
+  aOrd.hNotes{"rush"} := "yes"
+  ConOut(aOrd.cId, Len(aOrd.aItems), aOrd.Total(), aOrd.Biggest().cCod, aOrd.hNotes{"rush"})
+  ConOut(aIt.nQtd, Len(aIt.aTags), aIt.aTags[2], aIt.Total())
+  ConOut(aOrd.aItems |> filter([it] it.nQtd > 1) |> map([it] it.cCod) |> join(","))
+  ASort(aOrd.aItems,,, {|a, b| a.Total() < b.Total()})
+  AEval(aOrd.aItems, {|it| ConOut(it.cCod + " " + cValToChar(it.Total()))})
+  ConOut(ValType(aIt), Len(aIt), aIt[2], ValType(aNone?.nQtd), aIt?.Total())
+Return Nil

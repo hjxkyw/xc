@@ -1,0 +1,41 @@
+// What a type, its values, fields and methods refuse.
+User Function Early(aIt as Item)
+Return aIt.nQtd
+
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := nX
+  aTags <contained> as Array<c>
+  nQtd
+  and
+  method Total() as Numeric
+  Return ::nQtd * .nPreco
+
+  method aTags()
+  Return Nil
+
+  method Total()
+  Return Nil
+endtype
+
+User Function Wrong(aAny, aNums as Array<n>, oObj)
+  Local aIt := Item("A", 2, {}, 4)
+  Local aOk := Item(nQtd => "x", cCod => "B", nQtd => 3)
+  Local aBad := Item(nQtd => 1, "C")
+  Local aLit as Item
+  aLit := {"A", 1}
+  aLit := aNums
+  aLit := 5
+  aOk.cCod := "C"
+  aOk.nQtd := "y"
+  aOk.Totl()
+  aOk.nQtx := 1
+  Foo(nQtd => 1)
+  aNums.nQtd := 1
+  aAny.Total()
+  ConOut(aAny.aTags.cX, aIt, aBad)
+  with object aOk
+    :nQtd := 2
+  end with
+  oObj := Shop():New()
+Return aAny.nQtd

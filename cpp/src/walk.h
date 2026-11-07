@@ -28,4 +28,9 @@ namespace xc
 
   // f on each statement of a body, and on the ones inside, in reading order.
   void walk(const Body& body, const std::function<void(Stmt*)>& f);
+
+  // What a type's field with no default starts at, where a value is made: a
+  // Numeric's 'N' (0), a Character's 'C' (""), a Logical's 'L' (.F.) -- as a
+  // Local declared so --, or 0: Nil.
+  char field_start(const Declarator* d);
 }

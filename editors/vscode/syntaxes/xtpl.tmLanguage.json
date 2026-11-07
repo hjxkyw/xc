@@ -141,6 +141,18 @@
           }
         },
         {
+          "name": "meta.type.xtpl",
+          "match": "(?i)^\\s*(type)\\s+([A-Za-z_]\\w*)\\s*(?=$|//|&&|/\\*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.class.xtpl"
+            },
+            "2": {
+              "name": "entity.name.type.class.xtpl"
+            }
+          }
+        },
+        {
           "name": "meta.class.xtpl",
           "match": "(?i)^\\s*(class|interface|wsrestful|wsservice|wsstruct)\\s+([A-Za-z_]\\w*)",
           "captures": {
@@ -165,7 +177,7 @@
         },
         {
           "name": "storage.type.class.end.xtpl",
-          "match": "(?i)\\b(endclass|endinterface|end\\s+class|end\\s+interface|end\\s+wsrestful|end\\s+wsservice|end\\s+wsstruct)\\b"
+          "match": "(?i)\\b(endclass|endinterface|endtype|end\\s+class|end\\s+interface|end\\s+type|end\\s+wsrestful|end\\s+wsservice|end\\s+wsstruct)\\b"
         },
         {
           "match": "(?i)^\\s*(data|wsdata)\\s+([A-Za-z_]\\w*)",
@@ -637,6 +649,28 @@
     },
     "access": {
       "patterns": [
+        {
+          "match": "(?<![.\\d])(\\.)(?!(?i:and|or|not|t|f|y|n)\\.)([A-Za-z_]\\w*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.xtpl"
+            },
+            "2": {
+              "name": "entity.name.function.member.xtpl"
+            }
+          }
+        },
+        {
+          "match": "(?<![.\\d])(\\.)(?!(?i:and|or|not|t|f|y|n)\\.)([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.xtpl"
+            },
+            "2": {
+              "name": "variable.other.member.xtpl"
+            }
+          }
+        },
         {
           "match": "(::)\\s*([A-Za-z_]\\w*)",
           "captures": {

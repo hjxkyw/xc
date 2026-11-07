@@ -9,7 +9,7 @@
 // of '?:', '?.' and 'in lo..hi' evaluated once, 'fallback' as a statement's
 // whole value, verbs written as calls as loops, Clipper's comments, a name
 // that starts with '__', 'End For' and '%exp:x%' outside BeginSql,
-// Decimals' arithmetic with the DEC_ functions. Pure
+// Decimals' arithmetic with the DEC_ functions, types. Pure
 // computation, as 54 is: no table, no file, no screen, so a right or wrong
 // answer and not an environment.
 //
@@ -20,6 +20,23 @@
 //
 // 'rakupp run-protheus.raku' does all of that, for this and for 54.
 // -----------------------------------------------------------------------------
+
+// A type: an array whose positions have names -- each a #define --, its
+// methods static functions. Declared before what reads its fields.
+type Stock
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPrice as Numeric
+  aMoves as Array<n>
+
+  method Value() as Numeric
+  return .nQtd * .nPrice
+
+  method Move(nBy as Numeric) as Stock
+    .nQtd += nBy
+    aadd(.aMoves, nBy)
+  return Self
+endtype
 
 user function xc_selftest()
   local nOk := 0
@@ -53,6 +70,9 @@ user function xc_selftest()
   local fB := 0.1 as Decimal
   local fC as Decimal
   local nDbl as Numeric
+  local aStock as Stock
+  local aStocks := { <Stock> }
+  local aNoStock as Stock
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -420,6 +440,20 @@ user function xc_selftest()
   check("'End For' closes a For", nTmp == 6, nTmp, @nOk, @nBad)
   nTmp := %exp:aNums% |> filter([x] x > %exp:__v%) |> asum
   check("'%exp:x%' outside BeginSql: a chain's head, and in a stage", nTmp == 15, nTmp, @nOk, @nBad)
+
+  // ---- types: arrays whose positions have names -----------------------------
+  aStock := Stock("A", nPrice => 2)
+  aStock.Move(3).Move(-1)
+  check("a type: made by name, its methods", aStock.Value() == 6 .and. len(aStock.aMoves) == 2, aStock.Value(), ;
+        @nOk, @nBad)
+  aadd(aStocks, aStock)
+  aadd(aStocks, Stock("B", 4, 10))
+  nTmp := aStocks |> filter([s] s.nQtd > 3) |> map([s] s.Value()) |> asum
+  check("a type: walked by a chain, a lambda's parameter one", nTmp == 40, nTmp, @nOk, @nBad)
+  check("a type: a plain array", valtype(aStock) == "A" .and. len(aStock) == 4 .and. aStock[1] == "A", ;
+        valtype(aStock), @nOk, @nBad)
+  check("a type: '?.' of Nil, and of one", aNoStock?.Value() == nil .and. aStocks[2]?.nQtd == 4, aNoStock, ;
+        @nOk, @nBad)
 
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")
 

@@ -331,6 +331,9 @@ namespace xc
       void literal(const Literal* l);
       void binary(const Binary* b);
       void call_expr(const Call* c);
+      const TypeDef* made_type(const Expr* e) const;
+      void made(const Call* c);
+      std::string method_of(const std::string& type, const std::string& name) const;
       void arg(const Expr* a);
       void block_arg(const std::string& verb, const Expr* a);
       void name_block(const std::string& fname);
@@ -637,7 +640,16 @@ namespace xc
         case EK::SafeMember:
         {
           auto m = static_cast<const Member*>(e);
-          safe(m->base, [&] { op("member", m->name); });
+          safe(m->base, [&]
+          {
+            if (m->of_type.empty())
+            {
+              op("member", m->name);
+              return;
+            }
+            op("num", std::to_string(m->pos));
+            op("index");
+          });
           return;
         }
         case EK::HashIndex:
@@ -676,7 +688,8 @@ namespace xc
           safe(m->base, [&]
           {
             for (const Expr* a : m->args) { arg(a); }
-            op("method", std::to_string(m->args.size()) + " " + m->name);
+            if (m->of_type.empty()) { op("method", std::to_string(m->args.size()) + " " + m->name); }
+            else { call(m->args.size() + 1, method_of(m->of_type, m->name)); }
           });
           return;
         }
@@ -793,9 +806,94 @@ namespace xc
         case EK::Pipeline:
           pipeline(static_cast<const Pipeline*>(e));
           return;
+        case EK::Dot:
+        {
+          // A type's field: the element at its position.
+          auto d = static_cast<const Dot*>(e);
+          expr(d->base);
+          op("num", std::to_string(d->pos));
+          op("index");
+          return;
+        }
+        case EK::DotCall:
+        {
+          // A type's method: its static function, the value first.
+          auto d = static_cast<const DotCall*>(e);
+          expr(d->base);
+          for (const Expr* a : d->args) { arg(a); }
+          call(d->args.size() + 1, method_of(d->of_type, d->name));
+          return;
+        }
+        case EK::Named:
+          expr(static_cast<const Named*>(e)->value);
+          return;
         default:
           return;
       }
+    }
+
+    // ---- types --------------------------------------------------------------
+    const TypeDef* Compiler::made_type(const Expr* e) const
+    {
+      if (!is(e, EK::Call)) { return nullptr; }
+      std::string n = lc(static_cast<const Call*>(e)->name);
+      for (const TypeDef* t : p_->types)
+      {
+        if (lc(t->name) == n) { return t; }
+      }
+      return nullptr;
+    }
+
+    // 'Item(...)': an array of each field's value -- given by its place or
+    // by its name, or its default, or what its type starts at.
+    void Compiler::made(const Call* c)
+    {
+      const TypeDef* t = made_type(c);
+      std::vector<const Expr*> given(t->fields.size(), nullptr);
+      std::size_t at = 0;
+      for (const Expr* a : c->args)
+      {
+        if (is(a, EK::Named))
+        {
+          auto n = static_cast<const Named*>(a);
+          for (std::size_t i = 0; i < t->fields.size(); i++)
+          {
+            if (lc(t->fields[i]->decl->name) == lc(n->name)) { given[i] = n->value; }
+          }
+          continue;
+        }
+        if (at < given.size() && !is(a, EK::Omitted)) { given[at] = a; }
+        at++;
+      }
+      for (std::size_t i = 0; i < t->fields.size(); i++)
+      {
+        const Declarator* d = t->fields[i]->decl;
+        if (given[i]) { expr(given[i]); }
+        else if (d->init) { expr(d->init); }
+        else
+        {
+          char k = field_start(d);
+          if (k == 'N') { op("num", "0"); }
+          else if (k == 'C') { str(""); }
+          else if (k == 'L') { op("false"); }
+          else { op("nil"); }
+        }
+      }
+      op("array", std::to_string(t->fields.size()));
+    }
+
+    // The static function a method is: TYPE_METHOD, as the type declares it.
+    std::string Compiler::method_of(const std::string& type, const std::string& name) const
+    {
+      for (const TypeDef* t : p_->types)
+      {
+        if (lc(t->name) != lc(type)) { continue; }
+        for (const FunctionDef* m : t->methods)
+        {
+          if (lc(m->method) == lc(name)) { return m->name; }
+        }
+      }
+      return type + "_" + name;
     }
 
     // An expression for what it does: an assignment wants no value back.
@@ -920,6 +1018,11 @@ namespace xc
 
     void Compiler::call_expr(const Call* c)
     {
+      if (made_type(c))
+      {
+        made(c);
+        return;
+      }
       std::string n = lc(c->name);
       if ((n == "iif" || n == "if") && c->args.size() == 3)
       {
@@ -2362,6 +2465,22 @@ namespace xc
                            op("member", m->name);
                          },
                          [this, m] { op("setmember", m->name); } };
+        }
+        case EK::Dot:
+        {
+          auto d = static_cast<const Dot*>(t);
+          return Target{ 2,
+                         [this, d]
+                         {
+                           expr(d->base);
+                           op("num", std::to_string(d->pos));
+                         },
+                         [this]
+                         {
+                           op("dup2");
+                           op("index");
+                         },
+                         [this] { op("setindex"); } };
         }
         case EK::HashIndex:
         {

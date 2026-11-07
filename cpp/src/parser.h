@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "ahead.h"
@@ -84,6 +85,15 @@ namespace xc
     int in_dq_ = 0;              // in a '"' string's '${ }': no '"' string
     int in_sq_ = 0;
     int in_exp_ = 0;             // in '%exp:...%': a '%' is its end
+    // In a type's method: the type -- '.x' is Self's --, and where a '.x'
+    // follows no value, Self's.
+    std::string type_name_;
+    int dot_ok_ = -1;
+    // The names the function declares so far, and the file's statics, in
+    // lower case: 'a.b()' is a type's method on one, a namespace's function
+    // otherwise.
+    std::unordered_map<std::string, int> vars_;
+    std::unordered_set<std::string> file_vars_;
 
     // The lines: where each starts, where it ends (its line end, or n), and
     // what it holds that sees() looks for.
@@ -111,6 +121,11 @@ namespace xc
     Expr* assign_expr(Expr* target, const std::string& op, Expr* value);
     Expr* applied(Expr* base, const Trailer& t);
     Expr* trailed(Expr* base, int bf, int bt, const std::vector<Trailer>& trailers, int from, bool outer);
+    bool is_var(const std::string& name) const;
+    void var(const std::string& name, int by = 1);
+    bool ns_at(int p) const;
+    bool self_dot_at(int p) const;
+    Expr* self_name(int at);
 
     // Whitespace and the lines.
     bool ws();
@@ -147,6 +162,7 @@ namespace xc
     bool call_args(std::vector<Expr*>& args);
     bool tinalias(Trailer& t);
     bool tfield(Trailer& t);
+    bool tdot(Trailer& t);
 
     // Primaries.
     Expr* primary();
@@ -211,6 +227,11 @@ namespace xc
     std::vector<Param*> params();
     Param* param();
     ClassDef* classdecl(bool iface);
+    TypeDef* typedecl();
+    TypeField* typefield();
+    FunctionDef* typemethod(const std::string& type);
+    bool type_end_at() const;
+    bool method_at() const;
     bool classmember(ClassDef* cls, bool iface);
     OptStr visib();
     bool datadecl(std::vector<DataMember*>* out);

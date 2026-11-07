@@ -171,7 +171,8 @@ endforeach()
 # Each case again from its source, and xtpl's self-test with the runtime's
 # too: the compiler written in xtpl (selfhost/), there beside the
 # interpreter as on an AppServer with both in its RPO, makes each module
-# bytecode as it loads it.
+# bytecode as it loads it -- but a case with a NAME.later, which it does not
+# read yet.
 if(NOT MODE STREQUAL "xc")
   set(selfhost "")
   foreach(m ast dump parse walk chains decimal typed facts check commands bytecode xcb)
@@ -180,6 +181,9 @@ if(NOT MODE STREQUAL "xc")
   endforeach()
   foreach(o ${outs})
     string(REGEX REPLACE "\\.out$" "" name ${o})
+    if(EXISTS ${CASES}/${name}.later)
+      continue()
+    endif()
     math(EXPR count "${count} + 1")
     file(GLOB src ${CASES}/${name}.xtpl ${CASES}/${name}.prw)
     set(with "")

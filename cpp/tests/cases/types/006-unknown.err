@@ -1,0 +1,7 @@
+006-unknown.xtpl:9: warning: 'cMemvar' is not declared
+006-unknown.xtpl:9: '.nX': xc cannot tell that 'aP' is a type's value -- 'aP as Point' says it is one.
+006-unknown.xtpl:9: '.nX': xc cannot tell that 'aQ' is a type's value -- 'aQ as Point' says it is one.
+006-unknown.xtpl:9: '.nX': xc cannot tell that this is a type's value.
+006-unknown.xtpl:9: 'oJ' is JSON, no type's value: '.nX' is a type's field.
+006-unknown.xtpl:9: '.nX': xc cannot tell that 'cMemvar' is a type's value.
+006-unknown.xtpl:10: '.nZ': xc cannot tell that 'aP' is a type's value.

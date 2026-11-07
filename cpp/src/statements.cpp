@@ -515,6 +515,16 @@ namespace xc
         p_ = start;
       }
     }
+    if (TypeDef* t = typedecl())
+    {
+      if (ws())
+      {
+        prog->types.push_back(t);
+        prog->functions.insert(prog->functions.end(), t->methods.begin(), t->methods.end());
+        return true;
+      }
+      p_ = start;
+    }
     if (MethodImpl* m = methodimpl())
     {
       if (ws())
@@ -698,6 +708,7 @@ namespace xc
   FunctionDef* Parser::function()
   {
     int start = p_;
+    vars_.clear();
     auto f = make<FunctionDef>();
     for (;;)
     {
@@ -871,6 +882,7 @@ namespace xc
     auto p = make<Param>();
     p->name = name;
     p->declared = "?";
+    var(name);
     int ae = attrs(p_);
     if (ae >= 0)
     {
@@ -1065,6 +1077,296 @@ namespace xc
       return fail();
     }
     return cls;
+  }
+
+  // rule typedecl
+  // {
+  //   :i 'type' <tname=name> <.nl>
+  //   [ <typefield> <.nl> ]*
+  //   <typemethod>*
+  //   :i [ 'endtype' || 'end' 'type' ]
+  // }
+  TypeDef* Parser::typedecl()
+  {
+    int start = p_;
+    auto fail = [&]() -> TypeDef* { p_ = start; return nullptr; };
+    if (!ilit("type") || !is_h(c(p_)) || !ws())
+    {
+      return fail();
+    }
+    int e = 0;
+    std::string name = name_text(e);
+    if (e < 0)
+    {
+      return fail();
+    }
+    auto t = make<TypeDef>();
+    t->name = name;
+    t->line = line(start);
+    t->from = start;
+    t->head_to = e;
+    p_ = e;
+    if (!ws() || !nl() || !ws())
+    {
+      return fail();
+    }
+    for (;;)
+    {
+      int save = p_;
+      if (method_at() || type_end_at())
+      {
+        break;
+      }
+      TypeField* f = typefield();
+      if (!f || !ws() || !nl() || !ws())
+      {
+        p_ = save;
+        break;
+      }
+      t->fields.push_back(f);
+    }
+    for (;;)
+    {
+      int save = p_;
+      FunctionDef* m = method_at() ? typemethod(name) : nullptr;
+      if (!m)
+      {
+        p_ = save;
+        break;
+      }
+      t->methods.push_back(m);
+    }
+    if (!type_end_at())
+    {
+      return fail();
+    }
+    t->end_from = p_;
+    t->end_line = line(p_);
+    if (!ilit("endtype"))
+    {
+      ilit("end");
+      while (is_h(c(p_)))
+      {
+        p_++;
+      }
+      ilit("type");
+    }
+    t->end_to = p_;
+    if (!ws())
+    {
+      return fail();
+    }
+    return t;
+  }
+
+  // rule typefield { <name> <attrs>? [ 'as' <typespec> ]? [ ':=' [ <chained> || <guardexpr> ] ]? }
+  // A field: as a Local's declarator, its type and its value -- what one
+  // made without it starts at -- optional.
+  TypeField* Parser::typefield()
+  {
+    int start = p_;
+    auto fail = [&]() -> TypeField* { p_ = start; return nullptr; };
+    int e = 0;
+    std::string name = name_text(e);
+    if (e < 0)
+    {
+      return fail();
+    }
+    p_ = e;
+    if (!ws() || refused(name) || !ws())
+    {
+      return fail();
+    }
+    auto d = make<Declarator>();
+    d->name = name;
+    d->line = line(start);
+    d->declared = "?";
+    int ae = attrs(p_);
+    if (ae >= 0)
+    {
+      d->attributes = attr_words(src_.substr(p_, ae - p_));
+      p_ = ae;
+      if (!ws())
+      {
+        return fail();
+      }
+    }
+    int from = 0;
+    std::string type_word;
+    Generic gen;
+    int save = p_;
+    bool typed = typespec(from, type_word, &gen);
+    if (typed)
+    {
+      d->typespec_text = gen.container.empty() ? trim(src_.substr(from, p_ - from))
+                                               : trim(std::string(src_.substr(from, gen.from - from)) + gen.tlpp);
+    }
+    else
+    {
+      p_ = save;
+    }
+    save = p_;
+    if (lit(":=") && ws())
+    {
+      int vat = p_;
+      Expr* v = chained();
+      if (!v)
+      {
+        p_ = vat;
+        v = guardexpr();
+      }
+      if (!v || !ws())
+      {
+        return fail();
+      }
+      d->init = v;
+    }
+    else
+    {
+      p_ = save;
+    }
+    if (typed)
+    {
+      d->declared = type_of_name(type_word);
+      d->container = gen.container;
+      if (!d->container.empty() && d->container[0] != '!' && !d->init)
+      {
+        d->init = made_empty(d->container);
+        d->init_made = true;
+      }
+    }
+    auto f = make<TypeField>();
+    f->decl = d;
+    f->from = start;
+    f->to = p_;
+    return f;
+  }
+
+  // rule typemethod
+  // {
+  //   :i 'method' <mname=name> [ '(' ~ ')' <params> ]? <rettype>? <.nl>
+  //   <funcbody>
+  // }
+  // A static function, TYPE_NAME, whose first parameter is Self, the value
+  // it is called on; in its body, '.x' is Self's.
+  FunctionDef* Parser::typemethod(const std::string& type)
+  {
+    int start = p_;
+    auto fail = [&]() -> FunctionDef* { p_ = start; return nullptr; };
+    if (!ilit("method") || !ws())
+    {
+      return fail();
+    }
+    vars_.clear();
+    var("self");
+    auto f = make<FunctionDef>();
+    f->type = "static";
+    f->of_type = type;
+    f->line = line(start);
+    f->head_from = start;
+    int e = 0;
+    f->method = name_text(e);
+    if (e < 0)
+    {
+      return fail();
+    }
+    f->name = type + "_" + f->method;
+    f->head_to = e;
+    p_ = e;
+    auto self = make<Param>();
+    self->name = "Self";
+    self->declared = type_of_name(type);
+    self->type_word = type;
+    f->params.push_back(self);
+    if (!ws())
+    {
+      return fail();
+    }
+    if (c(p_) == '(')
+    {
+      int save = p_;
+      p_++;
+      bool ok = false;
+      if (ws())
+      {
+        generic_ok_ = true;
+        std::vector<Param*> ps = params();
+        generic_ok_ = false;
+        if (c(p_) == ')')
+        {
+          p_++;
+          if (ws())
+          {
+            f->paren = save;
+            f->params.insert(f->params.end(), ps.begin(), ps.end());
+            ok = true;
+          }
+        }
+      }
+      if (!ok)
+      {
+        p_ = save;
+      }
+    }
+    if (!ws())
+    {
+      return fail();
+    }
+    {
+      int save = p_;
+      int from = 0;
+      std::string tn;
+      Generic gen;
+      if (typespec(from, tn, &gen))
+      {
+        f->rettype_word = tn;
+        f->ret_container = gen.container;
+        f->ret_from = gen.from;
+        f->ret_to = gen.to;
+        f->ret_tlpp = gen.tlpp;
+      }
+      else
+      {
+        p_ = save;
+      }
+    }
+    if (!ws() || !nl() || !ws())
+    {
+      return fail();
+    }
+    std::string was = type_name_;
+    type_name_ = type;
+    f->body = funcbody();
+    type_name_ = was;
+    if (!ws())
+    {
+      return fail();
+    }
+    return f;
+  }
+
+  // A type's next method, or its end.
+  bool Parser::method_at() const
+  {
+    return iword_at(p_, "method") && is_h(c(p_ + 6));
+  }
+
+  bool Parser::type_end_at() const
+  {
+    if (iword_at(p_, "endtype") && !is_w(c(p_ + 7)))
+    {
+      return true;
+    }
+    if (!iword_at(p_, "end") || !is_h(c(p_ + 3)))
+    {
+      return false;
+    }
+    int q = p_ + 3;
+    while (is_h(c(q)))
+    {
+      q++;
+    }
+    return iword_at(q, "type") && !is_w(c(q + 4));
   }
 
   // rule classmember { [ <annotation> <.nl> ]* [ <datadecl> || <methdecl> ] }
@@ -1435,6 +1737,7 @@ namespace xc
   MethodImpl* Parser::methodimpl()
   {
     int start = p_;
+    vars_.clear();
     auto fail = [&]() -> MethodImpl* { p_ = start; return nullptr; };
     for (;;)
     {
@@ -1561,6 +1864,7 @@ namespace xc
   MethodImpl* Parser::wsmethodimpl()
   {
     int start = p_;
+    vars_.clear();
     if (!ilit("wsmethod") || !not_within_word())
     {
       p_ = start;
@@ -1660,6 +1964,7 @@ namespace xc
   MethodImpl* Parser::userfunc()
   {
     int start = p_;
+    vars_.clear();
     int e = usercmd(true);
     if (e <= 0)
     {
@@ -1904,6 +2209,7 @@ namespace xc
       p_ = start;
       return nullptr;
     }
+    for (const Declarator* v : d->declarators) { file_vars_.insert(lc(v->name)); }
     return d;
   }
 
@@ -2112,6 +2418,10 @@ namespace xc
     for (;;)
     {
       int save = p_;
+      if (!type_name_.empty() && (method_at() || type_end_at()))
+      {
+        break;
+      }
       Stmt* s = statement();
       if (!s || !ws() || !nl() || !ws())
       {
@@ -2674,6 +2984,7 @@ namespace xc
     d->name = name;
     d->line = line(start);
     d->declared = "?";
+    var(name);
     std::string type_word;
     bool typed = false;
     Generic gen;
@@ -3005,8 +3316,9 @@ namespace xc
   }
 
   // What a typed array or hash holds: a type's letter -- n, c, l, d, a, h, o,
-  // b, j, f --, 'Array<T>', 'Hash<K, V>', 'Set<K>' or 'Bag<K>', letter case
-  // aside; 'fixed' first makes one fixed, its types then optional:
+  // b, j, f --, a type's name, 'Array<T>', 'Hash<K, V>', 'Set<K>' or
+  // 'Bag<K>', letter case aside; 'fixed' first makes one fixed, its types
+  // then optional:
   // 'Array<fixed>', 'Array<fixed n>', 'Hash<fixed c, n>', 'Set<fixed c>'.
   // Where it ends, or -1; the type as ast.h writes it, in out.
   int Parser::elem_type(int p, std::string& out) const
@@ -3038,12 +3350,21 @@ namespace xc
       return e;
     }
     int ch = lower(c(p));
-    if (ch < 0 || is_w(c(p + 1)) || std::string_view("nclahdobjf").find(static_cast<char>(ch)) == std::string_view::npos)
+    bool letter = ch >= 0 && std::string_view("nclahdobjf").find(static_cast<char>(ch)) != std::string_view::npos;
+    if (letter && !is_w(c(p + 1)))
+    {
+      out = std::string(1, static_cast<char>(ch - 'a' + 'A'));
+      return p + 1;
+    }
+    // A type of the file's, by its name: 'T:item', in lower case (typed.cpp
+    // says if it is one).
+    int e = name_end(p);
+    if (e < 0)
     {
       return -1;
     }
-    out = std::string(1, static_cast<char>(ch - 'a' + 'A'));
-    return p + 1;
+    out = "T:" + lc(text(p, e));
+    return e;
   }
 
   // '<' T [ ',' T ]* '>', n types, blanks around them: where it ends, or -1.
@@ -3646,6 +3967,7 @@ namespace xc
     {
       return fail();
     }
+    var(s->var);
     p_ = e;
     if (!ws() || refused(s->var) || !ws())
     {
@@ -3740,6 +4062,7 @@ namespace xc
     {
       return fail();
     }
+    var(s->elem);
     p_ = e;
     if (!ws() || refused(s->elem) || !ws())
     {
@@ -3759,6 +4082,7 @@ namespace xc
           if (ws() && !refused(idx) && ws() && ws())
           {
             s->index = idx;
+            var(idx);
             ok = true;
           }
         }

@@ -1,0 +1,83 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A type as a type: of Locals, Statics, parameters, returns, a class's
+// Data, another type's field, a typed array's and hash's; what xc knows a
+// value to be of -- the elements walked, a lambda's and a code block's
+// parameter --; '?.'.
+// type Customer: an array of 2
+#define Customer_cName 1
+#define Customer_aTags 2
+// endtype
+
+// type Order: an array of 4
+#define Order_cId 1
+#define Order_aCli 2
+#define Order_aLines 3
+#define Order_hBy 4
+
+Static Function Order_Who(aSelf as Array) as Character
+Return aSelf[Order_aCli][Customer_cName]
+
+Static Function Order_Cli(aSelf as Array) as Array
+Return aSelf[Order_aCli]
+// endtype
+
+// type Line: an array of 2
+#define Line_cCod 1
+#define Line_nQtd 2
+// endtype
+
+Static aFirst := {"F", {"anon", {}}, {}, THashMap():New()}
+
+Class Shop
+  Data aLast as Array
+  Method New() Constructor
+  Method Last() as Array
+EndClass
+
+Method New() Class Shop
+  ::aLast := {"X", {"anon", {}}, {}, THashMap():New()}
+Return Self
+
+Method Last() Class Shop as Array
+Return ::aLast
+
+Static Function Mk(cId as Character) as Array
+Return {cId, {"anon", {}}, {}, THashMap():New()}
+
+User Function Typed(aIn as Array, aMany as Array)
+  Local oShop := Shop():New()
+  Local aOrders := {}
+  Local aBig
+  Local aKept as Array
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  Local aO  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_1  // the counter of a 'for ... in'
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  aIn[Order_hBy]:Set("x", {"y", {}})
+  ConOut(u_xtpl_hget(aIn[Order_hBy], "x")[Customer_cName], Order_Who(oShop:Last()), aFirst[Order_aCli][Customer_cName], Order_Cli(Mk("M"))[Customer_cName])
+  AAdd(aOrders, Mk("A"))
+  ASort(aOrders,,, {|a, b| a[Order_cId] < b[Order_cId]})
+  AEval(aOrders, {|o| ConOut(o[Order_cId])})
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aMany)
+    fv_0_0 := aMany[fi_0_0]
+    If Len(fv_0_0[Order_aLines]) > 1
+      fv_0_0 := fv_0_0[Order_cId]
+      AAdd(fo_0_0, fv_0_0)
+    EndIf
+  Next
+  aBig := fo_0_0
+  fs_0_0 := aMany
+  For fi_0_1 := 1 To Len(fs_0_0)
+    aO := fs_0_0[fi_0_1]
+    AAdd(aO[Order_aCli][Customer_aTags], "seen")
+  Next
+  aKept := aMany[1]
+  ConOut(If(ValType(aIn) != "U" .And. ValType(fbv_0_0 := Order_Cli(aIn)) != "U", fbv_0_0[Customer_cName], Nil))
+  aKept := Nil
+Return If(ValType(aIn) != "U" .And. ValType(fbv_0_0 := aIn[Order_aCli]) != "U", fbv_0_0[Customer_cName], Nil)

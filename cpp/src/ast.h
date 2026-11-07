@@ -24,7 +24,7 @@ namespace xc
     Literal, Name, UserTrans, Call, Binary, Index, SelfRef, SubjectRef, Member, SafeMember,
     HashIndex, Interval, MethodCall, SafeCall, AliasField, InAlias, Macro, Ref, Omitted,
     ExprList, AssignExpr, ArrayLit, Interp, JsonLit, HashLit, CodeBlock, Lambda, Guard,
-    Pipeline,
+    Pipeline, Dot, DotCall, Named,
   };
 
   struct Node
@@ -97,6 +97,10 @@ namespace xc
     explicit Member(EK k) : Expr(k) {}
     Expr* base = nullptr;
     std::string name;
+    // 'x?.f' of a type's value: of that type (typed.cpp), the field at its
+    // position.
+    std::string of_type;
+    int pos = 0;
   };
 
   struct SafeMember : Member { SafeMember() : Member(EK::SafeMember) {} };
@@ -124,6 +128,7 @@ namespace xc
     Expr* base = nullptr;
     std::string name;
     std::vector<Expr*> args;
+    std::string of_type;             // 'x?.m()' of a type's value: of that type
   };
 
   struct SafeCall : MethodCall { SafeCall() : MethodCall(EK::SafeCall) {} };
@@ -247,6 +252,36 @@ namespace xc
                                      // and no parentheses around the chain
   };
 
+  // A type's field, 'aIt.nQtd' -- 'Self.nQtd', '.nQtd' in its methods --,
+  // and its method, 'aIt.Total()': of the type typed.cpp knows the base to
+  // be of (of_type, '' while it does not), the field at its position.
+  struct Dot : Expr
+  {
+    Dot() : Expr(EK::Dot) {}
+    Expr* base = nullptr;
+    std::string name;
+    std::string of_type;
+    int pos = 0;
+  };
+
+  struct DotCall : Expr
+  {
+    DotCall() : Expr(EK::DotCall) {}
+    Expr* base = nullptr;
+    std::string name;
+    std::vector<Expr*> args;
+    std::string of_type;
+  };
+
+  // A field given by its name where a type's value is made: 'Item(nQtd =>
+  // 2)'.
+  struct Named : Expr
+  {
+    Named() : Expr(EK::Named) {}
+    std::string name;
+    Expr* value = nullptr;
+  };
+
   // ---- statements -----------------------------------------------------------
   enum class SK
   {
@@ -287,6 +322,7 @@ namespace xc
     bool init_made = false;          // its value xc's: one starts empty
     bool as_class = false;           // 'as Order', a class of the file: TL++'s
                                      // 'as Object' (emit.cpp)
+    bool as_type = false;            // 'as Item', a type of the file: 'as Array'
   };
 
   struct Declaration : Stmt
@@ -499,6 +535,38 @@ namespace xc
     int ret_from = -1;               // where it is written -- a typed
     int ret_to = -1;                 // array's, or a word
     std::string ret_tlpp;            // and TL++'s word for a typed one there
+    // A type's method: its type's name, its own -- the function is
+    // TYPE_METHOD, its first parameter 'Self' --, and where its header's
+    // words are, 'method NAME', and its '(' (-1: none).
+    std::string of_type;
+    std::string method;
+    int head_from = -1;
+    int head_to = -1;
+    int paren = -1;
+  };
+
+  // A field of a type: a declarator, as a Local's, and the line's code.
+  struct TypeField : Node
+  {
+    Declarator* decl = nullptr;
+    int from = -1;
+    int to = -1;
+  };
+
+  // 'type Name' ... 'endtype': an array, its fields at their positions, and
+  // its methods (also among the program's functions). Where its first line's
+  // code ends, and where its last line's starts and ends.
+  struct TypeDef : Node
+  {
+    std::string name;
+    int line = 0;
+    int from = -1;
+    int head_to = -1;
+    int end_from = -1;
+    int end_to = -1;
+    int end_line = 0;
+    std::vector<TypeField*> fields;
+    std::vector<FunctionDef*> methods;
   };
 
   struct DataMember : Node
@@ -576,6 +644,7 @@ namespace xc
     std::vector<MethodImpl*> methods;
     std::vector<External*> externals;
     std::vector<Declaration*> statics;
+    std::vector<TypeDef*> types;
   };
 
   // ---- the tree -------------------------------------------------------------

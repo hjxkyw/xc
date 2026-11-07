@@ -1,0 +1,10 @@
+004-names.xtpl:9: warning: 'Self' is declared again (first on line 8): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable SELF redefined")
+004-names.xtpl:5: 'Order_cId' is the position of Order's field 'cId', and a function of the file.
+004-names.xtpl:8: 'aSelf' is the value Who() is called on -- 'aSelf' in TL++: a type's method declares no other.
+004-names.xtpl:8: 'Order_Who' is the function Order's method Who() is, and a function of the file.
+004-names.xtpl:9: 'Self' is the value Who() is called on -- 'aSelf' in TL++: a type's method declares no other.
+004-names.xtpl:10: 'Self' is Numeric, no type's value: '.cId' is a type's field.
+004-names.xtpl:13: 'Order' is declared twice, on line 4 and here.
+004-names.xtpl:17: 'Shop' is a type of the file and a class of it: 'Shop(...)' makes a value of the type.
+004-names.xtpl:21: 'Date' is a function of the AppServer's language, and 'Date(...)' would make a value of the type: give it another name.
+004-names.xtpl:25: 'Count' is the name of one of xtpl's verbs, and 'Count(...)' would make a value of the type: give it another name.

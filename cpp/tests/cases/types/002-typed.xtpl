@@ -1,0 +1,61 @@
+// A type as a type: of Locals, Statics, parameters, returns, a class's
+// Data, another type's field, a typed array's and hash's; what xc knows a
+// value to be of -- the elements walked, a lambda's and a code block's
+// parameter --; '?.'.
+type Customer
+  cName as Character
+  aTags as Array<c>
+endtype
+
+type Order
+  cId as Character
+  aCli as Customer := Customer("anon")
+  aLines as Array<Line>
+  hBy as Hash<c, Customer>
+
+  method Who() as Character
+  Return .aCli.cName
+
+  method Cli() as Customer
+  Return .aCli
+endtype
+
+type Line
+  cCod as Character
+  nQtd as Numeric
+endtype
+
+Static aFirst := Order("F")
+
+Class Shop
+  Data aLast as Order
+  Method New() Constructor
+  Method Last() as Order
+EndClass
+
+Method New() Class Shop
+  ::aLast := Order("X")
+Return Self
+
+Method Last() Class Shop as Order
+Return ::aLast
+
+Static Function Mk(cId as Character) as Order
+Return Order(cId)
+
+User Function Typed(aIn as Order, aMany as Array<Order>)
+  Local oShop := Shop():New()
+  Local aOrders := { <Order> }
+  Local aBig
+  Local aKept as Order
+  aIn.hBy{"x"} := Customer("y")
+  ConOut(aIn.hBy{"x"}.cName, oShop:Last().Who(), aFirst.aCli.cName, Mk("M").Cli().cName)
+  AAdd(aOrders, Mk("A"))
+  ASort(aOrders,,, {|a, b| a.cId < b.cId})
+  AEval(aOrders, {|o| ConOut(o.cId)})
+  aBig := aMany |> filter([o] Len(o.aLines) > 1) |> map([o] o.cId)
+  for aO in aMany exec AAdd(aO.aCli.aTags, "seen")
+  aKept := aMany[1]
+  ConOut(aIn?.Cli()?.cName)
+  aKept := Nil
+Return aIn?.aCli?.cName

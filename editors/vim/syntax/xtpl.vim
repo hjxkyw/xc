@@ -7,7 +7,8 @@
 " declarations and types; xtpl's own -- '|>' and 'then', the runtime's
 " verbs, lambdas ('[x] x * 2'), 'defer', 'using alias', 'with object',
 " 'fallback', '?=', '?:', '?.', 'in', 'has', '%%', ranges, '${...}' in
-" strings, typed and fixed arrays and hashes, sets and bags; Clipper's '&&'
+" strings, typed and fixed arrays and hashes, sets and bags, types and their
+" fields ('type Item', 'aIt.nQtd'); Clipper's '&&'
 " and '*' comments; the preprocessor's directives. A string ends at its
 " quote or at the end of its line, as TL++'s: nothing but a block comment,
 " or a directive carried on with ';', goes past a line.
@@ -83,9 +84,11 @@ syn match xtplFuncName "\h\w*" contained
 syn keyword xtplStructure class interface wsrestful wsservice wsstruct from inherit
       \ nextgroup=xtplClassName skipwhite
 syn match xtplClassName "\h\w*\%(\.\h\w*\)*" contained
-syn keyword xtplStructure endclass endinterface
-syn match xtplStructure "\<end\s\+\%(class\|interface\|wsrestful\|wsservice\|wsstruct\)\>"
+syn keyword xtplStructure endclass endinterface endtype
+syn match xtplStructure "\<end\s\+\%(class\|interface\|wsrestful\|wsservice\|wsstruct\|type\)\>"
 syn keyword xtplStructure data wsdata nextgroup=xtplMemberName skipwhite
+" 'type Item' alone on its line -- not 'Type("cX")'.
+syn match xtplStructure "^\s*\zstype\ze\s\+\h\w*\s*\%($\|//\|&&\|/\*\)" nextgroup=xtplClassName skipwhite
 syn match xtplMemberName "\h\w*" contained
 
 syn keyword xtplNamespace namespace nextgroup=xtplNamespaceName skipwhite
@@ -137,12 +140,17 @@ syn match xtplLambdaParams "\%(\w\|[)\]}]\)\@<!\[\s*\h\w*\%(\s*,\s*\h\w*\)\{,5}\
       \ contains=xtplParam
 syn match xtplParam "\h\w*" contained
 
+" 'aIt.nQtd', 'aIt.Total()', '.nQtd' in a type's method: a type's field
+" and method -- not '.And.', '.T.', '1.5', '1..10'.
+syn match xtplField "\%([.[:digit:]]\)\@<!\.\%(\%(and\|or\|not\|[tfyn]\)\.\)\@!\zs\h\w*"
+syn match xtplFieldCall "\%([.[:digit:]]\)\@<!\.\%(\%(and\|or\|not\|[tfyn]\)\.\)\@!\zs\h\w*\ze\s*("
+
 " 'SA1->A1_COD': the alias.
 syn match xtplAliasName "\<\h\w*\ze\s*->"
 
 " What an interpolation holds.
 syn cluster xtplExpr contains=xtplString,xtplNumber,xtplBoolean,xtplNil,xtplSelf,xtplOperator,xtplPipe,xtplVerb,
-      \xtplLambdaParams,xtplBlockParams,xtplAliasName,xtplConditional,xtplTypeArgs,xtplGeneric
+      \xtplLambdaParams,xtplBlockParams,xtplAliasName,xtplConditional,xtplTypeArgs,xtplGeneric,xtplField,xtplFieldCall
 
 syn sync ccomment xtplCommentBlock minlines=40
 
@@ -174,6 +182,8 @@ hi def link xtplFuncName      Function
 hi def link xtplStructure     Structure
 hi def link xtplClassName     Type
 hi def link xtplMemberName    Identifier
+hi def link xtplField         Identifier
+hi def link xtplFieldCall     Function
 hi def link xtplNamespace     Keyword
 hi def link xtplNamespaceName Identifier
 hi def link xtplAnnotation    PreProc

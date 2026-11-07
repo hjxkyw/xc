@@ -1,0 +1,346 @@
+xbc 1
+source 26-types.xtpl
+statics 0
+
+function ITEM_TOTAL static 1 1
+  locals Self
+  line 12
+  local 1
+  num 2
+  index
+  local 1
+  num 3
+  index
+  mul
+  ret
+end
+
+function ITEM_ADD static 2 2
+  locals Self nMais
+  line 15
+  local 1
+  num 2
+  dup2
+  index
+  local 2
+  add
+  setindex
+  line 16
+  local 1
+  num 4
+  index
+  str "+"
+  local 2
+  call 1 cValToChar
+  add
+  call 2 AAdd
+  pop
+  line 17
+  local 1
+  ret
+end
+
+function ORDER_TOTAL static 1 5
+  locals Self nSum .t1 aIt .t2
+  line 26
+  num 0
+  setlocal 2
+  line 27
+  local 1
+  num 2
+  index
+  setlocal 3
+  num 1
+  setlocal 5
+  line 27
+  local 5
+  local 3
+  call 1 Len
+  le
+  jumpf 31
+  local 3
+  local 5
+  index
+  setlocal 4
+  local 2
+  local 4
+  call 1 Item_Total
+  add
+  setlocal 2
+  local 5
+  num 1
+  add
+  setlocal 5
+  jump 11
+  line 28
+  local 2
+  ret
+end
+
+function ORDER_BIGGEST static 1 9
+  locals Self .t1 .t2 .t3 .t4 .t5 .t6 .t7 .t8
+  line 31
+  local 1
+  num 2
+  index
+  setlocal 3
+  nil
+  setlocal 7
+  false
+  setlocal 8
+  nil
+  setlocal 9
+  nil
+  setlocal 6
+  num 1
+  setlocal 4
+  local 4
+  local 3
+  call 1 Len
+  le
+  jumpf 46
+  local 3
+  local 4
+  index
+  setlocal 5
+  local 5
+  call 1 Item_Total
+  setlocal 9
+  local 8
+  not
+  orjump 34
+  local 9
+  local 7
+  gt
+  jumpf 41
+  true
+  setlocal 8
+  local 9
+  setlocal 7
+  local 5
+  setlocal 6
+  local 4
+  num 1
+  add
+  setlocal 4
+  jump 16
+  local 6
+  setlocal 2
+  local 2
+  ret
+end
+
+function U_MAIN user 0 3
+  locals aOrd aIt aNone
+  line 35
+  str "P1"
+  array 0
+  new 0 THashMap New
+  array 3
+  setlocal 1
+  line 36
+  str "A"
+  num 1
+  num 2.5
+  array 0
+  array 4
+  setlocal 2
+  line 38
+  local 1
+  num 2
+  index
+  local 2
+  call 2 AAdd
+  pop
+  line 39
+  local 1
+  num 2
+  index
+  str "B"
+  num 3
+  num 10
+  array 0
+  array 4
+  call 2 AAdd
+  pop
+  line 40
+  local 1
+  num 2
+  index
+  str "C"
+  num 1
+  num 1
+  array 0
+  array 4
+  call 2 AAdd
+  pop
+  line 41
+  local 1
+  num 2
+  index
+  num 1
+  index
+  num 3
+  call 2 Item_Add
+  num 1
+  call 2 Item_Add
+  pop
+  line 42
+  local 1
+  num 2
+  index
+  num 2
+  index
+  num 2
+  dup2
+  index
+  num 1
+  add
+  setindex
+  line 43
+  local 1
+  num 3
+  index
+  str "rush"
+  str "yes"
+  call 3 u_xtpl_hset
+  pop
+  line 44
+  local 1
+  num 1
+  index
+  local 1
+  num 2
+  index
+  call 1 Len
+  local 1
+  call 1 Order_Total
+  local 1
+  call 1 Order_Biggest
+  num 1
+  index
+  local 1
+  num 3
+  index
+  str "rush"
+  call 2 u_xtpl_hget
+  call 5 ConOut
+  pop
+  line 45
+  local 2
+  num 2
+  index
+  local 2
+  num 4
+  index
+  call 1 Len
+  local 2
+  num 4
+  index
+  num 2
+  index
+  local 2
+  call 1 Item_Total
+  call 4 ConOut
+  pop
+  line 46
+  local 1
+  num 2
+  index
+  block U_MAIN#1 0
+  call 2 u_xtpl_filter
+  block U_MAIN#2 0
+  call 2 u_xtpl_map
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 47
+  local 1
+  num 2
+  index
+  nil
+  nil
+  block U_MAIN#3 0
+  call 4 ASort
+  pop
+  line 48
+  local 1
+  num 2
+  index
+  block U_MAIN#4 0
+  call 2 AEval
+  pop
+  line 49
+  local 2
+  call 1 ValType
+  local 2
+  call 1 Len
+  local 2
+  num 2
+  index
+  local 3
+  dup
+  isnil
+  jumpt 154
+  num 2
+  index
+  call 1 ValType
+  local 2
+  dup
+  isnil
+  jumpt 160
+  call 1 Item_Total
+  call 5 ConOut
+  pop
+  line 50
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals it
+  line 46
+  local 1
+  num 2
+  index
+  num 1
+  gt
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals it
+  line 46
+  local 1
+  num 1
+  index
+  ret
+end
+
+function U_MAIN#3 block 2 2
+  locals a b
+  line 47
+  local 1
+  call 1 Item_Total
+  local 2
+  call 1 Item_Total
+  lt
+  ret
+end
+
+function U_MAIN#4 block 1 1
+  locals it
+  line 48
+  local 1
+  num 1
+  index
+  str " "
+  add
+  local 1
+  call 1 Item_Total
+  call 1 cValToChar
+  add
+  call 1 ConOut
+  ret
+end

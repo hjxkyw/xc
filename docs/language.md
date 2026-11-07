@@ -178,6 +178,7 @@ A file holds, in any order:
   after the value, the attributes as a comment, what is xtpl's in the value
   lowered;
 - functions, classes, interfaces, method implementations, web services;
+- types: arrays whose positions have names ([Types](#types));
 - annotations, before the function or method they annotate, and the
   definitions of the file's own, `@annotation Name` to `@end`, passed
   through whole;
@@ -292,6 +293,173 @@ Return Self
   `as Type` before or after `Class Name`, and its body.
 - Inside a method, `::x` is `Self:x` -- a value, a call, a target.
 - `Interface Name` ... `EndInterface`: method signatures only.
+
+### Types
+
+A type is an array whose positions have names. A value of one is a plain
+array -- made, kept, passed and given to TOTVS' functions as one --, and
+TL++ is given no class and no object: each field is an element at its
+position, each method a static function, and nothing of the runtime.
+
+```xtpl
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+  aTags as Array<c>
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+
+  method Add(nMais as Numeric)
+    .nQtd += nMais
+    AAdd(Self.aTags, "more")
+  Return Self
+endtype
+
+User Function Order(cCod as Character)
+  Local aIt := Item(cCod, nPreco => Price(cCod))
+  Local aMore := Item("B", 3, 10)
+  aIt.Add(2)
+  aMore.nQtd++
+Return aIt.Total() + aMore?.Total()
+```
+
+```tlpp
+// type Item: an array of 4
+#define Item_cCod 1  // [const]
+#define Item_nQtd 2
+#define Item_nPreco 3
+#define Item_aTags 4
+
+Static Function Item_Total(aSelf as Array) as Numeric
+Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+
+Static Function Item_Add(aSelf as Array, nMais as Numeric)
+  aSelf[Item_nQtd] += nMais
+  AAdd(aSelf[Item_aTags], "more")
+Return aSelf
+// endtype
+
+User Function Order(cCod as Character)
+  Local aIt := {cCod, 1, Price(cCod), {}}
+  Local aMore := {"B", 3, 10, {}}
+  Item_Add(aIt, 2)
+  aMore[Item_nQtd]++
+Return Item_Total(aIt) + If(aMore != Nil, Item_Total(aMore), Nil)
+```
+
+- `type Name` ... `endtype` (or `end type`), at the file's level.
+- **Fields** first, one to a line: a name, `<const>` or not, a type or not
+  -- TL++'s, a typed array or hash, a class or a type of the file -- and
+  what it starts at, or not: `nQtd as Numeric := 1`. The order they are
+  written in is the order of the positions, from 1. A field cannot be
+  called `and`, `or`, `not`, `t`, `f`, `y` or `n`: those are TL++'s words
+  between dots.
+- **Methods** after the fields, each with its body, up to the next
+  `method` or the `endtype`: `method Name(...)`, `as Type` after it or not.
+  In one, `Self` is the value the method is called on: `Self.nQtd` is its
+  field, and so is `.nQtd`; `Self.Add(1)` and `.Add(1)` its method. `::` is
+  a class's, and refused there.
+- **Making one**: the type's name, called. The fields are given by their
+  places, by their names with `=>`, or both -- those by their places
+  first: `Item("A", nPreco => 2)`; one left out by its place, `Item("A", ,
+  2)`, is not given. A field not given is what it starts at, made where the
+  value is, each time -- so it reads no variable --, or, with no value to
+  start at, what a `Local` of its type starts at (0, `""`, `.F.`; a typed
+  array or hash, empty), or Nil. The values are evaluated in the order of
+  the fields.
+- **Its fields and methods**: `x.nQtd` reads a field, `x.nQtd := v`, `x.nQtd
+  += v`, `x.nQtd++` write it; `x.Add(1)` calls a method; `x?.nQtd` and
+  `x?.Add(1)` are Nil when x is ([Elvis and safe access](#elvis-and-safe-access)).
+  A `<const>` field takes its value where the value is made, and is never
+  written after.
+- **A type is a type**: a `Local`, a `Static`, a parameter, a function's or
+  a method's return, a class's `Data`, another type's field may be
+  declared `as Item`, and a typed array or hash may hold them --
+  `Array<Item>`, `Hash<c, Item>`, `{ <Item> }`. TL++ is given `as Array`.
+  What goes in is checked: a value of the type, or an array xc cannot tell
+  -- what a function gives, TOTVS' own, taken for one. A value of another
+  type, a typed array, an array written out, anything that is no array, is
+  an error. A field takes what it is declared as, as a `Local` does.
+
+xc has to know what `x` is, to know which field `.nQtd` is: a name or a
+parameter declared `as Item`; `Item(...)`; an element of an `Array<Item>`,
+a value of a `Hash<c, Item>`, a field or a method declared so; `Self` in a
+method; a `Local` given only those; a `for ... in` over an `Array<Item>`;
+and the parameter of a lambda or a code block a verb walks one with --
+`filter`, `map` and the rest, `ASort()`, `AEval()`, `AScan()`.
+
+```xtpl
+type Line
+  cCod as Character
+  nQtd as Numeric
+endtype
+
+User Function Big(aLines as Array<Line>, hBy as Hash<c, Line>)
+  Local aBig := aLines |> filter([l] l.nQtd > 10)
+  ASort(aBig,,, {|a, b| a.nQtd > b.nQtd})
+  for aL in aBig exec hBy{aL.cCod} := aL
+Return hBy{"A"}?.nQtd
+```
+
+```tlpp
+// type Line: an array of 2
+#define Line_cCod 1
+#define Line_nQtd 2
+// endtype
+
+User Function Big(aLines as Array, hBy as Object)
+  Local aBig := u_xtpl_filter(aLines, {|l| l[Line_nQtd] > 10})
+  Local aL  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
+  ASort(aBig,,, {|a, b| a[Line_nQtd] > b[Line_nQtd]})
+  fs_0_0 := aBig
+  For fi_0_0 := 1 To Len(fs_0_0)
+    aL := fs_0_0[fi_0_0]
+    hBy:Set(aL[Line_cCod], aL)
+  Next
+Return If(ValType(fbv_0_0 := u_xtpl_hget(hBy, "A")) != "U", fbv_0_0[Line_nQtd], Nil)
+```
+
+Anywhere else `x.nQtd` is an error: TL++ has no `x.nQtd`, so there is
+nothing to leave as it was.
+
+```xtpl
+type Point
+  nX as Numeric
+  nY <const> as Numeric
+endtype
+
+User Function Move(aP as Point, aAny)
+  Local aQ := Point(1, "2")
+  aP.nY := 0
+  aP.nZ := aQ.nX
+Return aAny.nX
+```
+
+```text
+move.xtpl:7: the field 'nY' of Point() is Numeric: this is Character.
+move.xtpl:8: 'aP.nY' is <const>: it takes its value where a Point is made.
+move.xtpl:9: 'Point' has no field 'nZ'.
+move.xtpl:10: '.nX': xc cannot tell that 'aAny' is a type's value -- 'aAny as Point' says it is one.
+```
+
+`a.b(...)` is a namespace's function -- `totvs.framework.foo()` -- unless
+`a` is a variable the function declares, or a static of the file.
+
+**What TL++ is given.** The type's first and last lines become comments;
+each field, on its own line, the `#define` of its position, `Item_nQtd`;
+each method the static function `Item_Total`, a level less deep, whose
+first parameter, `aSelf`, is Self. A field is the element at its position,
+`aIt[Item_nQtd]`; a method its function, given the value first,
+`Item_Total(aIt)`; a value made, the array, `{"B", 3, 10, {}}`. So a field
+is read after its type -- its position is a `#define` --, no function nor
+`#define` of the file may have the name of a method's function or of a
+field's position, and a method declares no `Self` nor `aSelf` of its own
+([Names xc keeps](#names-xc-keeps)).
 
 ### Annotations
 
@@ -2194,6 +2362,14 @@ parses, in xtpl's words.
 | a fixed one's name with no value, assigned, or passed with `@` | `'aX' is an Array<fixed n>: it takes its value where it is declared.`, `'aX' is an Array<fixed n> (declared on line 3) and cannot be assigned.` |
 | an object of another class than the one declared, going in | `'oOrder' is an Order: this is a Customer, not an Order.` |
 | a fixed `Data` given its value but by its own object's constructor, or by none | `'oOrder:aCodes' is an Array<fixed c> (declared on line 8): only the constructor gives it its value.`, `'::aCodes' is an Array<fixed c>: New(), the constructor, gives it its value.` |
+| `x.f`, `x.m()` where xc cannot tell that x is a type's value, or knows it is none | `'.nX': xc cannot tell that 'aAny' is a type's value -- 'aAny as Point' says it is one.`, `'aNums' is an Array<n>, no type's value: '.nQtd' is a type's field.` |
+| a field or a method the type does not have | `'Point' has no field 'nZ'.`, `'Item' has no method 'Totl()'.` |
+| a type's value made with more values than it has fields, a field given twice, a value by its place after one by its name, a field by its name where no type's value is made | `Item() has 3 fields: this gives it more.`, `Item(): 'nQtd' is given twice.`, `Item(): the values by their places come before those by their names.`, `'nQtd =>': a field by its name, and Foo() makes no type's value.` |
+| a value of another type than a field is declared as, going in; anything but a type's value where one is | `the field 'nY' of Point() is Numeric: this is Character.`, `'aLit' is an Item: an array written out is none -- Item(...) makes one.` |
+| a `<const>` field written | `'aP.nY' is <const>: it takes its value where a Point is made.` |
+| a field read before its type | `'Item' is declared on line 4: its fields are read after it.` |
+| in a type: a field twice, a method twice or named as a field, a field called `and` and the like, an attribute but `<const>`, a value to start at that reads a variable; a type named as a function or a class of the file, a function of the AppServer's language, a verb, a reserved word; a function named as a method's or a field's position; `Self` or `aSelf` declared in a method | `'nQtd' is a field of Item twice.`, `the field 'nQtd' of Item starts at a value made where one is: it cannot read 'nX'.`, `'Order_Who' is the function Order's method Who() is, and a function of the file.` |
+| `::` in a type's method; `with object` on a type's value | `'::nQtd' is a class's: in a type's method, a field is '.nQtd'.`, `'with object' takes an object, and 'aIn' is an Order: its fields are 'aIn.x'.` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
 comma in a declaration, `?=` in an expression, a chain or a `fallback`
@@ -2308,6 +2484,11 @@ or `->` a member may be called anything: `oDlg:End()`.
 may be called that -- static, user or bare -- it is an error. A method of
 that name is yours, `oObj:Count()`, and so is a variable. A class of your own called
 `XtplQueue` would clash with the runtime's.
+
+**A type's names.** A type's fields' positions, `Item_nQtd`, and its
+methods' functions, `Item_Total`, are the file's: no function of it is
+called so, nor a `#define`. In a method, `aSelf` is TL++'s Self, and a
+method declares no `Self` nor `aSelf`.
 
 **Generated names.** xc's own locals have shapes a function may not declare
 as a `Local` or a `Private` of its own: `<kind>_<depth>_<index>` --

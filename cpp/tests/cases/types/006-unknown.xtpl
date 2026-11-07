@@ -1,0 +1,10 @@
+// Fields of what xc cannot tell is a type's value: a parameter with no
+// type, a name nothing declares, a function's result, a JSON object.
+type Point
+  nX as Numeric
+endtype
+
+User Function Unknown(aP, oJ as JSON)
+  Local aQ := GetPoint()
+  ConOut(aP.nX, aQ.nX, GetPoint().nX, oJ.nX, cMemvar.nX)
+Return aP.nZ

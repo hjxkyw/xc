@@ -41,6 +41,9 @@ namespace xc
         case EK::Lambda: return "Lambda";
         case EK::Guard: return "Guard";
         case EK::Pipeline: return "Pipeline";
+        case EK::Dot: return "Dot";
+        case EK::DotCall: return "DotCall";
+        case EK::Named: return "Named";
       }
       return "?";
     }
@@ -100,6 +103,9 @@ namespace xc
         for (const External* x : p->externals) { external(4, x); }
         count(2, "statics", p->statics.size());
         for (const Declaration* d : p->statics) { stmt(4, d); }
+        if (p->types.empty()) { return; }
+        count(2, "types", p->types.size());
+        for (const TypeDef* t : p->types) { type(4, t); }
       }
 
       void one(const Expr* e) { expr(0, e); }
@@ -247,6 +253,11 @@ namespace xc
             auto x = static_cast<const Member*>(e);
             child(f, "base", x->base);
             str(f, "name", x->name);
+            if (!x->of_type.empty())
+            {
+              str(f, "of_type", x->of_type);
+              num(f, "pos", x->pos);
+            }
             break;
           }
           case EK::HashIndex:
@@ -271,6 +282,32 @@ namespace xc
             child(f, "base", x->base);
             str(f, "name", x->name);
             exprs(f, "args", x->args);
+            if (!x->of_type.empty()) { str(f, "of_type", x->of_type); }
+            break;
+          }
+          case EK::Dot:
+          {
+            auto x = static_cast<const Dot*>(e);
+            child(f, "base", x->base);
+            str(f, "name", x->name);
+            str(f, "of_type", x->of_type);
+            num(f, "pos", x->pos);
+            break;
+          }
+          case EK::DotCall:
+          {
+            auto x = static_cast<const DotCall*>(e);
+            child(f, "base", x->base);
+            str(f, "name", x->name);
+            exprs(f, "args", x->args);
+            str(f, "of_type", x->of_type);
+            break;
+          }
+          case EK::Named:
+          {
+            auto x = static_cast<const Named*>(e);
+            str(f, "name", x->name);
+            child(f, "value", x->value);
             break;
           }
           case EK::AliasField:
@@ -648,6 +685,37 @@ namespace xc
         num(f, "ret_from", fd->ret_from);
         num(f, "ret_to", fd->ret_to);
         str(f, "ret_tlpp", fd->ret_tlpp);
+        if (fd->of_type.empty()) { return; }
+        str(f, "of_type", fd->of_type);
+        str(f, "method", fd->method);
+        num(f, "head_from", fd->head_from);
+        num(f, "head_to", fd->head_to);
+        num(f, "paren", fd->paren);
+      }
+
+      // A type: only a file that has one says it has any.
+      void type(int in, const TypeDef* t)
+      {
+        head(in, "TypeDef");
+        int f = in + 2;
+        str(f, "name", t->name);
+        num(f, "line", t->line);
+        num(f, "from", t->from);
+        num(f, "head_to", t->head_to);
+        num(f, "end_from", t->end_from);
+        num(f, "end_to", t->end_to);
+        num(f, "end_line", t->end_line);
+        count(f, "fields", t->fields.size());
+        for (const TypeField* x : t->fields)
+        {
+          head(f + 2, "TypeField");
+          num(f + 4, "from", x->from);
+          num(f + 4, "to", x->to);
+          declarator(f + 4, "decl", x->decl);
+        }
+        std::vector<std::string> names;
+        for (const FunctionDef* m : t->methods) { names.push_back(m->name); }
+        strs(f, "methods", names);
       }
 
       void klass(int in, const ClassDef* c)

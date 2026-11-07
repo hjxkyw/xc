@@ -50,6 +50,34 @@ namespace xc
       return t.size() > 2 && t[0] == 'O' && t[1] == ':';
     }
 
+    // A value of a type of the file: 'T:item' -- its name in lower case, as
+    // the parser writes it in a typed array's type (and words_ has how the
+    // file declares it).
+    bool typed_value(const std::string& t)
+    {
+      return t.size() > 2 && t[0] == 'T' && t[1] == ':';
+    }
+
+    // What Self is written as in a type's method's TL++ (emit.cpp).
+    const std::string SELF_TLPP = "aSelf";
+
+    // What xc checks goes in: an object of a class, a type's value.
+    bool checked_slot(const std::string& t) { return classed(t) || typed_value(t); }
+
+    // The names of the file's types, as declared, by their lower case.
+    thread_local const std::unordered_map<std::string, std::string>* type_words = nullptr;
+
+    std::string type_word(const std::string& t)
+    {
+      std::string k = t.substr(2);
+      if (type_words)
+      {
+        auto it = type_words->find(k);
+        if (it != type_words->end()) { return it->second; }
+      }
+      return k;
+    }
+
     // Its class, and those it inherits from: 'Depot', 'Stock'.
     std::vector<std::string> lineage(const std::string& t)
     {
@@ -159,7 +187,7 @@ namespace xc
 
     std::string inner(const std::string& t)
     {
-      return generic(t) || fixed(t) || classed(t) ? show(t) : lc(t);
+      return generic(t) || fixed(t) || classed(t) || typed_value(t) ? show(t) : lc(t);
     }
 
     std::string show(const std::string& t)
@@ -179,6 +207,7 @@ namespace xc
       }
       if (!f.empty()) { return box(kind(t)) ? boxes.at(kind(t)) + "<fixed>" : "?"; }
       if (classed(t)) { return lineage(t).front(); }
+      if (typed_value(t)) { return type_word(t); }
       static const std::unordered_map<std::string, std::string> names =
       {
         { "N", "Numeric" }, { "C", "Character" }, { "L", "Logical" }, { "D", "Date" }, { "A", "Array" },
@@ -194,7 +223,7 @@ namespace xc
     {
       if (kind(t) == 'A') { return "an " + show(t); }
       if (keyed(kind(t))) { return "a " + show(t); }
-      if (classed(t))
+      if (classed(t) || typed_value(t))
       {
         std::string n = show(t);
         return (std::string("aeiouAEIOU").find(n[0]) != std::string::npos ? "an " : "a ") + n;
@@ -223,7 +252,17 @@ namespace xc
     Fit fits(const std::string& v, const std::string& slot)
     {
       if (slot.empty() || slot == UNKNOWN || v.empty()) { return Fit::Ok; }
+      if (typed_value(slot))
+      {
+        // A type's value is an array: one xc cannot tell is taken for one --
+        // what TOTVS' functions give --, an array known to hold this or that
+        // is not.
+        if (bare(v) == UNKNOWN || v == NONE || bare(v) == "A") { return Fit::Ok; }
+        return bare(v) == slot ? Fit::Ok : Fit::Wrong;
+      }
       if (bare(v) == UNKNOWN || v == NONE) { return Fit::Unknown; }
+      // And goes where an array does.
+      if (typed_value(v)) { return kind(slot) == 'A' && !generic(slot) ? Fit::Ok : Fit::Wrong; }
       char vk = kind(v);
       char sk = kind(slot);
       if (box(vk) && box(sk) && fixed(v) && !fixed(slot)) { return Fit::Wrong; }
@@ -412,6 +451,7 @@ namespace xc
       std::string type = NONE;       // what it holds
       std::string container;         // the typed array or hash it is declared as
       int line = 0;                  // where it is declared
+      bool block = false;            // a lambda's or a code block's parameter
     };
 
     struct Event
@@ -467,6 +507,27 @@ namespace xc
       std::unordered_map<std::string, const MethodImpl*> impls;
     };
 
+    // A type of the file: its fields, at their positions from 1, and its
+    // methods.
+    struct TypeData
+    {
+      std::string name;              // what it holds: its container, or its type
+      std::string type;
+      std::string slot;              // what xc checks goes in, or ''
+      bool constant = false;         // '<const>': given only where one is made
+      int pos = 0;
+      const Declarator* decl = nullptr;
+    };
+
+    struct TypeInfo
+    {
+      std::string name;
+      const TypeDef* def = nullptr;
+      std::vector<TypeData> fields;
+      std::unordered_map<std::string, std::size_t> by_name;
+      std::unordered_map<std::string, const FunctionDef*> methods;
+    };
+
     using Scope = std::unordered_map<std::string, Var*>;
 
     class Typer
@@ -489,6 +550,23 @@ namespace xc
       std::vector<std::pair<HashIndex*, std::string>> hashes_;   // every 'h{k}', and its class
       std::vector<std::pair<ForInStmt*, std::string>> walks_;    // every 'for ... in'
       std::unordered_map<std::string, ClassInfo> classes_;       // the file's, by name
+      std::unordered_map<std::string, TypeInfo> types_;          // and its types
+      std::unordered_map<std::string, std::string> type_words_;
+      std::string typ_;              // the type of the method walked, in lower case
+      // Each 'x.f', 'x.m()' -- the class and the type where it is, its line
+      // --, each value of a type made, each verb that walks with a lambda.
+      struct At
+      {
+        Expr* e;
+        std::string cls;
+        std::string typ;
+        int line;
+      };
+      std::vector<At> dots_;
+      std::vector<At> safes_;          // each 'x?.f', 'x?.m()'
+      std::vector<At> withs_;          // each 'with object''s subject
+      std::vector<At> makes_;
+      std::vector<At> verbs_;
       std::string cls_;              // the class of the method walked, checked
       std::vector<Unit> units_;
       std::unordered_map<std::string, std::string> returns_;    // the file's functions
@@ -520,6 +598,15 @@ namespace xc
       std::string field_type(const AliasField* f) const;
       std::string elem_in(const Expr* source);
       const ClassData* data_of(const std::string& cls, const std::string& name, int depth = 0) const;
+      const TypeInfo* type_of(const std::string& t) const;
+      const TypeData* field_of(const std::string& t, const std::string& name) const;
+      std::string dot_name(const Expr* e) const;
+      std::string field_who(const Dot* d);
+      void types();
+      void lambdas();
+      void resolve();
+      void made(const Call* c);
+      void dot_args(const DotCall* d);
       const ClassInfo* class_of_method(const std::string& cls, const std::string& name, int depth = 0) const;
       bool self(const Expr* e) const;
       std::string class_type(const std::string& cls) const;
@@ -534,6 +621,7 @@ namespace xc
       std::string method_who(const MethodCall* m, const std::string& cls);
 
       void into(const Expr* e, const std::string& slot, const std::string& who, bool key = false);
+      void put(const Expr* e, const std::string& slot, const std::string& who);
       std::string who_of(const Expr* base);
       std::string fixed_who(const Expr* written);
       std::string declared_as(const Var* v) const;
@@ -545,6 +633,7 @@ namespace xc
     // ---- what the file has --------------------------------------------------
     bool Typer::any_typed() const
     {
+      if (!p_->types.empty()) { return true; }
       // A class of the file named as a type.
       auto named = [&](const OptStr& w) { return w && classes_.count(lc(*w)) > 0; };
       auto param = [&](const Param* q) { return q && (!q->container.empty() || named(q->type_word)); };
@@ -675,7 +764,7 @@ namespace xc
       {
         // 'as Order': an Order goes in, as into a typed array.
         std::string t = decl_type(d);
-        v = declare(d->name, true, t, classed(t) ? t : "");
+        v = declare(d->name, true, t, checked_slot(t) ? t : "");
       }
       else { v = declare(d->name, false, NONE, ""); }
       Event e;
@@ -690,6 +779,7 @@ namespace xc
     // anyway; what is wrong is said of a file that types an array or a hash.
     void Typer::run()
     {
+      types();
       // The file's classes: their names first -- a Data's type may be one
       // declared further on --, then their Data and their methods.
       for (const ClassDef* c : p_->classes)
@@ -707,7 +797,7 @@ namespace xc
         {
           ClassData cd;
           std::string t = d->type ? word_type(*d->type) : UNKNOWN;
-          cd.container = !d->container.empty() ? d->container : classed(t) ? t : "";
+          cd.container = !d->container.empty() ? d->container : checked_slot(t) ? t : "";
           cd.type = !d->container.empty() ? d->container : t;
           cd.name = d->name;
           cd.line = d->line;
@@ -750,8 +840,10 @@ namespace xc
         scopes_.assign(1, file);
         std::string ret = f->ret_container;
         std::string word = f->rettype_word ? word_type(*f->rettype_word) : "";
-        if (ret.empty() && classed(word)) { ret = word; }
+        if (ret.empty() && checked_slot(word)) { ret = word; }
+        typ_ = lc(f->of_type);
         function(f->params, f->body, ret, f->name, f->line);
+        typ_.clear();
       }
       for (const MethodImpl* m : p_->methods)
       {
@@ -764,13 +856,17 @@ namespace xc
           if (auto g = c->second.sigs.find(lc(m->name)); g != c->second.sigs.end()) { sig = g->second; }
         }
         if (ret.empty() && sig) { ret = sig->ret_container; }
-        if (ret.empty() && classed(method_type(cls_, m->name))) { ret = method_type(cls_, m->name); }
+        if (ret.empty() && checked_slot(method_type(cls_, m->name))) { ret = method_type(cls_, m->name); }
         function(m->params, m->body, ret, "::" + m->name, m->line);
         units_.back().cls = cls_;
         units_.back().ctor = sig ? sig->constructor : lc(m->name) == "new";
         cls_.clear();
       }
       infer();
+      // What each 'x.f' and 'x.m()' is of -- for the back ends, in every
+      // file.
+      lambdas();
+      resolve();
       // A set's or a bag's 'h{k}': Raku's reads and writes (lower.cpp).
       for (auto& [h, c] : hashes_)
       {
@@ -788,6 +884,19 @@ namespace xc
       cls_.clear();
       if (!typed) { return; }
       for (const Unit& u : units_) { check(u); }
+      for (const At& m : makes_)
+      {
+        cls_ = m.cls;
+        line_ = m.line;
+        made(static_cast<const Call*>(m.e));
+      }
+      for (const At& d : dots_)
+      {
+        cls_ = d.cls;
+        line_ = d.line;
+        if (is(d.e, EK::DotCall)) { dot_args(static_cast<const DotCall*>(d.e)); }
+      }
+      cls_.clear();
       // A fixed Data is given its value by the constructor: one the file
       // implements, that never does, is refused.
       for (const auto& [k, ci] : classes_)
@@ -798,6 +907,7 @@ namespace xc
           for (const Unit& u : units_)
           {
             if (u.cls != k || !u.ctor) { continue; }
+            cls_ = u.cls;
             bool given = false;
             for (const Event& e : u.events)
             {
@@ -814,6 +924,413 @@ namespace xc
             }
           }
         }
+      }
+    }
+
+    // ---- types --------------------------------------------------------------
+    // The file's types: each field's position and what it holds, each
+    // method -- and what is wrong with them.
+    void Typer::types()
+    {
+      for (const TypeDef* t : p_->types)
+      {
+        std::string k = lc(t->name);
+        if (types_.count(k))
+        {
+          errors.push_back({ t->line, "'" + t->name + "' is declared twice, on line "
+                                      + std::to_string(types_[k].def->line) + " and here." });
+          continue;
+        }
+        types_[k].name = t->name;
+        types_[k].def = t;
+        type_words_[k] = t->name;
+      }
+      type_words = &type_words_;
+      std::unordered_set<std::string> functions;
+      for (const FunctionDef* f : p_->functions)
+      {
+        if (f->of_type.empty()) { functions.insert(lc(f->name)); }
+      }
+      for (const TypeDef* t : p_->types)
+      {
+        TypeInfo& ti = types_[lc(t->name)];
+        if (ti.def != t) { continue; }
+        bool cls = false;
+        for (const ClassDef* c : p_->classes) { cls = cls || lc(c->name) == lc(t->name); }
+        if (functions.count(lc(t->name)) || cls)
+        {
+          errors.push_back({ t->line, "'" + t->name + "' is a type of the file and a " + (cls ? "class" : "function")
+                                      + " of it: '" + t->name + "(...)' makes a value of the type." });
+        }
+        for (const TypeField* f : t->fields)
+        {
+          const Declarator* d = f->decl;
+          TypeData td;
+          td.name = d->name;
+          td.decl = d;
+          std::string w = type_word_of(d->typespec_text.value_or(""));
+          td.type = !d->container.empty() ? d->container : !w.empty() ? word_type(w) : UNKNOWN;
+          td.slot = td.type == UNKNOWN ? "" : td.type;
+          td.pos = static_cast<int>(ti.fields.size()) + 1;
+          for (const std::string& a : d->attributes)
+          {
+            if (a == "const") { td.constant = true; }
+            else
+            {
+              errors.push_back({ d->line, "the field '" + d->name + "' of " + t->name + " is <" + a
+                                          + ">: a field takes <const>, nothing else." });
+            }
+          }
+          std::string n = lc(d->name);
+          if (n == "and" || n == "or" || n == "not" || n == "t" || n == "f" || n == "y" || n == "n")
+          {
+            errors.push_back({ d->line, "a field cannot be called '" + d->name + "': '." + d->name
+                                        + ".' is TL++'s own." });
+          }
+          if (ti.by_name.count(n))
+          {
+            errors.push_back({ d->line, "'" + d->name + "' is a field of " + t->name + " twice." });
+            continue;
+          }
+          if (functions.count(lc(t->name + "_" + d->name)))
+          {
+            errors.push_back({ d->line, "'" + t->name + "_" + d->name + "' is the position of " + t->name + "'s field '"
+                                        + d->name + "', and a function of the file." });
+          }
+          // Its default is made where a value is: no variable is there.
+          if (d->init && !d->init_made)
+          {
+            walk_expr(d->init, [&](Expr* x)
+            {
+              if (is(x, EK::Name))
+              {
+                errors.push_back({ d->line, "the field '" + d->name + "' of " + t->name
+                                            + " starts at a value made where one is: it cannot read '"
+                                            + static_cast<Name*>(x)->name + "'." });
+              }
+            });
+          }
+          ti.by_name[n] = ti.fields.size();
+          ti.fields.push_back(td);
+        }
+        for (const FunctionDef* m : t->methods)
+        {
+          // Self is TL++'s aSelf, the function's first parameter.
+          auto own = [&](const std::string& name, int line)
+          {
+            if (lc(name) == "self" || lc(name) == "aself")
+            {
+              errors.push_back({ line, "'" + name + "' is the value " + m->method + "() is called on -- '" + SELF_TLPP
+                                       + "' in TL++: a type's method declares no other." });
+            }
+          };
+          for (std::size_t i = 1; i < m->params.size(); i++) { own(m->params[i]->name, m->line); }
+          walk(m->body, [&](Stmt* x)
+          {
+            if (x->kind != SK::Declaration) { return; }
+            for (const Declarator* v : static_cast<Declaration*>(x)->declarators) { own(v->name, v->line); }
+          });
+          if (functions.count(lc(m->name)))
+          {
+            errors.push_back({ m->line, "'" + m->name + "' is the function " + t->name + "'s method " + m->method
+                                        + "() is, and a function of the file." });
+          }
+          std::string n = lc(m->method);
+          if (ti.methods.count(n) || ti.by_name.count(n))
+          {
+            errors.push_back({ m->line, "'" + m->method + "' is " + (ti.methods.count(n) ? "a method" : "a field")
+                                        + " of " + t->name + " already." });
+            continue;
+          }
+          ti.methods[n] = m;
+        }
+      }
+    }
+
+    // The type of the file a value of type t is of, if it is one.
+    const TypeInfo* Typer::type_of(const std::string& t) const
+    {
+      if (!typed_value(t)) { return nullptr; }
+      auto it = types_.find(t.substr(2));
+      return it != types_.end() ? &it->second : nullptr;
+    }
+
+    const TypeData* Typer::field_of(const std::string& t, const std::string& name) const
+    {
+      const TypeInfo* ti = type_of(t);
+      if (!ti) { return nullptr; }
+      auto f = ti->by_name.find(lc(name));
+      return f != ti->by_name.end() ? &ti->fields[f->second] : nullptr;
+    }
+
+    // 'x.f' as a message names it: 'aIt', 'aOrd.oCli', 'Self'; '' for what
+    // has no name.
+    std::string Typer::dot_name(const Expr* e) const
+    {
+      if (is(e, EK::Name)) { return static_cast<const Name*>(e)->name; }
+      if (is(e, EK::Dot))
+      {
+        auto d = static_cast<const Dot*>(e);
+        std::string b = dot_name(d->base);
+        return b.empty() ? "" : b + "." + d->name;
+      }
+      return "";
+    }
+
+    // A field written to, said so: "'aIt.nQtd' is Numeric".
+    std::string Typer::field_who(const Dot* d)
+    {
+      const TypeData* f = field_of(type(d->base), d->name);
+      std::string n = dot_name(d);
+      return "'" + (n.empty() ? "." + d->name : n) + "' is " + shown(f ? f->type : UNKNOWN);
+    }
+
+    // A lambda a verb walks a type's values with: its parameter is one --
+    // what xc knows of the array, worked out.
+    void Typer::lambdas()
+    {
+      static const std::unordered_set<std::string> walkers =
+      {
+        "map", "filter", "reject", "tap", "takewhile", "dropwhile", "expand", "distinctadjacent", "sort", "sortby",
+        "chunkby", "scan", "reduce", "fold", "count", "first", "anyof", "allof", "noneof", "maxby", "minby",
+        "heapof",
+      };
+      // TL++'s own: ASort()'s block takes two elements, AEval()'s and
+      // AScan()'s one.
+      static const std::unordered_set<std::string> natives = { "asort", "aeval", "ascan" };
+      auto give = [&](const Call* c, const std::string& fed, std::size_t from)
+      {
+        std::string n = lc(c->name);
+        std::string el = elem_of(fed);
+        if (!(walkers.count(n) || (natives.count(n) && from == 1)) || !typed_value(bare(el))) { return; }
+        if (n == "asort") { n = "sort"; }
+        std::size_t k = n == "reduce" || n == "fold" || n == "scan" ? 1 : 0;
+        for (std::size_t i = from; i < c->args.size(); i++)
+        {
+          auto ps = block_params_.find(c->args[i]);
+          if (ps == block_params_.end()) { continue; }
+          for (std::size_t j = 0; j < ps->second.size(); j++)
+          {
+            if ((j == k || n == "sort") && ps->second[j]->type == UNKNOWN) { ps->second[j]->type = bare(el); }
+          }
+        }
+      };
+      for (const At& v : verbs_)
+      {
+        cls_ = v.cls;
+        if (is(v.e, EK::Pipeline))
+        {
+          auto p = static_cast<const Pipeline*>(v.e);
+          for (std::size_t i = 0; i < p->stages.size(); i++) { give(p->stages[i], chain_type(p, i), 0); }
+        }
+        else
+        {
+          auto c = static_cast<const Call*>(v.e);
+          if (!c->args.empty()) { give(c, type(c->args[0]), 1); }
+        }
+      }
+      cls_.clear();
+    }
+
+    // Each 'x.f', 'x.m()': the type x is of, the field's position -- or why
+    // xc cannot tell.
+    void Typer::resolve()
+    {
+      // The innermost first: what one cannot tell is not said again of the
+      // field read from it -- the messages then go in the order found.
+      std::vector<std::vector<Finding>> said(dots_.size());
+      for (std::size_t i = dots_.size(); i-- > 0;)
+      {
+        const At& a = dots_[i];
+        cls_ = a.cls;
+        line_ = a.line;
+        bool call = is(a.e, EK::DotCall);
+        Expr* base = call ? static_cast<DotCall*>(a.e)->base : static_cast<Dot*>(a.e)->base;
+        const std::string& name = call ? static_cast<DotCall*>(a.e)->name : static_cast<Dot*>(a.e)->name;
+        std::string what = "'." + name + (call ? "()'" : "'");
+        std::string t = type(base);
+        const TypeInfo* ti = type_of(t);
+        if (!ti)
+        {
+          // Read from a field xc could not work out: said of that one.
+          if ((is(base, EK::Dot) && static_cast<Dot*>(base)->of_type.empty())
+              || (is(base, EK::DotCall) && static_cast<DotCall*>(base)->of_type.empty()))
+          {
+            continue;
+          }
+          std::string who = dot_name(base);
+          who = who.empty() ? "this" : "'" + who + "'";
+          if (bare(t) != UNKNOWN && t != NONE && !t.empty())
+          {
+            said[i].push_back({ line_, who + " is " + shown(t) + ", no type's value: " + what + " is a type's "
+                                      + (call ? "method." : "field.")
+                                      + (classed(t) ? " Its class's are read with ':'." : "") });
+            continue;
+          }
+          // The types that have it: one, and its name says how to declare it.
+          std::vector<std::string> have;
+          for (const TypeDef* d : p_->types)
+          {
+            const TypeInfo& x = types_.at(lc(d->name));
+            bool has = call ? x.methods.count(lc(name)) > 0 : x.by_name.count(lc(name)) > 0;
+            if (x.def == d && has) { have.push_back(d->name); }
+          }
+          // A name the function declares can say so; a block's parameter
+          // cannot.
+          bool can = false;
+          if (is(base, EK::Name))
+          {
+            auto v = names_.find(base);
+            can = v != names_.end() && !v->second->block;
+          }
+          std::string hint = have.size() == 1 && can ? " -- '" + who.substr(1, who.size() - 2) + " as " + have[0]
+                                                       + "' says it is one." : "";
+          said[i].push_back({ line_, what + ": xc cannot tell that " + who + " is a type's value"
+                                    + (hint.empty() ? "." : hint) });
+          continue;
+        }
+        if (call)
+        {
+          auto m = ti->methods.find(lc(name));
+          if (m == ti->methods.end())
+          {
+            said[i].push_back({ line_, "'" + ti->name + "' has no method '" + name + "()'." });
+            continue;
+          }
+          static_cast<DotCall*>(a.e)->of_type = ti->name;
+          continue;
+        }
+        auto f = ti->by_name.find(lc(name));
+        if (f == ti->by_name.end())
+        {
+          said[i].push_back({ line_, "'" + ti->name + "' has no field '" + name + "'." });
+          continue;
+        }
+        // Its position is a #define of the type's: there only after it.
+        if (a.e->from >= 0 && a.e->from < ti->def->from)
+        {
+          said[i].push_back({ line_, "'" + ti->name + "' is declared on line " + std::to_string(ti->def->line)
+                                    + ": its fields are read after it." });
+          continue;
+        }
+        static_cast<Dot*>(a.e)->of_type = ti->name;
+        static_cast<Dot*>(a.e)->pos = ti->fields[f->second].pos;
+      }
+      for (std::vector<Finding>& f : said) { errors.insert(errors.end(), f.begin(), f.end()); }
+      // 'with object' takes an object: a type's value has its fields.
+      for (const At& a : withs_)
+      {
+        cls_ = a.cls;
+        line_ = a.line;
+        std::string t = type(a.e);
+        if (!typed_value(t)) { continue; }
+        std::string who = dot_name(a.e);
+        errors.push_back({ line_, "'with object' takes an object, and " + (who.empty() ? "this" : "'" + who + "'")
+                                  + " is " + shown(t) + ": its fields are '" + (who.empty() ? "x" : who) + ".x'." });
+      }
+      // 'x?.f', 'x?.m()' of a type's value: Nil if x is, else its field, its
+      // method -- of an object, what they always were.
+      for (const At& a : safes_)
+      {
+        cls_ = a.cls;
+        line_ = a.line;
+        bool call = is(a.e, EK::SafeCall);
+        const Expr* base = call ? static_cast<MethodCall*>(a.e)->base : static_cast<Member*>(a.e)->base;
+        const std::string& name = call ? static_cast<MethodCall*>(a.e)->name : static_cast<Member*>(a.e)->name;
+        const TypeInfo* ti = type_of(type(base));
+        if (!ti) { continue; }
+        if (call)
+        {
+          if (!ti->methods.count(lc(name)))
+          {
+            errors.push_back({ line_, "'" + ti->name + "' has no method '" + name + "()'." });
+            continue;
+          }
+          static_cast<MethodCall*>(a.e)->of_type = ti->name;
+          continue;
+        }
+        auto f = ti->by_name.find(lc(name));
+        if (f == ti->by_name.end())
+        {
+          errors.push_back({ line_, "'" + ti->name + "' has no field '" + name + "'." });
+          continue;
+        }
+        if (a.e->from >= 0 && a.e->from < ti->def->from)
+        {
+          errors.push_back({ line_, "'" + ti->name + "' is declared on line " + std::to_string(ti->def->line)
+                                    + ": its fields are read after it." });
+          continue;
+        }
+        static_cast<Member*>(a.e)->of_type = ti->name;
+        static_cast<Member*>(a.e)->pos = ti->fields[f->second].pos;
+      }
+      cls_.clear();
+    }
+
+    // A type's value made: the fields, by their places and by their names.
+    void Typer::made(const Call* c)
+    {
+      const TypeInfo* ti = type_of("T:" + lc(c->name));
+      if (!ti) { return; }
+      std::vector<bool> given(ti->fields.size(), false);
+      bool by_name = false;
+      std::size_t at = 0;
+      auto who = [&](const TypeData& f)
+      {
+        return "the field '" + f.name + "' of " + ti->name + "() is " + shown(f.type);
+      };
+      for (const Expr* a : c->args)
+      {
+        if (is(a, EK::Named))
+        {
+          by_name = true;
+          auto n = static_cast<const Named*>(a);
+          auto f = ti->by_name.find(lc(n->name));
+          if (f == ti->by_name.end())
+          {
+            errors.push_back({ line_, "'" + ti->name + "' has no field '" + n->name + "'." });
+            continue;
+          }
+          if (given[f->second])
+          {
+            errors.push_back({ line_, ti->name + "(): '" + n->name + "' is given twice." });
+            continue;
+          }
+          given[f->second] = true;
+          put(n->value, ti->fields[f->second].slot, who(ti->fields[f->second]));
+          continue;
+        }
+        if (by_name)
+        {
+          errors.push_back({ line_, ti->name + "(): the values by their places come before those by their names." });
+          return;
+        }
+        if (at >= ti->fields.size())
+        {
+          errors.push_back({ line_, ti->name + "() has " + std::to_string(ti->fields.size()) + " field"
+                                    + (ti->fields.size() == 1 ? "" : "s") + ": this gives it more." });
+          return;
+        }
+        given[at] = true;
+        if (!is(a, EK::Omitted)) { put(a, ti->fields[at].slot, who(ti->fields[at])); }
+        at++;
+      }
+    }
+
+    // 'x.m(...)': what its parameters are declared as -- Self aside.
+    void Typer::dot_args(const DotCall* d)
+    {
+      const TypeInfo* ti = type_of(type(d->base));
+      if (!ti) { return; }
+      auto m = ti->methods.find(lc(d->name));
+      if (m == ti->methods.end()) { return; }
+      const std::vector<Param*>& ps = m->second->params;
+      for (std::size_t i = 0; i + 1 < ps.size() && i < d->args.size(); i++)
+      {
+        std::string slot = slot_of(ps[i + 1]);
+        if (slot.empty()) { continue; }
+        into(d->args[i], slot, "the parameter '" + ps[i + 1]->name + "' of " + ti->name + "." + m->second->method
+                               + "() is " + shown(slot));
       }
     }
 
@@ -876,6 +1393,7 @@ namespace xc
     {
       std::string t = letter_of(word);
       if (t == UNKNOWN && classes_.count(lc(word))) { return class_type(lc(word)); }
+      if (t == UNKNOWN && types_.count(lc(word))) { return "T:" + lc(word); }
       return t;
     }
 
@@ -895,7 +1413,7 @@ namespace xc
       if (!q) { return ""; }
       if (!q->container.empty()) { return q->container; }
       std::string t = q->type_word ? word_type(*q->type_word) : UNKNOWN;
-      return classed(t) ? t : "";
+      return checked_slot(t) ? t : "";
     }
 
     // The class of the file an object is of, in lower case: '::' in a method,
@@ -1131,6 +1649,7 @@ namespace xc
         case SK::WithObject:
         {
           auto w = static_cast<WithObject*>(s);
+          withs_.push_back({ w->subject, cls_, typ_, line_ });
           expr(w->subject);
           body(w->body);
           break;
@@ -1222,7 +1741,11 @@ namespace xc
           auto b = static_cast<CodeBlock*>(e);
           scopes_.emplace_back();
           std::vector<Var*> ps;
-          for (const std::string& n : b->params) { ps.push_back(declare(n, true, UNKNOWN, "")); }
+          for (const std::string& n : b->params)
+          {
+            ps.push_back(declare(n, true, UNKNOWN, ""));
+            ps.back()->block = true;
+          }
           block_params_[e] = ps;
           for (Expr* x : b->body) { expr(x); }
           scopes_.pop_back();
@@ -1261,17 +1784,57 @@ namespace xc
         case EK::Call:
         {
           auto c = static_cast<Call*>(e);
-          for (Expr* a : c->args) { expr(a); }
+          std::string n = lc(c->name);
+          bool make = types_.count(n) && !functions_.count(n);
+          if (make) { makes_.push_back({ e, cls_, typ_, line_ }); }
+          for (Expr* a : c->args)
+          {
+            if (is(a, EK::Lambda) || is(a, EK::CodeBlock))
+            {
+              verbs_.push_back({ e, cls_, typ_, line_ });
+              break;
+            }
+          }
+          for (Expr* a : c->args)
+          {
+            if (!make && is(a, EK::Named))
+            {
+              errors.push_back({ line_, "'" + static_cast<Named*>(a)->name + " =>': a field by its name, and "
+                                        + c->name + "() makes no type's value." });
+            }
+            expr(a);
+          }
           Event ev;
           ev.kind = Event::CallE;
           ev.call = c;
           event(ev);
           return;
         }
+        case EK::Dot:
+        case EK::DotCall:
+          dots_.push_back({ e, cls_, typ_, line_ });
+          for (Expr* x : subexprs(e)) { expr(x); }
+          return;
+        case EK::Member:
+        case EK::SafeMember:
+          if (is(e, EK::SafeMember)) { safes_.push_back({ e, cls_, typ_, line_ }); }
+          if (!typ_.empty() && is(static_cast<Member*>(e)->base, EK::SelfRef))
+          {
+            errors.push_back({ line_, "'::" + static_cast<Member*>(e)->name + "' is a class's: in a type's method, a "
+                                      + "field is '." + static_cast<Member*>(e)->name + "'." });
+          }
+          for (Expr* x : subexprs(e)) { expr(x); }
+          return;
         case EK::MethodCall:
         case EK::SafeCall:
         {
           auto m = static_cast<MethodCall*>(e);
+          if (is(e, EK::SafeCall)) { safes_.push_back({ e, cls_, typ_, line_ }); }
+          if (!typ_.empty() && is(m->base, EK::SelfRef))
+          {
+            errors.push_back({ line_, "'::" + m->name + "()' is a class's: in a type's method, a method is '." + m->name
+                                      + "()'." });
+          }
           expr(m->base);
           for (Expr* a : m->args) { expr(a); }
           Event ev;
@@ -1287,6 +1850,7 @@ namespace xc
         case EK::Pipeline:
         {
           auto p = static_cast<Pipeline*>(e);
+          verbs_.push_back({ e, cls_, typ_, line_ });
           expr(p->source);
           for (std::size_t i = 0; i < p->stages.size(); i++)
           {
@@ -1460,12 +2024,36 @@ namespace xc
           if (a->op == ":=" || a->op == "=") { return type(a->value); }
           return binop(chop(a->op), type(a->target), type(a->value));
         }
+        case EK::Dot:
+        {
+          auto d = static_cast<const Dot*>(e);
+          std::string b = type(d->base);
+          if (b == NONE) { return NONE; }
+          const TypeData* f = field_of(b, d->name);
+          return f ? f->type : UNKNOWN;
+        }
+        case EK::DotCall:
+        {
+          auto d = static_cast<const DotCall*>(e);
+          std::string b = type(d->base);
+          if (b == NONE) { return NONE; }
+          const TypeInfo* ti = type_of(b);
+          if (!ti) { return UNKNOWN; }
+          auto m = ti->methods.find(lc(d->name));
+          if (m == ti->methods.end()) { return UNKNOWN; }
+          const FunctionDef* f = m->second;
+          if (!f->ret_container.empty()) { return f->ret_container; }
+          return f->rettype_word ? word_type(*f->rettype_word) : UNKNOWN;
+        }
+        case EK::Named:
+          return type(static_cast<const Named*>(e)->value);
         case EK::Call:
         {
           // 'Order()', a class of the file's: the object New() is then
-          // called on.
+          // called on. 'Item(...)', a type's: a value of it.
           auto c = static_cast<const Call*>(e);
           std::string n = lc(c->name);
+          if (types_.count(n) && !functions_.count(n)) { return "T:" + n; }
           if (c->args.empty() && classes_.count(n) && !functions_.count(n)) { return class_type(n); }
           return call_type(n, c->args, nullptr);
         }
@@ -1478,6 +2066,27 @@ namespace xc
         {
           auto g = static_cast<const Guard*>(e);
           return binop("?:", type(g->expr), type(g->fallback));
+        }
+        case EK::SafeMember:
+        {
+          auto m = static_cast<const Member*>(e);
+          std::string b = type(m->base);
+          if (typed_value(b))
+          {
+            const TypeData* f = field_of(b, m->name);
+            return f ? f->type : UNKNOWN;
+          }
+          return UNKNOWN;
+        }
+        case EK::SafeCall:
+        {
+          auto m = static_cast<const MethodCall*>(e);
+          const TypeInfo* ti = type_of(type(m->base));
+          if (!ti) { return UNKNOWN; }
+          auto f = ti->methods.find(lc(m->name));
+          if (f == ti->methods.end()) { return UNKNOWN; }
+          if (!f->second->ret_container.empty()) { return f->second->ret_container; }
+          return f->second->rettype_word ? word_type(*f->second->rettype_word) : UNKNOWN;
         }
         case EK::Member:
         {
@@ -1651,6 +2260,11 @@ namespace xc
     void Typer::into(const Expr* e, const std::string& slot, const std::string& who, bool key)
     {
       if (!e || slot.empty() || slot == UNKNOWN || is(e, EK::Ref) || is(e, EK::Omitted)) { return; }
+      if (typed_value(slot) && is(e, EK::ArrayLit))
+      {
+        errors.push_back({ line_, who + ": an array written out is none -- " + show(slot) + "(...) makes one." });
+        return;
+      }
       // setOf(), bagOf(): an empty set or bag, of whatever is wanted.
       if (is(e, EK::Call) && static_cast<const Call*>(e)->args.empty())
       {
@@ -1685,6 +2299,22 @@ namespace xc
         case Fit::Ok:
           break;
       }
+    }
+
+    // A value that goes into a field: into() for what xc checks of arrays,
+    // hashes, objects and types; for TL++'s types, what is known to be
+    // another -- a Decimal aside (decimal.cpp).
+    void Typer::put(const Expr* e, const std::string& slot, const std::string& who)
+    {
+      if (!e || slot.empty()) { return; }
+      if (box(kind(slot)) || checked_slot(slot) || fixed(slot))
+      {
+        into(e, slot, who);
+        return;
+      }
+      std::string t = type(e);
+      if (bare(t) == "F" || slot == "F" || is(e, EK::Ref) || is(e, EK::Omitted)) { return; }
+      if (fits(t, slot) == Fit::Wrong) { errors.push_back({ line_, who + ": this is " + shown(t) + "." }); }
     }
 
     // What an element written to belongs to, said so: the name it is read
@@ -1885,6 +2515,27 @@ namespace xc
               }
               break;
             }
+            if (is(e.target, EK::Dot))
+            {
+              // 'x.f := v': as the type declares it -- a '<const>' one only
+              // where a value is made.
+              auto d = static_cast<const Dot*>(e.target);
+              const TypeInfo* ti = type_of(type(d->base));
+              const TypeData* f = field_of(type(d->base), d->name);
+              if (!f) { break; }
+              if (f->constant)
+              {
+                std::string n = dot_name(d);
+                errors.push_back({ line_, "'" + (n.empty() ? "." + d->name : n) + "' is <const>: it takes its value "
+                                          + "where " + shown(ti ? "T:" + lc(ti->name) : UNKNOWN) + " is made." });
+                break;
+              }
+              if (e.incdec.empty() && (e.op == ":=" || e.op == "=" || e.op == "?="))
+              {
+                put(e.value, f->slot, field_who(d));
+              }
+              break;
+            }
             if (is(e.target, EK::Member))
             {
               // '::x := v', 'o:x := v': as the class declares it -- a fixed
@@ -2006,6 +2657,7 @@ namespace xc
   {
     Typer t(p, dictionary);
     t.run();
+    type_words = nullptr;
     return Checked{ std::move(t.errors), std::move(t.warnings) };
   }
 }

@@ -410,7 +410,12 @@ xtpl's own forms are what they are for TL++:
   a local for the subject;
 - `aTail(a) := x` is `a[Len(a)] := x`, a field a macro names
   `FieldGet(FieldPos(...))` in the area -- `FieldPut()` assigned;
-- Decimals the `DEC_` functions, as for TL++.
+- Decimals the `DEC_` functions, as for TL++;
+- a type is arrays: `Item(...)` an `array` of its fields' values, in their
+  order; `x.nQtd` an `index` at the field's position, `x.nQtd := v` a
+  `setindex`; each method a function of kind `static`, `ITEM_TOTAL`, its
+  first local `Self`, the value it is called on, and `x.Total()` a `call`
+  of it with x first.
 
 The runtime -- `runtime/xtpl_runtime.tlpp`, compiled into the RPO -- has to
 be there for these, as for TL++.
@@ -686,7 +691,9 @@ to be the same, byte for byte -- the compiler's own sources among them,
 and those with commands of their own --, and what it says of each source
 what `xc --bytecode` says, warnings, errors and all.
 There is no dictionary here: what an exported SX3 would tell xc
-(`--dictionary`) is not said.
+(`--dictionary`) is not said. Nor does it read a type (`type` ...
+`endtype`) yet: a source with one does not parse, and the tests leave out
+those marked `NAME.later` (`cpp/tests/README.md`).
 
 On an AppServer it is TL++ in the RPO, as the interpreter is: xc compiles
 `selfhost/*.xtpl` and `interp/xbc.xtpl`, and the AppServer compiles them

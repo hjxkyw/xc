@@ -2,6 +2,9 @@
 
 #include "walk.h"
 
+#include "chars.h"
+#include "text.h"
+
 namespace xc
 {
   namespace
@@ -77,6 +80,19 @@ namespace xc
         add(out, m->args);
         break;
       }
+      case EK::Dot:
+        add(out, static_cast<const Dot*>(e)->base);
+        break;
+      case EK::DotCall:
+      {
+        auto d = static_cast<const DotCall*>(e);
+        add(out, d->base);
+        add(out, d->args);
+        break;
+      }
+      case EK::Named:
+        add(out, static_cast<const Named*>(e)->value);
+        break;
       case EK::AliasField:
       {
         auto a = static_cast<const AliasField*>(e);
@@ -292,5 +308,15 @@ namespace xc
       f(s);
       for (const Body& b : bodies_of(s)) { walk(b, f); }
     }
+  }
+
+  char field_start(const Declarator* d)
+  {
+    if (!d->container.empty()) { return 0; }
+    std::string w = lc(type_word_of(d->typespec_text.value_or("")));
+    if (w == "numeric" || w == "integer" || w == "double") { return 'N'; }
+    if (w == "character") { return 'C'; }
+    if (w == "logical") { return 'L'; }
+    return 0;
   }
 }

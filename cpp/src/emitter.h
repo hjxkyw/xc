@@ -181,6 +181,11 @@ namespace xc
     // The indentation of the function's body: its first statement's, or two
     // blanks when that is the 'return' that ends it.
     std::string body_indent_;
+    // The file's types, by their names in lower case; in a type's method,
+    // what Self is written as, and the level its lines lose.
+    std::unordered_map<std::string, const TypeDef*> types_;
+    std::string self_;
+    std::optional<Dedent> method_dedent_;
     // Verbs written as calls, as the chains they are (as_chain): xc's own
     // Pipelines, made once each.
     mutable Tree made_;
@@ -294,6 +299,10 @@ namespace xc
     std::string assigned(const Assignment* a, const std::string& value);
     std::string block_arg(const std::string& verb, const Expr* e);
     std::string part(const Expr* e);
+    const TypeDef* made_type(const Expr* e) const;
+    std::string made(const Call* c);
+    std::string field_name(const std::string& type, int pos) const;
+    std::string method_name(const std::string& type, const std::string& name) const;
     template <class N> std::string with_edits(const N* node, const std::vector<Expr*>& exprs);
   };
 }

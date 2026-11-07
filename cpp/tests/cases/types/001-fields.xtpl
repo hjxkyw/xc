@@ -1,0 +1,37 @@
+// A type: its fields' positions as #defines, its methods as static
+// functions, values made by place, by name, and with what fields start at.
+type Item
+  cCod <const> as Character  // the product
+  nQtd as Numeric := 1
+  nPreco as Numeric
+  lOk as Logical
+  cNote as Character
+  dWhen as Date
+  aTags as Array<c>
+  hSeen as Hash<c, n>
+  xAny
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+
+  method Add(nMais as Numeric) as Item
+    Local nWas := Self.nQtd
+    .nQtd += nMais
+    Self.aTags := {}
+    AAdd(.aTags, cValToChar(nWas))
+  Return Self
+
+  method Clear
+    .nQtd := 0
+  Return .Total()
+end type
+
+User Function Fields(cCod as Character)
+  Local aIt := Item(cCod, nPreco => 2.5)
+  Local aAll := Item("B", , 10, .T., "x", Date(), {"a"}, { "k" => 1 }, Nil)
+  Local aNone := Item()
+  aIt.Add(3).Add(1)
+  aIt.nQtd++
+  aAll.nPreco *= 2
+  ConOut(aIt.Total(), aAll.Clear(), Len(aNone), (aIt).nQtd)
+Return aIt.aTags[1]

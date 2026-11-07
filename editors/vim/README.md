@@ -9,7 +9,8 @@ xtpl -- TL++ with xtpl's extensions, the language
   alias`, `with object`, `fallback`, `?=`, `?:`, `?.`, `in`, `has`, `%%`,
   ranges, `${...}` inside strings, typed and fixed arrays and hashes
   (`Array<n>`, `Array<fixed n>`, `{ <c> => <n> }`), sets and bags
-  (`Set<c>`, `Bag<c>`, `(|)`, `(elem)`); Clipper's `&&` and `*` comments;
+  (`Set<c>`, `Bag<c>`, `(|)`, `(elem)`), types and their fields (`type
+  Item`, `aIt.nQtd`); Clipper's `&&` and `*` comments;
   the preprocessor's directives. A string ends at its quote or at the end
   of its line, as TL++'s: only a block comment, or a directive carried on
   with `;`, goes past a line -- so the colors are the same wherever the

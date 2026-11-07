@@ -32,7 +32,15 @@ namespace xc
     enum { L_ELVIS = 1, L_OR, L_AND, L_NOT, L_CMP, L_SETOR, L_SETAND, L_RANGE, L_ADD, L_MUL, L_POW };
 
     // A trailer's kind.
-    enum TK { T_TRANS, T_HASH, T_SCALL, T_SMEM, T_METHOD, T_MEMBER, T_INDEX, T_INALS, T_FIELD };
+    enum TK { T_TRANS, T_HASH, T_SCALL, T_SMEM, T_METHOD, T_MEMBER, T_INDEX, T_INALS, T_FIELD, T_DOT, T_DOTCALL };
+
+    // The words TL++ writes between dots -- '.And.', '.T.' --, which no
+    // field is called.
+    bool dot_word(const std::string& w)
+    {
+      std::string l = lc(w);
+      return l == "and" || l == "or" || l == "not" || l == "t" || l == "f" || l == "y" || l == "n";
+    }
   }
 
   // What follows a value -- ':m()', '[i]', '->f', ... --, read before the
@@ -231,6 +239,21 @@ namespace xc
         a->expr = t.x;
         return a;
       }
+      case T_DOT:
+      {
+        auto d = make<Dot>();
+        d->base = b;
+        d->name = t.name;
+        return d;
+      }
+      case T_DOTCALL:
+      {
+        auto d = make<DotCall>();
+        d->base = b;
+        d->name = t.name;
+        d->args = t.list;
+        return d;
+      }
       default:
       {
         auto u = make<UserTrans>();
@@ -239,6 +262,44 @@ namespace xc
         return u;
       }
     }
+  }
+
+  // ---- names ----------------------------------------------------------------
+  bool Parser::is_var(const std::string& name) const
+  {
+    std::string k = lc(name);
+    auto it = vars_.find(k);
+    return (it != vars_.end() && it->second > 0) || file_vars_.count(k) > 0;
+  }
+
+  void Parser::var(const std::string& name, int by)
+  {
+    vars_[lc(name)] += by;
+  }
+
+  // 'a.b' at p, 'a' no variable: a namespace's name.
+  bool Parser::ns_at(int p) const
+  {
+    int e = name_end(p);
+    return e >= 0 && c(e) == '.' && is_alpha(c(e + 1)) && !is_var(text(p, e));
+  }
+
+  // '.x' where a value starts, in a type's method: Self's field.
+  bool Parser::self_dot_at(int p) const
+  {
+    if (type_name_.empty() || c(p) != '.') { return false; }
+    int e = name_end(p + 1);
+    return e >= 0 && !dot_word(text(p + 1, e));
+  }
+
+  // Self, in a type's method, before a '.x' that follows no value: a name
+  // of no length, where the '.' is.
+  Expr* Parser::self_name(int at)
+  {
+    auto nm = make<Name>();
+    nm->name = "Self";
+    dot_ok_ = at;
+    return nm;
   }
 
   // A base and the trailers after it, each step spanning from the start of
@@ -1149,7 +1210,39 @@ namespace xc
     {
       return tsafe(t);
     }
+    if (ch == '.')
+    {
+      return tdot(t);
+    }
     return false;
+  }
+
+  // rule tdot { <?after <[\w)\]}]>> '.' <!dotword> <name> [ '(' ~ ')' <arglist> ]? }
+  // A type's field, or its method: right after a value -- or Self's, in a
+  // type's method, where the value is left out.
+  bool Parser::tdot(Trailer& t)
+  {
+    int start = p_;
+    int b = start > 0 ? c(start - 1) : -1;
+    if (!(is_w(b) || b == ')' || b == ']' || b == '}') && start != dot_ok_)
+    {
+      return false;
+    }
+    int me = name_end(start + 1);
+    if (me < 0 || dot_word(text(start + 1, me)))
+    {
+      return false;
+    }
+    t.name = text(start + 1, me);
+    p_ = me;
+    if (!ws())
+    {
+      back(start);
+      return false;
+    }
+    t.kind = call_args(t.list) ? T_DOTCALL : T_DOT;
+    t.end = p_;
+    return true;
   }
 
   // rule thash { <?after <[\w)\]}]>> '{' ~ '}' <key> }
@@ -1352,7 +1445,7 @@ namespace xc
     if (is_alpha(ch))
     {
       int we = name_end(start);
-      if (c(we) == '.' && is_w(c(we + 1)))
+      if (c(we) == '.' && is_w(c(we + 1)) && !is_var(text(start, we)))
       {
         x = nscall();
       }
@@ -1385,6 +1478,10 @@ namespace xc
     else if (ch == '(')
     {
       return parens();
+    }
+    else if (self_dot_at(start))
+    {
+      x = self_name(start);
     }
     else if (ch == ':')
     {
@@ -1644,10 +1741,36 @@ namespace xc
     return s;
   }
 
-  // rule arg { [<?[@]><byref>] || [ <.sees('assign item')> <assignment> ] || <expr> }
+  // rule arg
+  // {
+  //   [<?[@]><byref>] || [ <name> '=>' <expr> ] || [ <.sees('assign item')> <assignment> ] || <expr>
+  // }
+  // 'name => value': a field by its name, where a type's value is made.
   Expr* Parser::arg()
   {
     int start = p_;
+    if (is_alpha(c(start)))
+    {
+      int e = name_end(start);
+      int q = e;
+      while (is_h(c(q)))
+      {
+        q++;
+      }
+      if (c(q) == '=' && c(q + 1) == '>')
+      {
+        p_ = q + 2;
+        Expr* v = ws() ? expr() : nullptr;
+        if (v)
+        {
+          auto n = make<Named>();
+          n->name = text(start, e);
+          n->value = v;
+          return span(n, start, p_);
+        }
+        p_ = start;
+      }
+    }
     if (c(start) == '@')
     {
       if (Expr* r = byref())
@@ -1982,7 +2105,9 @@ namespace xc
       return back(start);
     }
     in_block_++;
+    for (const std::string& n : params) { var(n); }
     Expr* body = blockexpr();
+    for (const std::string& n : params) { var(n, -1); }
     in_block_--;
     if (!body)
     {
@@ -2075,6 +2200,7 @@ namespace xc
       return back(start);
     }
     in_block_++;
+    for (const std::string& n : params) { var(n); }
     std::vector<Expr*> body;
     if (Expr* b = blockexpr())
     {
@@ -2092,6 +2218,7 @@ namespace xc
         body.push_back(y);
       }
     }
+    for (const std::string& n : params) { var(n, -1); }
     in_block_--;
     if (!ws() || c(p_) != '}')
     {
@@ -2653,6 +2780,10 @@ namespace xc
       }
       bt = p_;
     }
+    else if (self_dot_at(bf))
+    {
+      base = self_name(bf);
+    }
     if (!base)
     {
       int e = name_end(bf);
@@ -2668,6 +2799,11 @@ namespace xc
       if (!ws())
       {
         return back(start);
+      }
+      // 'ns.x': a namespace's, no variable's -- nothing to assign.
+      if (ns_at(bf))
+      {
+        return span(trailed(base, bf, bt, {}, start, true), start, p_);
       }
     }
     std::vector<Trailer> tr = trailers();
@@ -2720,7 +2856,7 @@ namespace xc
       p_ = at;
       int e = name_end(at);
       p_ = e;
-      if (ws())
+      if (!ns_at(at) && ws())
       {
         std::vector<Trailer> tr = trailers();
         if (!tr.empty())
@@ -2744,6 +2880,16 @@ namespace xc
         int bt = p_;
         std::vector<Trailer> tr = trailers();
         return span(trailed(s, at, bt, tr, start, true), start, p_);
+      }
+      p_ = at;
+    }
+    if (self_dot_at(at))
+    {
+      Expr* s = self_name(at);
+      std::vector<Trailer> tr = trailers();
+      if (!tr.empty())
+      {
+        return span(trailed(s, at, at, tr, start, true), start, p_);
       }
       p_ = at;
     }
