@@ -20,6 +20,20 @@
 # 'xc-ast --values'.
 
 get_filename_component(ROOT "${ROOT}" ABSOLUTE)
+
+# Whether two files are the same, byte for byte -- 0 when they are, as for
+# 'cmake -E compare_files' --, read here: a process for each pair is slow
+# where starting one is (Windows, a virus scanner).
+function(compare a b out)
+  set(${out} 1 PARENT_SCOPE)
+  if(EXISTS ${a} AND EXISTS ${b})
+    file(SHA256 ${a} ha)
+    file(SHA256 ${b} hb)
+    if(ha STREQUAL hb)
+      set(${out} 0 PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
 if(NOT DIRS)
   set(DIRS selfhost/tests cpp/tests/bytecode)
   file(GLOB cases LIST_DIRECTORIES true RELATIVE ${ROOT} ${ROOT}/cpp/tests/cases/*)
@@ -133,8 +147,7 @@ set(one ${ROOT}/cpp/tests/bytecode/01-core.xtpl)
 execute_process(COMMAND ${XC} --bytecode ${one} ${WORK}/expect/one.xbc OUTPUT_QUIET ERROR_QUIET)
 execute_process(COMMAND ${VM} --run=U_XCB ${modules} -- bytecode ${one} ${WORK}/got/one.xbc
                 RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
-execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/one.xbc ${WORK}/got/one.xbc
-                RESULT_VARIABLE same_one)
+compare(${WORK}/expect/one.xbc ${WORK}/got/one.xbc same_one)
 string(FIND "${said}" "${one} -> ${WORK}/got/one.xbc (" at)
 if(NOT same_one EQUAL 0 OR NOT at EQUAL 0 OR NOT said MATCHES " s\\)\n$")
   message(FATAL_ERROR "  xcb bytecode ${one}: not xc's .xbc, or not said so:\n${said}")
@@ -146,8 +159,7 @@ set(same 0)
 foreach(s ${sources})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/${key}.ast ${WORK}/got/${key}.ast
-                  RESULT_VARIABLE r)
+  compare(${WORK}/expect/${key}.ast ${WORK}/got/${key}.ast r)
   if(r EQUAL 0)
     math(EXPR same "${same} + 1")
   else()
@@ -160,8 +172,7 @@ foreach(s ${compiled})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
   math(EXPR nx "${nx} + 1")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/${key}.xbc ${WORK}/got/${key}.xbc
-                  RESULT_VARIABLE r)
+  compare(${WORK}/expect/${key}.xbc ${WORK}/got/${key}.xbc r)
   if(r EQUAL 0)
     math(EXPR samex "${samex} + 1")
   else()
@@ -174,8 +185,7 @@ foreach(s ${checked})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
   math(EXPR nc "${nc} + 1")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/${key}.chk ${WORK}/got/${key}.chk
-                  RESULT_VARIABLE r)
+  compare(${WORK}/expect/${key}.chk ${WORK}/got/${key}.chk r)
   if(r EQUAL 0)
     math(EXPR samec "${samec} + 1")
   else()
