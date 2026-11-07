@@ -112,6 +112,8 @@ Static nOpLen := 0
 #define FORM_LVALUE     5
 #define FORM_CALLST     6
 #define FORM_PIPEST     7
+// A declaration, as the C++ Parser::read_declaration's.
+#define FORM_DECLARATION 8
 
 // The first words of the statements that are not simple ones, and of
 // TOTVS' commands (the grammar's STMT-WORDS).
@@ -205,8 +207,18 @@ User Function xcb_read(nForm, nAt, lWith)
       aNode := CallSt()
     Case nForm == FORM_PIPEST
       aNode := PipeSt()
+    Case nForm == FORM_DECLARATION
+      lPastPrologue := .F.
+      lTopLevel := .F.
+      aNode := Declaration()
   EndCase
 Return {aNode, nP}
+
+// Whether u_xcb_parse() and u_xcb_read() refuse no declared name: what
+// driver.cpp reads a source again with, to say which name it refused.
+User Function xcb_anyname(lAny)
+  lAnyName := lAny
+Return Nil
 
 // The codes of a text's bytes, read a piece at a time: a long text is not
 // copied for each byte.
@@ -276,6 +288,23 @@ Return IsH(nCh)
 User Function xcb_isw(nCh)
   Classes()
 Return IsW(nCh)
+
+// A letter of ASCII, or '_' (chars.h's is_alpha).
+User Function xcb_isletter(nCh)
+Return IsLetter(nCh)
+
+// A name xc keeps for itself (statements.cpp's is_reserved), whether or
+// not the grammar refuses it now.
+User Function xcb_isreserved(cName)
+  Local cL
+  Classes()
+  cL := Lc(cName)
+Return AScan(aReserved, {|w| w == cL}) > 0
+
+// The shape of a name xc generates (statements.cpp's is_generated).
+User Function xcb_isgenerated(cName)
+  Classes()
+Return IsGenerated(cName)
 
 // The words of a text, the blanks of \s between them (text.cpp's words).
 User Function xcb_words(cS)

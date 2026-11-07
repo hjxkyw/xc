@@ -86,15 +86,16 @@ xtpl's runtime compiled to bytecode first, and the self-tests too.
 source into bytecode, for an AppServer to compile xtpl and run it with the
 interpreter, with no compile into the RPO. It reads a source into xc's
 tree, runs the passes the back end needs on it -- what each name holds,
-the Decimals, which chains run as loops -- and writes its bytecode: the
-tree and what the passes find have to be what `xc-ast --bare --facts`
-writes, and the `.xbc` what `xc --bytecode` writes (ctest's `selfhost`).
-In the RPO with the interpreter, `appserver -run=u_xbc -env=NAME
-prog.xtpl` runs a source, made bytecode as it loads, and `appserver
--run=u_xcb -env=NAME bytecode prog.xtpl` writes its `.xbc`
+the Decimals, which chains run as loops --, refuses what xc refuses and
+warns of what xc warns of, and writes its bytecode: the tree and what the
+passes find have to be what `xc-ast --bare --facts` writes, what the
+checks find what `xc-ast --bare --checks` writes, what it says what `xc
+--bytecode` says, and the `.xbc` what `xc --bytecode` writes (ctest's
+`selfhost`). In the RPO with the interpreter, `appserver -run=u_xbc
+-env=NAME prog.xtpl` runs a source, made bytecode as it loads, and
+`appserver -run=u_xcb -env=NAME bytecode prog.xtpl` writes its `.xbc`
 (`docs/bytecode.md`, The compiler in xtpl; `run-protheus.raku
---selfhost`). What xc refuses is not looked for yet, nor the source's own
-commands.
+--selfhost`). The source's own commands are not read yet.
 
 ## Running the tests
 

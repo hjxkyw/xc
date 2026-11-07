@@ -1,7 +1,7 @@
 // xc-ast -- the tree xc reads a source into, as text (dump.h): what the
 // parser written in xtpl (selfhost/) is held to.
 //
-//   xc-ast [--includes=DIRS] [--bare] [--values] [--facts] file.xtpl [out.txt]
+//   xc-ast [--includes=DIRS] [--bare] [--values] [--facts] [--checks] file.xtpl [out.txt]
 //
 // A source xc cannot parse gives 'not parsed at N', N the byte xc got
 // furthest to. --bare: the source's own commands and translations are not
@@ -12,7 +12,11 @@
 // call made a statement, a chain run for its effect --, where it starts in
 // the whole text: '@START form F end END', then the node, or 'nil'.
 // --facts: the tree marked by typed_problems() -- a set's 'h{k}', a 'for
-// ... in' over a hash --, then what facts.h writes of it.
+// ... in' over a hash --, then what facts.h writes of it. --checks: what
+// check_all() finds, for TL++ and then for bytecode -- 'checks tlpp',
+// 'checks bytecode', and below each 'W LINE what' for each warning, then
+// 'E LINE what' for each error --, with no dictionary, the include files'
+// #defines found beside the source and in DIRS.
 
 #include <fstream>
 #include <iostream>
@@ -21,9 +25,11 @@
 
 #include "commands.h"
 #include "driver.h"
+#include "check.h"
 #include "dump.h"
 #include "facts.h"
 #include "parser.h"
+#include "text.h"
 #include "typed.h"
 
 int main(int argc, char** argv)
@@ -33,12 +39,14 @@ int main(int argc, char** argv)
   bool bare = false;
   bool values = false;
   bool facts = false;
+  bool checks = false;
   for (int i = 1; i < argc; i++)
   {
     std::string a = argv[i];
     if (a == "--bare") { bare = true; }
     else if (a == "--values") { values = true; }
     else if (a == "--facts") { facts = true; }
+    else if (a == "--checks") { checks = true; }
     else if (a.rfind("--includes=", 0) == 0)
     {
       std::string list = a.substr(11);
@@ -55,7 +63,7 @@ int main(int argc, char** argv)
   }
   if (files.empty() || files.size() > 2)
   {
-    std::cerr << "usage: xc-ast [--includes=DIRS] [--bare] [--values] [--facts] file.xtpl [out.txt]\n";
+    std::cerr << "usage: xc-ast [--includes=DIRS] [--bare] [--values] [--facts] [--checks] file.xtpl [out.txt]\n";
     return 2;
   }
   std::string src;
@@ -99,7 +107,20 @@ int main(int argc, char** argv)
   else
   {
     xc::Program* prog = parser.parse();
-    if (prog && facts)
+    if (prog && checks)
+    {
+      int nlines = static_cast<int>(xc::lines_of(src).size());
+      std::vector<std::string> defines = xc::include_defines(src, xc::folder_of(files[0]), includes);
+      for (bool bytecode : { false, true })
+      {
+        xc::Checked c = xc::check_all(prog, nlines, xc::Dictionary{}, false, std::string_view(src),
+                                      xc::is_advpl(files[0]), bytecode, defines);
+        text += bytecode ? "checks bytecode\n" : "checks tlpp\n";
+        for (const xc::Finding& f : c.warnings) { text += "W " + std::to_string(f.line) + " " + f.message + "\n"; }
+        for (const xc::Finding& f : c.errors) { text += "E " + std::to_string(f.line) + " " + f.message + "\n"; }
+      }
+    }
+    else if (prog && facts)
     {
       xc::typed_problems(prog, xc::Dictionary{});
       text = xc::dump(prog) + xc::facts(prog, xc::is_advpl(files[0]));

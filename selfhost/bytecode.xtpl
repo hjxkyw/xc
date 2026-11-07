@@ -3666,6 +3666,9 @@ Return Nil
 // A line's code, its comments aside (text.cpp's split_comment): strings
 // kept, '//', '&&' and a '*' that starts a line cut to the end of the line,
 // '/* */' a blank, the blanks at its end gone.
+User Function xcb_codeof(cT)
+Return CodeOf(cT)
+
 Static Function CodeOf(cT)
   Local cCode := ""
   Local nI := 1

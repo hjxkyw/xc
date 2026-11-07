@@ -174,7 +174,7 @@ endforeach()
 # bytecode as it loads it.
 if(NOT MODE STREQUAL "xc")
   set(selfhost "")
-  foreach(m ast dump parse walk chains decimal typed facts bytecode xcb)
+  foreach(m ast dump parse walk chains decimal typed facts check bytecode xcb)
     compile(${ROOT}/selfhost/${m}.xtpl selfhost-${m})
     list(APPEND selfhost ${WORK}/selfhost-${m}.xbc)
   endforeach()

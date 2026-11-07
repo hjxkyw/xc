@@ -2,10 +2,13 @@
 # it to bytecode, xc-vm runs it -- after xtpl's runtime -- over each source
 # of the folders given, and the tree it reads each into, marked, with what
 # the passes after the parser find in it, must be what 'xc-ast --bare
-# --facts' writes, byte for byte; and of each of those sources that 'xc
-# --bytecode' compiles, the .xbc it writes must be xc's -- of one it does
-# not compile only for what cannot become bytecode yet, what it says of
-# that.
+# --facts' writes, byte for byte; what its checks find, what 'xc-ast --bare
+# --checks' writes; of each of those sources that 'xc --bytecode' compiles,
+# the .xbc it writes must be xc's -- of one it does not compile only for
+# what cannot become bytecode yet, what it says of that --; and what it
+# says of each source, compiling it, what 'xc --bytecode' says, but the
+# line that says where the .xbc went -- of a source with no commands of
+# its own (#command, #translate), which xc reads and it does not.
 #
 #   cmake -DXC=cpp/build/xc -DVM=cpp/build/xc-vm -DAST=cpp/build/xc-ast
 #         -DROOT=. -DWORK=cpp/build/selfhost -P cpp/tests/selfhost.cmake
@@ -34,7 +37,7 @@ set(modules "")
 foreach(m ${ROOT}/runtime/xtpl_runtime.tlpp ${ROOT}/selfhost/ast.xtpl ${ROOT}/selfhost/dump.xtpl
           ${ROOT}/selfhost/parse.xtpl ${ROOT}/selfhost/walk.xtpl ${ROOT}/selfhost/chains.xtpl
           ${ROOT}/selfhost/decimal.xtpl ${ROOT}/selfhost/typed.xtpl ${ROOT}/selfhost/facts.xtpl
-          ${ROOT}/selfhost/bytecode.xtpl ${ROOT}/selfhost/xcb.xtpl)
+          ${ROOT}/selfhost/check.xtpl ${ROOT}/selfhost/bytecode.xtpl ${ROOT}/selfhost/xcb.xtpl)
   get_filename_component(name ${m} NAME_WE)
   execute_process(COMMAND ${XC} --bytecode ${m} ${WORK}/${name}.xbc
                   RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
@@ -55,6 +58,8 @@ set(list "")
 set(vlist "")
 set(n 0)
 set(compiled "")
+set(checked "")
+set(spoken "")
 foreach(s ${sources})
   file(RELATIVE_PATH rel ${ROOT} ${s})
   string(REPLACE "/" "~" key "${rel}")
@@ -69,12 +74,26 @@ foreach(s ${sources})
   if(s MATCHES "[.]val$")
     string(APPEND vlist "${s}\t${WORK}/got/${key}.ast\n")
   else()
+    execute_process(COMMAND ${AST} --bare --checks ${s} ${WORK}/expect/${key}.chk RESULT_VARIABLE r)
+    if(NOT r EQUAL 0)
+      message(FATAL_ERROR "  xc-ast --checks failed on ${rel}")
+    endif()
+    list(APPEND checked ${s})
+    # What xc says of a source with no commands of its own, which it reads
+    # and the compiler in xtpl does not -- nor those of an include file.
+    file(READ ${s} text)
+    string(REGEX MATCH "#[ \t]*[xX]?([cC][oO][mM][mM][aA][nN][dD]|[tT][rR][aA][nN][sS][lL][aA][tT][eE])" own "${text}")
+    execute_process(COMMAND ${XC} --bytecode ${s} ${WORK}/expect/${key}.xbc
+                    RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
+    if(NOT own)
+      string(REPLACE "${s} -> ${WORK}/expect/${key}.xbc\n" "" spoke "${said}")
+      file(WRITE ${WORK}/expect/${key}.said "${spoke}")
+      list(APPEND spoken ${s})
+    endif()
     # The .xbc of a source the tree of 'xc-ast --bare' holds: not of one
     # that needs its own commands.
     file(STRINGS ${WORK}/expect/${key}.ast head LIMIT_COUNT 1)
     if(NOT head MATCHES "^not parsed")
-      execute_process(COMMAND ${XC} --bytecode ${s} ${WORK}/expect/${key}.xbc
-                      RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
       if(r EQUAL 0 AND EXISTS ${WORK}/expect/${key}.xbc)
         list(APPEND compiled ${s})
       else()
@@ -89,7 +108,8 @@ foreach(s ${sources})
         endif()
       endif()
     endif()
-    string(APPEND list "${s}\t${WORK}/got/${key}.ast\t${WORK}/got/${key}.xbc\n")
+    string(APPEND list "${s}\t${WORK}/got/${key}.ast\t${WORK}/got/${key}.xbc\t${WORK}/got/${key}.chk\t"
+                       "${WORK}/got/${key}.said\n")
   endif()
   math(EXPR n "${n} + 1")
 endforeach()
@@ -148,8 +168,41 @@ foreach(s ${compiled})
     string(APPEND wrong "\n    ${rel} (.xbc)")
   endif()
 endforeach()
+set(nc 0)
+set(samec 0)
+foreach(s ${checked})
+  file(RELATIVE_PATH rel ${ROOT} ${s})
+  string(REPLACE "/" "~" key "${rel}")
+  math(EXPR nc "${nc} + 1")
+  execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files ${WORK}/expect/${key}.chk ${WORK}/got/${key}.chk
+                  RESULT_VARIABLE r)
+  if(r EQUAL 0)
+    math(EXPR samec "${samec} + 1")
+  else()
+    string(APPEND wrong "\n    ${rel} (checks)")
+  endif()
+endforeach()
+set(ns 0)
+set(sames 0)
+foreach(s ${spoken})
+  file(RELATIVE_PATH rel ${ROOT} ${s})
+  string(REPLACE "/" "~" key "${rel}")
+  math(EXPR ns "${ns} + 1")
+  # What CMake reads of what a program says has no "\r".
+  file(READ ${WORK}/expect/${key}.said e)
+  set(g "")
+  if(EXISTS ${WORK}/got/${key}.said)
+    file(READ ${WORK}/got/${key}.said g)
+    string(REPLACE "\r" "" g "${g}")
+  endif()
+  if(e STREQUAL g)
+    math(EXPR sames "${sames} + 1")
+  else()
+    string(APPEND wrong "\n    ${rel} (said)")
+  endif()
+endforeach()
+set(counts "${same} of ${n} trees, ${samec} of ${nc} checks, ${samex} of ${nx} .xbc, ${sames} of ${ns} said")
 if(wrong)
-  message(FATAL_ERROR "  ${same} of ${n} trees and ${samex} of ${nx} .xbc the same; these differ "
-                      "(${WORK}/expect, got):${wrong}")
+  message(FATAL_ERROR "  ${counts} the same; these differ (${WORK}/expect, got):${wrong}")
 endif()
-message("  ${same} of ${n} trees and ${samex} of ${nx} .xbc the same")
+message("  ${counts} the same")

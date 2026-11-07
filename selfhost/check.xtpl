@@ -1,0 +1,2378 @@
+#include "totvs.ch"
+#include "xcb.ch"
+
+// check.xtpl -- what xtpl refuses although it parses (cpp/src/check.cpp):
+// names and their scopes, '<const>' and '<contained>', 'external', the calls
+// to the file's own functions, a declaration's value against its type, a
+// few shapes of chain, and what the AppServer refuses or gets wrong. The
+// C++ Checker's members are this file's statics, its routines Static
+// Functions in the same order; typed.xtpl and decimal.xtpl find the rest,
+// and u_xcb_checkall() gathers them. There is no dictionary here: what an
+// exported SX3 would tell is not said.
+// -----------------------------------------------------------------------------
+
+// A variable: where it is declared, what it is, how it is used; declared
+// with a type and no value, one TL++ does not start at Nil: the type, and
+// what it starts at ('' for every other).
+#define VR_NAME       1
+#define VR_LINE       2
+#define VR_KIND       3
+#define VR_READS      4
+#define VR_WRITES     5
+#define VR_CONST      6
+#define VR_CONTAINED  7
+#define VR_TYPE       8
+#define VR_START      9
+
+// A scope: the one around it, whether it is a closure (a lambda's or a code
+// block's: a name found beyond it is captured), whether that closure leaves
+// its function, its names.
+#define SC_OUTER      1
+#define SC_CLOSURE    2
+#define SC_ESCAPES    3
+#define SC_NAMES      4
+
+// A name found: its variable, whether a closure lies between, whether one
+// that leaves its function does.
+#define FD_VAR        1
+#define FD_CAPTURED   2
+#define FD_ESCAPED    3
+
+// A function of the file; a static's uses.
+#define FU_NAME       1
+#define FU_KIND       2
+#define FU_PARAMS     3
+#define FU_LINE       4
+#define SU_NAME       1
+#define SU_READS      2
+#define SU_WRITES     3
+#define SU_CONST      4
+
+Static aFound := {}
+Static aWarned := {}
+Static aIncludeDefines := {}
+Static nLines := 0
+Static cSource := Nil
+Static lAdvpl := .F.
+Static lBytecode := .F.
+Static hWarnedNames := Nil
+Static hImplicit := Nil
+Static hFuncs := Nil
+Static hExternals := Nil
+Static hStatics := Nil
+Static hStaticDecls := Nil
+Static hStaticUses := Nil
+Static aStaticOrder := {}
+Static hDefines := Nil
+Static hPrivates := Nil
+Static hClasses := Nil
+Static hMade := Nil
+Static hIncludes := Nil
+Static lTcqueryOk := .T.
+Static hRetired := Nil
+Static hScalar := Nil
+Static hJson := Nil
+Static hSourcesOk := Nil
+Static hChainsOk := Nil
+Static aScope := Nil
+Static nLine := 0
+Static lInDefer := .F.
+Static lInStatic := .F.
+Static aRecords := {}
+Static hOpened := Nil
+Static hWarnedAlias := Nil
+Static hExternalAlias := Nil
+Static hChainAt := Nil
+Static hGuarded := Nil
+Static hStmtGuards := Nil
+Static aEnds := {}
+Static hEscaping := Nil
+Static hKeywordSeen := Nil
+
+// Words that are never a variable (xtpl's 'known_words').
+Static cKnown := "|nil|to|step|exit|loop|self|super|iif|in|and|or|not|t|f|class|data|method|endclass|begin|" ;
+                 + "sequence|recover|always|endsequence|try|catch|endtry|case|endcase|switch|default|" ;
+                 + "parameters|then|as|from|of|nonempty|_super|"
+
+// The comparisons a field and a literal are checked in; the calls that open
+// a work area, when given its name as a string.
+Static cCompare := "|==|!=|<>|>=|<=|#|=|>|<|$|"
+Static cOpeners := "|dbselectarea|dbusearea|chkfile|"
+
+// What a chain cannot walk: a type that holds one value.
+Static cScalarTypes := "|numeric|character|logical|date|json|"
+
+Static cLogicalOps := "|==|=|!=|<>|#|<|>|<=|>=|$|.and.|.or.|!|in|has|%%|"
+Static cNumericOps := "|*|/|%|**|^|neg|"
+
+// The keywords the AppServer reads written short: a name of 4 letters or
+// more that begins one is the keyword to it, wherever it is (tried on
+// 24.3.1.9). SEQUENCE, MEMVAR, FIELD and REQUEST it does not read so.
+Static aShortKeywords := {"announce", "begin", "declare", "endcase", "enddo", "endif", "external", "function", ;
+                          "local", "otherwise", "parameters", "private", "procedure", "public", "recover", ;
+                          "return", "static", "while"}
+
+// The functions of the AppServer's language: "C2022 Redefinition of
+// language function ISALPHA" (tried on 24.3.1.9, with IsAlpha); the rest are
+// Clipper's intrinsic functions that TL++ has, and IsAlpha's kin.
+Static cLanguageFunctions := "|aadd|abs|asc|at|bof|chr|ctod|date|day|deleted|dow|dtoc|dtos|empty|eof|eval|exp|" ;
+                             + "fcount|fieldname|file|found|int|isalpha|isdigit|islower|isupper|lastrec|len|" ;
+                             + "left|log|lower|ltrim|max|min|month|pcount|reccount|recno|replicate|round|rtrim|" ;
+                             + "seconds|select|space|sqrt|str|substr|time|transform|trim|type|upper|val|" ;
+                             + "valtype|year|"
+
+// Break() with no value, a statement or in a block: probe xdr, on 24.3.1.9.
+Static cBreakEmpty := 'Break(): the AppServer refuses it with no value -- "C2003 Syntax Error" in TL++, ' ;
+                     + '"Use of reserved language word (BREAK)" in AdvPL. Write Break, or Break(Nil)'
+
+// What the AppServer says of a regular function.
+Static cRegular := "it refuses one in a compile without TOTVS' authorization (" + '"' + "Regular functions are not " ;
+                  + "allowed in code. Use USER FUNCTION or STATIC FUNCTION." + '")'
+
+// What the checks find in a program: {errors, warnings}, each a list of
+// {line, what}, the first of a line and a message once, in the order of
+// the lines. nLines: the file's length (where the last function ends);
+// cText: the text, for what a warning quotes of it; lAdvpl: a .prw, where
+// TL++'s own rules do not hold; lBytecode: it becomes bytecode, which xc's
+// machines run -- what the AppServer gets wrong at run time is not said;
+// aDefines: the '#define' lines of its include files.
+User Function xcb_checkall(aProg, nLinesIn, cText, lAdvplIn, lBytecodeIn, aDefines)
+  Local aTyped
+  aFound := {}
+  aWarned := {}
+  aIncludeDefines := If(aDefines == Nil, {}, aDefines)
+  nLines := nLinesIn
+  cSource := cText
+  lAdvpl := lAdvplIn
+  lBytecode := lBytecodeIn
+  hWarnedNames := { => }
+  hImplicit := { => }
+  hFuncs := { => }
+  hExternals := { => }
+  hStatics := { => }
+  hStaticDecls := { => }
+  hStaticUses := { => }
+  aStaticOrder := {}
+  hDefines := { => }
+  hPrivates := { => }
+  hClasses := { => }
+  hMade := { => }
+  hIncludes := { => }
+  lTcqueryOk := .T.
+  hRetired := { => }
+  hScalar := { => }
+  hJson := { => }
+  hSourcesOk := { => }
+  hChainsOk := { => }
+  aScope := Nil
+  nLine := 0
+  lInDefer := .F.
+  lInStatic := .F.
+  aRecords := {}
+  hOpened := { => }
+  hWarnedAlias := { => }
+  hExternalAlias := { => }
+  hChainAt := { => }
+  hGuarded := { => }
+  hStmtGuards := { => }
+  aEnds := {}
+  hEscaping := { => }
+  hKeywordSeen := { => }
+  CheckProgram(aProg)
+  AEval(u_xcb_decproblems(aProg, cText, lAdvplIn), {|f| AAdd(aFound, f)})
+  aTyped := u_xcb_typedproblems(aProg)
+  AEval(aTyped[1], {|f| AAdd(aFound, f)})
+  AEval(aTyped[2], {|f| AAdd(aWarned, f)})
+Return {Tidy(aFound), Tidy(aWarned)}
+
+// ---- small things -----------------------------------------------------------
+Static Function N(nN)
+Return AllTrim(Str(nN))
+
+Static Function Lc(cS)
+Return u_xcb_lc(cS)
+
+Static Function Uc(cS)
+Return u_xcb_uc(cS)
+
+// Whether a name, in lower case, is one of a set written '|a|b|'.
+Static Function Among(cName, cSet)
+Return "|" + cName + "|" $ cSet
+
+Static Function Has(aList, cWord)
+Return AScan(aList, {|w| w == cWord}) > 0
+
+Static Function StartsWith(cS, cP)
+Return Left(cS, Len(cP)) == cP
+
+Static Function IsK(aE, nKind)
+Return aE != Nil .And. aE[N_KIND] == nKind
+
+// A literal of any kind: XC::AST's Literal and the classes made from it.
+Static Function IsLiteral(aE)
+  Local nK
+  If aE == Nil
+    Return .F.
+  EndIf
+  nK := aE[N_KIND]
+Return nK == EK_LITERAL .Or. nK == EK_ARRAYLIT .Or. nK == EK_INTERP .Or. nK == EK_JSONLIT .Or. nK == EK_HASHLIT ;
+       .Or. nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+
+Static Function IsCodeBlock(aE)
+Return IsK(aE, EK_CODEBLOCK) .Or. IsK(aE, EK_LAMBDA)
+
+Static Function IsMember(aE)
+Return IsK(aE, EK_MEMBER) .Or. IsK(aE, EK_SAFEMEMBER)
+
+Static Function NameOf(aE)
+Return aE[NAME_NAME]
+
+// A literal's text without its quotes ('substr(1, *-1)').
+Static Function Unquoted(cT)
+Return If(Len(cT) >= 2, SubStr(cT, 2, Len(cT) - 2), "")
+
+// The first n characters of a text: a "\r\n" is one.
+Static Function FirstChars(cT, nN)
+  Local nI := 1
+  Local nK := 0
+  While nI <= Len(cT) .And. nK < nN
+    nI += If(SubStr(cT, nI, 2) == Chr(13) + Chr(10), 2, 1)
+    nK++
+  EndDo
+Return Left(cT, nI - 1)
+
+// ---- types (XC::Types) ------------------------------------------------------
+// The type of an expression, or '?' when it cannot be told from here.
+Static Function TypeOfE(aE)
+  Local cL
+  Local cR
+  If aE == Nil
+    Return "?"
+  EndIf
+  If IsLiteral(aE)
+    Return aE[LIT_TYPE]
+  EndIf
+  If aE[N_KIND] != EK_BINARY
+    Return "?"
+  EndIf
+  If Among(aE[BIN_OP], cLogicalOps)
+    Return "Logical"
+  EndIf
+  If Among(aE[BIN_OP], cNumericOps)
+    Return "Numeric"
+  EndIf
+  If aE[BIN_OP] == "+" .Or. aE[BIN_OP] == "-"
+    cL := TypeOfE(aE[BIN_LEFT])
+    cR := TypeOfE(aE[BIN_RIGHT])
+    If cL == cR .And. (cL == "Numeric" .Or. cL == "Character")
+      Return cL
+    EndIf
+  EndIf
+Return "?"
+
+// What is wrong with a declarator's value for its type, if anything: Nil
+// for nothing. A Decimal -- a Numeric in the tree -- is a type of its own to
+// TL++: a number that goes into one is decimal.xtpl's to judge.
+Static Function TypeProblem(aV)
+  Local cFound
+  Local aW
+  Local lDecimal
+  Local cDeclared
+  // A typed array's or hash's value: typed.xtpl's to say.
+  If aV[DCL_DECLARED] == "?" .Or. aV[DCL_INIT] == Nil .Or. !(aV[DCL_CONTAINER] == "")
+    Return Nil
+  EndIf
+  cFound := TypeOfE(aV[DCL_INIT])
+  If cFound == "?" .Or. aV[DCL_DECLARED] == "Variant"
+    Return Nil
+  EndIf
+  If IsLiteral(aV[DCL_INIT]) .And. Lc(aV[DCL_INIT][LIT_TEXT]) == "nil"
+    Return Nil
+  EndIf
+  aW := u_xcb_words(If(aV[DCL_TYPESPEC] == Nil, "", aV[DCL_TYPESPEC]))
+  lDecimal := !lAdvpl .And. Len(aW) > 1 .And. Lc(aW[2]) == "decimal"
+  cDeclared := If(lDecimal, "Decimal", aV[DCL_DECLARED])
+  If cFound == cDeclared
+    Return Nil
+  EndIf
+  If lDecimal .And. cFound == "Numeric"
+    Return Nil
+  EndIf
+Return "'" + aV[DCL_NAME] + "' is declared as " + cDeclared + ", but its initial value is " + cFound + "."
+
+// ---- small subs -------------------------------------------------------------
+// A literal that holds one value: not an array, a hash, a JSON or a block.
+Static Function IsScalar(aL)
+Return !(IsK(aL, EK_ARRAYLIT) .Or. IsK(aL, EK_HASHLIT) .Or. IsK(aL, EK_JSONLIT) .Or. IsCodeBlock(aL))
+
+Static Function IsRowsOrLines(aE)
+  Local cN
+  If !IsK(aE, EK_CALL)
+    Return .F.
+  EndIf
+  cN := Lc(aE[CALL_NAME])
+Return cN == "rows" .Or. cN == "lines"
+
+// The rows()/lines() call a chain walks, if it walks one.
+Static Function SourceOf(aE)
+  If IsK(aE, EK_PIPELINE) .And. IsRowsOrLines(aE[PIPE_SOURCE])
+    Return aE[PIPE_SOURCE]
+  EndIf
+  If IsRowsOrLines(aE)
+    Return aE
+  EndIf
+Return Nil
+
+// A literal's type letter and, for a string, its text: {letter, text} -- or
+// Nil: not a literal, or Nil, which is ordinary to assign.
+Static Function LiteralKind(aE)
+  If aE == Nil
+    Return Nil
+  EndIf
+  If IsK(aE, EK_BINARY)
+    If aE[BIN_OP] == "neg" .And. IsLiteral(aE[BIN_RIGHT]) .And. aE[BIN_RIGHT][LIT_TYPE] == "Numeric"
+      Return {"N", "-" + aE[BIN_RIGHT][LIT_TEXT]}
+    EndIf
+  EndIf
+  If !IsLiteral(aE) .Or. IsK(aE, EK_INTERP)
+    Return Nil
+  EndIf
+  Do Case
+    Case aE[LIT_TYPE] == "Character"
+      Return {"C", Unquoted(aE[LIT_TEXT])}
+    Case aE[LIT_TYPE] == "Numeric"
+      Return {"N", aE[LIT_TEXT]}
+    Case aE[LIT_TYPE] == "Logical"
+      Return {"L", aE[LIT_TEXT]}
+  EndCase
+Return Nil
+
+// Each finding once -- the first of a line and message -- in the order of
+// the lines, those of a line in the order found.
+Static Function Tidy(aIn)
+  Local aOut := {}
+  Local hSeen := { => }
+  Local cK
+  Local nI
+  Local nJ
+  For nI := 1 To Len(aIn)
+    cK := N(aIn[nI][1]) + Chr(0) + aIn[nI][2]
+    If !(hSeen has cK)
+      hSeen{cK} := .T.
+      AAdd(aOut, aIn[nI])
+    EndIf
+  Next
+  // A stable sort by line: an insertion sort.
+  For nI := 2 To Len(aOut)
+    nJ := nI
+    While nJ > 1 .And. aOut[nJ - 1][1] > aOut[nJ][1]
+      cK := aOut[nJ]
+      aOut[nJ] := aOut[nJ - 1]
+      aOut[nJ - 1] := cK
+      nJ--
+    EndDo
+  Next
+Return aOut
+
+// The types TL++ starts a variable declared with no value at something else
+// than Nil (tried on 24.3.1.9): {the type as shown, the value} -- Nil for
+// Array, Object, CodeBlock, JSON, Variant and Decimal.
+Static Function TypedStart(cWord)
+  Local cW := Lc(cWord)
+  Do Case
+    Case cW == "numeric"
+      Return {"Numeric", "0"}
+    Case cW == "integer"
+      Return {"Integer", "0"}
+    Case cW == "double"
+      Return {"Double", "0"}
+    Case cW == "character"
+      Return {"Character", '""'}
+    Case cW == "logical"
+      Return {"Logical", ".F."}
+    Case cW == "date"
+      Return {"Date", "the date 1899-12-31"}
+  EndCase
+Return Nil
+
+// The keyword a name begins, written short, or "".
+Static Function ShortKeyword(cName)
+  Local cN := Lc(cName)
+  Local nI
+  If Len(cN) < 4
+    Return ""
+  EndIf
+  For nI := 1 To Len(aShortKeywords)
+    If Len(cN) <= Len(aShortKeywords[nI]) .And. Left(aShortKeywords[nI], Len(cN)) == cN
+      Return aShortKeywords[nI]
+    EndIf
+  Next
+Return ""
+
+Static Function NewScope(aOuter, lClosure)
+Return {aOuter, lClosure, .F., { => }}
+
+Static Function Problem(cWhat)
+  AAdd(aFound, {nLine, cWhat})
+Return Nil
+
+Static Function Warning(cWhat)
+  AAdd(aWarned, {nLine, cWhat})
+Return Nil
+
+Static Function Agrees(aD)
+  Local cP := TypeProblem(aD)
+  If cP != Nil
+    AAdd(aFound, {aD[N_LINE], cP})
+  EndIf
+Return Nil
+
+// ---- the file ---------------------------------------------------------------
+Static Function CheckProgram(aProg)
+  Local nI
+  Local nJ
+  Local aF
+  Local cType
+  Local cWhat
+  Local hFirst
+  Local cFull
+  Local cKey
+  Local cPrefix
+  Local aX
+  Local aStatics := {}
+  Local aD
+  Local aC
+  Local aM
+  Local aT
+  Local cStart
+  Local aL
+  Local cSame
+  Local aI
+  Local cD
+  Local nP
+  Local nH
+  Local nW
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    EscapingIn(aProg[PG_FUNCTIONS][nI][FN_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    EscapingIn(aProg[PG_METHODS][nI][MI_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    // A User Function's name is the AppServer's with 'U_' before it, no
+    // keyword: only a Static, a Main and a bare Function's are checked.
+    cType := Lc(aF[FN_TYPE])
+    If cType == "" .Or. cType == "static" .Or. cType == "main"
+      KeywordName(aF[FN_NAME], aF[N_LINE])
+      LanguageName(aF[FN_NAME], aF[N_LINE])
+    EndIf
+    hFuncs{Lc(aF[FN_NAME])} := {aF[FN_NAME], Lc(aF[FN_TYPE]), Len(aF[FN_PARAMS]), aF[N_LINE]}
+    // A bare 'Function' whose name has no 'u_', or a 'Main Function': a
+    // regular function, which TOTVS compiles with its authorization.
+    If (aF[FN_TYPE] == "" .And. !StartsWith(Lc(aF[FN_NAME]), "u_")) .Or. Lc(aF[FN_TYPE]) == "main"
+      cWhat := If(aF[FN_TYPE] == "", "a regular function", "a Main Function, a regular function to the AppServer")
+      AAdd(aWarned, {aF[N_LINE], "'" + aF[FN_NAME] + "' is " + cWhat + ": " + cRegular})
+    EndIf
+    If u_xcb_isverb(aF[FN_NAME])
+      AAdd(aFound, {aF[N_LINE], "'" + aF[FN_NAME] + "' is the name of one of xtpl's verbs: a call to " ;
+                                + Lc(aF[FN_NAME]) + "() is the runtime's u_xtpl_" + Lc(aF[FN_NAME]) ;
+                                + ", never a function of the file. Give it another name."})
+    EndIf
+  Next
+  // A .prw counts a function's name to 10 characters, its prefix included
+  // (tried on 24.3.1.9).
+  If lAdvpl
+    hFirst := { => }
+    For nI := 1 To Len(aProg[PG_FUNCTIONS])
+      aF := aProg[PG_FUNCTIONS][nI]
+      cType := Lc(aF[FN_TYPE])
+      cPrefix := If(cType == "user", "u_", If(cType == "web", "w_", If(cType == "html", "h_", "")))
+      cFull := If(!(cPrefix == "") .And. !StartsWith(Lc(aF[FN_NAME]), cPrefix), cPrefix, "") + aF[FN_NAME]
+      cKey := Uc(Left(cFull, 10))
+      If !(hFirst has cKey)
+        hFirst{cKey} := aF
+      ElseIf !(Lc(hFirst{cKey}[FN_NAME]) == Lc(aF[FN_NAME]))
+        AAdd(aFound, {aF[N_LINE], "'" + aF[FN_NAME] + "' and '" + hFirst{cKey}[FN_NAME] + "' (line " ;
+                                  + N(hFirst{cKey}[N_LINE]) + ") are one function in a .prw, which counts a name " ;
+                                  + "to 10 characters (" + cKey + "): the AppServer refuses the second."})
+      EndIf
+    Next
+  EndIf
+  For nI := 1 To Len(aProg[PG_EXTERNALS])
+    aX := aProg[PG_EXTERNALS][nI]
+    If aX[EXT_ALIAS]
+      Loop
+    EndIf
+    For nJ := 1 To Len(aX[EXT_NAMES])
+      hExternals{Lc(aX[EXT_NAMES][nJ])} := aX[N_LINE]
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_EXTERNALS])
+    aX := aProg[PG_EXTERNALS][nI]
+    If !aX[EXT_ALIAS]
+      Loop
+    EndIf
+    For nJ := 1 To Len(aX[EXT_NAMES])
+      hExternalAlias{Uc(aX[EXT_NAMES][nJ])} := .T.
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      AAdd(aStatics, aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ])
+    Next
+  Next
+  For nI := 1 To Len(aStatics)
+    Agrees(aStatics[nI])
+    KeywordName(aStatics[nI][DCL_NAME], aStatics[nI][N_LINE])
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    FileStatics(aProg[PG_FUNCTIONS][nI][FN_BODY], aStatics)
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    FileStatics(aProg[PG_METHODS][nI][MI_BODY], aStatics)
+  Next
+  StableByLine(aStatics)
+  For nI := 1 To Len(aStatics)
+    FileStatic(aStatics[nI])
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    AAdd(aEnds, aProg[PG_FUNCTIONS][nI][N_LINE])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    AAdd(aEnds, aM[N_LINE])
+    KeywordName(aM[MI_NAME], aM[N_LINE])
+  Next
+  For nI := 1 To Len(aProg[PG_CLASSES])
+    aC := aProg[PG_CLASSES][nI]
+    AAdd(aEnds, aC[N_LINE])
+    hClasses{Lc(aC[CD_NAME])} := .T.
+    For nJ := 1 To Len(aC[CD_MEMBERS])
+      KeywordName(aC[CD_MEMBERS][nJ][DM_NAME], aC[CD_MEMBERS][nJ][N_LINE])
+    Next
+    For nJ := 1 To Len(aC[CD_METHODS])
+      aM := aC[CD_METHODS][nJ]
+      KeywordName(aM[MS_NAME], aM[N_LINE])
+      // 'Public Static Method' is C2003: a static method has no visibility
+      // (tried on 24.3.1.9).
+      If aM[MS_STATIC] .And. aM[MS_VISIBILITY] != Nil
+        AAdd(aFound, {aM[N_LINE], "a static method takes no visibility: the AppServer refuses '" ;
+                                  + aM[MS_VISIBILITY] + "' with 'Static' (" + '"' + "C2003 Syntax Error" + '"' ;
+                                  + ", tried on 24.3.1.9). Write 'Static Method " + aM[MS_NAME] + "(...)'."})
+      EndIf
+    Next
+    // A Data's value: the AppServer ignores it (tried on 24.3.1.9).
+    For nJ := 1 To Len(aC[CD_MEMBERS])
+      aD := aC[CD_MEMBERS][nJ]
+      If aD[DM_INIT] == Nil
+        Loop
+      EndIf
+      aT := If(aD[DM_TYPE] != Nil .And. !lAdvpl, TypedStart(aD[DM_TYPE]), Nil)
+      cStart := If(aT != Nil, aT[2], "Nil")
+      // The value it starts at anyway is harmless.
+      If IsK(aD[DM_INIT], EK_LITERAL)
+        aL := aD[DM_INIT]
+        Do Case
+          Case aL[LIT_TYPE] == "Variant"
+            cSame := "Nil"
+          Case aL[LIT_TYPE] == "Numeric" .And. Val(StrTran(aL[LIT_TEXT], "'", "")) == 0
+            cSame := "0"
+          Case aL[LIT_TYPE] == "Character" .And. Unquoted(aL[LIT_TEXT]) == ""
+            cSame := '""'
+          Case aL[LIT_TYPE] == "Logical" .And. Lc(aL[LIT_TEXT]) == ".f."
+            cSame := ".F."
+          Otherwise
+            cSame := ""
+        EndCase
+        If cSame == cStart
+          Loop
+        EndIf
+      EndIf
+      AAdd(aWarned, {aD[N_LINE], "'" + aD[DM_NAME] + "' is given a value with '" + aD[DM_INITWORD] ;
+                                 + "', which the AppServer ignores: it starts at " + cStart ;
+                                 + ". Give it its value in the constructor."})
+    Next
+  Next
+  // The include files: the file's, and a function's own '#include'.
+  For nI := 1 To Len(aProg[PG_DIRECTIVES])
+    IncludeOf(aProg[PG_DIRECTIVES][nI])
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    BodyIncludes(aProg[PG_FUNCTIONS][nI][FN_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    BodyIncludes(aProg[PG_METHODS][nI][MI_BODY])
+  Next
+  // TCQUERY is topconn.ch's: a file that includes only totvs.ch has none
+  // (C2003, tried on 24.3.1.9). Another include file may bring it; so may a
+  // command of the file's own.
+  aI := keys(hIncludes)
+  For nI := 1 To Len(aI)
+    If !(aI[nI] == "totvs.ch") .And. !(aI[nI] == "tlpp-core.th")
+      lTcqueryOk := .T.
+      Exit
+    EndIf
+    lTcqueryOk := .F.
+  Next
+  If Len(aI) == 0
+    lTcqueryOk := .F.
+  EndIf
+  For nI := 1 To Len(aProg[PG_DIRECTIVES])
+    If "tcquery" $ Lc(aProg[PG_DIRECTIVES][nI])
+      lTcqueryOk := .T.
+    EndIf
+  Next
+  // A method of a class this file does not declare: the AppServer takes it
+  // for a regular function (tried on 24.3.1.9).
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    If aM[MI_WS] .Or. aM[MI_CLASS] == "" .Or. (hClasses has Lc(aM[MI_CLASS]))
+      Loop
+    EndIf
+    AAdd(aWarned, {aM[N_LINE], "'" + aM[MI_NAME] + "' is a method of " + aM[MI_CLASS] + ", which this file does not " ;
+                               + "declare, so the AppServer takes it for a regular function: " + cRegular})
+  Next
+  ASort(aEnds,,, {|a, b| a < b})
+  // '#define NAME': the source's, and its include files'.
+  For nI := 1 To Len(aIncludeDefines) + Len(aProg[PG_DIRECTIVES])
+    cD := If(nI <= Len(aIncludeDefines), aIncludeDefines[nI], aProg[PG_DIRECTIVES][nI - Len(aIncludeDefines)])
+    If !(Left(cD, 1) == "#")
+      Loop
+    EndIf
+    nP := 2
+    While nP <= Len(cD) .And. u_xcb_ish(Asc(SubStr(cD, nP, 1)))
+      nP++
+    EndDo
+    If Len(cD) - nP + 1 < 6 .Or. !(Lc(SubStr(cD, nP, 6)) == "define")
+      Loop
+    EndIf
+    nP += 6
+    nH := nP
+    While nP <= Len(cD) .And. u_xcb_ish(Asc(SubStr(cD, nP, 1)))
+      nP++
+    EndDo
+    If nP == nH
+      Loop
+    EndIf
+    nW := nP
+    While nP <= Len(cD) .And. u_xcb_isw(Asc(SubStr(cD, nP, 1)))
+      nP++
+    EndDo
+    If nP > nW
+      hDefines{Lc(SubStr(cD, nW, nP - nW))} := .T.
+    EndIf
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    Privates(aProg[PG_FUNCTIONS][nI][FN_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    Privates(aProg[PG_METHODS][nI][MI_BODY])
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    For nJ := 1 To Len(aF[FN_PARAMS])
+      TypeWord(aF[FN_PARAMS][nJ][PRM_TYPEWORD], aF[N_LINE], .T.)
+    Next
+    TypeWord(aF[FN_RETWORD], aF[N_LINE], .T.)
+    CheckFunction(aF[FN_PARAMS], aF[FN_BODY], aF[N_LINE])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aM := aProg[PG_METHODS][nI]
+    For nJ := 1 To Len(aM[MI_PARAMS])
+      TypeWord(aM[MI_PARAMS][nJ][PRM_TYPEWORD], aM[N_LINE], .T.)
+    Next
+    TypeWord(aM[MI_RETURNS], aM[N_LINE], .F.)
+    CheckFunction(aM[MI_PARAMS], aM[MI_BODY], aM[N_LINE])
+  Next
+  If !lAdvpl
+    For nI := 1 To Len(aProg[PG_CLASSES])
+      aC := aProg[PG_CLASSES][nI]
+      For nJ := 1 To Len(aC[CD_MEMBERS])
+        aD := aC[CD_MEMBERS][nJ]
+        TypeWord(aD[DM_TYPE], If(aD[N_LINE] != 0, aD[N_LINE], aC[N_LINE]), .F.)
+      Next
+      For nJ := 1 To Len(aC[CD_METHODS])
+        aM := aC[CD_METHODS][nJ]
+        AEval(aM[MS_PARAMS], {|q| If(q != Nil, TypeWord(q[PRM_TYPEWORD], If(aM[N_LINE] != 0, aM[N_LINE], ;
+                                                                            aC[N_LINE]), .T.), Nil)})
+      Next
+    Next
+  EndIf
+  StaticNeverRead()
+Return Nil
+
+// A stable sort of declarators by their lines: an insertion sort.
+Static Function StableByLine(aList)
+  Local nI
+  Local nJ
+  Local aT
+  For nI := 2 To Len(aList)
+    nJ := nI
+    While nJ > 1 .And. aList[nJ - 1][N_LINE] > aList[nJ][N_LINE]
+      aT := aList[nJ]
+      aList[nJ] := aList[nJ - 1]
+      aList[nJ - 1] := aT
+      nJ--
+    EndDo
+  Next
+Return Nil
+
+// An '#include' line: the file it names, in lower case, its folders aside.
+Static Function IncludeOf(cLine)
+  Local cL := Lc(u_xcb_trim(cLine))
+  Local nI := 2
+  Local nQ
+  Local nE
+  Local cName
+  Local nCut
+  If !(Left(cL, 1) == "#")
+    Return Nil
+  EndIf
+  While nI <= Len(cL) .And. (SubStr(cL, nI, 1) == " " .Or. SubStr(cL, nI, 1) == Chr(9))
+    nI++
+  EndDo
+  If !(SubStr(cL, nI, 7) == "include")
+    Return Nil
+  EndIf
+  nQ := FirstOf(cL, '"' + "'<", nI + 7)
+  If nQ == 0
+    Return Nil
+  EndIf
+  nE := FirstOf(cL, '"' + "'>", nQ + 1)
+  cName := If(nE == 0, SubStr(cL, nQ + 1), SubStr(cL, nQ + 1, nE - nQ - 1))
+  nCut := Max(RAt("/", cName), RAt("\", cName))
+  hIncludes{If(nCut == 0, cName, SubStr(cName, nCut + 1))} := .T.
+Return Nil
+
+// Where the first of some characters is in a text, from a place, from 1: 0
+// for none.
+Static Function FirstOf(cT, cChars, nFrom)
+  Local nI
+  For nI := nFrom To Len(cT)
+    If SubStr(cT, nI, 1) $ cChars
+      Return nI
+    EndIf
+  Next
+Return 0
+
+Static Function BodyIncludes(aBody)
+  Local aAll := u_xcb_walk(aBody)
+  Local nI
+  Local nJ
+  For nI := 1 To Len(aAll)
+    If aAll[nI][N_KIND] == SK_RAWSTMT
+      For nJ := 1 To Len(aAll[nI][RAW_LINES])
+        IncludeOf(aAll[nI][RAW_LINES][nJ])
+      Next
+    EndIf
+  Next
+Return Nil
+
+Static Function Privates(aBody)
+  Local aAll := u_xcb_walk(aBody)
+  Local nI
+  Local nJ
+  Local aD
+  For nI := 1 To Len(aAll)
+    aD := aAll[nI]
+    If aD[N_KIND] != SK_DECLARATION
+      Loop
+    EndIf
+    If !(aD[DECL_SCOPE] == "private") .And. !(aD[DECL_SCOPE] == "public")
+      Loop
+    EndIf
+    For nJ := 1 To Len(aD[DECL_DECLARATORS])
+      hPrivates{Lc(aD[DECL_DECLARATORS][nJ][DCL_NAME])} := .T.
+    Next
+  Next
+Return Nil
+
+// text.comb(/ <[A..Za..z_]> \w* /): each name a raw line reads.
+Static Function RawReads(cText)
+  Local nI := 1
+  Local nB
+  Local cK
+  Local aF
+  While nI <= Len(cText)
+    If !u_xcb_isletter(Asc(SubStr(cText, nI, 1)))
+      nI++
+      Loop
+    EndIf
+    nB := nI
+    nI++
+    While nI <= Len(cText) .And. u_xcb_isw(Asc(SubStr(cText, nI, 1)))
+      nI++
+    EndDo
+    cK := Lc(SubStr(cText, nB, nI - nB))
+    aF := FindName(cK)
+    If aF != Nil
+      aF[FD_VAR][VR_READS]++
+      Leaves(aF[FD_VAR], aF[FD_VAR][VR_NAME], .T.)
+    ElseIf hStaticUses has cK
+      hStaticUses{cK}[SU_READS]++
+    EndIf
+  EndDo
+Return Nil
+
+Static Function Unclosed(aE)
+  Local cT := aE[LIT_TEXT]
+  If Len(cT) >= 2 .And. Right(cT, 1) == Left(cT, 1)
+    Return Nil
+  EndIf
+  Warning("this string is not closed: TL++ ends it at the end of the line -- " + cT)
+Return Nil
+
+// lStrict: where a word that is no type of TL++'s nor a class of the file
+// is refused -- a Local's, a parameter's, a function's return.
+Static Function TypeWord(xWord, nAt, lStrict)
+  Local cW
+  Local cA
+  If xWord != Nil .And. !lAdvpl
+    // AdvPL's own words for a type, which a .prw takes and TL++ does not
+    // ("Invalid Type STRING", tried on 24.3.1.9).
+    cW := Lc(xWord)
+    cA := If(cW == "string", "Character", If(cW == "number", "Numeric", ;
+             If(cW == "logic" .Or. cW == "boolean", "Logical", "")))
+    If !(cA == "")
+      nLine := nAt
+      Problem("'as " + xWord + "': TL++ has no type '" + xWord + "' -- write 'as " + cA + "' (a .prw " ;
+              + "takes it: AdvPL does not check its types).")
+      Return Nil
+    EndIf
+  EndIf
+  If xWord == Nil
+    Return Nil
+  EndIf
+  cW := Lc(xWord)
+  If !(Len(xWord) == 1 .Or. cW == "char" .Or. cW == "block")
+    If lStrict .And. !lAdvpl .And. !Among(cW, "|numeric|character|logical|date|array|object|codeblock|json|" ;
+                                              + "variant|integer|decimal|double|variadic|") .And. !(hClasses has cW)
+      nLine := nAt
+      Problem("'as " + xWord + "': TL++ has no type '" + xWord + "', and this file declares no class by that name.")
+    EndIf
+    Return Nil
+  EndIf
+  Do Case
+    Case cW == "a"
+      cA := "Array"
+    Case cW == "n"
+      cA := "Numeric"
+    Case cW == "c" .Or. cW == "char"
+      cA := "Character"
+    Case cW == "l"
+      cA := "Logical"
+    Case cW == "d"
+      cA := "Date"
+    Case cW == "o"
+      cA := "Object"
+    Case cW == "b" .Or. cW == "block"
+      cA := "CodeBlock"
+    Case cW == "j"
+      cA := "JSON"
+    Case cW == "u"
+      cA := "Variant"
+    Otherwise
+      cA := xWord
+  EndCase
+  nLine := nAt
+  Problem("'as " + xWord + "': TL++ has no type '" + xWord + "' -- write 'as " + cA + "'.")
+Return Nil
+
+Static Function CheckFunction(aParams, aBody, nAt)
+  Local nI
+  hRetired := { => }
+  hScalar := { => }
+  hJson := { => }
+  aRecords := {}
+  hOpened := { => }
+  hWarnedAlias := { => }
+  aScope := NewScope(Nil, .F.)
+  nLine := nAt
+  For nI := 1 To Len(aParams)
+    DeclareName(aParams[nI][PRM_NAME], nAt, aParams[nI][PRM_ATTRS], "param", .F.)
+  Next
+  CheckBody(aBody)
+  NeverRead()
+  Returns(aBody, nAt)
+Return Nil
+
+Static Function NeverRead()
+  Local aUnread := {}
+  Local nI
+  Local aV
+  For nI := 1 To Len(aRecords)
+    If aRecords[nI][VR_KIND] == "local" .And. aRecords[nI][VR_READS] == 0
+      AAdd(aUnread, aRecords[nI])
+    EndIf
+  Next
+  StableVars(aUnread)
+  For nI := 1 To Len(aUnread)
+    aV := aUnread[nI]
+    AAdd(aWarned, {aV[VR_LINE], If(aV[VR_WRITES] > 0, "'" + aV[VR_NAME] + "' is assigned but never read", ;
+                                   "'" + aV[VR_NAME] + "' is declared but never used")})
+  Next
+Return Nil
+
+Static Function StableVars(aList)
+  Local nI
+  Local nJ
+  Local aT
+  For nI := 2 To Len(aList)
+    nJ := nI
+    While nJ > 1 .And. aList[nJ - 1][VR_LINE] > aList[nJ][VR_LINE]
+      aT := aList[nJ]
+      aList[nJ] := aList[nJ - 1]
+      aList[nJ - 1] := aT
+      nJ--
+    EndDo
+  Next
+Return Nil
+
+Static Function Returns(aBody, nFline)
+  Local aAll := u_xcb_walk(aBody)
+  Local aValued := {}
+  Local aBare := {}
+  Local nI
+  Local aLast := Nil
+  Local aSt
+  Local nNext := -1
+  Local nEnd
+  Local lEndsWithout
+  Local cW0019 := "the function ends without a 'return': Protheus warns about it (W0019), and will refuse it"
+  Local nFirst
+  Local lModifiedReturn
+  For nI := 1 To Len(aAll)
+    If aAll[nI][N_KIND] == SK_RETURNSTMT
+      AAdd(If(aAll[nI][RET_VALUE] != Nil, aValued, aBare), aAll[nI])
+    EndIf
+  Next
+  For nI := Len(aBody) To 1 Step -1
+    aSt := aBody[nI]
+    If !(aSt[N_KIND] == SK_DECLARATION .And. aSt[DECL_SCOPE] == "static") .And. aSt[N_KIND] != SK_NOOPSTMT
+      aLast := aSt
+      Exit
+    EndIf
+  Next
+  For nI := 1 To Len(aEnds)
+    If aEnds[nI] > nFline
+      nNext := aEnds[nI]
+      Exit
+    EndIf
+  Next
+  nEnd := If(nNext >= 0, nNext - 1, If(nLines != 0, nLines, If(aLast != Nil .And. aLast[N_LINE] != 0, ;
+                                                                 aLast[N_LINE], nFline)))
+  lEndsWithout := aLast == Nil .Or. aLast[N_KIND] != SK_RETURNSTMT
+  If Len(aValued) == 0
+    If lEndsWithout
+      AAdd(aWarned, {nEnd, cW0019})
+    EndIf
+    Return Nil
+  EndIf
+  nFirst := aValued[1][N_LINE]
+  For nI := 1 To Len(aValued)
+    nFirst := Min(nFirst, aValued[nI][N_LINE])
+  Next
+  For nI := 1 To Len(aBare)
+    AAdd(aWarned, {aBare[nI][N_LINE], "this returns nothing, but the function returns a value on line " + N(nFirst)})
+  Next
+  lModifiedReturn := aLast != Nil .And. aLast[N_KIND] == SK_MODIFIED .And. aLast[MOD_STMT][N_KIND] == SK_RETURNSTMT
+  If lEndsWithout .And. !lModifiedReturn
+    AAdd(aWarned, {nEnd, "the function can reach its end without a return, but returns a value on line " + N(nFirst)})
+  ElseIf lEndsWithout
+    AAdd(aWarned, {nEnd, cW0019})
+  EndIf
+Return Nil
+
+// A 'then' chain that is all of a condition: 'If cS then Empty()' reads as
+// BASIC's 'If ... Then', and a reader can miss the chain.
+Static Function ThenCond(aCond, cWhere)
+  If aCond == Nil .Or. aCond[N_KIND] != EK_PIPELINE .Or. !aCond[PIPE_THEN]
+    Return Nil
+  EndIf
+  AAdd(aWarned, {If(aCond[N_LINE] > 0, aCond[N_LINE], nLine), "the condition of " + cWhere + " is a 'then' chain, " ;
+                 + "which reads as 'if ... then': write '|>' there, or put the chain in parentheses"})
+Return Nil
+
+// ---- scopes -----------------------------------------------------------------
+// A name the AppServer reads as a keyword written short.
+Static Function KeywordName(cName, nAt)
+  Local cK := ShortKeyword(cName)
+  Local cSeen := N(nAt) + " " + Lc(cName)
+  Local cCode
+  Local cWhat
+  // A reserved word xc refuses as a name already.
+  If cK == "" .Or. u_xcb_isreserved(cName) .Or. (hKeywordSeen has cSeen)
+    Return Nil
+  EndIf
+  hKeywordSeen{cSeen} := .T.
+  cCode := If(cK == "local", "C9907 Invalid use of reserved word LOCAL", "C2003 Syntax Error")
+  cWhat := If(Len(cName) == Len(cK), "the AppServer's keyword " + Uc(cK) + ", and it refuses the line", ;
+              Uc(cK) + " written short: the AppServer reads a name of 4 letters or more that begins one of " ;
+              + "its keywords as the keyword, and refuses the line")
+  AAdd(aFound, {nAt, "'" + cName + "' is " + cWhat + " (" + '"' + cCode + '"' + ", tried on 24.3.1.9). Give it " ;
+                     + "another name."})
+Return Nil
+
+// A function of the file named as one of the AppServer's language.
+Static Function LanguageName(cName, nAt)
+  If !Among(Lc(cName), cLanguageFunctions)
+    Return Nil
+  EndIf
+  AAdd(aFound, {nAt, "'" + cName + "' is a function of the AppServer's language, and it refuses a function of " ;
+                     + "that name (" + '"' + "C2022 Redefinition of language function " + Uc(cName) + '"' ;
+                     + "). Give it another name."})
+Return Nil
+
+Static Function DeclareName(cName, nAt, aAttributes, cKind, lWritten)
+  Local cK := Lc(cName)
+  Local aV
+  KeywordName(cName, nAt)
+  If aScope[SC_NAMES] has cK
+    If cKind == "block-param"
+      AAdd(aWarned, {nAt, "'" + cName + "' is a parameter of this block twice: the AppServer takes it, and '" ;
+                          + cName + "' is the argument in the last of its places"})
+    ElseIf aScope[SC_OUTER] != Nil
+      AAdd(aFound, {nAt, "'" + cName + "' is already declared in this block."})
+    Else
+      aV := aScope[SC_NAMES]{cK}
+      AAdd(aWarned, {nAt, "'" + cName + "' is declared again (first on line " + N(aV[VR_LINE]) ;
+                          + "): the same variable -- a value assigns it, none leaves it as it was. " ;
+                          + "The AppServer warns too (W0011, " + '"' + "Variable " + Uc(cName) + " redefined" + '")'})
+      If lWritten
+        aV[VR_WRITES]++
+      EndIf
+    EndIf
+    Return Nil
+  EndIf
+  aV := {cName, nAt, cKind, 0, If(lWritten, 1, 0), Has(aAttributes, "const"), Has(aAttributes, "contained"), "", ""}
+  aScope[SC_NAMES]{cK} := aV
+  AAdd(aRecords, aV)
+  If hRetired has cK
+    hRetired:Del(cK)
+  EndIf
+Return Nil
+
+// A name's declaration -- {var, captured, escaped} -- or Nil.
+Static Function FindName(cK)
+  Local lCrossed := .F.
+  Local lEscaped := .F.
+  Local aSc := aScope
+  While aSc != Nil
+    If aSc[SC_NAMES] has cK
+      Return {aSc[SC_NAMES]{cK}, lCrossed, lEscaped}
+    EndIf
+    lCrossed := lCrossed .Or. aSc[SC_CLOSURE]
+    lEscaped := lEscaped .Or. (aSc[SC_CLOSURE] .And. aSc[SC_ESCAPES])
+    aSc := aSc[SC_OUTER]
+  EndDo
+Return Nil
+
+Static Function Exempt(cName)
+  Local cK := Lc(cName)
+Return Among(cK, cKnown) .Or. u_xcb_isreserved(cName) .Or. u_xcb_isgenerated(cName) .Or. (hExternals has cK) ;
+       .Or. (hDefines has cK) .Or. (hPrivates has cK) .Or. (hStatics has cK)
+
+// ---- names ------------------------------------------------------------------
+Static Function Leaves(aV, cName, lHow)
+  If aV[VR_CONTAINED] .And. lHow
+    Problem("'" + cName + "' is <contained> (declared on line " + N(aV[VR_LINE]) + ") and cannot leave its block.")
+  EndIf
+Return Nil
+
+// A parameter a code block uses, where the block leaves its function --
+// returned, or kept in a variable, an array, a hash: the AppServer's block
+// sees the parameter of its function's last call, not of the call that made
+// it (24.3.1.9). xc's machines keep each call's.
+Static Function ParamInBlock(aF, cName)
+  Local cK
+  If lBytecode .Or. !aF[FD_ESCAPED] .Or. !(aF[FD_VAR][VR_KIND] == "param")
+    Return Nil
+  EndIf
+  cK := "param-block " + Lc(cName) + " " + N(aF[FD_VAR][VR_LINE])
+  If hWarnedNames has cK
+    Return Nil
+  EndIf
+  hWarnedNames{cK} := .T.
+  Warning("'" + cName + "', a parameter, is used in a code block that leaves the function: on the AppServer the " ;
+          + "block sees the parameter of the function's last call, not of the call that made it -- copy it into a " ;
+          + "Local, and use that")
+Return Nil
+
+// The blocks a value leaves its function in: the value itself, what an array
+// or a hash of it holds.
+Static Function Escaping(aV)
+  Local nI
+  If aV == Nil
+    Return Nil
+  EndIf
+  If IsCodeBlock(aV)
+    hEscaping{aV[N_ID]} := .T.
+  ElseIf IsK(aV, EK_ARRAYLIT)
+    For nI := 1 To Len(aV[ARR_ITEMS])
+      Escaping(aV[ARR_ITEMS][nI])
+    Next
+  ElseIf IsK(aV, EK_HASHLIT)
+    For nI := 1 To Len(aV[HASH_PAIRS])
+      Escaping(aV[HASH_PAIRS][nI][KV_VALUE])
+    Next
+  EndIf
+Return Nil
+
+// Every block a body returns or keeps.
+Static Function EscapingIn(aBody)
+  Local aAll := u_xcb_walk(aBody)
+  Local nI
+  Local nJ
+  Local nX
+  Local aSt
+  Local aEs
+  Local aXs
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    Do Case
+      Case aSt[N_KIND] == SK_ASSIGNMENT
+        Escaping(aSt[ASG_VALUE])
+      Case aSt[N_KIND] == SK_RETURNSTMT
+        Escaping(aSt[RET_VALUE])
+      Case aSt[N_KIND] == SK_DECLARATION
+        For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+          Escaping(aSt[DECL_DECLARATORS][nJ][DCL_INIT])
+        Next
+    EndCase
+    aEs := u_xcb_exprsof(aSt)
+    For nJ := 1 To Len(aEs)
+      aXs := u_xcb_walkexpr(aEs[nJ])
+      For nX := 1 To Len(aXs)
+        If aXs[nX][N_KIND] == EK_ASSIGNEXPR
+          Escaping(aXs[nX][AE_VALUE])
+        EndIf
+      Next
+    Next
+  Next
+Return Nil
+
+Static Function ReadName(cName)
+  Local cK := Lc(cName)
+  Local aF := FindName(cK)
+  If aF != Nil
+    aF[FD_VAR][VR_READS]++
+    Leaves(aF[FD_VAR], cName, aF[FD_CAPTURED] .Or. lInDefer)
+    ParamInBlock(aF, cName)
+    Return Nil
+  EndIf
+  If hRetired has cK
+    Problem("'" + cName + "' is out of scope here (block local declared on line " + N(hRetired{cK}) + ").")
+    Return Nil
+  EndIf
+  If hStaticUses has cK
+    hStaticUses{cK}[SU_READS]++
+    Return Nil
+  EndIf
+  If Exempt(cName) .Or. (hImplicit has cK)
+    Return Nil
+  EndIf
+  If !(hWarnedNames has ("read " + cK))
+    hWarnedNames{"read " + cK} := .T.
+    Warning("'" + cName + "' is not declared")
+  EndIf
+Return Nil
+
+Static Function WriteName(cName, lReads)
+  Local cK := Lc(cName)
+  Local aF := FindName(cK)
+  Local aU
+  If aF != Nil
+    If lReads
+      aF[FD_VAR][VR_READS]++
+    Else
+      aF[FD_VAR][VR_WRITES]++
+    EndIf
+    If aF[FD_VAR][VR_CONST]
+      Problem("'" + cName + "' is <const> (declared on line " + N(aF[FD_VAR][VR_LINE]) + ") and cannot be assigned.")
+    EndIf
+    Leaves(aF[FD_VAR], cName, aF[FD_CAPTURED] .Or. lInDefer)
+    ParamInBlock(aF, cName)
+    Return Nil
+  EndIf
+  If hRetired has cK
+    Problem("'" + cName + "' is out of scope here (block local declared on line " + N(hRetired{cK}) + ").")
+    Return Nil
+  EndIf
+  If hExternals has cK
+    Problem("'" + cName + "' is external (line " + N(hExternals{cK}) + ") and cannot be assigned.")
+    Return Nil
+  EndIf
+  If hStaticUses has cK
+    aU := hStaticUses{cK}
+    If aU[SU_CONST]
+      Problem("'" + cName + "' is <const> (declared on line " + N(hStatics{cK}) + ") and cannot be assigned.")
+    EndIf
+    If lReads
+      aU[SU_READS]++
+    Else
+      aU[SU_WRITES]++
+    EndIf
+    Return Nil
+  EndIf
+  If Exempt(cName) .Or. (hImplicit has cK)
+    Return Nil
+  EndIf
+  hImplicit{cK} := .T.
+  If !(hWarnedNames has ("write " + cK))
+    hWarnedNames{"write " + cK} := .T.
+    Warning("'" + cName + "' is not declared, so this creates a PRIVATE")
+  EndIf
+Return Nil
+
+Static Function ByRef(cName)
+  Local aF := FindName(Lc(cName))
+  If aF != Nil
+    aF[FD_VAR][VR_READS]++
+    // What it is given may be Nil.
+    aF[FD_VAR][VR_START] := ""
+    If aF[FD_VAR][VR_CONST]
+      Problem("'" + cName + "' is <const> (declared on line " + N(aF[FD_VAR][VR_LINE]) ;
+              + ") and cannot be passed by reference with '@'.")
+    EndIf
+    Leaves(aF[FD_VAR], cName, .T.)
+    Return Nil
+  EndIf
+  ReadName(cName)
+Return Nil
+
+Static Function BlockArg(cVerb, aE)
+  Local cN
+  Local cK
+  If !(u_xcb_takesblock(Lc(cVerb)) .And. IsK(aE, EK_NAME))
+    CheckExpr(aE)
+    Return Nil
+  EndIf
+  cN := NameOf(aE)
+  cK := Lc(cN)
+  If FindName(cK) != Nil .Or. (hRetired has cK) .Or. Exempt(cN)
+    ReadName(cN)
+  EndIf
+Return Nil
+
+// ---- statements -------------------------------------------------------------
+Static Function CheckBody(aStmts)
+  Local aPriv := Nil
+  Local nI
+  Local aSt
+  For nI := 1 To Len(aStmts)
+    aSt := aStmts[nI]
+    If aSt[N_KIND] == SK_DECLARATION
+      If aSt[DECL_SCOPE] == "private" .Or. aSt[DECL_SCOPE] == "public"
+        If aPriv == Nil
+          aPriv := aSt
+        EndIf
+      ElseIf aSt[DECL_SCOPE] == "local" .And. aPriv != Nil
+        nLine := aSt[N_LINE]
+        Problem("'local' after '" + aPriv[DECL_SCOPE] + "' (line " + N(aPriv[N_LINE]) + "): a private or a public " ;
+                + "is a statement, and every local comes before the first statement.")
+      EndIf
+    EndIf
+    CheckStmt(aSt)
+  Next
+Return Nil
+
+Static Function FileStatics(aStmts, aStatics)
+  Local nI
+  Local nJ
+  Local aSt
+  Local aBodies
+  For nI := 1 To Len(aStmts)
+    aSt := aStmts[nI]
+    If aSt[N_KIND] == SK_DECLARATION .And. aSt[DECL_SCOPE] == "static"
+      hStaticDecls{aSt[N_ID]} := .T.
+      For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+        AAdd(aStatics, aSt[DECL_DECLARATORS][nJ])
+      Next
+    EndIf
+    aBodies := u_xcb_bodiesof(aSt)
+    For nJ := 1 To Len(aBodies)
+      FileStatics(aBodies[nJ], aStatics)
+    Next
+  Next
+Return Nil
+
+Static Function FileStatic(aD)
+  Local cK := Lc(aD[DCL_NAME])
+  If hStatics has cK
+    AAdd(aWarned, {aD[N_LINE], "'" + aD[DCL_NAME] + "' is already a static of this file (line " + N(hStatics{cK}) ;
+                               + "): both are one variable, which starts with the last value given in the file"})
+    Return Nil
+  EndIf
+  hStatics{cK} := aD[N_LINE]
+  hStaticUses{cK} := {aD[DCL_NAME], 0, If(aD[DCL_INIT] != Nil, 1, 0), Has(aD[DCL_ATTRS], "const")}
+  AAdd(aStaticOrder, cK)
+Return Nil
+
+// A static's value names a parameter or a local: Nil there, at load.
+Static Function StaticValue(aD)
+  Local hSaid := { => }
+  StaticLook(aD[DCL_INIT], aD, hSaid)
+Return Nil
+
+Static Function StaticLook(aE, aD, hSaid)
+  Local cN
+  Local aF
+  Local cKind
+  Local aSub
+  Local nI
+  If aE == Nil .Or. IsCodeBlock(aE)
+    Return Nil
+  EndIf
+  If IsK(aE, EK_NAME)
+    cN := NameOf(aE)
+    aF := FindName(Lc(cN))
+    If aF != Nil
+      cKind := aF[FD_VAR][VR_KIND]
+      If (cKind == "param" .Or. cKind == "local" .Or. cKind == "loop") .And. !(hSaid has Lc(cN))
+        hSaid{Lc(cN)} := .T.
+        AAdd(aWarned, {aD[N_LINE], "'" + cN + "' is a " + If(cKind == "param", "parameter", "local") ;
+                                   + ": a static takes its value once, at load, when '" + cN ;
+                                   + "' does not exist -- it is Nil there"})
+      EndIf
+    EndIf
+  EndIf
+  aSub := u_xcb_subexprs(aE)
+  For nI := 1 To Len(aSub)
+    StaticLook(aSub[nI], aD, hSaid)
+  Next
+Return Nil
+
+Static Function StaticNeverRead()
+  Local aK := AClone(aStaticOrder)
+  Local nI
+  Local nJ
+  Local cT
+  Local aU
+  // A stable sort by the line each is declared on.
+  For nI := 2 To Len(aK)
+    nJ := nI
+    While nJ > 1 .And. hStatics{aK[nJ - 1]} > hStatics{aK[nJ]}
+      cT := aK[nJ]
+      aK[nJ] := aK[nJ - 1]
+      aK[nJ - 1] := cT
+      nJ--
+    EndDo
+  Next
+  For nI := 1 To Len(aK)
+    aU := hStaticUses{aK[nI]}
+    If aU[SU_READS] > 0
+      Loop
+    EndIf
+    AAdd(aWarned, {hStatics{aK[nI]}, If(aU[SU_WRITES] > 0, "'" + aU[SU_NAME] + "' is assigned but never read", ;
+                                        "'" + aU[SU_NAME] + "' is declared but never used")})
+  Next
+Return Nil
+
+// A block's own scope: opened, and closed -- its names, gone after, are
+// retired: out of scope.
+Static Function OpenBlock()
+  Local aOuter := aScope
+  aScope := NewScope(aOuter, .F.)
+Return aOuter
+
+Static Function CloseBlock(aOuter)
+  Local aInner := aScope
+  Local aK
+  Local nI
+  aScope := aOuter
+  aK := keys(aInner[SC_NAMES])
+  For nI := 1 To Len(aK)
+    If FindName(aK[nI]) == Nil
+      hRetired{aK[nI]} := aInner[SC_NAMES]{aK[nI]}[VR_LINE]
+    EndIf
+  Next
+Return Nil
+
+Static Function CheckStmt(aSt)
+  Local nK := aSt[N_KIND]
+  Local cKw
+  Local aWhole := {}
+  Local nI
+  Local nJ
+  Local aW
+  Local lHashTarget
+  Local aG
+  Local aOuter
+  Local aD
+  Local cTw
+  Local aT
+  Local aF
+  Local aB
+  Local lSaved
+  Local cL
+  Local cU
+  Local nA
+  Local nQ
+  Local nE
+  If aSt[N_LINE] != 0
+    nLine := aSt[N_LINE]
+  EndIf
+  hSourcesOk := { => }
+  hChainsOk := { => }
+  If aSt[S_ONELINE]
+    // A one-line form inside another's branch is in parentheses; one over
+    // lines() is a block, which closes the file on every way out.
+    cKw := If(nK == SK_IFSTMT, "if", If(nK == SK_WHILESTMT, "while", "for"))
+    If aSt[S_BARE]
+      Problem("a one-line '" + cKw + "' inside another goes in parentheses: 'if a exec (if b exec x else y), z'.")
+    EndIf
+    If nK == SK_FORINSTMT .And. IsK(aSt[FIN_SOURCE], EK_CALL) .And. u_xcb_sourcekind(aSt[FIN_SOURCE]) == "lines"
+      Problem("a 'for ... in lines()' on one line is refused: write the block, which closes the file on every way " ;
+              + "out.")
+    EndIf
+  EndIf
+  // The rule for rows(), lines() and 'lo..hi': where a chain from one may
+  // be, and the source alone.
+  Do Case
+    Case nK == SK_ASSIGNMENT
+      If aSt[ASG_OP] == ":="
+        AAdd(aWhole, aSt[ASG_VALUE])
+      EndIf
+    Case nK == SK_RETURNSTMT
+      If aSt[RET_VALUE] != Nil
+        AAdd(aWhole, aSt[RET_VALUE])
+      EndIf
+    Case nK == SK_CALLSTMT
+      AAdd(aWhole, aSt[CS_CALL])
+    Case nK == SK_DECLARATION
+      If aSt[DECL_SCOPE] == "local" .Or. aSt[DECL_SCOPE] == "private" .Or. aSt[DECL_SCOPE] == "public"
+        For nI := 1 To Len(aSt[DECL_DECLARATORS])
+          If aSt[DECL_DECLARATORS][nI][DCL_INIT] != Nil
+            AAdd(aWhole, aSt[DECL_DECLARATORS][nI][DCL_INIT])
+          EndIf
+        Next
+      EndIf
+    Case nK == SK_FORINSTMT
+      AAdd(aWhole, aSt[FIN_SOURCE])
+  EndCase
+  For nI := 1 To Len(aWhole)
+    aW := aWhole[nI]
+    If IsK(aW, EK_CALL)
+      hSourcesOk{aW[N_ID]} := .T.
+    EndIf
+    If IsK(aW, EK_PIPELINE)
+      hChainsOk{aW[N_ID]} := .T.
+    EndIf
+  Next
+  // A guard that is the whole value of 'x := ...', of a declaration (but a
+  // static's) or of 'return' runs as statements: a chain under it is a
+  // statement's, and fuses.
+  lHashTarget := nK == SK_ASSIGNMENT .And. IsK(aSt[ASG_TARGET], EK_HASHINDEX)
+  If (nK == SK_ASSIGNMENT .Or. nK == SK_RETURNSTMT .Or. nK == SK_DECLARATION) .And. !lHashTarget
+    For nI := 1 To Len(aWhole)
+      aW := aWhole[nI]
+      If !IsK(aW, EK_GUARD)
+        Loop
+      EndIf
+      hStmtGuards{aW[N_ID]} := .T.
+      aG := aW[GRD_EXPR]
+      If IsK(aG, EK_PIPELINE)
+        hChainAt{aG[N_ID]} := "statement"
+      EndIf
+    Next
+  EndIf
+  Do Case
+    Case nK == SK_CALLSTMT
+      If IsK(aSt[CS_CALL], EK_PIPELINE)
+        hChainAt{aSt[CS_CALL][N_ID]} := "effect"
+      EndIf
+    Case nK == SK_ASSIGNMENT
+      If IsK(aSt[ASG_VALUE], EK_PIPELINE)
+        hChainAt{aSt[ASG_VALUE][N_ID]} := "statement"
+      EndIf
+    Case nK == SK_RETURNSTMT
+      If IsK(aSt[RET_VALUE], EK_PIPELINE)
+        hChainAt{aSt[RET_VALUE][N_ID]} := "statement"
+      EndIf
+  EndCase
+
+  Do Case
+    Case nK == SK_DECLARATION
+      For nI := 1 To Len(aSt[DECL_DECLARATORS])
+        aD := aSt[DECL_DECLARATORS][nI]
+        aW := u_xcb_words(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC]))
+        cTw := u_xcb_typeword(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC]))
+        TypeWord(If(cTw == "", Nil, cTw), aD[N_LINE], .T.)
+        Agrees(aD)
+        If (hStaticDecls has aSt[N_ID]) .And. aD[DCL_INIT] != Nil
+          StaticValue(aD)
+        EndIf
+        lInStatic := hStaticDecls has aSt[N_ID]
+        If aD[DCL_INIT] != Nil
+          CheckExpr(aD[DCL_INIT])
+        EndIf
+        lInStatic := .F.
+        For nJ := 1 To Len(aD[DCL_DIMS])
+          CheckExpr(aD[DCL_DIMS][nJ])
+        Next
+        // A Private or a Public is the program's while it runs, not its
+        // block's: one declared in an If is there after the EndIf.
+        If aSt[DECL_SCOPE] == "private" .Or. aSt[DECL_SCOPE] == "public" .Or. (hStaticDecls has aSt[N_ID])
+          KeywordName(aD[DCL_NAME], aD[N_LINE])
+          Loop
+        EndIf
+        DeclareName(aD[DCL_NAME], aD[N_LINE], aD[DCL_ATTRS], "local", aD[DCL_INIT] != Nil)
+        NoteScalar(aD)
+        aT := If(Len(aW) > 1, TypedStart(aW[2]), Nil)
+        If aT != Nil .And. aD[DCL_INIT] == Nil .And. Len(aD[DCL_DIMS]) == 0 .And. aSt[DECL_SCOPE] == "local"
+          aF := FindName(Lc(aD[DCL_NAME]))
+          If aF != Nil .And. aF[FD_VAR][VR_LINE] == aD[N_LINE]
+            aF[FD_VAR][VR_TYPE] := aT[1]
+            aF[FD_VAR][VR_START] := aT[2]
+          EndIf
+        EndIf
+      Next
+    Case nK == SK_ASSIGNMENT
+      // A field assigned a literal: the dictionary's to judge, and there is
+      // none here.
+      CheckExpr(aSt[ASG_VALUE])
+      If aSt[ASG_OP] == "?="
+        NeverNil(aSt[ASG_TARGET], aSt[ASG_OP])
+      EndIf
+      CheckTarget(aSt[ASG_TARGET], aSt[ASG_OP])
+    Case nK == SK_CALLSTMT
+      CheckExpr(aSt[CS_CALL])
+    Case nK == SK_RETURNSTMT
+      If aSt[RET_VALUE] != Nil
+        CheckExpr(aSt[RET_VALUE])
+      EndIf
+    Case nK == SK_IFSTMT
+      aD := aSt[IF_HEADER]
+      If aD != Nil
+        CheckExpr(aD[DCL_INIT])
+        Agrees(aD)
+      EndIf
+      aOuter := OpenBlock()
+      If aD != Nil
+        DeclareName(aD[DCL_NAME], aD[N_LINE], aD[DCL_ATTRS], "local", .T.)
+      EndIf
+      For nI := 1 To Len(aSt[IF_BRANCHES])
+        aB := aSt[IF_BRANCHES][nI]
+        ThenCond(aB[BR_COND], If(nI == 1, "an 'if'", "an 'elseif'"))
+        CheckExpr(aB[BR_COND])
+        CheckBody(aB[BR_BODY])
+      Next
+      CheckBody(aSt[IF_OTHERWISE])
+      CloseBlock(aOuter)
+    Case nK == SK_WHILESTMT
+      aD := aSt[WH_HEADER]
+      If aD != Nil
+        CheckExpr(aD[DCL_INIT])
+        Agrees(aD)
+      EndIf
+      aOuter := OpenBlock()
+      If aD != Nil
+        DeclareName(aD[DCL_NAME], aD[N_LINE], aD[DCL_ATTRS], "local", .T.)
+      EndIf
+      ThenCond(aSt[WH_COND], "a 'while'")
+      CheckExpr(aSt[WH_COND])
+      CheckBody(aSt[WH_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_FORSTMT
+      CheckExpr(aSt[FOR_FROM])
+      CheckExpr(aSt[FOR_TO])
+      CheckExpr(aSt[FOR_STEP])
+      If !aSt[FOR_VARLOCAL]
+        WriteName(aSt[FOR_VAR], .T.)
+      EndIf
+      aOuter := OpenBlock()
+      If aSt[FOR_VARLOCAL]
+        DeclareName(aSt[FOR_VAR], aSt[N_LINE], {}, "loop", .F.)
+      EndIf
+      CheckBody(aSt[FOR_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_FORINSTMT
+      If IsK(aSt[FIN_SOURCE], EK_CALL) .And. Lc(aSt[FIN_SOURCE][CALL_NAME]) == "rows"
+        Problem("'for ... in' over rows() is not supported: a loop body can move the table's position, " ;
+                + "and 'loop' would skip the advance. Walk the area with a chain -- " ;
+                + "rows(" + '"SA1"' + ") |> tap([r] ...) -- or write the While loop yourself.")
+      EndIf
+      CheckExpr(aSt[FIN_SOURCE])
+      aOuter := OpenBlock()
+      DeclareName(aSt[FIN_ELEM], aSt[N_LINE], {}, "loop", .F.)
+      If aSt[FIN_INDEX] != Nil
+        DeclareName(aSt[FIN_INDEX], aSt[N_LINE], {}, "loop", .F.)
+      EndIf
+      CheckBody(aSt[FIN_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_FORTIMESSTMT
+      CheckExpr(aSt[FT_COUNT])
+      aOuter := OpenBlock()
+      CheckBody(aSt[FT_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_CASESTMT
+      aD := aSt[CASE_SUBJDECL]
+      If aD != Nil
+        CheckExpr(aD[DCL_INIT])
+        Agrees(aD)
+      EndIf
+      If aSt[CASE_SUBJASSIGN] != Nil
+        CheckExpr(aSt[CASE_SUBJASSIGN][ASG_VALUE])
+        CheckTarget(aSt[CASE_SUBJASSIGN][ASG_TARGET], aSt[CASE_SUBJASSIGN][ASG_OP])
+      EndIf
+      aOuter := OpenBlock()
+      If aD != Nil
+        DeclareName(aD[DCL_NAME], aD[N_LINE], aD[DCL_ATTRS], "local", .T.)
+      EndIf
+      For nI := 1 To Len(aSt[CASE_BRANCHES])
+        aB := aSt[CASE_BRANCHES][nI]
+        ThenCond(aB[BR_COND], "a 'case'")
+        CheckExpr(aB[BR_COND])
+        CheckBody(aB[BR_BODY])
+      Next
+      CheckBody(aSt[CASE_OTHERWISE])
+      CloseBlock(aOuter)
+    Case nK == SK_SEQUENCESTMT
+      aOuter := OpenBlock()
+      CheckBody(aSt[SEQ_BODY])
+      CloseBlock(aOuter)
+      If aSt[SEQ_ERRVAR] != Nil .And. !lBytecode
+        // Probes xdp to xdr, on 24.3.1.9, in TL++ and AdvPL alike: inside, the
+        // function's Locals are Nil, and they come back untouched.
+        AAdd(aWarned, {If(aSt[SEQ_RECLINE] != 0, aSt[SEQ_RECLINE], nLine), ;
+                       "'Recover Using " + aSt[SEQ_ERRVAR] + "': the AppServer runs this Recover with every " ;
+                       + "Local Nil but " + aSt[SEQ_ERRVAR] + ", and gives the function's back as they were at " ;
+                       + "End Sequence -- nothing assigned there stays, " + aSt[SEQ_ERRVAR] + " included. A " ;
+                       + "plain Recover has the function's Locals; the Break's value can go in a Static first"})
+      EndIf
+      If aSt[SEQ_ERRVAR] != Nil
+        WriteName(aSt[SEQ_ERRVAR], .F.)
+      EndIf
+      aOuter := OpenBlock()
+      CheckBody(aSt[SEQ_RECOVER])
+      CloseBlock(aOuter)
+    Case nK == SK_TRYSTMT
+      aOuter := OpenBlock()
+      CheckBody(aSt[TRY_BODY])
+      CloseBlock(aOuter)
+      If aSt[TRY_ERRVAR] != Nil
+        WriteName(aSt[TRY_ERRVAR], .F.)
+      EndIf
+      aOuter := OpenBlock()
+      CheckBody(aSt[TRY_HANDLER])
+      CloseBlock(aOuter)
+      aOuter := OpenBlock()
+      CheckBody(aSt[TRY_FINALLY])
+      CloseBlock(aOuter)
+    Case nK == SK_TRANSACTIONSTMT
+      aOuter := OpenBlock()
+      CheckBody(aSt[TX_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_BREAKSTMT
+      If aSt[BRK_EMPTYCALL]
+        Problem(cBreakEmpty)
+      EndIf
+      If aSt[BRK_VALUE] != Nil
+        CheckExpr(aSt[BRK_VALUE])
+      EndIf
+    Case nK == SK_NOOPSTMT
+      cL := aSt[NOOP_WORD]
+      Warning(If(Lc(cL) == "default", ;
+                 "'" + cL + "' is no label of Do Case's -- 'Otherwise' is: the AppServer takes it as a name on its " ;
+                 + "own, the line does nothing (W0001), and the lines after it belong to the case before", ;
+                 "'" + cL + "' is no TL++ keyword: the AppServer takes it as a name on its own, " ;
+                 + "and the line does nothing (W0001)"))
+    Case nK == SK_DEFAULTSTMT
+      For nI := 1 To Len(aSt[DFL_PAIRS])
+        CheckExpr(aSt[DFL_PAIRS][nI][ASG_VALUE])
+        CheckTarget(aSt[DFL_PAIRS][nI][ASG_TARGET], "+=")
+      Next
+    Case nK == SK_USINGALIAS
+      If aSt[UA_ORDER] != Nil
+        CheckExpr(aSt[UA_ORDER])
+      EndIf
+      If FindName(Lc(aSt[UA_AREA])) != Nil
+        ReadName(aSt[UA_AREA])
+      Else
+        hOpened{Uc(aSt[UA_AREA])} := .T.
+      EndIf
+      aOuter := OpenBlock()
+      CheckBody(aSt[UA_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_WITHOBJECT
+      CheckExpr(aSt[WO_SUBJECT])
+      aOuter := OpenBlock()
+      CheckBody(aSt[WO_BODY])
+      CloseBlock(aOuter)
+    Case nK == SK_MODIFIED
+      ThenCond(aSt[MOD_COND], "a postfix '" + Lc(aSt[MOD_OP]) + "'")
+      CheckExpr(aSt[MOD_COND])
+      CheckStmt(aSt[MOD_STMT])
+    Case nK == SK_DEFERRED
+      lSaved := lInDefer
+      lInDefer := .T.
+      CheckStmt(aSt[DEF_STMT])
+      lInDefer := lSaved
+    Case nK == SK_RAWSTMT
+      cL := If(Len(aSt[RAW_LINES]) == 0, "", u_xcb_trim(aSt[RAW_LINES][1]))
+      If RawStarts(cL, "tcquery") .Or. RawStarts(cL, "beginsql")
+        // 'TCQUERY ... ALIAS "QRY"', 'BeginSql Alias "QRY"': the area is
+        // opened here.
+        cU := Lc(cL)
+        nA := At(" alias ", cU)
+        If nA > 0
+          nQ := nA + 7
+          While nQ <= Len(cL) .And. (SubStr(cL, nQ, 1) == " " .Or. SubStr(cL, nQ, 1) == Chr(9))
+            nQ++
+          EndDo
+          If nQ <= Len(cL) .And. (SubStr(cL, nQ, 1) == '"' .Or. SubStr(cL, nQ, 1) == "'")
+            nE := At(SubStr(cL, nQ, 1), cL, nQ + 1)
+            If nE > 0
+              hOpened{Uc(SubStr(cL, nQ + 1, nE - nQ - 1))} := .T.
+            EndIf
+          EndIf
+        EndIf
+      EndIf
+      If !lTcqueryOk .And. RawStarts(cL, "tcquery")
+        Problem("'" + Left(cL, 7) + "' is a command of topconn.ch, which this file does not include: " ;
+                + "without it the AppServer refuses the line (" + '"C2003 Syntax Error"' + ").")
+      EndIf
+      For nI := 1 To Len(aSt[RAW_LINES])
+        RawReads(aSt[RAW_LINES][nI])
+      Next
+  EndCase
+Return Nil
+
+// A raw line that starts with a word, whole.
+Static Function RawStarts(cL, cW)
+  Local nN := Len(cW)
+Return Len(cL) >= nN .And. Lc(Left(cL, nN)) == cW .And. (Len(cL) == nN .Or. !u_xcb_isw(Asc(SubStr(cL, nN + 1, 1))))
+
+Static Function CheckTarget(aT, cOp)
+  If IsK(aT, EK_NAME)
+    WriteName(NameOf(aT), !(cOp == ":=" .Or. cOp == "="))
+  Else
+    CheckExpr(aT)
+  EndIf
+Return Nil
+
+// A '?:' on a name, or a '?=' to it, declared with a type and no value, and
+// not assigned since: TL++ started it at its type's value, not Nil.
+Static Function NeverNil(aE, cOp)
+  Local cName
+  Local aF
+  If !IsK(aE, EK_NAME) .Or. lInStatic .Or. lAdvpl
+    Return Nil
+  EndIf
+  cName := NameOf(aE)
+  aF := FindName(Lc(cName))
+  If aF == Nil .Or. aF[FD_VAR][VR_START] == "" .Or. aF[FD_VAR][VR_WRITES] > 0
+    Return Nil
+  EndIf
+  Warning("'" + cName + "' is declared as " + aF[FD_VAR][VR_TYPE] + " with no value: TL++ starts it at " ;
+          + aF[FD_VAR][VR_START] + ", not Nil, so '" + cOp + "' " ;
+          + If(cOp == "?=", "never assigns it", "gives it and never its alternative") ;
+          + " (with no type it would start at Nil)")
+Return Nil
+
+// 'j:name' on a name declared as a JsonObject: the AppServer has no member
+// by name in one (probes xds and xdt, on 24.3.1.9).
+Static Function JsonMember(aM)
+  Local cN
+  If !IsK(aM[MEM_BASE], EK_NAME) .Or. !(hJson has Lc(NameOf(aM[MEM_BASE])))
+    Return Nil
+  EndIf
+  cN := NameOf(aM[MEM_BASE])
+  Warning("'" + cN + ":" + aM[MEM_NAME] + "': the AppServer has no member by name in a JsonObject -- " + '"' ;
+          + "invalid property " + Uc(aM[MEM_NAME]) + '"' + " -- its key is " + cN + '["' + aM[MEM_NAME] + '"]')
+Return Nil
+
+Static Function NoteScalar(aD)
+  Local cK := Lc(aD[DCL_NAME])
+  Local cType := If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC])
+  Local nI
+  Local aM
+  // typespec-text.subst(/:i ^ 'as' \s+ /, '').lc
+  If Len(cType) > 2 .And. Lc(Left(cType, 2)) == "as" .And. u_xcb_iss(Asc(SubStr(cType, 3, 1)))
+    nI := 3
+    While nI <= Len(cType) .And. u_xcb_iss(Asc(SubStr(cType, nI, 1)))
+      nI++
+    EndDo
+    cType := SubStr(cType, nI)
+  EndIf
+  cType := Lc(cType)
+  // A JsonObject: a JSON literal, JsonObject():New(), 'as JSON'.
+  aM := If(IsK(aD[DCL_INIT], EK_METHODCALL), aD[DCL_INIT], Nil)
+  If cType == "json" .Or. IsK(aD[DCL_INIT], EK_JSONLIT) ;
+     .Or. (aM != Nil .And. Lc(aM[MC_NAME]) == "new" .And. IsK(aM[MC_BASE], EK_CALL) ;
+           .And. Lc(aM[MC_BASE][CALL_NAME]) == "jsonobject")
+    hJson{cK} := .T.
+  ElseIf hJson has cK
+    hJson:Del(cK)
+  EndIf
+  If !(cType == "") .And. Among(cType, cScalarTypes)
+    hScalar{cK} := " -- it is declared 'as " + cType + "'"
+  ElseIf IsLiteral(aD[DCL_INIT]) .And. IsScalar(aD[DCL_INIT])
+    hScalar{cK} := " -- it was declared as " + aD[DCL_INIT][LIT_TEXT]
+  EndIf
+Return Nil
+
+// ---- expressions ------------------------------------------------------------
+Static Function CheckExpr(aE)
+  Local nK
+  Local lFieldCompare := .F.
+  Local cL
+  Local cR
+  Local aSub
+  Local nI
+  Local nJ
+  Local aOuter
+  Local aT
+  Local nSkip
+  Local aC
+  Local aSt
+  If aE == Nil
+    Return Nil
+  EndIf
+  nK := aE[N_KIND]
+  If nK == EK_NAME
+    ReadName(NameOf(aE))
+    Return Nil
+  EndIf
+  If nK == EK_LITERAL
+    If aE[LIT_TYPE] == "Character"
+      Unclosed(aE)
+    EndIf
+    Return Nil
+  EndIf
+  If nK == EK_SAFEMEMBER
+    JsonMember(aE)
+  EndIf
+  If nK == EK_BINARY
+    lFieldCompare := Among(aE[BIN_OP], cCompare) ;
+                     .And. (IsK(aE[BIN_LEFT], EK_ALIASFIELD) .Or. IsK(aE[BIN_RIGHT], EK_ALIASFIELD))
+    If aE[BIN_OP] == "?:"
+      NeverNil(aE[BIN_LEFT], aE[BIN_OP])
+    EndIf
+    // A number and a string, written as such, under arithmetic: TL++'s
+    // compiler refuses it (probe xdp: 1 + "a"); AdvPL's takes it.
+    If !lAdvpl .And. IsK(aE[BIN_LEFT], EK_LITERAL) .And. IsK(aE[BIN_RIGHT], EK_LITERAL) ;
+       .And. Among(aE[BIN_OP], "|+|-|*|/|%|^|**|")
+      cL := NumberOrString(aE[BIN_LEFT])
+      cR := NumberOrString(aE[BIN_RIGHT])
+      If !(cL == "") .And. !(cR == "") .And. !(cL == cR)
+        Problem("'" + aE[BIN_OP] + "' between a number and a string: TL++ refuses it -- " + '"' ;
+                + "Incompatible types between " + cL + " and " + cR + '"')
+      EndIf
+    EndIf
+  EndIf
+  If nK == EK_INDEX .Or. nK == EK_MEMBER .Or. nK == EK_METHODCALL .Or. (nK == EK_BINARY .And. !lFieldCompare)
+    If nK == EK_MEMBER
+      AfterMade(aE[MEM_BASE], ":" + aE[MEM_NAME])
+      JsonMember(aE)
+    ElseIf nK == EK_METHODCALL
+      AfterMade(aE[MC_BASE], ":" + aE[MC_NAME] + "()")
+      NoteMade(aE)
+    EndIf
+    aSub := u_xcb_subexprs(aE)
+    For nI := 1 To Len(aSub)
+      CheckExpr(aSub[nI])
+    Next
+    Return Nil
+  EndIf
+  If IsLiteral(aE) .And. aE[LIT_TYPE] == "Character"
+    Unclosed(aE)
+  EndIf
+  Do Case
+    Case nK == EK_USERTRANS
+      If aE[UT_BASE] != Nil
+        CheckExpr(aE[UT_BASE])
+      EndIf
+      RawReads(aE[UT_TEXT])
+    Case nK == EK_CODEBLOCK .Or. nK == EK_LAMBDA
+      aOuter := aScope
+      aScope := NewScope(aOuter, .T.)
+      aScope[SC_ESCAPES] := hEscaping has aE[N_ID]
+      For nI := 1 To Len(aE[CB_PARAMS])
+        DeclareName(aE[CB_PARAMS][nI], nLine, {}, "block-param", .F.)
+      Next
+      For nI := 1 To Len(aE[CB_BODY])
+        CheckExpr(aE[CB_BODY][nI])
+      Next
+      aScope := aOuter
+    Case nK == EK_INALIAS
+      AliasBase(aE[IA_BASE])
+    Case nK == EK_ALIASFIELD
+      AliasedField(aE)
+      AliasBase(aE[AF_BASE])
+      If aE[AF_MACRO] != Nil
+        CheckExpr(aE[AF_MACRO])
+      EndIf
+    Case nK == EK_REF
+      aT := aE[REF_TARGET]
+      If IsK(aT, EK_NAME)
+        ByRef(NameOf(aT))
+      Else
+        CheckExpr(aT)
+      EndIf
+    Case nK == EK_ASSIGNEXPR
+      CheckExpr(aE[AE_VALUE])
+      CheckTarget(aE[AE_TARGET], aE[AE_OP])
+    Case nK == EK_BINARY
+      // A field compared with a literal, either way round: the dictionary's
+      // to judge, and there is none here.
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        CheckExpr(aSub[nI])
+      Next
+    Case nK == EK_CALL
+      CheckCall(aE)
+      // StaticCall(SOURCE, Function, ...): a source's name and a function's,
+      // not variables.
+      nSkip := If(Lc(aE[CALL_NAME]) == "staticcall", 2, 0)
+      For nI := 1 To Len(aE[CALL_ARGS])
+        If nI <= nSkip .And. IsK(aE[CALL_ARGS][nI], EK_NAME)
+          Loop
+        EndIf
+        If nI == 1
+          CheckExpr(aE[CALL_ARGS][nI])
+        Else
+          BlockArg(aE[CALL_NAME], aE[CALL_ARGS][nI])
+        EndIf
+      Next
+    Case nK == EK_PIPELINE
+      Chain(aE)
+      CheckExpr(aE[PIPE_SOURCE])
+      For nI := 1 To Len(aE[PIPE_STAGES])
+        aSt := aE[PIPE_STAGES][nI]
+        For nJ := 1 To Len(aSt[CALL_ARGS])
+          BlockArg(aSt[CALL_NAME], aSt[CALL_ARGS][nJ])
+        Next
+      Next
+    Case nK == EK_GUARD
+      aC := SourceOf(aE[GRD_EXPR])
+      If aC != Nil
+        Problem("'fallback' cannot guard a walk over " + Lc(aC[CALL_NAME]) + "(). The guard needs an expression " ;
+                + "and a walk is a loop. Assign the chain first, then guard what uses it.")
+      EndIf
+      If IsK(aE[GRD_EXPR], EK_PIPELINE) .And. SourceOf(aE[GRD_EXPR]) != Nil
+        hChainsOk{aE[GRD_EXPR][N_ID]} := .T.
+      EndIf
+      If IsK(aE[GRD_EXPR], EK_PIPELINE) .And. !(hStmtGuards has aE[N_ID])
+        hGuarded{aE[GRD_EXPR][N_ID]} := .T.
+      EndIf
+      CheckExpr(aE[GRD_EXPR])
+      CheckExpr(aE[GRD_FALLBACK])
+    Otherwise
+      aSub := u_xcb_subexprs(aE)
+      For nI := 1 To Len(aSub)
+        CheckExpr(aSub[nI])
+      Next
+  EndCase
+Return Nil
+
+// A literal's letter for 'Incompatible types': N, C, or "".
+Static Function NumberOrString(aL)
+  Local cT := aL[LIT_TYPE]
+Return If(cT == "Numeric", "N", If(cT == "Character", "C", ""))
+
+// 'Name():M(...)', TL++'s form for an object of the class Name -- 'Name'
+// with no arguments.
+Static Function NoteMade(aM)
+  If IsK(aM[MC_BASE], EK_CALL) .And. Len(aM[MC_BASE][CALL_ARGS]) == 0
+    hMade{aM[MC_BASE][N_ID]} := .T.
+  EndIf
+Return Nil
+
+// A member or a method after 'Name():M(...)': TL++ takes nothing there
+// (tried on 24.3.1.9).
+Static Function AfterMade(aBase, cAfter)
+  Local aM
+  Local cMade
+  If lAdvpl .Or. !IsK(aBase, EK_METHODCALL)
+    Return Nil
+  EndIf
+  aM := aBase
+  If !IsK(aM[MC_BASE], EK_CALL) .Or. Len(aM[MC_BASE][CALL_ARGS]) > 0
+    Return Nil
+  EndIf
+  cMade := aM[MC_BASE][CALL_NAME] + "():" + aM[MC_NAME] + "()"
+  Problem("'" + cMade + "' makes an object, and TL++ takes nothing after it: '" + cAfter ;
+          + "' there is a syntax error to the AppServer (C2003). Keep the object in a variable first.")
+Return Nil
+
+Static Function CheckCall(aC)
+  Local cN := Lc(aC[CALL_NAME])
+  Local aArgs := aC[CALL_ARGS]
+  Local nI
+  Local nJ
+  Local cName
+  Local lIdent
+  Local lU
+  Local cPlain
+  Local aF
+  Local nGiven
+  Local nParams
+  Local cM
+  Local lWeb
+  // What the AppServer refused, in a .prw and a .tlpp (tried on 24.3.1.9).
+  If cN == "staticcall"
+    Warning("StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' " ;
+            + "authorization (C9909 " + '"' + "Staticall has a restrict use" + '")')
+  EndIf
+  If cN == "break" .And. Len(aArgs) == 0
+    Problem(cBreakEmpty)
+  EndIf
+  If cN == "freeobj" .And. Len(aArgs) > 0 .And. IsK(aArgs[1], EK_NAME) .And. Lc(NameOf(aArgs[1])) == "self"
+    Problem("FreeObj(" + NameOf(aArgs[1]) + "): the AppServer does not free the object a method runs in " ;
+            + "(C9910 " + '"' + "Free SELF object is not allowed" + '").')
+  EndIf
+  // An area opened here: DbSelectArea("SA1") and the like, and rows("SA1").
+  If Among(cN, cOpeners) .Or. cN == "rows"
+    For nI := 1 To Len(aArgs)
+      If !IsLiteral(aArgs[nI]) .Or. IsK(aArgs[nI], EK_INTERP) .Or. !(aArgs[nI][LIT_TYPE] == "Character")
+        Loop
+      EndIf
+      cName := Unquoted(aArgs[nI][LIT_TEXT])
+      lIdent := Len(cName) > 0 .And. u_xcb_isletter(Asc(cName))
+      nJ := 2
+      While lIdent .And. nJ <= Len(cName)
+        lIdent := u_xcb_isw(Asc(SubStr(cName, nJ, 1)))
+        nJ++
+      EndDo
+      If lIdent
+        hOpened{Uc(cName)} := .T.
+      EndIf
+    Next
+  EndIf
+  If (cN == "rows" .Or. cN == "lines") .And. !(hSourcesOk has aC[N_ID])
+    Problem("'" + cN + "()' is a source, and only reads at the head of a chain. Assign it, " ;
+            + "or feed it into stages with '|>'.")
+  EndIf
+  lU := StartsWith(cN, "u_")
+  cPlain := If(lU, SubStr(cN, 3), cN)
+  // A class of the file, called for its instance -- 'TransfArm():New()' --
+  // though a User Function has its name: an idiom of Protheus', which a
+  // file of a class compiles with a function of the same name.
+  If !lU .And. (hClasses has cN)
+    // In TL++ only 'Name():M(...)' makes an object: a class is no function
+    // (tried on 24.3.1.9).
+    If !lAdvpl .And. !(hMade has aC[N_ID])
+      Problem("'" + aC[CALL_NAME] + "' is a class: only '" + aC[CALL_NAME] + "():New(...)' makes an object of it " ;
+              + "-- a class is no function, and '" + aC[CALL_NAME] + "(" + If(Len(aArgs) == 0, "", "...") ;
+              + ")' fails when it runs (" + '"' + "cannot find function " + Uc(aC[CALL_NAME]) + " in AppMap" ;
+              + '").')
+    EndIf
+    Return Nil
+  EndIf
+  // A Web Function is found as 'w_' and its name, an Html Function as 'h_'
+  // (tried on 24.3.1.9): called by the plain name, it is not found.
+  If hFuncs has cN
+    aF := hFuncs{cN}
+    If aF[FU_KIND] == "web" .Or. aF[FU_KIND] == "html"
+      lWeb := aF[FU_KIND] == "web"
+      Problem("'" + aC[CALL_NAME] + "' is a " + If(lWeb, "Web Function", "Html Function") + " (line " ;
+              + N(aF[FU_LINE]) + "), so it is called as '" + If(lWeb, "w_", "h_") + aC[CALL_NAME] ;
+              + "' -- the compiler puts the prefix on the declaration.")
+      Return Nil
+    EndIf
+  EndIf
+  If hFuncs has cPlain
+    aF := hFuncs{cPlain}
+    If lU .And. aF[FU_KIND] == "static"
+      Problem("'" + aC[CALL_NAME] + "' -- " + aF[FU_NAME] + " is a static function in this file, so it is called " ;
+              + "by its plain name, without the 'u_'.")
+    ElseIf !lU .And. aF[FU_KIND] == "user"
+      Problem("'" + aC[CALL_NAME] + "' is a user function (line " + N(aF[FU_LINE]) + "), so it is called as " ;
+              + "'u_" + aC[CALL_NAME] + "' -- the compiler puts the prefix on the declaration.")
+    EndIf
+  EndIf
+  aF := If(hFuncs has cN, hFuncs{cN}, If(hFuncs has cPlain, hFuncs{cPlain}, Nil))
+  If aF == Nil
+    Return Nil
+  EndIf
+  nGiven := 0
+  For nI := 1 To Len(aArgs)
+    If !IsK(aArgs[nI], EK_OMITTED)
+      nGiven++
+    EndIf
+  Next
+  nParams := aF[FU_PARAMS]
+  If nGiven > nParams
+    // AdvPL drops the rest; TL++ refuses the call (C9901, tried on 24.3.1.9).
+    cM := aF[FU_NAME] + "() takes " + N(nParams) + " parameter" + If(nParams == 1, "", "s") + " (line " ;
+          + N(aF[FU_LINE]) + "), but is given " + N(nGiven)
+    If lAdvpl
+      Warning(cM + " -- the rest are dropped.")
+    Else
+      Problem(cM + " -- TL++ refuses the call (" + '"' + "More parameters used in function call than expected" ;
+              + '").')
+    EndIf
+  EndIf
+Return Nil
+
+Static Function AliasedField(aF)
+  Local cWord := AliasWord(aF)
+  Local cA
+  If cWord == Nil
+    Return Nil
+  EndIf
+  cA := Uc(cWord)
+  // 'M->x' and 'MEMVAR->x' are the variable x, a Private's or a Public's:
+  // no area, and no field of the dictionary.
+  If cA == "M" .Or. cA == "MEMVAR"
+    Return Nil
+  EndIf
+  If !((hOpened has cA) .Or. (hExternalAlias has cA) .Or. StartsWith(cA, "__") .Or. (hWarnedAlias has cA))
+    hWarnedAlias{cA} := .T.
+    Warning("nothing in this function opened " + cA + ". Wrap the use in 'using alias " + cA + " do', " ;
+            + "or declare 'external alias " + cA + "' if the caller opens it.")
+  EndIf
+  // Its field: the dictionary's to judge, and there is none here.
+Return Nil
+
+Static Function AliasWord(aF)
+  Local cWord := aF[AF_ALIAS]
+  If cWord == Nil .And. IsK(aF[AF_BASE], EK_NAME)
+    cWord := NameOf(aF[AF_BASE])
+  EndIf
+  If cWord != Nil .And. FindName(Lc(cWord)) == Nil
+    Return cWord
+  EndIf
+Return Nil
+
+Static Function AliasBase(aB)
+  If aB == Nil
+    Return Nil
+  EndIf
+  If !IsK(aB, EK_NAME)
+    CheckExpr(aB)
+    Return Nil
+  EndIf
+  If FindName(Lc(NameOf(aB))) != Nil
+    ReadName(NameOf(aB))
+  EndIf
+Return Nil
+
+// ---- fusion -----------------------------------------------------------------
+// The names declared where the walk is: each scope's, in lower case.
+Static Function Visible()
+  Local hOut := { => }
+  Local aSc := aScope
+  Local aK
+  Local nI
+  While aSc != Nil
+    aK := keys(aSc[SC_NAMES])
+    For nI := 1 To Len(aK)
+      hOut{aK[nI]} := .T.
+    Next
+    aSc := aSc[SC_OUTER]
+  EndDo
+Return hOut
+
+Static Function Fusion(aP)
+  Local cWhere
+  If Len(aP[PIPE_STAGES]) == 0
+    Return Nil
+  EndIf
+  cWhere := If(hChainAt has aP[N_ID], hChainAt{aP[N_ID]}, "value")
+  If !(cWhere == "value") .And. !(hGuarded has aP[N_ID])
+    LooseLeft(aP)
+  EndIf
+  If (hGuarded has aP[N_ID]) .And. !u_xcb_issource(aP[PIPE_SOURCE]) ;
+     .And. u_xcb_fusefrom(aP[PIPE_STAGES], Visible(), cWhere == "effect") >= 0
+    Warning("'fallback' inside an expression turns off fusion for this chain -- a guard there needs an " ;
+            + "expression and a fused loop is not one, so each stage builds an array again. Make the guard " ;
+            + "the whole value of the statement, or guard the part that can fail and leave the chain outside it.")
+  EndIf
+Return Nil
+
+Static Function LooseLeft(aP)
+  Local aH := aP[PIPE_SOURCE]
+  Local nFrom
+  Local nTo
+  Local cText
+  Local cBare := ""
+  Local nDepth := 0
+  Local cQuote := ""
+  Local nI
+  Local cC
+  Local cL
+  If cSource == Nil
+    Return Nil
+  EndIf
+  If !(aH[N_FROM] >= 0 .And. aH[N_TO] > aH[N_FROM])
+    Return Nil
+  EndIf
+  nFrom := Min(aH[N_FROM], Len(cSource))
+  nTo := Min(aH[N_TO], Len(cSource))
+  cText := u_xcb_trim(SubStr(cSource, nFrom + 1, nTo - nFrom))
+  // What is outside brackets and strings; '->' is an alias, not a '>'.
+  For nI := 1 To Len(cText)
+    cC := SubStr(cText, nI, 1)
+    If !(cQuote == "")
+      If cC == cQuote .Or. cC == Chr(10) .Or. cC == Chr(13)
+        cQuote := ""
+      EndIf
+    ElseIf cC == '"' .Or. cC == "'"
+      cQuote := cC
+    ElseIf cC == "(" .Or. cC == "[" .Or. cC == "{"
+      nDepth++
+    ElseIf cC == ")" .Or. cC == "]" .Or. cC == "}"
+      nDepth--
+    ElseIf nDepth == 0
+      cBare += cC
+    EndIf
+  Next
+  cL := Lc(StrTran(cBare, "->", " "))
+  If !(".and." $ cL .Or. ".or." $ cL .Or. "<" $ cL .Or. ">" $ cL .Or. "==" $ cL .Or. "!=" $ cL)
+    Return Nil
+  EndIf
+  Warning("the whole left side of '|>' is the first argument, so '" + FirstChars(cText, 40) + "' is what gets " ;
+          + "fed in. Put brackets around the part you meant to chain.")
+Return Nil
+
+Static Function Chain(aP)
+  Local aHead := aP[PIPE_SOURCE]
+  Local cWhat
+  Local nI
+  Local cN
+  Local aSt
+  Fusion(aP)
+  If IsRowsOrLines(aHead) .Or. IsK(aHead, EK_INTERVAL)
+    hSourcesOk{aHead[N_ID]} := .T.
+    If !(hChainsOk has aP[N_ID])
+      cWhat := If(IsK(aHead, EK_INTERVAL), "a range", Lc(aHead[CALL_NAME]) + "()")
+      Problem("a chain from " + cWhat + " runs as a loop, before its statement, so it is only the whole value " ;
+              + "of 'x := ...', of a local, private or public, or of 'return', or a statement of its own. " ;
+              + "Assign it to a variable first, where it should run.")
+    EndIf
+  EndIf
+  // Over rows("SA1"), before a map, 'r:A1_COD' is SA1's field A1_COD: the
+  // dictionary's to judge, and there is none here.
+  If IsLiteral(aHead) .And. IsScalar(aHead)
+    ScalarSource(aHead[LIT_TEXT], "")
+  ElseIf IsK(aHead, EK_NAME)
+    If hScalar has Lc(NameOf(aHead))
+      ScalarSource(NameOf(aHead), hScalar{Lc(NameOf(aHead))})
+    EndIf
+  EndIf
+  // Over rows(), before a 'map' the element is the record.
+  If IsK(aHead, EK_CALL) .And. Lc(aHead[CALL_NAME]) == "rows"
+    For nI := 1 To Len(aP[PIPE_STAGES])
+      aSt := aP[PIPE_STAGES][nI]
+      cN := Lc(aSt[CALL_NAME])
+      If cN == "map" .Or. cN == "expand"
+        Exit
+      EndIf
+      If cN == "distinctadjacent" .And. Len(aSt[CALL_ARGS]) == 0
+        Problem("distinctAdjacent over rows() needs a key -- the record is not a value to compare " ;
+                + "against the previous one. Give it one, as distinctAdjacent([r] r:C6_NUM), or map first.")
+        Exit
+      EndIf
+    Next
+  EndIf
+Return Nil
+
+Static Function ScalarSource(cShown, cWhy)
+  Problem(cShown + " is a single value" + cWhy + ", and a chain walks a collection. Write {" + cShown + "} for a " ;
+          + "one-element array, or 'lo..hi' for a range.")
+Return Nil
+
+// ---- the names xc keeps for itself ------------------------------------------
+// In a program read with any name allowed (driver.cpp's not_parsed): the
+// names the grammar refuses, and why -- {line, what}, tidied.
+User Function xcb_checknames(aProg)
+  Local aOut := {}
+  Local nI
+  Local nJ
+  Local aF
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      aF := aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ]
+      ReservedName(aOut, aF[DCL_NAME], aF[N_LINE])
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    NamesOf(aOut, aF[FN_PARAMS], aF[FN_BODY], aF[N_LINE])
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aF := aProg[PG_METHODS][nI]
+    NamesOf(aOut, aF[MI_PARAMS], aF[MI_BODY], aF[N_LINE])
+  Next
+Return Tidy(aOut)
+
+// The same of a declaration alone.
+User Function xcb_checkdeclared(aDecl)
+  Local aOut := {}
+  Local nI
+  Local aD
+  For nI := 1 To Len(aDecl[DECL_DECLARATORS])
+    aD := aDecl[DECL_DECLARATORS][nI]
+    ReservedName(aOut, aD[DCL_NAME], aD[N_LINE])
+    GeneratedName(aOut, aD[DCL_NAME], aD[N_LINE])
+  Next
+Return aOut
+
+Static Function ReservedName(aOut, cName, nAt)
+  If u_xcb_isreserved(cName)
+    AAdd(aOut, {nAt, "Cannot use reserved word '" + cName + "' as a variable name."})
+  EndIf
+Return Nil
+
+Static Function GeneratedName(aOut, cName, nAt)
+  If u_xcb_isgenerated(cName)
+    AAdd(aOut, {nAt, "'" + cName + "' has the shape of a name xc generates, so it cannot be declared. " ;
+                     + "Reserved: '<kind>_<depth>_<index>' -- fo_0_0, fv_1_2, s_1_0, b_0_x."})
+  EndIf
+Return Nil
+
+Static Function NamesOf(aOut, aParams, aBody, nAt)
+  Local nI
+  Local nJ
+  Local aSt
+  Local aAll
+  Local aD
+  For nI := 1 To Len(aParams)
+    If aParams[nI] != Nil
+      ReservedName(aOut, aParams[nI][PRM_NAME], nAt)
+    EndIf
+  Next
+  For nI := 1 To Len(aBody)
+    aSt := aBody[nI]
+    If aSt[N_KIND] != SK_DECLARATION
+      Loop
+    EndIf
+    For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+      aD := aSt[DECL_DECLARATORS][nJ]
+      GeneratedName(aOut, aD[DCL_NAME], aD[N_LINE])
+    Next
+  Next
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    Do Case
+      Case aSt[N_KIND] == SK_DECLARATION
+        For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+          aD := aSt[DECL_DECLARATORS][nJ]
+          ReservedName(aOut, aD[DCL_NAME], aD[N_LINE])
+        Next
+      Case aSt[N_KIND] == SK_FORSTMT
+        ReservedName(aOut, aSt[FOR_VAR], aSt[N_LINE])
+      Case aSt[N_KIND] == SK_FORINSTMT
+        ReservedName(aOut, aSt[FIN_ELEM], aSt[N_LINE])
+        If aSt[FIN_INDEX] != Nil
+          ReservedName(aOut, aSt[FIN_INDEX], aSt[N_LINE])
+        EndIf
+      Case aSt[N_KIND] == SK_IFSTMT
+        If aSt[IF_HEADER] != Nil
+          ReservedName(aOut, aSt[IF_HEADER][DCL_NAME], aSt[IF_HEADER][N_LINE])
+        EndIf
+      Case aSt[N_KIND] == SK_WHILESTMT
+        If aSt[WH_HEADER] != Nil
+          ReservedName(aOut, aSt[WH_HEADER][DCL_NAME], aSt[WH_HEADER][N_LINE])
+        EndIf
+      Case aSt[N_KIND] == SK_CASESTMT
+        If aSt[CASE_SUBJDECL] != Nil
+          ReservedName(aOut, aSt[CASE_SUBJDECL][DCL_NAME], aSt[CASE_SUBJDECL][N_LINE])
+        EndIf
+    EndCase
+  Next
+Return Nil

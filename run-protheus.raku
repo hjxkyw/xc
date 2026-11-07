@@ -73,8 +73,11 @@
 # makes them bytecode there, in one run --
 #   appserver -run=u_xcb -env=<name> bytecode \xbc\list.txt
 # -- each .xbc has to be xc's, byte for byte, and how long each took is
-# shown. Then the interpreter runs each case from its source, the compiler
-# making it bytecode as it loads it --
+# shown; with them the sources of the checks' cases (cpp/tests/cases/
+# 32-check), most of which xc refuses: what the compiler says of each --
+# its warnings, its errors -- has to be what xc says. Then the interpreter
+# runs each case from its source, the compiler making it bytecode as it
+# loads it --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xtpl
 # -- what it writes compared with NAME.out; and xtpl's self-test, from its
 # source and the runtime's.
@@ -524,13 +527,16 @@ if $selfhost
   my $cases = $root.add('cpp/tests/bytecode');
   my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
                         .grep({ !$cases.add("$_.vmonly").e }).sort;
-  my @modules = <ast dump parse walk chains decimal typed facts bytecode xcb>;
+  my @modules = <ast dump parse walk chains decimal typed facts check bytecode xcb>;
   sub source-of(Str $c --> IO::Path) { $cases.add("$c.xtpl").e ?? $cases.add("$c.xtpl") !! $cases.add("$c.prw") }
   # What the AppServer's compiler makes bytecode of: the runtime, the cases,
   # xtpl's self-test -- each NAME.xbc.
   my @sources = ($root.add('runtime/xtpl_runtime.tlpp'), |@cases.map({ source-of($_) }),
                  $root.add('xtpl/tests/54_selftest.xtpl'));
+  # What it says of these has to be what xc says: the checks' cases.
+  my @checked = $root.add('cpp/tests/cases/32-check').dir.grep(*.extension eq 'xtpl').sort;
   sub xbc-name(IO::Path $s --> Str) { $s.basename.subst(/ '.' \w+ $ /, '.xbc') }
+  sub said-name(IO::Path $s --> Str) { $s.basename.subst(/ '.' \w+ $ /, '.said') }
   if $compile
   {
     say "xc ($xc-shown): compiling the interpreter and the compiler written in xtpl into {shown($out)}";
@@ -568,7 +574,28 @@ if $selfhost
         say "\n  xc could not make {shown($s)} bytecode";
         exit 1;
       }
+      spurt $xbc.add(said-name($s)), $said;
     }
+    say "xc: what it says of {+@checked} sources of the checks' cases, into {shown($xbc)}";
+    for @checked -> $s
+    {
+      my $q = xc('--bytecode', native($s), native($xbc.add(xbc-name($s))));
+      spurt $xbc.add(said-name($s)), $q.out.slurp(:close);
+    }
+  }
+  # What xc said of a source, and what the AppServer's compiler said: the
+  # lines 'LINE: what' of it, a line of the source's own each.
+  sub xc-said(IO::Path $s --> List)
+  {
+    my $f = $xbc.add(said-name($s));
+    return () unless $f.e;
+    my $p = native($s);
+    $f.slurp.lines.grep(*.starts-with("$p:")).map({ .substr($p.chars + 1) }).List
+  }
+  sub server-said(Str $text, IO::Path $s --> List)
+  {
+    my $n = $s.basename;
+    $text.lines.map({ ~$0 if / '\\xbc\\' $n ':' (\d+ ': ' .*) $ / }).grep(*.defined).List
   }
   exit 0 unless $run;
   mkdir $logs;
@@ -583,13 +610,14 @@ if $selfhost
   say "\nThe sources into {native($stage)}, the cases' files into {native($start)}";
   mkdir $stage;
   .unlink for $stage.dir.grep({ .f && .extension eq 'xbc' | 'got' });
-  my @staged = |@sources, |$cases.dir.grep(*.extension eq 'ch');
+  my @staged = |@sources, |@checked, |$cases.dir.grep(*.extension eq 'ch');
   spurt $stage.add(.basename), .slurp(:bin) for @staged;
   my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
   spurt .key, .value.slurp(:bin) for @data;
-  spurt $stage.add('list.txt'), @sources.map({ on-server(.basename) ~ "\t" ~ on-server(xbc-name($_)) ~ "\r\n" }).join;
+  spurt $stage.add('list.txt'), (|@sources, |@checked).map({ on-server(.basename) ~ "\t" ~ on-server(xbc-name($_))
+                                                             ~ "\r\n" }).join;
 
-  say "\nProtheus: the compiler making {+@sources} sources bytecode, in one run";
+  say "\nProtheus: the compiler making {+@sources} sources bytecode, and {+@checked} of the checks' cases, in one run";
   my ($code, $text) = appserver($logs.add('run-u_xcb.log'), '-run=u_xcb', "-env={%opt<env>}", 'bytecode',
                                 on-server('list.txt'));
   # 'SOURCE -> OUT (N.NN s)': how long each took.
@@ -631,6 +659,28 @@ if $selfhost
     say "      $_" for $text.lines.grep(*.trim).tail(15);
   }
   say sprintf("    %d of %d as xc makes them, in %.2f s", @sources - @bad, +@sources, $total);
+  # What it says, warnings and errors: what xc says.
+  my $wrong = 0;
+  my $lines = 0;
+  for |@sources, |@checked -> $s
+  {
+    my @e = xc-said($s);
+    my @g = server-said($text, $s);
+    $lines += @e;
+    next if @e eqv @g;
+    $wrong++;
+    @bad.push("{$s.basename} (said)");
+    say "    SAID  {$s.basename}: not what xc says";
+    for ^max(+@e, +@g) -> $i
+    {
+      next if @e[$i].defined && @g[$i].defined && @e[$i] eq @g[$i];
+      say "          xc's  {@e[$i] // '(nothing)'}";
+      say "          said  {@g[$i] // '(nothing)'}";
+      last if $i > 6;
+    }
+  }
+  my $all-said = @sources + @checked;
+  say "    what it says of {$all-said - $wrong} of $all-said sources, $lines lines, as xc says it";
 
   # The interpreter on the modules; what it wrote, '\r\n' read as '\n'.
   sub interpret(Str $name, *@args --> Str)
@@ -681,7 +731,7 @@ if $selfhost
     say "          $_" for $got.lines;
   }
   .key.IO.unlink for @data;
-  my $all = @sources + @cases + 1;
+  my $all = @sources + @checked + @cases + 1;
   say "\n  {@bad ?? "{+@bad} of $all wrong: {@bad.join(', ')}" !! "every one as xc makes it, and as xc-vm runs it"}";
   exit(@bad ?? 1 !! 0);
 }

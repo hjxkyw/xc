@@ -19,14 +19,18 @@
 // The rest is for selfhost.cmake. 'ast': each line of LIST names a source
 // and a file, a tab between them; the source's tree goes to the file, as
 // 'xc-ast --bare' writes it -- or 'not parsed at N'. 'facts': the tree
-// marked, then its facts, as 'xc-ast --bare --facts' writes them; a third
-// file on the line, after another tab, is given the source's bytecode, as
-// 'xc --bytecode' writes it -- or what cannot become bytecode yet, a line
-// each. 'values': each line of each source read in each form a statement
-// holds an expression as, as 'xc-ast --values' reads it.
+// marked, then its facts, as 'xc-ast --bare --facts' writes them; the
+// files after it on the line, each after another tab, are given the
+// source's bytecode, as 'xc --bytecode' writes it -- or what cannot become
+// bytecode yet, a line each --, what the checks find, as 'xc-ast --bare
+// --checks' writes it, and what 'bytecode' says of the source, but the
+// line that says where it went. 'values': each line of each source read
+// in each form a statement holds an expression as, as 'xc-ast --values'
+// reads it.
 //
-// What xc refuses although it parses is not looked for yet, nor a source's
-// own commands: a source xc refuses may still be made bytecode here.
+// What xc refuses although it parses is refused here too, and its warnings
+// said, as xc says them; a source's own commands (#command, #translate)
+// are not read: such a source does not parse.
 // -----------------------------------------------------------------------------
 
 // The arguments as the AppServer gives them -- the program, its options
@@ -53,15 +57,14 @@ User Function xcb(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10)
 Return 2
 
 // A source as bytecode: {the .xbc's text, what was said} -- the text Nil
-// when it cannot be made, and what was said why, a line each, as xc says
-// it. aDirs: the include folders searched after the source's own.
+// when it cannot be made, and what was said, a line each, as xc says it:
+// the warnings, and why it is not made. aDirs: the include folders
+// searched after the source's own.
 User Function xcb_compile(cPath, aDirs)
   Local aSource
   Local cWhy
   Local aProg
-  Local aBc
-  Local aSaid := {}
-  Local nP
+  Local aDefines
   If aDirs == Nil
     aDirs := {}
   EndIf
@@ -75,11 +78,31 @@ User Function xcb_compile(cPath, aDirs)
   EndIf
   aProg := u_xcb_parse(aSource[1], aSource[2])
   If aProg == Nil
-    Return {Nil, {NotParsed(aSource[1], cPath, u_xcb_furthest())}}
+    Return {Nil, NotParsed(aSource[1], cPath, u_xcb_furthest())}
   EndIf
-  u_xcb_typed(aProg)
-  aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cPath), SourceName(cPath), ;
-                        IncludeDefines(aSource[1], FolderOf(cPath), aDirs))
+  aDefines := IncludeDefines(aSource[1], FolderOf(cPath), aDirs)
+Return Made(cPath, aProg, aSource[1], aDefines, ;
+            u_xcb_checkall(aProg, Len(LinesOf(aSource[1], .F.)), aSource[1], IsAdvpl(cPath), .T., aDefines), ;
+            Nil)
+
+// What becomes of a program the checks have seen (aChecked: {errors,
+// warnings}): {the .xbc's text, what was said}, as u_xcb_compile() gives
+// it. aBc: the back end's {text, problems}, when it has run already.
+Static Function Made(cPath, aProg, cText, aDefines, aChecked, aBc)
+  Local aSaid := {}
+  Local nP
+  For nP := 1 To Len(aChecked[2])
+    AAdd(aSaid, cPath + ":" + AllTrim(Str(aChecked[2][nP][1])) + ": warning: " + Cp1252ToUtf8(aChecked[2][nP][2]))
+  Next
+  If Len(aChecked[1]) > 0
+    For nP := 1 To Len(aChecked[1])
+      AAdd(aSaid, cPath + ":" + AllTrim(Str(aChecked[1][nP][1])) + ": " + Cp1252ToUtf8(aChecked[1][nP][2]))
+    Next
+    Return {Nil, aSaid}
+  EndIf
+  If aBc == Nil
+    aBc := u_xcb_bytecode(aProg, cText, IsAdvpl(cPath), SourceName(cPath), aDefines)
+  EndIf
   If aBc[1] == Nil
     For nP := 1 To Len(aBc[2])
       AAdd(aSaid, cPath + ":" + AllTrim(Str(aBc[2][nP][1])) + ": " + Cp1252ToUtf8(aBc[2][nP][2]) ;
@@ -87,7 +110,7 @@ User Function xcb_compile(cPath, aDirs)
     Next
     Return {Nil, aSaid}
   EndIf
-Return {aBc[1], {}}
+Return {aBc[1], aSaid}
 
 // 'bytecode SOURCE [OUT]', 'bytecode LIST': each made, and said so.
 Static Function Bytecodes(aArgs)
@@ -123,8 +146,8 @@ Static Function Bytecodes(aArgs)
   For nI := 1 To Len(aWork)
     nStart := Seconds()
     aMade := u_xcb_compile(aWork[nI][1], aDirs)
+    AEval(aMade[2], {|l| ConOut(l)})
     If aMade[1] == Nil
-      AEval(aMade[2], {|l| ConOut(l)})
       nBad++
       Loop
     EndIf
@@ -161,18 +184,66 @@ Static Function Utf8Reason(cB)
 Return "it is UTF-8 -- the first character beyond ASCII is on line " ;
        + AllTrim(Str(1 + Len(cBefore) - Len(StrTran(cBefore, Chr(10), "")))) + ". " + cFix
 
-// What is said when a source does not parse: the line it stopped at
-// (driver.cpp's not_parsed, but for the names it reads again for).
+// What is said when a source does not parse, a line each: the line it
+// stopped at, and why, as far as can be told (driver.cpp's not_parsed).
 Static Function NotParsed(cSrc, cPath, nFurthest)
   Local nLine
   Local aL
+  Local cText
+  Local aNames := {}
+  Local aProg
+  Local aDecl
+  Local aOut := {}
+  Local nI
   If u_xcb_trim(SubStr(cSrc, nFurthest + 1)) == ""
-    Return cPath + ": the file ends inside a block that was never closed"
+    Return {cPath + ": the file ends inside a block that was never closed"}
   EndIf
   nLine := LineAt(cSrc, nFurthest)
   aL := LinesOf(cSrc, .F.)
-Return cPath + ":" + AllTrim(Str(nLine)) + ": cannot parse this line: " ;
-       + Cp1252ToUtf8(If(nLine <= Len(aL), u_xcb_trim(aL[nLine]), ""))
+  cText := If(nLine <= Len(aL), u_xcb_trim(aL[nLine]), "")
+  // A name xc keeps for itself is refused by the grammar, which can only
+  // say the line does not parse. Read again with any name allowed, the
+  // checks say which name and why.
+  u_xcb_anyname(.T.)
+  aProg := u_xcb_parse(cSrc, Nil)
+  If aProg != Nil
+    aNames := u_xcb_checknames(aProg)
+  Else
+    aDecl := Declaration(cText)
+    If aDecl != Nil
+      aNames := u_xcb_checkdeclared(aDecl)
+      For nI := 1 To Len(aNames)
+        aNames[nI][1] := nLine
+      Next
+    EndIf
+  EndIf
+  u_xcb_anyname(.F.)
+  If Len(aNames) > 0
+    For nI := 1 To Len(aNames)
+      AAdd(aOut, cPath + ":" + AllTrim(Str(aNames[nI][1])) + ": " + Cp1252ToUtf8(aNames[nI][2]))
+    Next
+    Return aOut
+  EndIf
+  If LateDeclaration(cText)
+    Return {cPath + ":" + AllTrim(Str(nLine)) + ": 'local' cannot be declared here: every local comes before the " ;
+            + "first statement of its function or its block -- '" + Cp1252ToUtf8(cText) + "'"}
+  EndIf
+Return {cPath + ":" + AllTrim(Str(nLine)) + ": cannot parse this line: " + Cp1252ToUtf8(cText)}
+
+// A text read whole as one declaration: the node, or Nil.
+Static Function Declaration(cText)
+  Local aRead
+  u_xcb_source(cText, Nil)
+  aRead := u_xcb_read(8, 0, .F.)
+Return If(aRead[1] != Nil .And. aRead[2] == Len(cText), aRead[1], Nil)
+
+// A 'local' where a statement was wanted (driver.cpp's late_declaration).
+Static Function LateDeclaration(cText)
+  If !(Len(cText) >= 5 .And. u_xcb_lc(Left(cText, 5)) == "local" ;
+       .And. !(Len(cText) > 5 .And. u_xcb_isw(Asc(SubStr(cText, 6, 1)))))
+    Return .F.
+  EndIf
+Return Declaration(u_xcb_trim(u_xcb_codeof(cText))) != Nil
 
 // The line, from 1, an offset from 0 is on: a "\r\n" is one line end
 // (driver.cpp's line_at).
@@ -220,6 +291,11 @@ Static Function Lists(cWhat, cList)
   Local aBc
   Local nP
   Local oErr
+  Local aChecked
+  Local aDefines
+  Local cChecks
+  Local nB
+  Local cWhy
   aLines := StrTran(ReadAll(cList)[1], Chr(13), "") |> split(Chr(10))
   For nI := 1 To Len(aLines)
     nTab := At(Chr(9), aLines[nI])
@@ -234,9 +310,36 @@ Static Function Lists(cWhat, cList)
     EndIf
     aCols := SubStr(aLines[nI], nTab + 1) |> split(Chr(9))
     aProg := u_xcb_parse(aSource[1], aSource[2])
+    aChecked := Nil
     If aProg == Nil
       cText := "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10)
+      If cWhat == "facts" .And. Len(aCols) > 2
+        MemoWrite(aCols[3], cText)
+      EndIf
+      If cWhat == "facts" .And. Len(aCols) > 3
+        cWhy := Utf8Reason(aSource[1])
+        MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
+                                      NotParsed(aSource[1], cSource, u_xcb_furthest()))))
+      EndIf
     ElseIf cWhat == "facts"
+      // The checks first, on the tree as it was read, as 'xc-ast --checks'
+      // has it: TL++'s, then bytecode's.
+      aDefines := IncludeDefines(aSource[1], FolderOf(cSource), {})
+      If Len(aCols) > 2
+        cChecks := ""
+        For nB := 1 To 2
+          aChecked := u_xcb_checkall(aProg, Len(LinesOf(aSource[1], .F.)), aSource[1], IsAdvpl(cSource), nB == 2, ;
+                                     aDefines)
+          cChecks += If(nB == 2, "checks bytecode", "checks tlpp") + Chr(10)
+          For nP := 1 To Len(aChecked[2])
+            cChecks += "W " + AllTrim(Str(aChecked[2][nP][1])) + " " + aChecked[2][nP][2] + Chr(10)
+          Next
+          For nP := 1 To Len(aChecked[1])
+            cChecks += "E " + AllTrim(Str(aChecked[1][nP][1])) + " " + aChecked[1][nP][2] + Chr(10)
+          Next
+        Next
+        MemoWrite(aCols[3], cChecks)
+      EndIf
       u_xcb_typed(aProg)
       cText := u_xcb_dump(aProg) + u_xcb_facts(aProg, IsAdvpl(cSource))
     Else
@@ -247,8 +350,7 @@ Static Function Lists(cWhat, cList)
       // A source xc refuses may take the back end where the C++ reads
       // what is not there: what goes wrong is said, and the next one read.
       Try
-        aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cSource), SourceName(cSource), ;
-                              IncludeDefines(aSource[1], FolderOf(cSource), {}))
+        aBc := u_xcb_bytecode(aProg, aSource[1], IsAdvpl(cSource), SourceName(cSource), aDefines)
       Catch oErr
         aBc := {"error: " + oErr:Description + Chr(10), {}}
       EndTry
@@ -261,9 +363,23 @@ Static Function Lists(cWhat, cList)
         Next
       EndIf
       MemoWrite(aCols[2], cText)
+      If Len(aCols) > 3 .And. aChecked != Nil
+        cWhy := Utf8Reason(aSource[1])
+        MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
+                                      Made(cSource, aProg, aSource[1], aDefines, aChecked, aBc)[2])))
+      EndIf
     EndIf
   Next
 Return 0
+
+// Lines, each ended.
+Static Function Joined(aLines)
+  Local cOut := ""
+  Local nI
+  For nI := 1 To Len(aLines)
+    cOut += aLines[nI] + Chr(10)
+  Next
+Return cOut
 
 // Each line of a text a value, as 'xc-ast --values' reads them: where it
 // starts and ends, then the node.

@@ -19,6 +19,9 @@
 #define DC_PARAMS        8
 #define DC_NUMPARAMS     9
 
+// The most digits a Decimal holds (decimal.h).
+#define DECIMAL_DIGITS   63
+
 Static cDecCalls := "|dec_create|dec_add|dec_sub|dec_mul|dec_div|dec_mod|dec_pow|dec_resize|dec_rescale|" ;
                     + "dec_round|"
 
@@ -341,6 +344,179 @@ Static Function Args(aDec, aOut, aCall)
     EndIf
   Next
 Return Nil
+
+// ---- what is refused --------------------------------------------------------
+// What TL++ refuses of a file's Decimals: a number that meets one, a
+// literal too long for one -- {line, what}, a list. cText: the source, for
+// what a message quotes of it. A .prw has none.
+User Function xcb_decproblems(aProg, cText, lAdvpl)
+  Local aFound := {}
+  Local aDec
+  Local nI
+  Local nJ
+  Local aV
+  Local aF
+  If lAdvpl
+    Return aFound
+  EndIf
+  aDec := u_xcb_decimals()
+  u_xcb_decfile(aDec, aProg)
+  u_xcb_decfunc(aDec, {}, {})
+  For nI := 1 To Len(aProg[PG_STATICS])
+    For nJ := 1 To Len(aProg[PG_STATICS][nI][DECL_DECLARATORS])
+      aV := aProg[PG_STATICS][nI][DECL_DECLARATORS][nJ]
+      If u_xcb_decimalword(aV[DCL_TYPESPEC])
+        DecInto(aDec, aFound, aV[DCL_INIT], aV[N_LINE], cText)
+      EndIf
+    Next
+  Next
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    aF := aProg[PG_FUNCTIONS][nI]
+    DecOne(aDec, aFound, aF[FN_PARAMS], aF[FN_BODY], u_xcb_decimalword(aF[FN_RETWORD]), cText)
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    aF := aProg[PG_METHODS][nI]
+    DecOne(aDec, aFound, aF[MI_PARAMS], aF[MI_BODY], u_xcb_decimalword(aF[MI_RETURNS]), cText)
+  Next
+Return aFound
+
+// A function's: what goes into a Decimal, or meets one.
+Static Function DecOne(aDec, aFound, aParams, aBody, lRetDecimal, cText)
+  Local aAll
+  Local nI
+  Local nJ
+  Local nX
+  Local nA
+  Local aSt
+  Local aV
+  Local aEs
+  Local aXs
+  Local aY
+  Local aPs
+  Local nAt
+  u_xcb_decfunc(aDec, aParams, aBody)
+  aAll := u_xcb_walk(aBody)
+  For nI := 1 To Len(aAll)
+    aSt := aAll[nI]
+    nAt := aSt[N_LINE]
+    Do Case
+      Case aSt[N_KIND] == SK_DECLARATION
+        For nJ := 1 To Len(aSt[DECL_DECLARATORS])
+          aV := aSt[DECL_DECLARATORS][nJ]
+          If u_xcb_decimalword(aV[DCL_TYPESPEC])
+            DecInto(aDec, aFound, aV[DCL_INIT], aV[N_LINE], cText)
+          EndIf
+        Next
+      Case aSt[N_KIND] == SK_ASSIGNMENT
+        If u_xcb_isdecimal(aDec, aSt[ASG_TARGET])
+          DecInto(aDec, aFound, aSt[ASG_VALUE], nAt, cText)
+        EndIf
+        If Compound(aSt[ASG_OP]) .And. u_xcb_isnumeric(aDec, aSt[ASG_TARGET]) ;
+           .And. u_xcb_isdecimal(aDec, aSt[ASG_VALUE])
+          AAdd(aFound, {nAt, "'" + DecShown(aSt[ASG_VALUE], cText) + "' is a Decimal, and meets the number '" ;
+                             + DecShown(aSt[ASG_TARGET], cText) + "': TL++ takes no Decimal with a Numeric -- " ;
+                             + "make it a number with DEC_TO_DBL(" + DecShown(aSt[ASG_VALUE], cText) + ")."})
+        EndIf
+      Case aSt[N_KIND] == SK_RETURNSTMT
+        If lRetDecimal
+          DecInto(aDec, aFound, aSt[RET_VALUE], nAt, cText)
+        EndIf
+    EndCase
+    aEs := u_xcb_exprsof(aSt)
+    For nJ := 1 To Len(aEs)
+      aXs := u_xcb_walkexpr(aEs[nJ])
+      For nX := 1 To Len(aXs)
+        aY := aXs[nX]
+        If aY[N_KIND] == EK_BINARY
+          If u_xcb_arithmetic(aY[BIN_OP]) .And. u_xcb_isdecimal(aDec, aY)
+            DecInto(aDec, aFound, aY[BIN_LEFT], nAt, cText)
+            DecInto(aDec, aFound, aY[BIN_RIGHT], nAt, cText)
+          ElseIf u_xcb_comparison(aY[BIN_OP]) ;
+                 .And. (u_xcb_isdecimal(aDec, aY[BIN_LEFT]) .Or. u_xcb_isdecimal(aDec, aY[BIN_RIGHT]))
+            If !u_xcb_isdecimal(aDec, aY[BIN_LEFT])
+              DecInto(aDec, aFound, aY[BIN_LEFT], nAt, cText)
+            EndIf
+            If !u_xcb_isdecimal(aDec, aY[BIN_RIGHT])
+              DecInto(aDec, aFound, aY[BIN_RIGHT], nAt, cText)
+            EndIf
+          EndIf
+        ElseIf aY[N_KIND] == EK_ASSIGNEXPR
+          If u_xcb_isdecimal(aDec, aY[AE_TARGET])
+            DecInto(aDec, aFound, aY[AE_VALUE], nAt, cText)
+          EndIf
+        Else
+          aPs := u_xcb_decparams(aDec, aY)
+          If aPs != Nil
+            For nA := 1 To Min(Len(aY[CALL_ARGS]), Len(aPs))
+              If aPs[nA]
+                DecInto(aDec, aFound, aY[CALL_ARGS][nA], nAt, cText)
+              EndIf
+            Next
+          EndIf
+        EndIf
+      Next
+    Next
+  Next
+Return Nil
+
+// A value that goes into a Decimal, or meets one.
+Static Function DecInto(aDec, aFound, aE, nLine, cText)
+  Local nAt
+  Local nN
+  If aE == Nil
+    Return Nil
+  EndIf
+  nAt := If(aE[N_LINE] > 0, aE[N_LINE], nLine)
+  If u_xcb_numberlit(aE)
+    nN := LiteralDigits(aE[LIT_TEXT])
+    If nN > DECIMAL_DIGITS
+      AAdd(aFound, {nAt, "'" + aE[LIT_TEXT] + "' has " + AllTrim(Str(nN)) + " digits, and a Decimal holds " ;
+                         + AllTrim(Str(DECIMAL_DIGITS)) + " at most."})
+    EndIf
+    Return Nil
+  EndIf
+  If u_xcb_isnumeric(aDec, aE)
+    AAdd(aFound, {nAt, "'" + DecShown(aE, cText) + "' is a number, and meets a Decimal: TL++ takes no Numeric " ;
+                       + "with a Decimal (" + '"' + "Incompatible types between F and N" + '"' + ") -- make it " ;
+                       + "one with DEC_CREATE(" + DecShown(aE, cText) + ", digits, decimals)."})
+    Return Nil
+  EndIf
+  If aE[N_KIND] == EK_BINARY
+    If aE[BIN_OP] == "neg"
+      DecInto(aDec, aFound, aE[BIN_RIGHT], nAt, cText)
+    ElseIf u_xcb_arithmetic(aE[BIN_OP]) .And. u_xcb_isconstant(aDec, aE)
+      DecInto(aDec, aFound, aE[BIN_LEFT], nAt, cText)
+      DecInto(aDec, aFound, aE[BIN_RIGHT], nAt, cText)
+    EndIf
+  EndIf
+Return Nil
+
+// A value as a message shows it: a name, or its text in the source.
+Static Function DecShown(aE, cText)
+  If aE[N_KIND] == EK_NAME
+    Return aE[NAME_NAME]
+  EndIf
+  If cText != Nil .And. aE[N_FROM] >= 0 .And. aE[N_TO] <= Len(cText)
+    Return u_xcb_trim(SubStr(cText, aE[N_FROM] + 1, aE[N_TO] - aE[N_FROM]))
+  EndIf
+Return "a value"
+
+Static Function Compound(cOp)
+Return cOp == "+=" .Or. cOp == "-=" .Or. cOp == "*=" .Or. cOp == "/=" .Or. cOp == "%="
+
+// The digits of a number literal: its whole part's, no leading zeros but
+// one, and its decimals', its digit separators dropped.
+Static Function LiteralDigits(cText)
+  Local cT := StrTran(cText, "'", "")
+  Local nDot := At(".", cT)
+  Local cWhole := If(nDot == 0, cT, Left(cT, nDot - 1))
+  Local cDecimals := If(nDot == 0, "", SubStr(cT, nDot + 1))
+  Local nI := 1
+  While nI <= Len(cWhole) .And. SubStr(cWhole, nI, 1) == "0"
+    nI++
+  EndDo
+  cWhole := If(nI > Len(cWhole), "0", SubStr(cWhole, nI))
+Return Len(cWhole) + Len(cDecimals)
 
 // ---- words ------------------------------------------------------------------
 // The last word of a type as written, in lower case: '' for none.

@@ -663,20 +663,27 @@ interpreter run it as bytecode, and shows both and their ratio. On xc-vm,
 `selfhost/` is xc again, written in xtpl, for an AppServer to compile xtpl
 into this bytecode itself: the parser (`parse.xtpl`), the passes the back
 end needs -- what each name holds (`typed.xtpl`), the Decimals
-(`decimal.xtpl`), the chains (`chains.xtpl`) -- and the back end
+(`decimal.xtpl`), the chains (`chains.xtpl`) --, the checks -- what xc
+refuses although it parses, and what it warns of (`check.xtpl`, with what
+`typed.xtpl` and `decimal.xtpl` refuse) -- and the back end
 (`bytecode.xtpl`), the C++ ones written again routine by routine. xc
 compiles it to bytecode, and xc-vm runs it:
 
 ```text
 xc-vm --run=U_XCB xtpl_runtime.xbc ast.xbc dump.xbc parse.xbc walk.xbc chains.xbc
-      decimal.xbc typed.xbc facts.xbc bytecode.xbc xcb.xbc -- facts LIST
+      decimal.xbc typed.xbc facts.xbc check.xbc bytecode.xbc xcb.xbc -- facts LIST
 ```
 
 Each line of LIST names a source, a file for its tree and what the passes
-find in it, and a file for its `.xbc`, tabs between them. ctest's
-`selfhost` holds what it writes to xc's: the `.xbc` of each source `xc
---bytecode` compiles has to be the same, byte for byte -- the compiler's
-own sources among them.
+find in it, a file for its `.xbc`, one for what the checks find -- for
+TL++, then for bytecode, as `xc-ast --bare --checks` writes it -- and one
+for what compiling it says, tabs between them. ctest's `selfhost` holds
+what it writes to xc's: the `.xbc` of each source `xc --bytecode`
+compiles has to be the same, byte for byte -- the compiler's own sources
+among them --, and what it says of each source what `xc --bytecode` says,
+warnings, errors and all, but for a source with commands of its own.
+There is no dictionary here: what an exported SX3 would tell xc
+(`--dictionary`) is not said.
 
 On an AppServer it is TL++ in the RPO, as the interpreter is: xc compiles
 `selfhost/*.xtpl` and `interp/xbc.xtpl`, and the AppServer compiles them
@@ -690,23 +697,23 @@ appserver -run=u_xbc -env=NAME [out=FILE] [run=NAME] module ...
 
 The first writes a source's `.xbc` -- to OUT, else beside it -- as `xc
 --bytecode` does, and says `SOURCE -> OUT (N.NN s)`, or why it is not made,
-as xc says it; the second does each source of LIST, a line each, a tab and
-the `.xbc` after it. DIRS are the include folders searched after the
-source's own, `;` between them; a TOTVS include file, compressed, is not
-read, as for xc. The third is the interpreter, whose modules may be
-sources -- `.xtpl`, `.prw`, `.prx`, `.tlpp` -- each made bytecode as it
-loads (`u_xcb_compile()`), the runtime's own among them; a source that
-does not parse, or holds what cannot become bytecode yet, stops it as a
-module that does not load does, with what xc would say. xc-vm does the
-same with the compiler's bytecode loaded beside the interpreter's (ctest's
-`interp` runs each case so, from its source), and `rakupp
-run-protheus.raku --selfhost` on an AppServer: each `.xbc` the compiler
-makes there has to be xc's, and each case run from its source has to do
-what xc-vm does.
+as xc says it, its warnings first; the second does each source of LIST, a
+line each, a tab and the `.xbc` after it. DIRS are the include folders
+searched after the source's own, `;` between them; a TOTVS include file,
+compressed, is not read, as for xc. The third is the interpreter, whose
+modules may be sources -- `.xtpl`, `.prw`, `.prx`, `.tlpp` -- each made
+bytecode as it loads (`u_xcb_compile()`), the runtime's own among them; a
+source that does not parse, that xc refuses, or that holds what cannot
+become bytecode yet stops it as a module that does not load does, with
+what xc would say. xc-vm does the same with the compiler's bytecode loaded
+beside the interpreter's (ctest's `interp` runs each case so, from its
+source), and `rakupp run-protheus.raku --selfhost` on an AppServer: each
+`.xbc` the compiler makes there has to be xc's, what it says of each --
+and of the checks' cases, most of which xc refuses -- what xc says, and
+each case run from its source has to do what xc-vm does.
 
-Not yet: what xc refuses although it parses -- a source xc refuses may
-still be made bytecode --, and a source's own commands (`#command`,
-`#translate`): such a source does not parse.
+Not yet: a source's own commands (`#command`, `#translate`), and those
+of its include files: such a source does not parse.
 
 ## xc-vm
 
