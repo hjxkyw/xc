@@ -16,6 +16,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# C++ exceptions, with the objects they leave destroyed: xc throws and catches
+# them. CMake's own flags for MSVC have /EHsc, but flags of one's own --
+# CXXFLAGS, a toolchain file -- may not.
+if(MSVC)
+  add_compile_options(/EHsc)
+endif()
+
 # Everything but the programs: the compiler itself.
 add_library(xclib STATIC
   src/ahead.cpp
