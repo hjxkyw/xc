@@ -27,7 +27,8 @@
           "XTPL"
         ],
         "extensions": [
-          ".xtpl"
+          ".xtpl",
+          ".xth"
         ],
         "configuration": "./language-configuration.json"
       }

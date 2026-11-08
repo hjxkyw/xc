@@ -442,6 +442,7 @@ Static Function Types(aProg)
   Local aM
   Local aX
   Local aSts
+  Local nBefore
   Local cB
   Local aBi
   Local aWas
@@ -451,8 +452,13 @@ Static Function Types(aProg)
     aT := aProg[PG_TYPES][nI]
     cK := u_xcb_lc(aT[TD_NAME])
     If hTypes has cK
-      AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is declared twice, on line " ;
-                                 + AllTrim(Str(hTypes{cK}[TI_DEF][N_LINE])) + " and here."})
+      If Empty(hTypes{cK}[TI_DEF][TD_HEADER])
+        AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is declared twice, on line " ;
+                                   + AllTrim(Str(hTypes{cK}[TI_DEF][N_LINE])) + " and here."})
+      Else
+        AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is a type of " + hTypes{cK}[TI_DEF][TD_HEADER] ;
+                                   + " too: give it another name."})
+      EndIf
       Loop
     EndIf
     hTypes{cK} := {aT[TD_NAME], aT, {}, { => }, { => }, 0}
@@ -469,6 +475,8 @@ Static Function Types(aProg)
     If aTi[TI_DEF][N_ID] != aT[N_ID]
       Loop
     EndIf
+    // What is wrong with a header's type was said of the header.
+    nBefore := Len(aErrors)
     lCls := .F.
     For nJ := 1 To Len(aProg[PG_CLASSES])
       lCls := lCls .Or. u_xcb_lc(aProg[PG_CLASSES][nJ][CD_NAME]) == u_xcb_lc(aT[TD_NAME])
@@ -485,7 +493,7 @@ Static Function Types(aProg)
         AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' cannot be from itself."})
       ElseIf !(hTypes has cB)
         AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is from '" + aT[TD_BASE] + "', which is no type of the file."})
-      ElseIf hTypes{cB}[TI_DEF][N_FROM] > aT[N_FROM]
+      ElseIf Empty(hTypes{cB}[TI_DEF][TD_HEADER]) .And. hTypes{cB}[TI_DEF][N_FROM] > aT[N_FROM]
         aBi := hTypes{cB}
         AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is from " + aBi[TI_NAME] + ", declared further on, on line " ;
                                    + AllTrim(Str(aBi[TI_DEF][N_LINE])) + ": declare " + aBi[TI_NAME] + " first."})
@@ -571,6 +579,9 @@ Static Function Types(aProg)
       EndIf
       aTi[TI_METHODS]{cN} := aM
     Next
+    If !Empty(aT[TD_HEADER])
+      ASize(aErrors, nBefore)
+    EndIf
   Next
 Return Nil
 
@@ -765,7 +776,7 @@ Static Function Resolve(aProg)
       Loop
     EndIf
     // Its position is a #define of the type's: there only after it.
-    If aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
+    If Empty(aTi[TI_DEF][TD_HEADER]) .And. aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
       AAdd(aSaid[nI], {nLineT, "'" + aTi[TI_NAME] + "' is declared on line " + AllTrim(Str(aTi[TI_DEF][N_LINE])) ;
                                + ": its fields are read after it."})
       Loop
@@ -814,7 +825,7 @@ Static Function Resolve(aProg)
       AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' has no field '" + cName + "'."})
       Loop
     EndIf
-    If aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
+    If Empty(aTi[TI_DEF][TD_HEADER]) .And. aA[AT_E][N_FROM] >= 0 .And. aA[AT_E][N_FROM] < aTi[TI_DEF][N_FROM]
       AAdd(aErrors, {nLineT, "'" + aTi[TI_NAME] + "' is declared on line " + AllTrim(Str(aTi[TI_DEF][N_LINE])) ;
                              + ": its fields are read after it."})
       Loop

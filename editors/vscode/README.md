@@ -15,8 +15,8 @@ xtpl -- TL++ with xtpl's extensions, the language
   line.
 - **xtpl: Compile this file to TL++**, in the command palette: the `.tlpp`
   next to the source.
-- `.xtpl` files open as windows-1252, as Protheus' sources are and as xc
-  reads them.
+- `.xtpl` files -- and `.xth`, headers of types -- open as windows-1252,
+  as Protheus' sources are and as xc reads them.
 
 ## Installing
 

@@ -1,0 +1,15 @@
+#ifndef XTH_ITEM
+#define XTH_ITEM
+// A header of types: what each source that includes it has -- Item, its
+// fields' positions, its methods -- and a #define of its own.
+#define ITEM_MAX 99
+
+// type Item: an array of 3
+#define Item_cCod 1  // [const] -- the product
+#define Item_nQtd 2
+#define Item_nPreco 3
+
+Static Function Item_Total(aSelf as Array) as Numeric
+Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+// endtype
+#endif

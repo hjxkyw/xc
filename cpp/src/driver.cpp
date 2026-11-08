@@ -3,9 +3,13 @@
 #include "driver.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "bytecode.h"
 #include "chars.h"
@@ -139,6 +143,185 @@ namespace xc
       }
       return in + ":" + std::to_string(line) + ": cannot parse this line: " + said(text) + "\n";
     }
+
+    // ---- headers ------------------------------------------------------------
+    // A header (.xth) a file includes: read, parsed and checked as a file of
+    // its own, the headers it includes first; its types are the file's too.
+    struct Header
+    {
+      std::string name;                    // as the '#include' names it
+      std::string text;
+      Tree tree;
+      Program* prog = nullptr;
+      std::vector<TypeDef*> own;           // its own types, not its headers'
+      std::vector<const Header*> uses;     // the headers it includes
+    };
+
+    struct Headers
+    {
+      std::vector<std::unique_ptr<Header>> all;
+      std::unordered_map<std::string, const Header*> by_path;   // null while one is read
+    };
+
+    bool header_name(const std::string& n)
+    {
+      return n.size() > 4 && lc(n.substr(n.size() - 4)) == ".xth";
+    }
+
+    // Where an include file is: the folder of the file that includes it,
+    // then the include folders; '' when it is in none.
+    std::string find_include(const std::string& name, const std::string& dir, const std::vector<std::string>& dirs)
+    {
+      std::vector<std::string> places{ dir };
+      places.insert(places.end(), dirs.begin(), dirs.end());
+      for (const std::string& d : places)
+      {
+        std::filesystem::path p = std::filesystem::path(d) / name;
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(p, ec)) { return p.string(); }
+      }
+      return "";
+    }
+
+    // What a header holds that is no type and no directive: each source that
+    // includes it would have its own.
+    std::vector<Finding> not_header(const Program* p)
+    {
+      std::vector<Finding> out;
+      auto no = [&](int line, const std::string& what)
+      {
+        out.push_back({ line, what + ": a header (.xth) holds types and directives, nothing else." });
+      };
+      for (const FunctionDef* f : p->functions)
+      {
+        if (f->of_type.empty()) { no(f->line, "'" + f->name + "' is a function"); }
+      }
+      for (const ClassDef* c : p->classes) { no(c->line, "'" + c->name + "' is a class"); }
+      for (const MethodImpl* m : p->methods) { no(m->line, "'" + m->name + "' is a method of a class"); }
+      for (const Declaration* d : p->statics) { no(d->line, "a Static"); }
+      std::stable_sort(out.begin(), out.end(), [](const Finding& a, const Finding& b) { return a.line < b.line; });
+      return out;
+    }
+
+    // The types of the headers given, and of theirs, each once -- those of
+    // the headers a header includes before its own.
+    void types_of(const std::vector<const Header*>& uses, std::vector<TypeDef*>& out,
+                  std::unordered_set<const Header*>& seen)
+    {
+      for (const Header* u : uses)
+      {
+        if (!seen.insert(u).second) { continue; }
+        types_of(u->uses, out, seen);
+        out.insert(out.end(), u->own.begin(), u->own.end());
+      }
+    }
+
+    // The headers' types put before a file's own: false, with what is said,
+    // when two of them have the same name.
+    bool with_headers(Program* p, const std::vector<const Header*>& uses, const std::string& in, std::string& out)
+    {
+      std::vector<TypeDef*> more;
+      std::unordered_set<const Header*> seen;
+      types_of(uses, more, seen);
+      std::unordered_map<std::string, const TypeDef*> names;
+      for (const TypeDef* t : more)
+      {
+        auto [was, fresh] = names.emplace(lc(t->name), t);
+        if (!fresh)
+        {
+          out += in + ": '" + said(t->name) + "' is a type of " + said(was->second->header) + " and of "
+                 + said(t->header) + "\n";
+          return false;
+        }
+      }
+      p->types.insert(p->types.begin(), more.begin(), more.end());
+      return true;
+    }
+
+    const Header* load_header(const std::string& name, const std::string& dir, const CompileOptions& o,
+                              Headers& hs, std::string& out);
+
+    // The headers a text includes, each loaded: false, with what is said,
+    // when one cannot be.
+    bool load_uses(const std::string& text, const std::string& dir, const CompileOptions& o, Headers& hs,
+                   std::vector<const Header*>& uses, std::string& out)
+    {
+      for (const std::string& n : include_names(text))
+      {
+        if (!header_name(n)) { continue; }
+        const Header* h = load_header(n, dir, o, hs, out);
+        if (!h) { return false; }
+        uses.push_back(h);
+      }
+      return true;
+    }
+
+    // A header read and checked as a file of its own -- what is wrong with
+    // it said of it, as compiling it says it --, then its types marked as
+    // its, for the files that include it.
+    const Header* load_header(const std::string& name, const std::string& dir, const CompileOptions& o,
+                              Headers& hs, std::string& out)
+    {
+      std::string path = find_include(name, dir, o.includes);
+      if (path.empty())
+      {
+        out += said(name) + ": no such header, in the folder of the file that includes it or in the include folders\n";
+        return nullptr;
+      }
+      std::string key = lc(std::filesystem::path(path).lexically_normal().string());
+      if (auto was = hs.by_path.find(key); was != hs.by_path.end())
+      {
+        if (!was->second) { out += said(name) + ": it includes itself, through the headers it includes\n"; }
+        return was->second;
+      }
+      hs.by_path[key] = nullptr;
+      auto h = std::make_unique<Header>();
+      h->name = name;
+      if (!slurp(path, h->text))
+      {
+        out += said(name) + ": cannot be read\n";
+        return nullptr;
+      }
+      if (auto why = utf8_reason(h->text))
+      {
+        out += said(name) + ": " + *why + "\n";
+        return nullptr;
+      }
+      std::string hdir = folder_of(path);
+      if (!load_uses(h->text, hdir, o, hs, h->uses, out)) { return nullptr; }
+      UserSpans spans = user_spans(h->text, hdir, o.includes);
+      Parser parser(h->text, spans.trans, h->tree, spans.cmd);
+      h->prog = parser.parse();
+      if (!h->prog)
+      {
+        out += not_parsed(h->text, name, spans, parser.furthest());
+        return nullptr;
+      }
+      h->own = h->prog->types;
+      if (!with_headers(h->prog, h->uses, name, out)) { return nullptr; }
+      std::vector<Finding> wrong = not_header(h->prog);
+      Checked c = check_all(h->prog, static_cast<int>(lines_of(h->text).size()), o.dictionary, o.strict,
+                            std::string_view(h->text), false, o.bytecode, include_defines(h->text, hdir, o.includes));
+      wrong.insert(wrong.end(), c.errors.begin(), c.errors.end());
+      std::stable_sort(wrong.begin(), wrong.end(), [](const Finding& a, const Finding& b) { return a.line < b.line; });
+      for (const Finding& f : wrong) { out += said(name) + ":" + std::to_string(f.line) + ": " + said(f.message) + "\n"; }
+      if (!wrong.empty()) { return nullptr; }
+      for (TypeDef* t : h->own) { t->header = name; }
+      const Header* done = h.get();
+      hs.by_path[key] = done;
+      hs.all.push_back(std::move(h));
+      return done;
+    }
+
+    // A header's '#ifndef' in its .th: XTH_ and its name, 'XTH_ITEM'.
+    std::string guard_of(const std::string& path)
+    {
+      std::string stem = std::filesystem::path(path).stem().string();
+      std::string g = "XTH_";
+      for (char ch : stem) { g += is_w(static_cast<unsigned char>(ch)) && static_cast<unsigned char>(ch) < 128
+                                  ? static_cast<char>(std::toupper(static_cast<unsigned char>(ch))) : '_'; }
+      return g;
+    }
   }
 
   bool slurp(const std::string& path, std::string& out)
@@ -160,6 +343,11 @@ namespace xc
       if (b != std::string::npos && (cut == std::string::npos || b > cut)) { cut = b; }
     }
     return cut != std::string::npos ? p.substr(0, cut) : ".";
+  }
+
+  bool is_header(const std::string& path)
+  {
+    return header_name(path) && path.find_first_of("/\\", path.size() - 4) == std::string::npos;
   }
 
   bool is_advpl(const std::string& path)
@@ -185,6 +373,12 @@ namespace xc
       c.said = in + ": " + *why + "\n";
       return c;
     }
+    bool header = is_header(path);
+    if (header && o.bytecode)
+    {
+      c.said = in + ": a header (.xth) is made no bytecode: each source that includes it has its types\n";
+      return c;
+    }
     UserSpans spans = user_spans(src, folder_of(path), o.includes);
     Tree tree;
     Parser parser(src, spans.trans, tree, spans.cmd);
@@ -195,11 +389,27 @@ namespace xc
       return c;
     }
 
+    // The types of the headers it includes (.xth), each read and checked as
+    // a file of its own, are its own too.
+    Headers headers;
+    std::vector<const Header*> uses;
+    if (!load_uses(src, folder_of(path), o, headers, uses, c.said) || !with_headers(prog, uses, in, c.said))
+    {
+      return c;
+    }
+
     // What xtpl refuses although it parses, and what it warns about.
     int nlines = static_cast<int>(lines_of(src).size());
     std::vector<std::string> defines = include_defines(src, folder_of(path), o.includes);
     Checked checked = check_all(prog, nlines, o.dictionary, o.strict, std::string_view(src), advpl, o.bytecode,
                                 defines);
+    if (header)
+    {
+      std::vector<Finding> wrong = not_header(prog);
+      wrong.insert(wrong.end(), checked.errors.begin(), checked.errors.end());
+      std::stable_sort(wrong.begin(), wrong.end(), [](const Finding& a, const Finding& b) { return a.line < b.line; });
+      checked.errors = wrong;
+    }
     for (const Finding& f : checked.warnings)
     {
       c.said += in + ":" + std::to_string(f.line) + ": warning: " + said(f.message) + "\n";
@@ -220,7 +430,7 @@ namespace xc
       }
       else
       {
-        c.output = emit(prog, src, advpl);
+        c.output = emit(prog, src, advpl, header ? guard_of(path) : "");
       }
     }
     catch (const NotLowered& e)

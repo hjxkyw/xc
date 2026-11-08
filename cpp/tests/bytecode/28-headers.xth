@@ -1,0 +1,12 @@
+// A header of types, for the case 28-headers: each source that includes it
+// has Item, its methods its own static functions.
+#define HEADERS_MAX 99
+
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype

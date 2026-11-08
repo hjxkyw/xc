@@ -1,0 +1,16 @@
+// A source that includes headers: their types are its own, their includes
+// TL++'s .th -- each between '#ifndef' and '#endif', so twice is once.
+#include "totvs.ch"
+#include "tlpp-core.th"
+#include "line.th"
+#include "item.th"
+
+// type Sale from Line: an array of 5
+#define Sale_cWho 5
+// endtype
+
+User Function Sell(aIt as Array)
+  Local aLn := {"A", 2, 10, 3}
+  Local aSa := {"B", 1, 4, 0, "me"}
+  aLn[Item_nQtd]++
+Return Line_Net(aLn) + Item_Total(aIt) + Line_Net(aSa) + ITEM_MAX

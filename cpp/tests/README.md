@@ -23,7 +23,8 @@ ctest --test-dir cpp/build
 ## cases/
 
 `NAME.xtpl` and beside it `NAME.tlpp`, the TL++ (none when xc writes none;
-for `NAME.prw`, an AdvPL source, `NAME.out.prw`, the AdvPL xc writes),
+for `NAME.prw`, an AdvPL source, `NAME.out.prw`, the AdvPL xc writes; for
+`NAME.xth`, a header of types, `NAME.th`),
 `NAME.err`, what xc says of it -- warnings, errors, the line it could not
 parse -- (none when it says nothing), and `NAME.args` when it is compiled with
 options: `--dict FILE`, `--dict-strict`, `--includes=DIRS`, the paths from its
@@ -60,8 +61,10 @@ the `DEC_` functions, and the numbers refused where they meet one;
 warning for a `Data`'s `default` or `init` value, which the AppServer
 ignores; `oneline/`, the one-line forms -- `if c exec s, s else s` and the
 rest --, and what is refused of them; `types/`, a type's fields, methods
-and values in TL++ -- and in AdvPL --, a type as a type, and what is
-refused of them.
+and values in TL++ -- and in AdvPL --, a type as a type, a type from
+another, and what is refused of them; `headers/`, headers of types (`.xth`)
+-- what xc makes of one, the `.th`, and of a source that includes them --,
+and what is wrong with one.
 
 A case holds the whole of what came out -- not, as a test in `t/` did, what
 it looks for --, so a change to the output shows in every case it touches. After a change

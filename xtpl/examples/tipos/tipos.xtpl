@@ -1,0 +1,27 @@
+// Tipos: arrays cujas posições têm nome, declarados num header (pedido.xth)
+// que todo fonte que vende inclui. Um pedido é uma lista de linhas; o total,
+// a soma do líquido de cada uma -- e uma linha vai onde um item vai.
+#include "totvs.ch"
+#include "pedido.xth"
+
+User Function Tipos()
+  Local aPed := { <Linha> }
+  Local nTotal := 0
+  AAdd(aPed, Linha("A01", 2, 10.5))
+  AAdd(aPed, Linha("B02", nPreco => 3, nDesc => 0.5))
+  aPed[1].nDesc := 1
+  for aLn in aPed exec nTotal += aLn.Liquido()
+  ConOut("itens: " + cValToChar(Len(aPed)) + ", total: " + cValToChar(nTotal) + ", o maior: " + Maior(aPed))
+Return nTotal <= PEDIDO_MAXIMO
+
+// O código do item de maior valor: uma linha é um Item.
+Static Function Maior(aItens as Array<Item>) as Character
+  Local cCod := ""
+  Local nMaior := -1
+  for aIt in aItens
+    if aIt.Total() > nMaior
+      nMaior := aIt.Total()
+      cCod := aIt.cCod
+    endif
+  next
+Return cCod

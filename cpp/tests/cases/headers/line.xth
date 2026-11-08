@@ -1,0 +1,9 @@
+// A header that includes another: a type from the other's.
+#include "item.xth"
+
+type Line from Item
+  nDesc as Numeric
+
+  method Net() as Numeric
+  Return .Total() - .nDesc
+endtype

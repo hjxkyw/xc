@@ -75,9 +75,10 @@
 # -- each .xbc has to be xc's, byte for byte, and how long each took is
 # shown; with them the sources of the checks' cases (cpp/tests/cases/
 # 32-check), most of which xc refuses, those of a source's own commands
-# (44-user-commands, named uc-NAME there) and those of types (types,
-# ty-NAME): what the compiler says of each -- its warnings, its errors, in
-# NAME.said beside the .xbc -- has to be what xc says. Then the interpreter
+# (44-user-commands, named uc-NAME there), those of types (types, ty-NAME)
+# and those of headers (headers, hd-NAME, their .xth beside them): what the
+# compiler says of each -- its warnings, its errors, in NAME.said beside the
+# .xbc -- has to be what xc says. Then the interpreter
 # runs each case from its source, the compiler making it bytecode as it
 # loads it --
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xtpl
@@ -87,8 +88,10 @@
 # The corpus (--corpus): xc compiles every program of xtpl's corpus --
 # its tests and its examples, but 51_legacy (xtpl's legacy mode) and
 # 54_selftest (the self-tests' own) -- into build/corpus/, in one run, and
-# the AppServer compiles that folder, with the runtime, in one run too.
-# Nothing is run: what it checks is that Protheus takes all of xc's output.
+# the AppServer compiles that folder, with the runtime, in one run too; the
+# examples' headers (.xth) xc makes .th into build/corpus-inc/, which the
+# AppServer reads include files from. Nothing is run: what it checks is
+# that Protheus takes all of xc's output.
 # The few of xtpl's sources that are UTF-8 -- xc takes windows-1252 only, as
 # Protheus' sources are -- go to xc as cp1252 copies, in build/cp1252/corpus/.
 #
@@ -364,10 +367,28 @@ if $corpus
     say "\n  xc could not compile all of them";
     exit 1;
   }
+  # The examples' headers (.xth): xc makes each a .th, in a folder of their
+  # own that the AppServer reads include files from -- in the folder it
+  # compiles, it would take them for sources.
+  my @headers = $root.add('xtpl/examples').dir.grep(*.d).map({ |.dir.grep(*.extension eq 'xth') }).sort;
+  my $hinc = $out.parent.add('corpus-inc');
+  if @headers
+  {
+    say "xc: making the .th of {+@headers} header(s) into {shown($hinc)}";
+    mkdir $hinc;
+    my $h = xc("--outdir={native($hinc)}", |@headers.map({ native($_) }));
+    my $said = $h.out.slurp(:close);
+    if $h.exitcode
+    {
+      print $said.lines.map({ "  $_\n" }).join;
+      say "\n  xc could not make them";
+      exit 1;
+    }
+  }
 
   say "\nProtheus: compiling them, with the runtime, into '{%opt<env>}', in one run";
   my $count = prepare-folder($out, @sources.map({ .basename.subst(/ '.xtpl' $ /, '.tlpp') }));
-  with compile-folder($out, $count)
+  with compile-folder($out, $count, |(@headers ?? ($hinc,) !! ()))
   {
     say "\n  $_";
     exit 1;
@@ -536,17 +557,19 @@ if $selfhost
   my @sources = ($root.add('runtime/xtpl_runtime.tlpp'), |@cases.map({ source-of($_) }),
                  $root.add('xtpl/tests/54_selftest.xtpl'));
   # What it says of these has to be what xc says: the checks' cases, those
-  # of a source's own commands (named 'uc-NAME' there) and those of types
-  # ('ty-NAME', the .prw too, not what xc makes of it) -- each the source
-  # and its name on the AppServer, as a list: rakupp makes a Pair's key a
-  # Str.
+  # of a source's own commands (named 'uc-NAME' there), those of types
+  # ('ty-NAME', the .prw too, not what xc makes of it) and of headers
+  # ('hd-NAME') -- each the source and its name on the AppServer, as a list:
+  # rakupp makes a Pair's key a Str.
   my @checked = |($root.add('cpp/tests/cases/32-check').dir.grep(*.extension eq 'xtpl').sort
                        .map(-> $f { ($f, $f.basename) })),
                 |($root.add('cpp/tests/cases/44-user-commands').dir.grep(*.extension eq 'xtpl').sort
                        .map(-> $f { ($f, 'uc-' ~ $f.basename) })),
                 |($root.add('cpp/tests/cases/types').dir
                        .grep({ .extension eq 'xtpl' | 'prw' && !.basename.ends-with('.out.prw') }).sort
-                       .map(-> $f { ($f, 'ty-' ~ $f.basename) }));
+                       .map(-> $f { ($f, 'ty-' ~ $f.basename) })),
+                |($root.add('cpp/tests/cases/headers').dir.grep(*.extension eq 'xtpl').sort
+                       .map(-> $f { ($f, 'hd-' ~ $f.basename) }));
   sub xbc-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.xbc') }
   sub said-of(Str $n --> Str) { $n.subst(/ '.' \w+ $ /, '.said') }
   sub xbc-name(IO::Path $s --> Str) { xbc-of($s.basename) }
@@ -590,8 +613,8 @@ if $selfhost
       }
       spurt $xbc.add(said-name($s)), $said;
     }
-    say "xc: what it says of {+@checked} sources of the checks' cases, of commands of their own and of types, "
-        ~ "into {shown($xbc)}";
+    say "xc: what it says of {+@checked} sources of the checks' cases, of commands of their own, of types and of "
+        ~ "headers, into {shown($xbc)}";
     for @checked -> ($s, $n)
     {
       my $q = xc('--bytecode', native($s), native($xbc.add(xbc-of($n))));
@@ -652,7 +675,8 @@ if $selfhost
   mkdir $stage;
   .unlink for $stage.dir.grep({ .f && .extension eq 'xbc' | 'got' | 'said' });
   my @staged = |(@sources.map(-> $f { ($f, $f.basename) })), |@checked,
-               |($cases.dir.grep(*.extension eq 'ch').map(-> $f { ($f, $f.basename) }));
+               |($cases.dir.grep(*.extension eq 'ch' | 'xth').map(-> $f { ($f, $f.basename) })),
+               |($root.add('cpp/tests/cases/headers').dir.grep(*.extension eq 'xth').map(-> $f { ($f, $f.basename) }));
   spurt $stage.add(.[1]), .[0].slurp(:bin) for @staged;
   my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
   spurt .key, .value.slurp(:bin) for @data;
@@ -660,7 +684,7 @@ if $selfhost
                                     .map({ on-server($_) ~ "\t" ~ on-server(xbc-of($_)) ~ "\r\n" }).join;
 
   say "\nProtheus: the compiler making {+@sources} sources bytecode, and {+@checked} of the checks' cases, of "
-      ~ "commands of their own and of types, in one run";
+      ~ "commands of their own, of types and of headers, in one run";
   my ($code, $text) = appserver($logs.add('run-u_xcb.log'), '-run=u_xcb', "-env={%opt<env>}", 'bytecode',
                                 on-server('list.txt'), 'said');
   # 'SOURCE -> OUT (N.NN s)': how long each took.

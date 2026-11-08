@@ -1,0 +1,12 @@
+// What a header may not hold: what each source that includes it would
+// have its own of.
+type Point
+  nX as Numeric
+  nX as Numeric
+endtype
+
+User Function NotHere()
+Return Nil
+
+Class Nor
+EndClass

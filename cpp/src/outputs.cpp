@@ -1,6 +1,6 @@
 // xc-outputs -- the TL++ xc writes for xtpl's sources, kept beside them: each
-// .xtpl of xtpl/tests/ and xtpl/examples/ has its .tlpp, the output byte for
-// byte as xc writes it. They replaced the .tlpp files xtpl made, so what a
+// .xtpl of xtpl/tests/ and xtpl/examples/ has its .tlpp -- each header, .xth,
+// its .th --, the output byte for byte as xc writes it. They replaced the .tlpp files xtpl made, so what a
 // reader finds beside a source is what xc does with it.
 //
 //   xc-outputs FOLDER...            compares; 1 when one differs
@@ -51,7 +51,7 @@ namespace
     for (const fs::path& p : entries)
     {
       if (fs::is_directory(p)) { sources_under(p, out); }
-      else if (p.extension() == ".xtpl") { out.push_back(p); }
+      else if (p.extension() == ".xtpl" || p.extension() == ".xth") { out.push_back(p); }
     }
   }
 
@@ -100,7 +100,7 @@ int main(int argc, char** argv)
     for (const fs::path& f : files)
     {
       fs::path t = f;
-      t.replace_extension(".tlpp");
+      t.replace_extension(f.extension() == ".xth" ? ".th" : ".tlpp");
       std::optional<std::string> out = compiled(f);
       if (update)
       {

@@ -31,5 +31,8 @@ namespace xc
   // The TL++ a program becomes, from its tree and its source. Throws
   // NotLowered, or std::runtime_error when something inside went wrong.
   // 'advpl': the source is AdvPL's, and so is what comes out (no tlpp-core.th).
-  std::string emit(const Program* p, const std::string& src, bool advpl = false);
+  // 'guard': a header's (.xth), whose .th is between '#ifndef guard' and
+  // '#endif' -- a source may include it twice, through others -- with no
+  // include of xc's.
+  std::string emit(const Program* p, const std::string& src, bool advpl = false, const std::string& guard = "");
 }

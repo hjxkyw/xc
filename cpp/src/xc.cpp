@@ -3,9 +3,12 @@
 //   xc file.xtpl                writes file.tlpp next to it
 //   xc file.xtpl out.tlpp       writes out.tlpp
 //   xc a.xtpl b.xtpl src/       each one next to itself -- a folder stands
-//                               for every .xtpl under it
+//                               for every .xtpl under it, and every .xth
+//                               but for --bytecode
 //   xc --outdir=out a.prw       an AdvPL source (.prw, .prx) stays AdvPL:
 //                               out/a.prw; never over its source
+//   xc item.xth                 a header of types writes item.th, which the
+//                               sources that include item.xth include
 //
 //   --check             checks, and writes nothing: everything that would stop
 //                       the compile is reported, the warnings too
@@ -83,8 +86,9 @@ namespace
     return s.size() >= tail.size() && xc::lc(s.substr(s.size() - tail.size())) == tail;
   }
 
-  // Every .xtpl under a folder, sorted, its subfolders' in their place.
-  void sources_under(const std::string& dir, std::vector<std::string>& out)
+  // Every .xtpl under a folder -- and every header, .xth, with 'headers' --,
+  // sorted, its subfolders' in their place.
+  void sources_under(const std::string& dir, std::vector<std::string>& out, bool headers)
   {
     std::vector<std::string> entries;
     std::error_code e;
@@ -98,12 +102,13 @@ namespace
     {
       if (is_dir(p))
       {
-        sources_under(p, out);
+        sources_under(p, out, headers);
         continue;
       }
       std::string name = fs::path(p).filename().string();
       std::size_t dot = name.rfind('.');
-      if (dot != std::string::npos && dot > 0 && xc::lc(name.substr(dot + 1)) == "xtpl") { out.push_back(p); }
+      std::string ext = dot != std::string::npos && dot > 0 ? xc::lc(name.substr(dot + 1)) : "";
+      if (ext == "xtpl" || (headers && ext == "xth")) { out.push_back(p); }
     }
   }
 
@@ -189,10 +194,12 @@ namespace
   }
 
   // What a source's output is named with: bytecode is a .xbc; an AdvPL
-  // source keeps its own extension, as written; any other makes a .tlpp.
+  // source keeps its own extension, as written; a header makes a .th; any
+  // other a .tlpp.
   std::string out_ext(const std::string& in, bool bytecode)
   {
     if (bytecode) { return ".xbc"; }
+    if (xc::is_header(in)) { return ".th"; }
     if (!xc::is_advpl(in)) { return ".tlpp"; }
     return in.substr(in.rfind('.'));
   }
@@ -252,6 +259,11 @@ int main(int argc, char** argv)
     named_out = given.back();
     given.pop_back();
   }
+  else if (given.size() == 2 && !bc && xc::is_header(given[0]) && ends_with_ci(given[1], ".th") && !is_dir(given[1]))
+  {
+    named_out = given.back();
+    given.pop_back();
+  }
   else if (given.size() == 2 && !bc && (ends_with_ci(given[1], ".tlpp") || advpl_out) && !is_dir(given[1]))
   {
     named_out = given.back();
@@ -289,7 +301,7 @@ int main(int argc, char** argv)
     if (is_dir(g))
     {
       std::vector<std::string> found;
-      sources_under(g, found);
+      sources_under(g, found, !bc);
       if (!found.empty()) { sources.insert(sources.end(), found.begin(), found.end()); }
       else
       {

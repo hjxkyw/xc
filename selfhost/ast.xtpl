@@ -98,7 +98,7 @@ Static Function Templates()
   aT[NK_EXTERNAL] := Joined(aNode, {.F., {}})
   aT[NK_PROGRAM] := Joined(aNode, {Nil, {}, {}, {}, {}, {}, {}, {}, {}, {}})
   aT[NK_TYPEFIELD] := Joined(aNode, {Nil})
-  aT[NK_TYPEDEF] := Joined(aNode, {"", -1, -1, -1, 0, {}, {}, ""})
+  aT[NK_TYPEDEF] := Joined(aNode, {"", -1, -1, -1, 0, {}, {}, "", ""})
 
   For nK := 1 To Len(aT)
     If aT[nK] != Nil

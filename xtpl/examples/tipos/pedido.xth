@@ -1,0 +1,20 @@
+// Os tipos de um pedido, para todo fonte que vende: o item, e a linha, que
+// é um item com desconto. Cada fonte que inclui este header tem os dois,
+// e o xc faz dele o pedido.th que esses fontes incluem no TL++.
+#define PEDIDO_MAXIMO 99
+
+type Item
+  cCod <const> as Character  // o produto
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype
+
+type Linha from Item
+  nDesc as Numeric
+
+  method Liquido() as Numeric
+  Return .Total() - .nDesc
+endtype

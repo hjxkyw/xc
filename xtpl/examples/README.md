@@ -21,6 +21,7 @@ para ver no que uma coisa vira sem precisar rodar nada.
 | `medias/` | limpar um arquivo texto e tirar a média de três campos por linha, numa passada, com a classe `Regex` do TLPP |
 | `somar/` | somar campo a campo as linhas correspondentes de dois arquivos, com `zip` aninhado |
 | `euler-1/` | o primeiro problema do Project Euler, sobre um intervalo |
+| `tipos/` | `type`: um item e uma linha que é um item, declarados num header (`pedido.xth`) que todo fonte que vende inclui; o xc faz dele o `pedido.th` |
 
 Os `.tlpp` são **saída gerada** e estão versionados de propósito, para quem lê
 o repositório -- hoje a saída do xc, não mais a do xtpl. Isso só vale se forem

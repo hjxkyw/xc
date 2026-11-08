@@ -161,7 +161,8 @@ function activate(context)
         const file = document.uri.fsPath;
         runXc(xcOptions(), file, (said) =>
         {
-          const tlpp = file.replace(/\.[^./\\]*$/, '') + '.tlpp';
+          // A header of types, .xth, makes a .th; a source, a .tlpp.
+          const tlpp = file.replace(/\.[^./\\]*$/, '') + (/\.xth$/i.test(file) ? '.th' : '.tlpp');
           if (said.includes(' -> '))
           {
             vscode.window.showInformationMessage(`xtpl: ${path.basename(file)} -> ${path.basename(tlpp)}`);

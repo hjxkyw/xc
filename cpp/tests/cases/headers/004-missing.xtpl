@@ -1,0 +1,5 @@
+// A header that is nowhere.
+#include "nowhere.xth"
+
+User Function Missing()
+Return Nil

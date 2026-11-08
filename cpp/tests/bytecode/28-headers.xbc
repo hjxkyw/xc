@@ -1,0 +1,94 @@
+xbc 1
+source 28-headers.xtpl
+statics 0
+
+function VALUE static 1 1
+  locals aIt
+  line 12
+  local 1
+  call 1 Item_Total
+  ret
+end
+
+function U_MAIN user 0 2
+  locals aLn aSa
+  line 15
+  str "A"
+  num 2
+  num 10
+  num 3
+  array 4
+  setlocal 1
+  line 16
+  str "B"
+  num 1
+  num 4
+  num 1
+  str "me"
+  array 5
+  setlocal 2
+  line 17
+  local 1
+  num 2
+  dup2
+  index
+  num 1
+  add
+  setindex
+  line 18
+  local 1
+  call 1 Line_Net
+  local 1
+  call 1 Value
+  local 2
+  call 1 Line_Net
+  local 2
+  num 5
+  index
+  local 2
+  call 1 Len
+  num 99
+  call 6 ConOut
+  pop
+  line 19
+  str "C"
+  num 2
+  num 5
+  array 3
+  call 1 Item_Total
+  local 2
+  dup
+  isnil
+  jumpt 50
+  call 1 Item_Total
+  call 2 ConOut
+  pop
+  line 20
+  nil
+  ret
+end
+
+function ITEM_TOTAL static 1 1
+  locals Self
+  line 11
+  local 1
+  num 2
+  index
+  local 1
+  num 3
+  index
+  mul
+  ret
+end
+
+function LINE_NET static 1 1
+  locals Self
+  line 8
+  local 1
+  call 1 Item_Total
+  local 1
+  num 4
+  index
+  sub
+  ret
+end

@@ -38,7 +38,7 @@ namespace xc
   class Emitter
   {
   public:
-    explicit Emitter(std::string src, bool advpl = false);
+    explicit Emitter(std::string src, bool advpl = false, std::string guard = "");
 
     std::string emit(const Program* p);
 
@@ -123,6 +123,7 @@ namespace xc
     // ---- state --------------------------------------------------------------
     std::string src_;
     bool advpl_;
+    std::string guard_;              // a header's: its .th's '#ifndef'
     std::string nl_;
     std::vector<Edit> edits_;
     std::unordered_set<std::string> used_;
@@ -300,6 +301,7 @@ namespace xc
     std::string block_arg(const std::string& verb, const Expr* e);
     std::string part(const Expr* e);
     const TypeDef* made_type(const Expr* e) const;
+    void header_includes();
     std::string made(const Call* c);
     std::string field_name(const std::string& type, int pos) const;
     std::string method_name(const std::string& type, const std::string& name) const;

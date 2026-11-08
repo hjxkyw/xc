@@ -54,4 +54,7 @@ namespace xc
   // from them (TOTVS' compressed ones are not read).
   std::vector<std::string> include_defines(std::string_view text, const std::optional<std::string>& dir,
                                            const std::vector<std::string>& dirs);
+
+  // The files a text's '#include' lines name, as written, in order.
+  std::vector<std::string> include_names(std::string_view text);
 }

@@ -1072,6 +1072,11 @@ namespace xc
     }
   }
 
+  std::vector<std::string> include_names(std::string_view text)
+  {
+    return includes_of(text);
+  }
+
   std::vector<std::string> include_defines(std::string_view text, const std::optional<std::string>& dir,
                                            const std::vector<std::string>& dirs)
   {

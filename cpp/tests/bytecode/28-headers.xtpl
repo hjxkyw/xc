@@ -1,0 +1,20 @@
+// Types from headers (.xth): those of a header and of the header it
+// includes -- once, though both are included --, a type of the file's from
+// one of theirs, and a header's #define.
+#include "28-lines.xth"
+#include "28-headers.xth"
+
+type Sale from Line
+  cWho as Character
+endtype
+
+Static Function Value(aIt as Item)
+Return aIt.Total()
+
+User Function Main()
+  Local aLn := Line("A", 2, 10, nDesc => 3)
+  Local aSa := Sale("B", nPreco => 4, nDesc => 1, cWho => "me")
+  aLn.nQtd++
+  ConOut(aLn.Net(), Value(aLn), aSa.Net(), aSa.cWho, Len(aSa), HEADERS_MAX)
+  ConOut(Item("C", 2, 5).Total(), aSa?.Total())
+Return Nil

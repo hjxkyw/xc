@@ -516,6 +516,87 @@ User Function Net(aIt as Array)
 Return Line_Net(aLn) + Item_Total(aIt)
 ```
 
+### Headers
+
+A type a source declares is its own. Types that several sources share go in
+a header, a `.xth`: `type` blocks, `#define`s and the preprocessor's other
+directives, comments -- nothing else, no function, class or `Static`, of
+which each source that includes it would have its own. A source that
+includes one, `#include "item.xth"`, has its types as its own, and those
+of the headers it includes; its own types may be from them.
+
+`xc item.xth` writes `item.th`, its TL++: its types as a source's are,
+between `#ifndef XTH_ITEM` and `#endif` -- a source may include one twice,
+through other headers --, and no include of xc's. In what xc writes of a
+source, or of a header, `#include "item.xth"` is `#include "item.th"`: the
+`.th` goes to the AppServer with the sources, in their folder or among its
+include folders. A folder given to xc has its headers compiled too.
+
+```xth
+#define ITEM_MAX 99
+
+type Item
+  cCod as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype
+```
+
+```th
+#ifndef XTH_ITEM
+#define XTH_ITEM
+#define ITEM_MAX 99
+
+// type Item: an array of 3
+#define Item_cCod 1
+#define Item_nQtd 2
+#define Item_nPreco 3
+
+Static Function Item_Total(aSelf as Array) as Numeric
+Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+// endtype
+#endif
+```
+
+```
+#include "totvs.ch"
+#include "item.xth"
+
+type Line from Item
+  nDesc as Numeric
+endtype
+
+User Function Sell(aIt as Item)
+  Local aLn := Line("A", 2, 10, 3)
+Return aIt.Total() + aLn.Total() - aLn.nDesc + ITEM_MAX
+```
+
+```
+#include "totvs.ch"
+#include "tlpp-core.th"
+#include "item.th"
+
+// type Line from Item: an array of 4
+#define Line_nDesc 4
+// endtype
+
+User Function Sell(aIt as Array)
+  Local aLn := {"A", 2, 10, 3}
+Return Item_Total(aIt) + Item_Total(aLn) - aLn[Line_nDesc] + ITEM_MAX
+```
+
+xc looks for a header where it looks for any include file -- the folder of
+the file that includes it, then `--includes` -- and reads it as a file of
+its own, the headers it includes first: what is wrong with it is said of it,
+as compiling it says it, and nothing is written of the source. A type of the
+source may not have the name of a header's, nor may two headers' types share
+one. A header is made no bytecode: the `.xbc` of a source that includes one
+has its types' methods, functions of the source's own, as the `.th` gives
+them to a source in TL++.
+
 ### Annotations
 
 A line starting with `@` and a name, with arguments or not, before what it

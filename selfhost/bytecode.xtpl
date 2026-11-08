@@ -4074,6 +4074,7 @@ Return cOut
 
 Static Function Run()
   Local nI
+  Local aDefs
   Local nJ
   Local aD
   Local aV
@@ -4116,8 +4117,21 @@ Static Function Run()
     Next
   Next
 
+  // The methods of the types of the headers it includes: functions of its
+  // own, as the TL++ of each header (a .th) makes them.
+  aDefs := {}
   For nI := 1 To Len(aProg[PG_FUNCTIONS])
-    aFd := aProg[PG_FUNCTIONS][nI]
+    AAdd(aDefs, aProg[PG_FUNCTIONS][nI])
+  Next
+  For nI := 1 To Len(aProg[PG_TYPES])
+    If !Empty(aProg[PG_TYPES][nI][TD_HEADER])
+      For nJ := 1 To Len(aProg[PG_TYPES][nI][TD_METHODS])
+        AAdd(aDefs, aProg[PG_TYPES][nI][TD_METHODS][nJ])
+      Next
+    EndIf
+  Next
+  For nI := 1 To Len(aDefs)
+    aFd := aDefs[nI]
     nLine := aFd[N_LINE]
     cT := Lc(aFd[FN_TYPE])
     cName := Uc(aFd[FN_NAME])

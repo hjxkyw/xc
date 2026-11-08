@@ -1,0 +1,12 @@
+// A header's types are checked where a source uses them, and their names
+// are taken.
+#include "item.xth"
+
+type Item
+  nZ as Numeric
+endtype
+
+User Function Wrong(aIt as Item)
+  aIt.nQtd := "x"
+  aIt.cCod := "y"
+Return Item(1, 2, 3, 4)

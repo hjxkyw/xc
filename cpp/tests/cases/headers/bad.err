@@ -1,0 +1,3 @@
+bad.xth:5: 'nX' is a field of Point twice.
+bad.xth:8: 'NotHere' is a function: a header (.xth) holds types and directives, nothing else.
+bad.xth:11: 'Nor' is a class: a header (.xth) holds types and directives, nothing else.

@@ -1,0 +1,12 @@
+// A header of types: what each source that includes it has -- Item, its
+// fields' positions, its methods -- and a #define of its own.
+#define ITEM_MAX 99
+
+type Item
+  cCod <const> as Character  // the product
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype

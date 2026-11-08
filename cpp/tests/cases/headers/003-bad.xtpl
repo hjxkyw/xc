@@ -1,0 +1,5 @@
+// A header that is wrong: what is wrong with it, said of it.
+#include "bad.xth"
+
+User Function Bad()
+Return Nil

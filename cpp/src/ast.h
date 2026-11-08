@@ -560,6 +560,8 @@ namespace xc
   {
     std::string name;
     std::string base;                // 'type B from A': A, whose fields and methods B has first
+    std::string header;              // the header it is from, 'item.xth', in a file that
+                                     // includes one; '' for the file's own
     int line = 0;
     int from = -1;
     int head_to = -1;

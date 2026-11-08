@@ -415,7 +415,9 @@ xtpl's own forms are what they are for TL++:
   order; `x.nQtd` an `index` at the field's position, `x.nQtd := v` a
   `setindex`; each method a function of kind `static`, `ITEM_TOTAL`, its
   first local `Self`, the value it is called on, and `x.Total()` a `call`
-  of it with x first.
+  of it with x first -- of the type's own, or of the one it is from. The
+  methods of a header's types (`.xth`) are functions of the module of each
+  source that includes it, after its own; a header is made no `.xbc`.
 
 The runtime -- `runtime/xtpl_runtime.tlpp`, compiled into the RPO -- has to
 be there for these, as for TL++.

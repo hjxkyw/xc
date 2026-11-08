@@ -602,6 +602,7 @@ namespace xc
       // language, no verb, no reserved word is one.
       for (const TypeDef* t : p->types)
       {
+        if (!t->header.empty()) { continue; }
         std::string why = LANGUAGE_FUNCTIONS.count(lc(t->name)) ? "a function of the AppServer's language"
                           : is_runtime_verb(t->name) ? "the name of one of xtpl's verbs"
                           : is_reserved(t->name) ? "a reserved word" : "";

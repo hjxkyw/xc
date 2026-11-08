@@ -271,13 +271,14 @@ namespace xc
 
   NotLowered::NotLowered(std::vector<Finding> found) : std::runtime_error(what_of(found)), problems(std::move(found)) {}
 
-  std::string emit(const Program* p, const std::string& src, bool advpl)
+  std::string emit(const Program* p, const std::string& src, bool advpl, const std::string& guard)
   {
-    return Emitter(src, advpl).emit(p);
+    return Emitter(src, advpl, guard).emit(p);
   }
 
   // ---- the emitter ----------------------------------------------------------
-  Emitter::Emitter(std::string src, bool advpl) : src_(std::move(src)), advpl_(advpl)
+  Emitter::Emitter(std::string src, bool advpl, std::string guard)
+    : src_(std::move(src)), advpl_(advpl), guard_(std::move(guard))
   {
     nl_ = src_.find("\r\n") != std::string::npos ? "\r\n" : "\n";
     std::string l = lc(src_);
@@ -811,8 +812,11 @@ namespace xc
     // its position; each method a static function, Self its first
     // parameter, written a level less deep.
     std::unordered_map<const FunctionDef*, int> ends;
+    header_includes();
     for (const TypeDef* t : p->types)
     {
+      // A header's is in its .th.
+      if (!t->header.empty()) { continue; }
       std::size_t n = type_fields(t, types_).size();
       std::size_t first = n - t->fields.size();          // the fields of the type it is from
       edit(t->from, t->head_to, "// " + text(t->from, t->head_to) + ": an array of " + std::to_string(n));
@@ -1001,7 +1005,42 @@ namespace xc
       out += c;
       col = c == '\n' || c == '\r' ? 0 : col + 1;
     }
+    if (!guard_.empty())
+    {
+      bool closed = out.empty() || out.back() == '\n';
+      return "#ifndef " + guard_ + nl_ + "#define " + guard_ + nl_ + out + (closed ? "" : nl_) + "#endif" + nl_;
+    }
     return add_includes(out, nl_, advpl_);
+  }
+
+  // '#include "item.xth"': the header's TL++, "item.th".
+  void Emitter::header_includes()
+  {
+    std::size_t at = 0;
+    while (at < src_.size())
+    {
+      std::size_t end = src_.find('\n', at);
+      if (end == std::string::npos) { end = src_.size(); }
+      std::size_t k = at;
+      while (k < end && is_h(static_cast<unsigned char>(src_[k]))) { k++; }
+      if (k < end && src_[k] == '#')
+      {
+        k++;
+        while (k < end && is_h(static_cast<unsigned char>(src_[k]))) { k++; }
+        if (lc(src_.substr(k, 7)) == "include")
+        {
+          k += 7;
+          while (k < end && is_h(static_cast<unsigned char>(src_[k]))) { k++; }
+          char close = k < end && src_[k] == '<' ? '>' : k < end ? src_[k] : 0;
+          std::size_t e = close == '"' || close == '\'' || close == '>' ? src_.find(close, k + 1) : std::string::npos;
+          if (e != std::string::npos && e < end && e >= k + 5 && lc(src_.substr(e - 4, 4)) == ".xth")
+          {
+            edit(static_cast<int>(e - 4), static_cast<int>(e), ".th");
+          }
+        }
+      }
+      at = end + 1;
+    }
   }
 
   // The values that go into a Decimal, and those that go into a Numeric

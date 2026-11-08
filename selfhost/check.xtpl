@@ -490,6 +490,9 @@ Static Function CheckProgram(aProg)
   // language, no verb, no reserved word is one.
   For nI := 1 To Len(aProg[PG_TYPES])
     aTy := aProg[PG_TYPES][nI]
+    If !Empty(aTy[TD_HEADER])
+      Loop
+    EndIf
     cWhy := If(Among(Lc(aTy[TD_NAME]), cLanguageFunctions), "a function of the AppServer's language", ;
                If(u_xcb_isverb(aTy[TD_NAME]), "the name of one of xtpl's verbs", ;
                   If(u_xcb_isreserved(aTy[TD_NAME]), "a reserved word", "")))

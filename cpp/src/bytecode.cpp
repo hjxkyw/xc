@@ -3831,7 +3831,14 @@ namespace xc
         }
       }
 
-      for (const FunctionDef* fd : p_->functions)
+      // The methods of the types of the headers it includes: functions of
+      // its own, as the TL++ of each header (a .th) makes them.
+      std::vector<const FunctionDef*> fns(p_->functions.begin(), p_->functions.end());
+      for (const TypeDef* t : p_->types)
+      {
+        if (!t->header.empty()) { fns.insert(fns.end(), t->methods.begin(), t->methods.end()); }
+      }
+      for (const FunctionDef* fd : fns)
       {
         line_ = fd->line;
         std::string t = lc(fd->type);

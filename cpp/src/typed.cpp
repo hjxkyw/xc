@@ -959,8 +959,11 @@ namespace xc
         std::string k = lc(t->name);
         if (types_.count(k))
         {
-          errors.push_back({ t->line, "'" + t->name + "' is declared twice, on line "
-                                      + std::to_string(types_[k].def->line) + " and here." });
+          const TypeDef* was = types_[k].def;
+          errors.push_back({ t->line, was->header.empty()
+                                      ? "'" + t->name + "' is declared twice, on line " + std::to_string(was->line)
+                                        + " and here."
+                                      : "'" + t->name + "' is a type of " + was->header + " too: give it another name." });
           continue;
         }
         types_[k].name = t->name;
@@ -976,6 +979,8 @@ namespace xc
       }
       for (const TypeDef* t : p_->types)
       {
+        // What is wrong with a header's type was said of the header.
+        std::size_t before = errors.size();
         TypeInfo& ti = types_[lc(t->name)];
         if (ti.def != t) { continue; }
         bool cls = false;
@@ -999,7 +1004,7 @@ namespace xc
           {
             errors.push_back({ t->line, "'" + t->name + "' is from '" + t->base + "', which is no type of the file." });
           }
-          else if (bi->second.def->from > t->from)
+          else if (bi->second.def->header.empty() && bi->second.def->from > t->from)
           {
             errors.push_back({ t->line, "'" + t->name + "' is from " + bi->second.name + ", declared further on, on line "
                                         + std::to_string(bi->second.def->line) + ": declare " + bi->second.name
@@ -1106,6 +1111,7 @@ namespace xc
           }
           ti.methods[n] = m;
         }
+        if (!t->header.empty()) { errors.resize(before); }
       }
     }
 
@@ -1269,7 +1275,7 @@ namespace xc
           continue;
         }
         // Its position is a #define of the type's: there only after it.
-        if (a.e->from >= 0 && a.e->from < ti->def->from)
+        if (ti->def->header.empty() && a.e->from >= 0 && a.e->from < ti->def->from)
         {
           said[i].push_back({ line_, "'" + ti->name + "' is declared on line " + std::to_string(ti->def->line)
                                     + ": its fields are read after it." });
@@ -1317,7 +1323,7 @@ namespace xc
           errors.push_back({ line_, "'" + ti->name + "' has no field '" + name + "'." });
           continue;
         }
-        if (a.e->from >= 0 && a.e->from < ti->def->from)
+        if (ti->def->header.empty() && a.e->from >= 0 && a.e->from < ti->def->from)
         {
           errors.push_back({ line_, "'" + ti->name + "' is declared on line " + std::to_string(ti->def->line)
                                     + ": its fields are read after it." });

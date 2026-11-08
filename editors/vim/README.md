@@ -15,8 +15,8 @@ xtpl -- TL++ with xtpl's extensions, the language
   of its line, as TL++'s: only a block comment, or a directive carried on
   with `;`, goes past a line -- so the colors are the same wherever the
   file is first shown from.
-- `.xtpl` files read and written as windows-1252, as Protheus' sources
-  are and as xc reads them.
+- `.xtpl` files -- and `.xth`, headers of types -- read and written as
+  windows-1252, as Protheus' sources are and as xc reads them.
 - `//` comments for `gq` and the like, and two blanks a level, no tabs.
 
 `syntax/xtpl.vim` colors, `ftdetect/xtpl.vim` says what an xtpl file is,

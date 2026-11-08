@@ -5,11 +5,12 @@
 //   xc-cases --update FOLDER...     writes what xc makes now -- after a change
 //                                   that is meant; the diff is the review
 //
-// A case is NAME.xtpl under a folder -- or NAME.prw, an AdvPL source --
-// with beside it:
+// A case is NAME.xtpl under a folder -- or NAME.prw, an AdvPL source, or
+// NAME.xth, a header of types -- with beside it:
 //
 //   NAME.tlpp   the TL++ xc writes for it; none when it writes nothing --
-//               for a NAME.prw, NAME.out.prw: the AdvPL xc writes
+//               for a NAME.prw, NAME.out.prw: the AdvPL xc writes; for a
+//               NAME.xth, NAME.th
 //   NAME.err    what xc says of it -- warnings, errors, the line it could not
 //               parse -- the source named NAME.xtpl; none when it says nothing
 //   NAME.args   the options it is compiled with, when it has any: --dict FILE,
@@ -46,7 +47,7 @@ namespace
       std::string name = p.filename().string();
       bool prw = p.extension() == ".prw" && name.size() > 8 && name.substr(name.size() - 8) != ".out.prw";
       if (fs::is_directory(p)) { cases_under(p, out); }
-      else if (p.extension() == ".xtpl" || prw) { out.push_back(p); }
+      else if (p.extension() == ".xtpl" || p.extension() == ".xth" || prw) { out.push_back(p); }
     }
   }
 
@@ -160,7 +161,7 @@ int main(int argc, char** argv)
         continue;
       }
       xc::Compiled c = xc::compile(f.string(), f.filename().string(), o);
-      const char* made = f.extension() == ".prw" ? ".out.prw" : ".tlpp";
+      const char* made = f.extension() == ".prw" ? ".out.prw" : f.extension() == ".xth" ? ".th" : ".tlpp";
       if (update)
       {
         put(beside(f, made), c.output);

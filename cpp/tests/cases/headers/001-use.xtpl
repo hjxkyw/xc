@@ -1,0 +1,15 @@
+// A source that includes headers: their types are its own, their includes
+// TL++'s .th -- each between '#ifndef' and '#endif', so twice is once.
+#include "totvs.ch"
+#include "line.xth"
+#include "item.xth"
+
+type Sale from Line
+  cWho as Character
+endtype
+
+User Function Sell(aIt as Item)
+  Local aLn := Line("A", 2, 10, nDesc => 3)
+  Local aSa := Sale("B", nPreco => 4, cWho => "me")
+  aLn.nQtd++
+Return aLn.Net() + aIt.Total() + aSa.Net() + ITEM_MAX

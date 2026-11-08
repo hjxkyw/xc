@@ -1,0 +1,9 @@
+// A header that includes another: Line is from that one's Item.
+#include "28-headers.xth"
+
+type Line from Item
+  nDesc as Numeric
+
+  method Net() as Numeric
+  Return .Total() - .nDesc
+endtype

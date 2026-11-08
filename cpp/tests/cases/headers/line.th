@@ -1,0 +1,12 @@
+#ifndef XTH_LINE
+#define XTH_LINE
+// A header that includes another: a type from the other's.
+#include "item.th"
+
+// type Line from Item: an array of 4
+#define Line_nDesc 4
+
+Static Function Line_Net(aSelf as Array) as Numeric
+Return Item_Total(aSelf) - aSelf[Line_nDesc]
+// endtype
+#endif

@@ -16,6 +16,10 @@ namespace xc
   // it stays AdvPL, in a file of its kind; anything else makes TL++.
   bool is_advpl(const std::string& path);
 
+  // Whether a file is a header of types, a .xth: what xc makes of it is a
+  // .th, which each source that includes it includes instead.
+  bool is_header(const std::string& path);
+
   struct CompileOptions
   {
     bool strict = false;                 // the dictionary's findings are errors

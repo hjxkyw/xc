@@ -37,6 +37,15 @@
 // (commands.xtpl).
 // -----------------------------------------------------------------------------
 
+// The headers read for the file compiled, by their paths in lower case
+// (.F. while one is read): each once -- {its name as the '#include' names
+// it, its own types, the headers it includes, its path in lower case}.
+Static hHeaders := Nil
+#define HD_NAME      1
+#define HD_OWN       2
+#define HD_USES      3
+#define HD_KEY       4
+
 // The arguments as the AppServer gives them -- the program, its options
 // among them -- or as xc-vm does.
 User Function xcb(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10)
@@ -71,6 +80,8 @@ User Function xcb_compile(cPath, aDirs)
   Local aProg
   Local aDefines
   Local aSpans
+  Local aUses
+  Local aSaid
   If aDirs == Nil
     aDirs := {}
   EndIf
@@ -82,10 +93,21 @@ User Function xcb_compile(cPath, aDirs)
   If cWhy != Nil
     Return {Nil, {cPath + ": " + cWhy}}
   EndIf
+  If HeaderName(cPath) .And. FolderEnd(cPath) < Len(cPath) - 3
+    Return {Nil, {cPath + ": a header (.xth) is made no bytecode: each source that includes it has its types"}}
+  EndIf
   aSpans := Spans(aSource[1], FolderOf(cPath), aDirs)
   aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
   If aProg == Nil
     Return {Nil, NotParsed(aSource[1], cPath, u_xcb_furthest(), aSpans)}
+  EndIf
+  // The types of the headers it includes (.xth), each read and checked as a
+  // file of its own, are its own too.
+  hHeaders := { => }
+  aUses := {}
+  aSaid := {}
+  If !LoadUses(aSource[1], FolderOf(cPath), aDirs, aUses, aSaid) .Or. !WithHeaders(aProg, aUses, cPath, aSaid)
+    Return {Nil, aSaid}
   EndIf
   aDefines := IncludeDefines(aSource[1], FolderOf(cPath), aDirs)
 Return Made(cPath, aProg, aSource[1], aDefines, ;
@@ -379,6 +401,8 @@ Static Function Compiled(cSource, aSource, aBare, aCols)
   Local oErr
   Local cText
   Local nP
+  Local aUses := {}
+  Local aSaid := {}
   If aSpans != Nil
     aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
   EndIf
@@ -386,6 +410,15 @@ Static Function Compiled(cSource, aSource, aBare, aCols)
     If Len(aCols) > 3
       MemoWrite(aCols[4], Joined(If(cWhy != Nil, {cSource + ": " + cWhy}, ;
                                     NotParsed(aSource[1], cSource, u_xcb_furthest(), aSpans))))
+    EndIf
+    Return Nil
+  EndIf
+  // Its headers' types, as u_xcb_compile() has them.
+  hHeaders := { => }
+  If !LoadUses(aSource[1], FolderOf(cSource), {}, aUses, aSaid) .Or. !WithHeaders(aProg, aUses, cSource, aSaid)
+    MemoWrite(aCols[2], "")
+    If Len(aCols) > 3
+      MemoWrite(aCols[4], Joined(aSaid))
     EndIf
     Return Nil
   EndIf
@@ -485,6 +518,208 @@ Return If(nCut > 0, Left(cPath, nCut - 1), ".")
 
 Static Function FolderEnd(cPath)
 Return Max(RAt("/", cPath), RAt("\", cPath))
+
+// ---- headers ----------------------------------------------------------------
+// A header (.xth) a file includes: read, parsed and checked as a file of its
+// own, the headers it includes first; its types are the file's too
+// (driver.cpp's load_header()) -- HD_*.
+Static Function HeaderName(cN)
+Return Len(cN) > 4 .And. u_xcb_lc(Right(cN, 4)) == ".xth"
+
+// Where an include file is: the folder of the file that includes it, then
+// the include folders; "" when it is in none.
+Static Function FindInclude(cName, cDir, aDirs)
+  Local aPlaces := {cDir}
+  Local nP
+  For nP := 1 To Len(aDirs)
+    AAdd(aPlaces, aDirs[nP])
+  Next
+  For nP := 1 To Len(aPlaces)
+    If File(InFolder(aPlaces[nP], cName))
+      Return InFolder(aPlaces[nP], cName)
+    EndIf
+  Next
+Return ""
+
+// What a header holds that is no type and no directive: each source that
+// includes it would have its own. {line, what}, by line.
+Static Function NotHeader(aProg)
+  Local aOut := {}
+  Local cNo := ": a header (.xth) holds types and directives, nothing else."
+  Local nI
+  For nI := 1 To Len(aProg[PG_FUNCTIONS])
+    If Empty(aProg[PG_FUNCTIONS][nI][FN_OFTYPE])
+      AAdd(aOut, {aProg[PG_FUNCTIONS][nI][N_LINE], "'" + aProg[PG_FUNCTIONS][nI][FN_NAME] + "' is a function" + cNo})
+    EndIf
+  Next
+  For nI := 1 To Len(aProg[PG_CLASSES])
+    AAdd(aOut, {aProg[PG_CLASSES][nI][N_LINE], "'" + aProg[PG_CLASSES][nI][CD_NAME] + "' is a class" + cNo})
+  Next
+  For nI := 1 To Len(aProg[PG_METHODS])
+    AAdd(aOut, {aProg[PG_METHODS][nI][N_LINE], "'" + aProg[PG_METHODS][nI][MI_NAME] + "' is a method of a class" + cNo})
+  Next
+  For nI := 1 To Len(aProg[PG_STATICS])
+    AAdd(aOut, {aProg[PG_STATICS][nI][N_LINE], "a Static" + cNo})
+  Next
+Return ByLine(aOut)
+
+// {line, what} pairs in the order of their lines, those of a line as they
+// came.
+Static Function ByLine(aIn)
+  Local aOut := {}
+  Local aLines := {}
+  Local nI
+  Local nJ
+  For nI := 1 To Len(aIn)
+    If AScan(aLines, aIn[nI][1]) == 0
+      AAdd(aLines, aIn[nI][1])
+    EndIf
+  Next
+  ASort(aLines)
+  For nJ := 1 To Len(aLines)
+    For nI := 1 To Len(aIn)
+      If aIn[nI][1] == aLines[nJ]
+        AAdd(aOut, aIn[nI])
+      EndIf
+    Next
+  Next
+Return aOut
+
+// The types of the headers given, and of theirs, each once -- those of the
+// headers a header includes before its own.
+Static Function TypesOf(aUses, aOut, hSeen)
+  Local nI
+  Local nJ
+  Local aU
+  For nI := 1 To Len(aUses)
+    aU := aUses[nI]
+    If hSeen has aU[HD_KEY]
+      Loop
+    EndIf
+    hSeen{aU[HD_KEY]} := .T.
+    TypesOf(aU[HD_USES], aOut, hSeen)
+    For nJ := 1 To Len(aU[HD_OWN])
+      AAdd(aOut, aU[HD_OWN][nJ])
+    Next
+  Next
+Return Nil
+
+// The headers' types put before a file's own: .F., with what is said, when
+// two of them have the same name.
+Static Function WithHeaders(aProg, aUses, cIn, aSaid)
+  Local aMore := {}
+  Local hNames := { => }
+  Local nI
+  Local aT
+  Local cK
+  TypesOf(aUses, aMore, { => })
+  For nI := 1 To Len(aMore)
+    aT := aMore[nI]
+    cK := u_xcb_lc(aT[TD_NAME])
+    If hNames has cK
+      AAdd(aSaid, cIn + ": '" + Cp1252ToUtf8(aT[TD_NAME]) + "' is a type of " + Cp1252ToUtf8(hNames{cK}[TD_HEADER]) ;
+                  + " and of " + Cp1252ToUtf8(aT[TD_HEADER]))
+      Return .F.
+    EndIf
+    hNames{cK} := aT
+  Next
+  For nI := 1 To Len(aProg[PG_TYPES])
+    AAdd(aMore, aProg[PG_TYPES][nI])
+  Next
+  aProg[PG_TYPES] := aMore
+Return .T.
+
+// The headers a text includes, each loaded into aUses: .F., with what is
+// said, when one cannot be.
+Static Function LoadUses(cText, cDir, aDirs, aUses, aSaid)
+  Local aNames := IncludesOf(cText)
+  Local aH
+  Local nI
+  For nI := 1 To Len(aNames)
+    If !HeaderName(aNames[nI])
+      Loop
+    EndIf
+    aH := LoadHeader(aNames[nI], cDir, aDirs, aSaid)
+    If aH == Nil
+      Return .F.
+    EndIf
+    AAdd(aUses, aH)
+  Next
+Return .T.
+
+// A header read and checked as a file of its own -- what is wrong with it
+// said of it, as compiling it says it --, then its types marked as its, for
+// the files that include it.
+Static Function LoadHeader(cName, cDir, aDirs, aSaid)
+  Local cPath := FindInclude(cName, cDir, aDirs)
+  Local cKey
+  Local aSrc
+  Local cWhy
+  Local cHdir
+  Local aUses := {}
+  Local aSpans
+  Local aProg
+  Local aH
+  Local aWrong
+  Local aChecked
+  Local nI
+  If cPath == ""
+    AAdd(aSaid, Cp1252ToUtf8(cName) + ": no such header, in the folder of the file that includes it or in the " ;
+                + "include folders")
+    Return Nil
+  EndIf
+  cKey := u_xcb_lc(cPath)
+  If hHeaders has cKey
+    If ValType(hHeaders{cKey}) == "L"
+      AAdd(aSaid, Cp1252ToUtf8(cName) + ": it includes itself, through the headers it includes")
+      Return Nil
+    EndIf
+    Return hHeaders{cKey}
+  EndIf
+  hHeaders{cKey} := .F.
+  aSrc := ReadAll(cPath)
+  cWhy := Utf8Reason(aSrc[1])
+  If cWhy != Nil
+    AAdd(aSaid, Cp1252ToUtf8(cName) + ": " + cWhy)
+    Return Nil
+  EndIf
+  cHdir := FolderOf(cPath)
+  If !LoadUses(aSrc[1], cHdir, aDirs, aUses, aSaid)
+    Return Nil
+  EndIf
+  aSpans := Spans(aSrc[1], cHdir, aDirs)
+  aProg := u_xcb_parse(aSrc[1], aSrc[2], aSpans)
+  If aProg == Nil
+    aWrong := NotParsed(aSrc[1], cName, u_xcb_furthest(), aSpans)
+    For nI := 1 To Len(aWrong)
+      AAdd(aSaid, aWrong[nI])
+    Next
+    Return Nil
+  EndIf
+  aH := {cName, {}, aUses, cKey}
+  For nI := 1 To Len(aProg[PG_TYPES])
+    AAdd(aH[HD_OWN], aProg[PG_TYPES][nI])
+  Next
+  If !WithHeaders(aProg, aUses, cName, aSaid)
+    Return Nil
+  EndIf
+  aWrong := NotHeader(aProg)
+  aChecked := u_xcb_checkall(aProg, Len(LinesOf(aSrc[1], .F.)), aSrc[1], .F., .T., IncludeDefines(aSrc[1], cHdir, aDirs))
+  For nI := 1 To Len(aChecked[1])
+    AAdd(aWrong, aChecked[1][nI])
+  Next
+  aWrong := ByLine(aWrong)
+  For nI := 1 To Len(aWrong)
+    AAdd(aSaid, Cp1252ToUtf8(cName) + ":" + AllTrim(Str(aWrong[nI][1])) + ": " + Cp1252ToUtf8(aWrong[nI][2]))
+  Next
+  If Len(aWrong) > 0
+    Return Nil
+  EndIf
+  For nI := 1 To Len(aH[HD_OWN])
+    aH[HD_OWN][nI][TD_HEADER] := cName
+  Next
+  hHeaders{cKey} := aH
+Return aH
 
 // ---- include files ----------------------------------------------------------
 // The '#define' lines of the include files a source names, and those they

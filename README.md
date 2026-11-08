@@ -42,6 +42,8 @@ cpp/build/xc --dict sx3.csv --dict-strict file.xtpl     # and what it finds stop
 cpp/build/xc --version               # the commit it was built from, and its date
 cpp/build/xc --outdir=out a.prw      # an AdvPL source stays AdvPL: out/a.prw
 cpp/build/xc a.prw b.prw             # writes b.prw -- never over its source
+cpp/build/xc item.xth                # a header of types: writes item.th, which the sources
+                                     # that include item.xth include (docs/language.md, Headers)
 cpp/build/xc --bytecode file.xtpl    # writes file.xbc, bytecode, instead of the TL++
 cpp/build/xc --bytecode runtime/xtpl_runtime.tlpp rt.xbc   # xtpl's runtime, as bytecode
 cpp/build/xc-vm rt.xbc file.xbc      # runs it, the runtime first
