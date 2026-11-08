@@ -1,0 +1,334 @@
+xbc 1
+source 29-refs.xtpl
+statics 1
+
+class COUNTER
+  data NV AL
+  method NEW COUNTER:NEW
+  method TWICE COUNTER:TWICE
+end
+
+function __INIT init 0 0
+  locals
+  line 13
+  num 0
+  array 1
+  setstatic 1
+  nil
+  ret
+end
+
+function U_MAIN user 0 7
+  locals aA oO ePair jJ hMap aG bInc
+  box 1
+  line 34
+  num 1
+  num 2
+  num 3
+  array 2
+  nil
+  array 3
+  setcell 1
+  line 35
+  num 10
+  new 1 Counter New
+  setlocal 2
+  line 36
+  str "x"
+  num 7
+  array 2
+  setlocal 3
+  line 37
+  new 0 JsonObject New
+  setlocal 4
+  line 38
+  str "k"
+  str "found"
+  array 2
+  array 1
+  call 1 u_xtpl_hnew
+  setlocal 5
+  line 39
+  str "a"
+  array 1
+  setlocal 6
+  line 40
+  refcell 1
+  block U_MAIN#1 1
+  setlocal 7
+  line 41
+  str "-- elements"
+  call 1 ConOut
+  pop
+  line 42
+  cell 1
+  num 1
+  refindex
+  call 1 Inc
+  pop
+  line 43
+  cell 1
+  num 2
+  index
+  num 1
+  refindex
+  call 1 Inc
+  pop
+  line 44
+  static 1
+  num 1
+  refindex
+  call 1 Inc
+  pop
+  line 45
+  cell 1
+  num 1
+  index
+  cell 1
+  num 2
+  index
+  num 1
+  index
+  cell 1
+  num 2
+  index
+  num 2
+  index
+  static 1
+  num 1
+  index
+  call 4 ConOut
+  pop
+  line 46
+  str "-- members"
+  call 1 ConOut
+  pop
+  line 47
+  local 2
+  refmember nV
+  call 1 Inc
+  pop
+  line 48
+  local 2
+  method 0 Twice
+  pop
+  line 49
+  local 2
+  member aL
+  num 3
+  refindex
+  call 1 Inc
+  pop
+  line 50
+  local 2
+  member nV
+  local 2
+  member aL
+  num 1
+  index
+  local 2
+  member aL
+  num 2
+  index
+  local 2
+  member aL
+  num 3
+  index
+  call 4 ConOut
+  pop
+  line 51
+  str "-- a type's field, a JsonObject's key"
+  call 1 ConOut
+  pop
+  line 52
+  local 3
+  num 2
+  refindex
+  call 1 Inc
+  pop
+  line 53
+  local 4
+  str "n"
+  num 1
+  setindex
+  line 54
+  local 4
+  str "n"
+  refindex
+  call 1 Inc
+  pop
+  line 55
+  local 3
+  num 2
+  index
+  local 4
+  str "n"
+  index
+  call 2 ConOut
+  pop
+  line 56
+  str "-- set to Nil, by the AppServer's, in a block"
+  call 1 ConOut
+  pop
+  line 57
+  cell 1
+  num 2
+  refindex
+  call 1 Clear
+  pop
+  line 58
+  local 5
+  str "k"
+  cell 1
+  num 3
+  refindex
+  method 2 Get
+  pop
+  line 59
+  local 7
+  call 1 Eval
+  pop
+  line 60
+  cell 1
+  num 2
+  index
+  call 1 ValType
+  cell 1
+  num 3
+  index
+  cell 1
+  num 1
+  index
+  call 3 ConOut
+  pop
+  line 61
+  str "-- an array that grows in the call"
+  call 1 ConOut
+  pop
+  line 62
+  local 6
+  num 1
+  refindex
+  local 6
+  call 2 Grow
+  pop
+  line 63
+  local 6
+  call 1 Len
+  local 6
+  num 1
+  index
+  local 6
+  num 100
+  index
+  call 3 ConOut
+  pop
+  line 64
+  nil
+  ret
+end
+
+function U_MAIN#1 block 0 0
+  locals
+  upvals aA
+  line 40
+  upval 1
+  num 1
+  refindex
+  call 1 Inc
+  ret
+end
+
+function INC static 1 1
+  locals nX
+  line 67
+  local 1
+  num 1
+  add
+  setlocal 1
+  line 68
+  nil
+  ret
+end
+
+function CLEAR static 1 1
+  locals xX
+  line 71
+  nil
+  setlocal 1
+  line 72
+  nil
+  ret
+end
+
+function GROW static 2 3
+  locals cX aIn nI
+  line 77
+  num 1
+  setlocal 3
+  line 77
+  local 3
+  num 99
+  le
+  jumpf 21
+  local 2
+  str "n"
+  local 3
+  call 1 cValToChar
+  add
+  call 2 AAdd
+  pop
+  local 3
+  num 1
+  add
+  setlocal 3
+  jump 4
+  line 78
+  str "grown"
+  setlocal 1
+  line 79
+  nil
+  ret
+end
+
+function COUNTER:NEW method 1 1
+  locals nV
+  line 23
+  self
+  local 1
+  setmember nV
+  line 24
+  self
+  num 1
+  num 2
+  num 3
+  array 3
+  setmember aL
+  line 25
+  self
+  ret
+end
+
+function COUNTER:TWICE method 0 0
+  locals
+  line 28
+  self
+  refmember nV
+  call 1 Inc
+  pop
+  line 29
+  self
+  refmember nV
+  call 1 Inc
+  pop
+  line 30
+  self
+  member aL
+  num 2
+  refindex
+  call 1 Inc
+  pop
+  line 31
+  nil
+  ret
+end

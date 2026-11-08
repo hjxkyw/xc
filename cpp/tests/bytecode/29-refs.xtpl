@@ -1,0 +1,79 @@
+// References to an element and to a member: '@a[i]', '@a[i][j]', '@o:x',
+// '@::x', '@::a[i]', '@s.f', '@j["k"]' -- the parameter given the value,
+// what it holds at the return written back; in a code block, to a method
+// of the AppServer's, to an element of an array that grew in the call.
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+type Pair
+  cKey as Character
+  nValue as Numeric
+endtype
+
+Static saSeen := {0}
+
+Class Counter
+  Public Data nV
+  Public Data aL
+  Public Method New(nV) Constructor
+  Public Method Twice()
+EndClass
+
+Method New(nV) Class Counter
+  ::nV := nV
+  ::aL := {1, 2, 3}
+Return Self
+
+Method Twice() Class Counter
+  Inc(@::nV)
+  Inc(@::nV)
+  Inc(@::aL[2])
+Return Nil
+
+User Function Main()
+  Local aA := {1, {2, 3}, Nil}
+  Local oO := Counter():New(10)
+  Local ePair := Pair("x", 7)
+  Local jJ := { : }
+  Local hMap := {"k" => "found"}
+  Local aG := {"a"}
+  Local bInc := {|| Inc(@aA[1])}
+  ConOut("-- elements")
+  Inc(@aA[1])
+  Inc(@aA[2][1])
+  Inc(@saSeen[1])
+  ConOut(aA[1], aA[2][1], aA[2][2], saSeen[1])
+  ConOut("-- members")
+  Inc(@oO:nV)
+  oO:Twice()
+  Inc(@oO:aL[3])
+  ConOut(oO:nV, oO:aL[1], oO:aL[2], oO:aL[3])
+  ConOut("-- a type's field, a JsonObject's key")
+  Inc(@ePair.nValue)
+  jJ["n"] := 1
+  Inc(@jJ["n"])
+  ConOut(ePair.nValue, jJ["n"])
+  ConOut("-- set to Nil, by the AppServer's, in a block")
+  Clear(@aA[2])
+  hMap:Get("k", @aA[3])
+  Eval(bInc)
+  ConOut(ValType(aA[2]), aA[3], aA[1])
+  ConOut("-- an array that grows in the call")
+  Grow(@aG[1], aG)
+  ConOut(Len(aG), aG[1], aG[100])
+Return Nil
+
+Static Function Inc(nX)
+  nX++
+Return Nil
+
+Static Function Clear(xX)
+  xX := Nil
+Return Nil
+
+// The element is found again where it is now: the array grew.
+Static Function Grow(cX, aIn)
+  Local nI
+  for nI := 1 to 99 exec AAdd(aIn, "n" + cValToChar(nI))
+  cX := "grown"
+Return Nil

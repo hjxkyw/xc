@@ -57,12 +57,15 @@ namespace
   };
   constexpr long EMPTY_DAY = -999999999L;
 
+  struct Place;
+
   // A variable passed by reference: where it is, and the cell that keeps it
-  // when it is one.
+  // when it is one; an element or a member, its place.
   struct Ref
   {
     Value* to;
     Cell keep;
+    std::shared_ptr<Place> place;
   };
 
   // A Decimal, TL++'s 'F': a sign, its digits -- no leading zeros, "0" for
@@ -151,11 +154,53 @@ namespace
     const Class* cls = nullptr;
   };
 
+  // An element or a member passed by reference: its array and where in it,
+  // or its object and the member's name as the object has it -- found again
+  // each time, for the array may have grown since, the object had a member
+  // added.
+  struct Place
+  {
+    ArrayP arr;
+    std::size_t at = 0;
+    std::shared_ptr<Object> obj;
+    std::string name;
+  };
+
   bool is_nil(const Value& x) { return std::holds_alternative<std::monostate>(x.v); }
+
+  // Where a reference is now: none for an element its array no longer has.
+  Value* target(const Ref& r)
+  {
+    if (!r.place) { return r.to; }
+    const Place& p = *r.place;
+    if (p.arr) { return p.at < p.arr->size() ? &(*p.arr)[p.at] : nullptr; }
+    for (auto& [k, v] : p.obj->props)
+    {
+      if (k == p.name) { return &v; }
+    }
+    return nullptr;
+  }
+
+  // A value written where a reference is: a JsonObject's key it no longer
+  // has is added again, an element its array no longer has is not.
+  void put(const Ref& r, const Value& x)
+  {
+    if (Value* t = target(r))
+    {
+      *t = x;
+      return;
+    }
+    if (r.place && r.place->obj) { r.place->obj->props.push_back({ r.place->name, x }); }
+  }
 
   const Value& deref(const Value& x)
   {
-    if (auto r = std::get_if<Ref>(&x.v)) { return *r->to; }
+    static const Value nil;
+    if (auto r = std::get_if<Ref>(&x.v))
+    {
+      Value* t = target(*r);
+      return t ? *t : nil;
+    }
     return x;
   }
 
@@ -483,7 +528,7 @@ namespace
     Nil, True, False, Num, Str,
     Local, SetLocal, Box, CellOp, SetCell, Upval, SetUpval, Static, SetStatic, Memvar, SetMemvar, Private, Public,
     Field, SetField, FieldX, SetFieldX,
-    RefLocal, RefCell, RefUpval, RefStatic, RefMemvar,
+    RefLocal, RefCell, RefUpval, RefStatic, RefMemvar, RefIndex, RefMember,
     Pop, Dup, Dup2, ArrayOp, Index, SetIndex, Member, SetMember, Self,
     Add, Sub, Mul, Div, Mod, Pow, Neg, Not, Eq, Exact, Ne, Lt, Gt, Le, Ge, Contains, IsNil,
     Jump, JumpF, JumpT, AndJump, OrJump,
@@ -513,6 +558,7 @@ namespace
     { "setfieldx", Op::SetFieldX, Shape::Word }, { "reflocal", Op::RefLocal, Shape::Int },
     { "refcell", Op::RefCell, Shape::Int }, { "refupval", Op::RefUpval, Shape::Int },
     { "refstatic", Op::RefStatic, Shape::Int }, { "refmemvar", Op::RefMemvar, Shape::Word },
+    { "refindex", Op::RefIndex, Shape::None }, { "refmember", Op::RefMember, Shape::Word },
     { "pop", Op::Pop, Shape::None }, { "dup", Op::Dup, Shape::None }, { "dup2", Op::Dup2, Shape::None },
     { "array", Op::ArrayOp, Shape::Int }, { "index", Op::Index, Shape::None },
     { "setindex", Op::SetIndex, Shape::None }, { "member", Op::Member, Shape::Word },
@@ -677,6 +723,8 @@ namespace
     void set_index(const Value& a, const Value& i, const Value& x);
     Value member(const Value& o, const std::string& name);
     void set_member(const Value& o, const std::string& name, const Value& x);
+    Value ref_index(const Value& a, const Value& i);
+    Value ref_member(const Value& o, const std::string& name);
     Value json_get(const Value& o, const std::string& key);
     void json_set(const Value& o, const std::string& key, const Value& x);
     bool logical(const Value& x, const char* what);
@@ -948,7 +996,7 @@ namespace
     {
       if (auto r = std::get_if<Ref>(&args[i].v))
       {
-        f->locals[i] = *r->to;
+        f->locals[i] = deref(args[i]);
         f->byref.push_back({ i, *r });
       }
       else
@@ -966,8 +1014,8 @@ namespace
     for (auto& [i, r] : f.byref)
     {
       const Value& x = f.locals[i];
-      if (auto c = std::get_if<Cell>(&x.v)) { *r.to = **c; }
-      else { *r.to = x; }
+      if (auto c = std::get_if<Cell>(&x.v)) { put(r, **c); }
+      else { put(r, x); }
     }
     for (const std::string& p : f.privates)
     {
@@ -1435,6 +1483,46 @@ namespace
     (*obj)->props.push_back({ name, deref(x) });
   }
 
+  // '@a[i]', '@o:x': a reference to the element, the member -- an error
+  // where reading it would be one.
+  Value VM::ref_index(const Value& a0, const Value& i0)
+  {
+    index(a0, i0);
+    const Value& a = deref(a0);
+    auto p = std::make_shared<Place>();
+    if (auto arr = std::get_if<ArrayP>(&a.v))
+    {
+      p->arr = *arr;
+      p->at = static_cast<std::size_t>(static_cast<long>(std::get<double>(deref(i0).v)) - 1);
+    }
+    else
+    {
+      p->obj = std::get<std::shared_ptr<Object>>(a.v);
+      p->name = text(i0);
+    }
+    Value r;
+    r.v = Ref{ nullptr, nullptr, p };
+    return r;
+  }
+
+  Value VM::ref_member(const Value& o0, const std::string& name)
+  {
+    member(o0, name);
+    auto p = std::make_shared<Place>();
+    p->obj = std::get<std::shared_ptr<Object>>(deref(o0).v);
+    for (auto& [k, v] : p->obj->props)
+    {
+      if (upper(k) == upper(name))
+      {
+        p->name = k;
+        break;
+      }
+    }
+    Value r;
+    r.v = Ref{ nullptr, nullptr, p };
+    return r;
+  }
+
   std::string VM::key_text(const Value& k0)
   {
     const Value& k = deref(k0);
@@ -1515,7 +1603,7 @@ namespace
         if (it == h.end()) { return L(false); }
         if (args.size() > 1)
         {
-          if (auto r = std::get_if<Ref>(&args[1].v)) { *r->to = it->second.second; }
+          if (auto r = std::get_if<Ref>(&args[1].v)) { put(*r, it->second.second); }
         }
         return L(true);
       }
@@ -1530,7 +1618,7 @@ namespace
         }
         if (!args.empty())
         {
-          if (auto r = std::get_if<Ref>(&args[0].v)) { *r->to = A(list); }
+          if (auto r = std::get_if<Ref>(&args[0].v)) { put(*r, A(list)); }
         }
         return L(true);
       }
@@ -1679,7 +1767,7 @@ namespace
         case Op::RefLocal:
         {
           Value r;
-          r.v = Ref{ &local(in.a), nullptr };
+          r.v = Ref{ &local(in.a), nullptr, nullptr };
           st.push_back(r);
           break;
         }
@@ -1687,7 +1775,7 @@ namespace
         {
           Cell c = cell(in.a);
           Value r;
-          r.v = Ref{ c.get(), c };
+          r.v = Ref{ c.get(), c, nullptr };
           st.push_back(r);
           break;
         }
@@ -1695,14 +1783,14 @@ namespace
         {
           Cell c = upval(in.a);
           Value r;
-          r.v = Ref{ c.get(), c };
+          r.v = Ref{ c.get(), c, nullptr };
           st.push_back(r);
           break;
         }
         case Op::RefStatic:
         {
           Value r;
-          r.v = Ref{ &statics()[static_cast<std::size_t>(in.a - 1)], nullptr };
+          r.v = Ref{ &statics()[static_cast<std::size_t>(in.a - 1)], nullptr, nullptr };
           st.push_back(r);
           break;
         }
@@ -1711,8 +1799,20 @@ namespace
           Cell* c = memvar(in.s);
           Cell v = c ? *c : private_var(in.s);
           Value r;
-          r.v = Ref{ v.get(), v };
+          r.v = Ref{ v.get(), v, nullptr };
           st.push_back(r);
+          break;
+        }
+        case Op::RefIndex:
+        {
+          Args a = take(2);
+          st.push_back(ref_index(a[0], a[1]));
+          break;
+        }
+        case Op::RefMember:
+        {
+          Value o = pop();
+          st.push_back(ref_member(o, in.s));
           break;
         }
         case Op::Pop: pop(); break;
@@ -2528,7 +2628,7 @@ namespace
           auto k = std::get_if<double>(&deref(x).v);
           if (!k || *k < 1 || *k > static_cast<double>(arr->size())) { continue; }
           Value r;
-          r.v = Ref{ &(*arr)[static_cast<std::size_t>(*k) - 1], nullptr };
+          r.v = Ref{ &(*arr)[static_cast<std::size_t>(*k) - 1], nullptr, nullptr };
           args[static_cast<std::size_t>(*k) - 1] = r;
         }
       }
@@ -2642,7 +2742,7 @@ namespace
       }
       if (a.size() > 1)
       {
-        if (auto r = std::get_if<Ref>(&a[1].v)) { *r->to = S(got); }
+        if (auto r = std::get_if<Ref>(&a[1].v)) { put(*r, S(got)); }
       }
       return N(static_cast<double>(got.size()));
     };

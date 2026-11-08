@@ -166,7 +166,7 @@ pushes its result; below, `[a b]` is the stack before it, `b` on top, and
 `-> [c]` what it leaves.
 
 Values are AdvPL's. A cell -- what a code block shares with the function
-that made it -- and a reference -- a variable passed with `@` -- are the
+that made it -- and a reference -- what is passed with `@` -- are the
 machine's own: no program sees one.
 
 ### Constants
@@ -207,6 +207,20 @@ parameter is given the variable's value, and when the call returns, the
 parameter's last value is written back to the variable. For a function of
 the AppServer, the interpreter passes a variable of its own by reference,
 and writes it back the same way.
+
+`@a[i]`, `@a[i][j]`, `@s.f` pass an element by reference, `@o:x`, `@::x`
+a member -- `@::a[i]`, the element of one:
+
+| instruction | does |
+|---|---|
+| `refindex` | `[a i] -> [ref]`: a reference to `a[i]`, of an array or of a JsonObject by key -- an error where reading `a[i]` would be one |
+| `refmember NAME` | `[o] -> [ref]`: a reference to `o:NAME` -- an error where reading it would be one |
+
+The value is written back the same way, to the element where it is when
+the call returns: the array may have grown in the call; an element it no
+longer has is not written. `@a[i]` is compiled as `a[i]` is, but its last
+`index`: `@aCampos[nX][8]` is `local aCampos`, `local nX`, `index`,
+`num 8`, `refindex`.
 
 ### The stack, arrays and objects
 
@@ -431,7 +445,8 @@ xc says so, and writes no `.xbc`:
   `BeginSql`, one of the source's own --, a translation of the source's
   own, a directive inside a function, `#ifdef` and its kin, a `#define`
   with parameters;
-- `@` before what is not a variable: `@aCampos[nX][8]`, `@::x`.
+- `@` before what is not a variable, an element or a member: a field,
+  `@SA1->A1_COD`; a hash's key, `@h{k}`; `@o?.x`.
 
 A `#define` from an include file xc cannot read -- TOTVS' are compressed
 -- is not seen: its name is a memvar.
@@ -468,7 +483,8 @@ It is the machine of this page, and the AppServer is the rest:
   class no module has, the same way;
 - a code block of the program is one of the AppServer's that runs it there,
   with as many arguments as its function takes -- so `aEval()`, `aSort()`
-  and the runtime's verbs run it;
+  and the runtime's verbs run it; one given a reference, `Eval(bSet, @x)`,
+  is given the value, and nothing is written back;
 - an object of a module's class is an `XbcObj`, a class of the interpreter's
   own, whose `ValType()` is `"O"`;
 - `ErrorBlock()` is the program's, kept apart: the interpreter runs under

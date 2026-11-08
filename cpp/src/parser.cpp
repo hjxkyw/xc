@@ -1830,7 +1830,7 @@ namespace xc
     return span(e, start, p_);
   }
 
-  // rule byref { '@' [ <selfacc> || [ <name> <trailer>* ] ] }
+  // rule byref { '@' [ [ <selfacc> <trailer>* ] || [ <name> <trailer>* ] ] }
   Expr* Parser::byref()
   {
     int start = p_;
@@ -1844,8 +1844,10 @@ namespace xc
     {
       if (Expr* s = selfacc())
       {
+        int se = p_;
+        std::vector<Trailer> tr = trailers();
         auto r = make<Ref>();
-        r->target = s;
+        r->target = tr.empty() ? s : trailed(s, at, se, tr, start, false);
         return r;
       }
       p_ = at;

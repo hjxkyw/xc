@@ -4,5 +4,5 @@
 User Function Refused(aNums)
   Local nTotal := 0
   raw @ 10, 5 SAY "Total"
-  ConOut(aNums[1], @aNums[2])
+  ConOut(aNums[1], @aNums{1})
 Return nTotal

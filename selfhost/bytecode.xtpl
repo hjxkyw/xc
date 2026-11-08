@@ -975,13 +975,37 @@ Static Function CallExpr(aC)
   EmitCall(nCount, If(lVerb, "u_xtpl_" + cN, aC[CALL_NAME]))
 Return Nil
 
-// An argument: left out, Nil; '@x', a reference to x.
+// An argument: left out, Nil; '@x', a reference to x -- '@a[i]', '@s.f' to
+// an element, '@o:x', '@::x' to a member, the array or the object found
+// first.
 Static Function Arg(aA)
   Local aT
+  Local nI
   If IsK(aA, EK_REF)
     aT := aA[REF_TARGET]
     If IsK(aT, EK_NAME)
       RefVar(Resolve(NameOf(aT)))
+      Return Nil
+    EndIf
+    If IsK(aT, EK_INDEX)
+      Expr(aT[IDX_BASE])
+      For nI := 1 To Len(aT[IDX_INDICES]) - 1
+        Expr(aT[IDX_INDICES][nI])
+        Op("index")
+      Next
+      Expr(ATail(aT[IDX_INDICES]))
+      Op("refindex")
+      Return Nil
+    EndIf
+    If IsK(aT, EK_DOT)
+      Expr(aT[DOT_BASE])
+      Op("num", NumText(aT[DOT_POS]))
+      Op("refindex")
+      Return Nil
+    EndIf
+    If IsK(aT, EK_MEMBER) .And. !(IsK(aT[MEM_BASE], EK_NAME) .And. (hRecords has Lc(NameOf(aT[MEM_BASE]))))
+      MemberBase(aT[MEM_BASE])
+      Op("refmember", aT[MEM_NAME])
       Return Nil
     EndIf
     If IsK(aT, EK_ALIASFIELD) .And. aT[AF_ALIAS] != Nil .And. aT[AF_MACRO] == Nil ;
@@ -989,7 +1013,7 @@ Static Function Arg(aA)
       Op("refmemvar", Uc(aT[AF_FIELD]))
       Return Nil
     EndIf
-    Problem("'@' before what is not a variable -- an element, a member")
+    Problem("'@' before what is not a variable, an element or a member")
     Op("nil")
     Return Nil
   EndIf

@@ -133,7 +133,9 @@
 #define OP_ENDDEFER   89
 #define OP_AREA       90
 #define OP_ENDAREA    91
-#define OP_COUNT      91
+#define OP_REFINDEX   92
+#define OP_REFMEMBER  93
+#define OP_COUNT      93
 
 // An instruction: {op, a, b, s, s2, n, what it found, its line, what kind
 // of call it is, what the call runs}. A fused one: LOCAL2 a b, LOCALIDX a n
@@ -405,6 +407,8 @@ Class XbcVM
   Public Method MethodCall(xObj, cName, aArgs)
   Public Method MemberOf(xObj, cName)
   Public Method SetMemberOf(xObj, cName, xValue)
+  Public Method RefGet(aRef)
+  Public Method RefSet(aRef, xValue)
   Public Method NewNative(cClass, cName, aArgs)
   Public Method MemCell(cName)
   Public Method PrivCell(cName, lFresh)
@@ -446,7 +450,8 @@ Method New() Class XbcVM
                  {"box", "I", OP_BOX}, {"callx", "I", OP_CALLX}, {"super", "IW", OP_SUPER}, {"macro", "", OP_MACRO}, ;
                  {"setmacro", "", OP_SETMACRO}, {"line", "I", OP_LINE}, {"seq", "I", OP_SEQ}, {"try", "I", OP_TRY}, ;
                  {"endseq", "", OP_ENDSEQ}, {"defer", "II", OP_DEFER}, {"rundefers", "", OP_RUNDEFERS}, ;
-                 {"enddefer", "", OP_ENDDEFER}, {"area", "", OP_AREA}, {"endarea", "", OP_ENDAREA}}
+                 {"enddefer", "", OP_ENDDEFER}, {"area", "", OP_AREA}, {"endarea", "", OP_ENDAREA}, ;
+                 {"refindex", "", OP_REFINDEX}, {"refmember", "W", OP_REFMEMBER}}
   ::hOps := { => }
   ::aOpNames := Array(OP_COUNT)
   for aOp in aOps
@@ -774,7 +779,7 @@ Static Function XbcEffect(aIns)
        nOp == OP_JUMPF .Or. nOp == OP_JUMPT .Or. nOp == OP_AREA .Or. nOp == OP_RET .Or. ;
        nOp == OP_ADD .Or. nOp == OP_SUB .Or. nOp == OP_MUL .Or. nOp == OP_DIV .Or. nOp == OP_MOD .Or. ;
        nOp == OP_POW .Or. nOp == OP_EQ .Or. nOp == OP_EXACT .Or. nOp == OP_NE .Or. nOp == OP_LT .Or. ;
-       nOp == OP_GT .Or. nOp == OP_LE .Or. nOp == OP_GE .Or. nOp == OP_CONTAINS
+       nOp == OP_GT .Or. nOp == OP_LE .Or. nOp == OP_GE .Or. nOp == OP_CONTAINS .Or. nOp == OP_REFINDEX
     Return -1
   Case nOp == OP_SETFIELDX .Or. nOp == OP_SETMEMBER .Or. nOp == OP_SETMACRO
     Return -2
@@ -1085,7 +1090,7 @@ Method Push(aFn, aArgs, aCells, xSelf) Class XbcVM
   for xArg, nI in aArgs
     Exit if nI > aFn[FN_PARAMS]
     If XbcIsRef(xArg)
-      aLocals[nI] := xArg[2][xArg[3]]
+      aLocals[nI] := ::RefGet(xArg)
       aByRef ?= {}
       AAdd(aByRef, {nI, xArg})
     Else
@@ -1103,7 +1108,7 @@ Method EndFrame(aF) Class XbcVM
   for aBy in aF[F_MORE][X_BYREF] ?: {}
     Local xValue := aF[F_LOCALS][aBy[1]]
     xValue := xValue[1] if XbcBoxed(aF, aBy[1])
-    aBy[2][2][aBy[2][3]] := xValue
+    ::RefSet(aBy[2], xValue)
   next
   for cName in aF[F_MORE][X_PRIVS] ?: {}
     Local aStack := ::hPrivs{cName}
@@ -1819,6 +1824,22 @@ Method Rare(aF, aIns) Class XbcVM
   Case nOp == OP_ENDAREA
     ::CallNative("DbSelectArea", {ATail(aF[F_MORE][X_AREAS])})
     ASize(aF[F_MORE][X_AREAS], Len(aF[F_MORE][X_AREAS]) - 1)
+  Case nOp == OP_REFINDEX
+    // '@a[i]': a reference to the element -- an error where reading it
+    // would be one.
+    xA := aSt[nSp - 1][aSt[nSp]]
+    nSp--
+    aSt[nSp] := {scRef, aSt[nSp], aSt[nSp + 1]}
+  Case nOp == OP_REFMEMBER
+    // '@o:x': a module's object's data, by its place; a member of the
+    // AppServer's, by its name.
+    xA := aSt[nSp]
+    If ValType(xA) == "O" .And. XbcIsObj(xA)
+      aSt[nSp] := {scRef, xA:aProps, ::SlotOf(xA:xbcCls, aIns[I_S])}
+    Else
+      ::MemberOf(xA, aIns[I_S])
+      aSt[nSp] := {scRef, xA, aIns[I_S]}
+    EndIf
   EndCase
   aF[F_SP] := nSp
   aF[F_PC] := nPc
@@ -2523,7 +2544,7 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
   // Every call of the AppServer's comes here: one walk, no blocks.
   for xArg, nI in aArgs
     If XbcIsRef(xArg)
-      aVals[nI] := xArg[2][xArg[3]]
+      aVals[nI] := ::RefGet(xArg)
       AAdd(aRefs, nI)
     Else
       aVals[nI] := xArg
@@ -2550,7 +2571,7 @@ Method Native(cWhat, cName, cMethod, xObj, aArgs) Class XbcVM
            XbcShownAll(aVals) + ;
                    ") -> " + XbcShown(xResult))
   EndIf
-  aRefs |> tap([k] aArgs[k][2][aArgs[k][3]] := aVals[k])
+  for nK in aRefs exec ::RefSet(aArgs[nK], aVals[nK])
 Return xResult
 
 // Values as a trace shows them, between commas.
@@ -2675,6 +2696,22 @@ Method SetMemberOf(xObj, cName, xValue) Class XbcVM
   Else
     ::hCache{"s:" + cName} ?= XbcMacroRun("{|o, v| o:${cName} := v}")
     Eval(::hCache{"s:" + cName}, xObj, xValue)
+  EndIf
+Return Nil
+
+// What a reference is to: an element of an array -- a local's place in
+// its frame, a cell's value, a static, an element, a module's object's data
+// -- or a member of an object of the AppServer's, by name. An element its
+// array no longer has is not written.
+Method RefGet(aRef) Class XbcVM
+  Return ::MemberOf(aRef[2], aRef[3]) if ValType(aRef[2]) == "O"
+Return aRef[2][aRef[3]]
+
+Method RefSet(aRef, xValue) Class XbcVM
+  If ValType(aRef[2]) == "O"
+    ::SetMemberOf(aRef[2], aRef[3], xValue)
+  ElseIf !(ValType(aRef[2]) == "A" .And. aRef[3] > Len(aRef[2]))
+    aRef[2][aRef[3]] := xValue
   EndIf
 Return Nil
 

@@ -1062,7 +1062,9 @@ namespace xc
       call(count, verb ? "u_xtpl_" + n : c->name);
     }
 
-    // An argument: left out, Nil; '@x', a reference to x.
+    // An argument: left out, Nil; '@x', a reference to x -- '@a[i]', '@s.f'
+    // to an element, '@o:x', '@::x' to a member, the array or the object
+    // found first.
     void Compiler::arg(const Expr* a)
     {
       if (is(a, EK::Ref))
@@ -1073,13 +1075,41 @@ namespace xc
           ref(resolve(name_of(t)));
           return;
         }
+        if (is(t, EK::Index))
+        {
+          auto x = static_cast<const Index*>(t);
+          expr(x->base);
+          for (std::size_t i = 0; i + 1 < x->indices.size(); i++)
+          {
+            expr(x->indices[i]);
+            op("index");
+          }
+          expr(x->indices.back());
+          op("refindex");
+          return;
+        }
+        if (is(t, EK::Dot))
+        {
+          auto d = static_cast<const Dot*>(t);
+          expr(d->base);
+          op("num", std::to_string(d->pos));
+          op("refindex");
+          return;
+        }
+        auto m = static_cast<const Member*>(t);
+        if (is(t, EK::Member) && !(is(m->base, EK::Name) && records_.count(lc(name_of(m->base)))))
+        {
+          member_base(m->base);
+          op("refmember", m->name);
+          return;
+        }
         auto f = static_cast<const AliasField*>(t);
         if (is(t, EK::AliasField) && f->alias && !f->macro && (uc(*f->alias) == "M" || uc(*f->alias) == "MEMVAR"))
         {
           op("refmemvar", uc(f->field));
           return;
         }
-        problem("'@' before what is not a variable -- an element, a member");
+        problem("'@' before what is not a variable, an element or a member");
         op("nil");
         return;
       }

@@ -2277,7 +2277,7 @@ Static Function Arg()
   EndIf
 Return Span(aE, nStart, nP)
 
-// rule byref { '@' [ <selfacc> || [ <name> <trailer>* ] ] }
+// rule byref { '@' [ [ <selfacc> <trailer>* ] || [ <name> <trailer>* ] ] }
 Static Function ByRef()
   Local nStart := nP
   Local nAt
@@ -2294,8 +2294,10 @@ Static Function ByRef()
   If C(nAt) == 58
     aSl := SelfAcc()
     If aSl != Nil
+      nE := nP
+      aTr := Trailers()
       aR := u_xcb_new(EK_REF)
-      aR[REF_TARGET] := aSl
+      aR[REF_TARGET] := If(Len(aTr) == 0, aSl, Trailed(aSl, nAt, nE, aTr, nStart, .F.))
       Return aR
     EndIf
     nP := nAt
