@@ -2567,7 +2567,7 @@ with any name allowed, to say which name it was and why.
 
 | | |
 |---|---|
-| a name nothing declares | `'cFilAnt' is not declared` |
+| a name nothing declares | `'nSeen' is not declared` |
 | a name nothing declares, assigned | `'nCount' is not declared, so this creates a PRIVATE` |
 | a variable never read, or never used | `'cX' is assigned but never read`, `'cY' is declared but never used` |
 | a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
@@ -2601,7 +2601,22 @@ the file of a class compiled -- `TransfArm():New()` is the class.
 
 A name nothing declares is a warning, not an error: plain TL++ uses the
 system's variables -- `cFilAnt`, `dDataBase`, `CRLF` -- without declaring
-them. A name counts as declared when it is a parameter, a `Local`, a
+them. Protheus' own are no warning at all:
+
+- the system's publics, there from the login -- `cEmpAnt`, `cFilAnt`,
+  `cNumEmp`, `dDataBase`, `cPaisLoc`, `__cUserId`, `cUserName`, `cUsuario`,
+  `cModulo`, `nModulo`, `cVersao`, `cNivel`, `oMainWnd`, `oApp`,
+  `__Language`, `__cInterNet`, `__lPyme`, `__lSX8` --, read or assigned:
+  assigning one sets it, and makes no PRIVATE;
+- `MV_PAR01`, `MV_PAR02`, ... -- what `Pergunte()` makes --, read or
+  assigned;
+- what the framework makes for what it calls, read: an entry point's
+  `PARAMIXB`, a browse's `INCLUI` and `ALTERA`, a GetDados' `aCols` and
+  `aHeader`, `RptStatus()`'s `lAbortPrint`. Assigned, one is still a
+  PRIVATE of the function. `lMsErroAuto` is no such name: the caller of
+  `MsExecAuto()` declares it.
+
+A name counts as declared when it is a parameter, a `Local`, a
 `Static` of the function or of the file, a `Private` or `Public` anywhere in
 the function (one declared in a block is there after it too), a block local
 in its block, a parameter of a lambda or a code block, an `external`, or a

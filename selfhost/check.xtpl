@@ -95,6 +95,14 @@ Static cKnown := "|nil|to|step|exit|loop|self|super|iif|in|and|or|not|t|f|class|
                  + "sequence|recover|always|endsequence|try|catch|endtry|case|endcase|switch|default|" ;
                  + "parameters|then|as|from|of|nonempty|_super|"
 
+// Protheus' own variables, there when a program runs in it, which no source
+// declares: the system's publics -- read, and assigned as they are --, the
+// privates the framework makes for what it calls, read, and Pergunte()'s
+// MV_PAR01, ..., assigned too (ProtheusVar(); check.cpp's SYSTEM_PUBLICS).
+Static cSystemPublics := "|cempant|cfilant|cnumemp|ddatabase|cpaisloc|__cuserid|cusername|cusuario|cmodulo|" ;
+                         + "nmodulo|cversao|cnivel|omainwnd|oapp|__language|__cinternet|__lpyme|__lsx8|"
+Static cFrameworkPrivates := "|paramixb|inclui|altera|acols|aheader|labortprint|"
+
 // The comparisons a field and a literal are checked in; the calls that open
 // a work area, when given its name as a string.
 Static cCompare := "|==|!=|<>|>=|<=|#|=|>|<|$|"
@@ -200,6 +208,17 @@ Return u_xcb_uc(cS)
 // Whether a name, in lower case, is one of a set written '|a|b|'.
 Static Function Among(cName, cSet)
 Return "|" + cName + "|" $ cSet
+
+// One of Protheus' own variables (cSystemPublics), read or assigned.
+Static Function ProtheusVar(cK, lAssigned)
+  Local nI
+  If Len(cK) > 6 .And. Left(cK, 6) == "mv_par"
+    For nI := 7 To Len(cK)
+      Return .F. if !IsDigit(SubStr(cK, nI, 1))
+    Next
+    Return .T.
+  EndIf
+Return Among(cK, cSystemPublics) .Or. (!lAssigned .And. Among(cK, cFrameworkPrivates))
 
 Static Function Has(aList, cWord)
 Return AScan(aList, {|w| w == cWord}) > 0
@@ -1195,7 +1214,7 @@ Static Function ReadName(cName)
     hStaticUses{cK}[SU_READS]++
     Return Nil
   EndIf
-  If Exempt(cName) .Or. (hImplicit has cK)
+  If Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .F.)
     Return Nil
   EndIf
   If !(hWarnedNames has ("read " + cK))
@@ -1241,7 +1260,7 @@ Static Function WriteName(cName, lReads)
     EndIf
     Return Nil
   EndIf
-  If Exempt(cName) .Or. (hImplicit has cK)
+  If Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .T.)
     Return Nil
   EndIf
   hImplicit{cK} := .T.

@@ -46,6 +46,20 @@ namespace xc
       "from", "of", "nonempty", "_super",
     };
 
+    // Protheus' own variables, there when a program runs in it, which no
+    // source declares: the system's publics, made at the login -- read, and
+    // assigned as they are, never a PRIVATE --, and the privates the
+    // framework makes for what it calls, read: an entry point's PARAMIXB, a
+    // browse's INCLUI and ALTERA, a GetDados' aCols and aHeader,
+    // RptStatus()'s lAbortPrint -- and Pergunte()'s MV_PAR01, MV_PAR02, ...,
+    // assigned too (protheus_var()).
+    const Set SYSTEM_PUBLICS =
+    {
+      "cempant", "cfilant", "cnumemp", "ddatabase", "cpaisloc", "__cuserid", "cusername", "cusuario", "cmodulo",
+      "nmodulo", "cversao", "cnivel", "omainwnd", "oapp", "__language", "__cinternet", "__lpyme", "__lsx8",
+    };
+    const Set FRAMEWORK_PRIVATES = { "paramixb", "inclui", "altera", "acols", "aheader", "labortprint" };
+
     // What a chain cannot walk: a type that holds one value.
     const Set SCALAR_TYPES = { "numeric", "character", "logical", "date", "json" };
 
@@ -1082,6 +1096,17 @@ namespace xc
       return Found{};
     }
 
+    // One of Protheus' own variables (SYSTEM_PUBLICS), read or assigned.
+    bool protheus_var(const std::string& k, bool assigned)
+    {
+      if (k.size() > 6 && k.compare(0, 6, "mv_par") == 0
+          && k.find_first_not_of("0123456789", 6) == std::string::npos)
+      {
+        return true;
+      }
+      return SYSTEM_PUBLICS.count(k) || (!assigned && FRAMEWORK_PRIVATES.count(k));
+    }
+
     bool Checker::exempt(const std::string& name) const
     {
       std::string k = lc(name);
@@ -1175,7 +1200,7 @@ namespace xc
         u->second.reads++;
         return;
       }
-      if (exempt(name) || implicit_.count(k)) { return; }
+      if (exempt(name) || implicit_.count(k) || protheus_var(k, false)) { return; }
       if (warned_names_.insert("read " + k).second) { warning("'" + name + "' is not declared"); }
     }
 
@@ -1212,7 +1237,7 @@ namespace xc
         reads ? u->second.reads++ : u->second.writes++;
         return;
       }
-      if (exempt(name) || implicit_.count(k)) { return; }
+      if (exempt(name) || implicit_.count(k) || protheus_var(k, true)) { return; }
       implicit_.insert(k);
       if (warned_names_.insert("write " + k).second)
       {

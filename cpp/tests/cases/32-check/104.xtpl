@@ -1,0 +1,14 @@
+// Protheus' own variables: no source declares them. The system's publics
+// are read and assigned as they are; the privates the framework makes for
+// what it calls are read -- assigned, one is a PRIVATE of the function --;
+// Pergunte()'s MV_PARnn both. A name the framework does not make warns:
+// lMsErroAuto is the caller's to declare, for MsExecAuto() to set it.
+user function protvars()
+  local cText := DToS(dDataBase) + cFilAnt + cEmpAnt + __cUserId + cUserName
+  cFilAnt := "02"
+  cText += MV_PAR01 + cValToChar(mv_par12)
+  MV_PAR02 := 1
+  cText += cValToChar(Len(aCols)) + cValToChar(INCLUI) + cValToChar(PARAMIXB)
+  aHeader := {}
+  cText += cValToChar(lMsErroAuto) + cValToChar(MV_PARX)
+return cText

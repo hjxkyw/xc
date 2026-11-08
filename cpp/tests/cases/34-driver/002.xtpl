@@ -1,4 +1,4 @@
 user function b()
   local n := 0
-  n := cFilAnt
+  n := nSeen
 return n

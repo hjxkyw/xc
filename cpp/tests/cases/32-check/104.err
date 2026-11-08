@@ -1,0 +1,3 @@
+104.xtpl:12: warning: 'aHeader' is not declared, so this creates a PRIVATE
+104.xtpl:13: warning: 'lMsErroAuto' is not declared
+104.xtpl:13: warning: 'MV_PARX' is not declared
