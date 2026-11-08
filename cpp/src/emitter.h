@@ -128,6 +128,10 @@ namespace xc
     bool advpl_;
     std::string guard_;              // a header's: its .th's '#ifndef'
     std::string nl_;
+    // The bytes around a comment's column (column_mark()): two the source
+    // does not have.
+    char mark_ = '\x01';
+    char mark_end_ = '\x02';
     std::vector<Edit> edits_;
     std::unordered_set<std::string> used_;
     std::unordered_set<std::string> slots_;
@@ -203,6 +207,7 @@ namespace xc
     int dedent_at(int p) const;
     void dedent_edits();
     int comment_col(int from, int to) const;
+    std::string column_mark(int col) const;
     std::string before_comment(int from, int to) const;
     void align_comments(const Body& body);
     std::string join_at(int p, const Lines& lines) const;

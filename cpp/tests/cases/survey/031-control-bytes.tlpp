@@ -1,0 +1,11 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// Control bytes in comments, 0x01 and 0x02, and a comment after code xc
+// rewrites: the comment keeps its column, the bytes are the source's.
+User Function Marks(nX)
+  // boxed 
+  If nX == Nil              // a default
+    nX := 10
+  EndIf
+Return nX

@@ -1,0 +1,6 @@
+// Control bytes in comments, 0x01 and 0x02, and a comment after code xc
+// rewrites: the comment keeps its column, the bytes are the source's.
+User Function Marks(nX)
+  // boxed 
+  nX ?= 10                  // a default
+Return nX

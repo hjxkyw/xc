@@ -300,6 +300,19 @@ namespace xc
     : src_(std::move(src)), advpl_(advpl), guard_(std::move(guard))
   {
     nl_ = src_.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+    // The marks of a comment's column: control bytes the source has none of
+    // -- an old source's boxed header has 0x01 in its corners.
+    std::string marks;
+    for (int c = 1; c < 32 && marks.size() < 2; c++)
+    {
+      if (c == '\t' || c == '\n' || c == '\r') { continue; }
+      if (src_.find(static_cast<char>(c)) == std::string::npos) { marks += static_cast<char>(c); }
+    }
+    if (marks.size() == 2)
+    {
+      mark_ = marks[0];
+      mark_end_ = marks[1];
+    }
     std::string l = lc(src_);
     chains_ = l.find("|>") != std::string::npos || l.find("then") != std::string::npos
               || l.find("..") != std::string::npos
@@ -1011,9 +1024,10 @@ namespace xc
     for (std::size_t i = 0; i < spliced.size(); i++)
     {
       char c = spliced[i];
-      if (c == '\x01')
+      std::size_t e = c == mark_ ? spliced.find(mark_end_, i) : std::string::npos;
+      if (e != std::string::npos && e > i + 1
+          && spliced.find_first_not_of("0123456789", i + 1) == e)
       {
-        std::size_t e = spliced.find('\x02', i);
         int want = std::stoi(spliced.substr(i + 1, e - i - 1));
         int n = want - col >= 2 ? want - col : 2;
         out.append(static_cast<std::size_t>(n), ' ');
@@ -1548,7 +1562,12 @@ namespace xc
   // A trailing comment keeps its column when the code before it still leaves
   // two blanks, and goes two blanks after the code otherwise. Where it goes
   // is known only once the edits are spliced in: what goes before it is a
-  // mark, '\x01' COLUMN '\x02', that emit() makes blanks of.
+  // mark, mark_ COLUMN mark_end_, that emit() makes blanks of.
+
+  std::string Emitter::column_mark(int col) const
+  {
+    return std::string(1, mark_) + std::to_string(col) + std::string(1, mark_end_);
+  }
 
   // The column of the last comment on the lines from..to, in the source; -1
   // when there is none.
@@ -1570,7 +1589,7 @@ namespace xc
   std::string Emitter::before_comment(int from, int to) const
   {
     int col = comment_col(from, to);
-    return col >= 0 ? "\x01" + std::to_string(col) + "\x02" : "  ";
+    return col >= 0 ? column_mark(col) : "  ";
   }
 
   // A comment after code that an edit changed, on a line nothing rewrites
@@ -1615,7 +1634,7 @@ namespace xc
           if ((*e)->to > l) { covered = true; }
           break;
         }
-        if (changed && !covered) { edit(ws, cs, "\x01" + std::to_string(k) + "\x02"); }
+        if (changed && !covered) { edit(ws, cs, column_mark(static_cast<int>(k))); }
       }
       if (le >= end || le >= static_cast<int>(src_.size())) { break; }
     }
