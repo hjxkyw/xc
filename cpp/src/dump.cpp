@@ -699,6 +699,7 @@ namespace xc
         head(in, "TypeDef");
         int f = in + 2;
         str(f, "name", t->name);
+        if (!t->base.empty()) { str(f, "base", t->base); }
         num(f, "line", t->line);
         num(f, "from", t->from);
         num(f, "head_to", t->head_to);

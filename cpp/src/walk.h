@@ -7,6 +7,9 @@
 #pragma once
 
 #include <functional>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "ast.h"
@@ -33,4 +36,15 @@ namespace xc
   // Numeric's 'N' (0), a Character's 'C' (""), a Logical's 'L' (.F.) -- as a
   // Local declared so --, or 0: Nil.
   char field_start(const Declarator* d);
+
+  // The file's types, by their names in lower case.
+  using TypeMap = std::unordered_map<std::string, const TypeDef*>;
+
+  // A type's fields in their order -- those of the type it is from first,
+  // and of the one that is from -- each with the type that declares it.
+  std::vector<std::pair<const TypeDef*, const TypeField*>> type_fields(const TypeDef* t, const TypeMap& types);
+
+  // A type's method of a name: its own, or one of the type it is from; null
+  // for none.
+  const FunctionDef* type_method(const TypeDef* t, const std::string& name, const TypeMap& types);
 }

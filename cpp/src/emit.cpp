@@ -813,14 +813,15 @@ namespace xc
     std::unordered_map<const FunctionDef*, int> ends;
     for (const TypeDef* t : p->types)
     {
-      std::size_t n = t->fields.size();
+      std::size_t n = type_fields(t, types_).size();
+      std::size_t first = n - t->fields.size();          // the fields of the type it is from
       edit(t->from, t->head_to, "// " + text(t->from, t->head_to) + ": an array of " + std::to_string(n));
-      for (std::size_t i = 0; i < n; i++)
+      for (std::size_t i = 0; i < t->fields.size(); i++)
       {
         const TypeField* f = t->fields[i];
         std::string raw = text(f->from, f->to);
         int end = f->from + static_cast<int>(code_end(raw));
-        std::string def = "#define " + t->name + "_" + f->decl->name + " " + std::to_string(i + 1);
+        std::string def = "#define " + t->name + "_" + f->decl->name + " " + std::to_string(first + i + 1);
         std::string notes = f->decl->attributes.empty() ? "" : attrs_text(f->decl->attributes);
         std::string comment = split_comment(raw).second;
         if (!notes.empty() && !comment.empty())

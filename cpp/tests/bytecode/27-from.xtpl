@@ -1,0 +1,43 @@
+// A type from another: its fields after the other's, at their places; the
+// other's methods; a value of it wherever one of the other goes.
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype
+
+type Line from Item
+  nDesc as Numeric
+  aTags as Array<c>
+
+  method Net() as Numeric
+  Return .Total() - .nDesc
+
+  method Tag(cTag as Character) as Line
+    AAdd(.aTags, cTag)
+  Return Self
+endtype
+
+type Rush from Line
+  lRush as Logical := .T.
+endtype
+
+Static Function Value(aIt as Item)
+Return aIt.Total()
+
+User Function Main()
+  Local aLn := Line("A", 2, 10, nDesc => 3)
+  Local aRu := Rush("B", nPreco => 4, nDesc => 1)
+  Local aAll := { <Item> }
+  AAdd(aAll, aLn)
+  AAdd(aAll, aRu)
+  AAdd(aAll, Item("C", nPreco => 1))
+  aLn.nQtd += 1
+  aRu.Tag("x").Tag("y")
+  ConOut(aLn.Net(), Value(aLn), aRu.Net(), Len(aRu), aRu.lRush, Len(aRu.aTags), aRu.aTags[2])
+  ConOut(aAll |> map([it] it.Total()) |> map([n] cValToChar(n)) |> join(","))
+  ConOut(Len(aLn), aLn[1], aLn[4], ValType(aRu?.nDesc), aRu?.Net())
+Return Nil

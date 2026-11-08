@@ -1,0 +1,7 @@
+008-from-wrong.xtpl:2: 'Line' is from Item, declared further on, on line 6: declare Item first.
+008-from-wrong.xtpl:14: 'Own' cannot be from itself.
+008-from-wrong.xtpl:18: 'Odd' is from 'Nothing', which is no type of the file.
+008-from-wrong.xtpl:23: 'nQtd' is a field of Item, which Sale is from: Sale has it already.
+008-from-wrong.xtpl:26: 'Total' is a method of Item, which Sale is from: Sale has it already.
+008-from-wrong.xtpl:29: 'cCod' is a field of Item, which Sale is from: Sale has it already.
+008-from-wrong.xtpl:39: the parameter 'aSale' of Only() is a Sale: this is an Item, not a Sale.

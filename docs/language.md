@@ -461,6 +461,61 @@ is read after its type -- its position is a `#define` --, no function nor
 field's position, and a method declares no `Self` nor `aSelf` of its own
 ([Names xc keeps](#names-xc-keeps)).
 
+**A type from another.** `type Line from Item` has Item's fields first, at
+their places, then its own, and Item's methods. A Line goes wherever an
+Item does -- a parameter, a typed array, a field --, an Item not where a
+Line is wanted. Item is declared before Line, and Line declares none of
+Item's fields or methods again: which method a call runs is fixed as the
+file is compiled, by what xc knows the value to be, so no method takes
+another's place. TL++ is given Line's own positions after Item's; Item's
+field read on a Line is `Item_nQtd`, and Item's method `Item_Total(aLn)`.
+
+```xtpl
+type Item
+  cCod as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+endtype
+
+type Line from Item
+  nDesc as Numeric
+
+  method Net() as Numeric
+  Return .Total() - .nDesc
+endtype
+
+User Function Net(aIt as Item)
+  Local aLn := Line("A", 2, 10, nDesc => 3)
+  aLn.nQtd++
+Return aLn.Net() + aIt.Total()
+```
+
+```tlpp
+// type Item: an array of 3
+#define Item_cCod 1
+#define Item_nQtd 2
+#define Item_nPreco 3
+
+Static Function Item_Total(aSelf as Array) as Numeric
+Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+// endtype
+
+// type Line from Item: an array of 4
+#define Line_nDesc 4
+
+Static Function Line_Net(aSelf as Array) as Numeric
+Return Item_Total(aSelf) - aSelf[Line_nDesc]
+// endtype
+
+User Function Net(aIt as Array)
+  Local aLn := {"A", 2, 10, 3}
+  aLn[Item_nQtd]++
+Return Line_Net(aLn) + Item_Total(aIt)
+```
+
 ### Annotations
 
 A line starting with `@` and a name, with arguments or not, before what it

@@ -38,12 +38,14 @@
 #define TI_FIELDS    3
 #define TI_BYNAME    4
 #define TI_METHODS   5
+#define TI_INHERITED 6       // the fields of the type it is from, first
 #define TFD_NAME     1
 #define TFD_TYPE     2
 #define TFD_SLOT     3
 #define TFD_CONST    4
 #define TFD_POS      5
 #define TFD_DECL     6
+#define TFD_OWNER    7       // the type that declares it, as written
 #define AT_E         1
 #define AT_CLS       2
 #define AT_TYP       3
@@ -134,6 +136,7 @@ Static aErrors := {}
 Static aWarnings := {}
 Static hTypes := Nil          // the file's types, by their names in lower case
 Static hTypeWords := Nil      // and how the file declares each
+Static hTypeBases := Nil      // and the type each is from: 'order' -> 'item'
 Static cTyp := ""             // the type of the method walked, in lower case
 // Each 'x.f', 'x.m()', each 'x?.f', each 'with object''s subject, each
 // value of a type made, each verb that walks with a lambda (AT_*).
@@ -203,6 +206,7 @@ User Function xcb_typedproblems(aProg)
   hFunctions := { => }
   hTypes := { => }
   hTypeWords := { => }
+  hTypeBases := { => }
   cTyp := ""
   aDots := {}
   aSafes := {}
@@ -391,6 +395,23 @@ Return {aErrors, aWarnings}
 Static Function IsTypedValue(cT)
 Return Len(cT) > 2 .And. Left(cT, 2) == "T:"
 
+// Whether a type's value is one of another type: of the same, or of one
+// that is from it.
+Static Function TypeIs(cV0, cSlot)
+  Local cV := cV0
+  Local nDepth := 0
+  While nDepth < 64 .And. IsTypedValue(cV)
+    If cV == cSlot
+      Return .T.
+    EndIf
+    If hTypeBases == Nil .Or. !(hTypeBases has SubStr(cV, 3))
+      Return .F.
+    EndIf
+    cV := "T:" + hTypeBases{SubStr(cV, 3)}
+    nDepth++
+  EndDo
+Return .F.
+
 // What xc checks goes in: an object of a class, a type's value.
 Static Function IsCheckedSlot(cT)
 Return IsClassed(cT) .Or. IsTypedValue(cT)
@@ -421,6 +442,11 @@ Static Function Types(aProg)
   Local aM
   Local aX
   Local aSts
+  Local cB
+  Local aBi
+  Local aWas
+  Local lMeth
+  Local cOwner
   For nI := 1 To Len(aProg[PG_TYPES])
     aT := aProg[PG_TYPES][nI]
     cK := u_xcb_lc(aT[TD_NAME])
@@ -429,7 +455,7 @@ Static Function Types(aProg)
                                  + AllTrim(Str(hTypes{cK}[TI_DEF][N_LINE])) + " and here."})
       Loop
     EndIf
-    hTypes{cK} := {aT[TD_NAME], aT, {}, { => }, { => }}
+    hTypes{cK} := {aT[TD_NAME], aT, {}, { => }, { => }, 0}
     hTypeWords{cK} := aT[TD_NAME]
   Next
   For nI := 1 To Len(aProg[PG_FUNCTIONS])
@@ -451,10 +477,31 @@ Static Function Types(aProg)
       AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is a type of the file and a " + If(lCls, "class", "function") ;
                                  + " of it: '" + aT[TD_NAME] + "(...)' makes a value of the type."})
     EndIf
+    // 'type B from A': A's fields first, at their places, and its methods --
+    // A declared before B, so that its own are worked out.
+    If !Empty(aT[TD_BASE])
+      cB := u_xcb_lc(aT[TD_BASE])
+      If cB == u_xcb_lc(aT[TD_NAME])
+        AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' cannot be from itself."})
+      ElseIf !(hTypes has cB)
+        AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is from '" + aT[TD_BASE] + "', which is no type of the file."})
+      ElseIf hTypes{cB}[TI_DEF][N_FROM] > aT[N_FROM]
+        aBi := hTypes{cB}
+        AAdd(aErrors, {aT[N_LINE], "'" + aT[TD_NAME] + "' is from " + aBi[TI_NAME] + ", declared further on, on line " ;
+                                   + AllTrim(Str(aBi[TI_DEF][N_LINE])) + ": declare " + aBi[TI_NAME] + " first."})
+      Else
+        aBi := hTypes{cB}
+        for aWas in aBi[TI_FIELDS] exec AAdd(aTi[TI_FIELDS], aWas)
+        for cOwner in keys(aBi[TI_BYNAME]) exec aTi[TI_BYNAME]{cOwner} := aBi[TI_BYNAME]{cOwner}
+        for cOwner in keys(aBi[TI_METHODS]) exec aTi[TI_METHODS]{cOwner} := aBi[TI_METHODS]{cOwner}
+        aTi[TI_INHERITED] := Len(aBi[TI_FIELDS])
+        hTypeBases{u_xcb_lc(aT[TD_NAME])} := cB
+      EndIf
+    EndIf
     For nJ := 1 To Len(aT[TD_FIELDS])
       aD := aT[TD_FIELDS][nJ][TF_DECL]
       cW := u_xcb_typeword(If(aD[DCL_TYPESPEC] == Nil, "", aD[DCL_TYPESPEC]))
-      aTd := {aD[DCL_NAME], "", "", .F., Len(aTi[TI_FIELDS]) + 1, aD}
+      aTd := {aD[DCL_NAME], "", "", .F., Len(aTi[TI_FIELDS]) + 1, aD, aT[TD_NAME]}
       aTd[TFD_TYPE] := If(!(aD[DCL_CONTAINER] == ""), aD[DCL_CONTAINER], If(!(cW == ""), WordType(cW), T_UNKNOWN))
       aTd[TFD_SLOT] := If(aTd[TFD_TYPE] == T_UNKNOWN, "", aTd[TFD_TYPE])
       For nK := 1 To Len(aD[DCL_ATTRS])
@@ -472,7 +519,11 @@ Static Function Types(aProg)
                                    + ".' is TL++'s own."})
       EndIf
       If aTi[TI_BYNAME] has cN
-        AAdd(aErrors, {aD[N_LINE], "'" + aD[DCL_NAME] + "' is a field of " + aT[TD_NAME] + " twice."})
+        aWas := aTi[TI_FIELDS][aTi[TI_BYNAME]{cN}]
+        AAdd(aErrors, {aD[N_LINE], If(aWas[TFD_OWNER] == aT[TD_NAME], ;
+                                      "'" + aD[DCL_NAME] + "' is a field of " + aT[TD_NAME] + " twice.", ;
+                                      "'" + aD[DCL_NAME] + "' is a field of " + aWas[TFD_OWNER] + ", which " ;
+                                      + aT[TD_NAME] + " is from: " + aT[TD_NAME] + " has it already.")})
         Loop
       EndIf
       If hFns has u_xcb_lc(aT[TD_NAME] + "_" + aD[DCL_NAME])
@@ -510,8 +561,12 @@ Static Function Types(aProg)
       EndIf
       cN := u_xcb_lc(aM[FN_METHOD])
       If (aTi[TI_METHODS] has cN) .Or. (aTi[TI_BYNAME] has cN)
-        AAdd(aErrors, {aM[N_LINE], "'" + aM[FN_METHOD] + "' is " + If(aTi[TI_METHODS] has cN, "a method", "a field") ;
-                                   + " of " + aT[TD_NAME] + " already."})
+        lMeth := aTi[TI_METHODS] has cN
+        cOwner := If(lMeth, aTi[TI_METHODS]{cN}[FN_OFTYPE], aTi[TI_FIELDS][aTi[TI_BYNAME]{cN}][TFD_OWNER])
+        AAdd(aErrors, {aM[N_LINE], "'" + aM[FN_METHOD] + "' is " + If(lMeth, "a method", "a field") + " of " ;
+                                   + If(cOwner == aT[TD_NAME], aT[TD_NAME] + " already.", ;
+                                        cOwner + ", which " + aT[TD_NAME] + " is from: " + aT[TD_NAME] ;
+                                        + " has it already.")})
         Loop
       EndIf
       aTi[TI_METHODS]{cN} := aM
@@ -2453,7 +2508,7 @@ Static Function Fits(cV, cSlot)
     If BareT(cV) == T_UNKNOWN .Or. cV == T_NONE .Or. BareT(cV) == "A"
       Return FIT_OK
     EndIf
-    Return If(BareT(cV) == cSlot, FIT_OK, FIT_WRONG)
+    Return If(TypeIs(BareT(cV), cSlot), FIT_OK, FIT_WRONG)
   EndIf
   If BareT(cV) == T_UNKNOWN .Or. cV == T_NONE
     Return FIT_UNKNOWN

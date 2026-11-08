@@ -2209,17 +2209,17 @@ namespace xc
   // its default, or what its type starts at -- in the order of the fields.
   std::string Emitter::made(const Call* c)
   {
-    const TypeDef* t = made_type(c);
-    std::vector<const Expr*> given(t->fields.size(), nullptr);
+    auto fields = type_fields(made_type(c), types_);
+    std::vector<const Expr*> given(fields.size(), nullptr);
     std::size_t at = 0;
     for (const Expr* a : c->args)
     {
       if (is_expr(a, EK::Named))
       {
         auto n = static_cast<const Named*>(a);
-        for (std::size_t i = 0; i < t->fields.size(); i++)
+        for (std::size_t i = 0; i < fields.size(); i++)
         {
-          if (lc(t->fields[i]->decl->name) == lc(n->name)) { given[i] = n->value; }
+          if (lc(fields[i].second->decl->name) == lc(n->name)) { given[i] = n->value; }
         }
         continue;
       }
@@ -2227,9 +2227,9 @@ namespace xc
       at++;
     }
     Lines values;
-    for (std::size_t i = 0; i < t->fields.size(); i++)
+    for (std::size_t i = 0; i < fields.size(); i++)
     {
-      const Declarator* d = t->fields[i]->decl;
+      const Declarator* d = fields[i].second->decl;
       if (given[i]) { values.push_back(expr(given[i])); }
       else if (d->init) { values.push_back(expr(d->init)); }
       else
@@ -2241,27 +2241,29 @@ namespace xc
     return "{" + join(values, ", ") + "}";
   }
 
-  // 'Item_nQtd': the #define of a field's position, as its type declares it.
+  // 'Item_nQtd': the #define of a field's position, as the type that
+  // declares it -- the value's, or the one it is from -- has it.
   std::string Emitter::field_name(const std::string& type, int pos) const
   {
     auto it = types_.find(lc(type));
-    if (it == types_.end() || pos < 1 || pos > static_cast<int>(it->second->fields.size()))
+    if (it == types_.end()) { throw std::runtime_error("internal: a type's field not worked out"); }
+    auto fields = type_fields(it->second, types_);
+    if (pos < 1 || pos > static_cast<int>(fields.size()))
     {
       throw std::runtime_error("internal: a type's field not worked out");
     }
-    return it->second->name + "_" + it->second->fields[static_cast<std::size_t>(pos - 1)]->decl->name;
+    const auto& f = fields[static_cast<std::size_t>(pos - 1)];
+    return f.first->name + "_" + f.second->decl->name;
   }
 
-  // 'Item_Total': the static function a method is.
+  // 'Item_Total': the static function a method is -- the type's, or the
+  // one's it is from.
   std::string Emitter::method_name(const std::string& type, const std::string& name) const
   {
     auto it = types_.find(lc(type));
-    if (it == types_.end()) { throw std::runtime_error("internal: a type's method not worked out"); }
-    for (const FunctionDef* m : it->second->methods)
-    {
-      if (lc(m->method) == lc(name)) { return m->name; }
-    }
-    throw std::runtime_error("internal: a type's method not worked out");
+    const FunctionDef* m = it == types_.end() ? nullptr : type_method(it->second, name, types_);
+    if (!m) { throw std::runtime_error("internal: a type's method not worked out"); }
+    return m->name;
   }
 
   // A node's source, with the edits for the given expressions inside it, up

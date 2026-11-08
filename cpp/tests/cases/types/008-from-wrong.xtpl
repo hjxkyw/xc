@@ -1,0 +1,41 @@
+// What a type from another may not do.
+type Line from Item
+  nDesc as Numeric
+endtype
+
+type Item
+  cCod as Character
+  nQtd as Numeric
+
+  method Total() as Numeric
+  Return .nQtd
+endtype
+
+type Own from Own
+  x
+endtype
+
+type Odd from Nothing
+  x
+endtype
+
+type Sale from Item
+  nQtd as Numeric
+  cNote as Character
+
+  method Total() as Numeric
+  Return 0
+
+  method cCod()
+  Return Nil
+endtype
+
+Static Function Only(aSale as Sale)
+Return aSale.cNote
+
+User Function Wrong()
+  Local aIt := Item("A", 1)
+  Local aSale := Sale("B", 2, "x")
+  Only(aIt)
+  Only(aSale)
+Return aIt

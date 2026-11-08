@@ -194,12 +194,14 @@ namespace xc
       Compiler(const Program* p, std::string_view src, bool advpl, std::string source, std::vector<std::string> more)
         : p_(p), src_(src), advpl_(advpl), source_(std::move(source)), more_(std::move(more))
       {
+        for (const TypeDef* t : p->types) { types_[lc(t->name)] = t; }
       }
 
       std::string run();
 
     private:
       const Program* p_;
+      TypeMap types_;                // the file's types, by their names in lower case
       std::string_view src_;
       bool advpl_;
       std::string source_;
@@ -848,26 +850,26 @@ namespace xc
     // by its name, or its default, or what its type starts at.
     void Compiler::made(const Call* c)
     {
-      const TypeDef* t = made_type(c);
-      std::vector<const Expr*> given(t->fields.size(), nullptr);
+      auto fields = type_fields(made_type(c), types_);
+      std::vector<const Expr*> given(fields.size(), nullptr);
       std::size_t at = 0;
       for (const Expr* a : c->args)
       {
         if (is(a, EK::Named))
         {
           auto n = static_cast<const Named*>(a);
-          for (std::size_t i = 0; i < t->fields.size(); i++)
+          for (std::size_t i = 0; i < fields.size(); i++)
           {
-            if (lc(t->fields[i]->decl->name) == lc(n->name)) { given[i] = n->value; }
+            if (lc(fields[i].second->decl->name) == lc(n->name)) { given[i] = n->value; }
           }
           continue;
         }
         if (at < given.size() && !is(a, EK::Omitted)) { given[at] = a; }
         at++;
       }
-      for (std::size_t i = 0; i < t->fields.size(); i++)
+      for (std::size_t i = 0; i < fields.size(); i++)
       {
-        const Declarator* d = t->fields[i]->decl;
+        const Declarator* d = fields[i].second->decl;
         if (given[i]) { expr(given[i]); }
         else if (d->init) { expr(d->init); }
         else
@@ -879,21 +881,16 @@ namespace xc
           else { op("nil"); }
         }
       }
-      op("array", std::to_string(t->fields.size()));
+      op("array", std::to_string(fields.size()));
     }
 
     // The static function a method is: TYPE_METHOD, as the type declares it.
+    // -- the type's, or the one's it is from.
     std::string Compiler::method_of(const std::string& type, const std::string& name) const
     {
-      for (const TypeDef* t : p_->types)
-      {
-        if (lc(t->name) != lc(type)) { continue; }
-        for (const FunctionDef* m : t->methods)
-        {
-          if (lc(m->method) == lc(name)) { return m->name; }
-        }
-      }
-      return type + "_" + name;
+      auto it = types_.find(lc(type));
+      const FunctionDef* m = it == types_.end() ? nullptr : type_method(it->second, name, types_);
+      return m ? m->name : type + "_" + name;
     }
 
     // An expression for what it does: an assignment wants no value back.

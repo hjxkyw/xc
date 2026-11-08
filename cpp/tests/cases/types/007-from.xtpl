@@ -1,0 +1,30 @@
+// A type from another: its fields after the other's, the other's methods.
+type Item
+  cCod <const> as Character
+  nQtd as Numeric := 1
+  nPreco as Numeric
+
+  method Total() as Numeric
+  Return .nQtd * .nPreco
+end type
+
+type Line from Item
+  nDesc as Numeric
+  aTags as Array<c>
+
+  method Net() as Numeric
+  Return .Total() - .nDesc
+endtype
+
+Static Function Sum(aIt as Item)
+Return aIt.Total()
+
+User Function Lines()
+  Local aLn := Line("A", 2, 10, nDesc => 3)
+  Local aAll := { <Item> }
+  AAdd(aAll, aLn)
+  AAdd(aAll, Item("B", nPreco => 1))
+  aLn.nQtd += 1
+  aLn.nDesc := 1
+  ConOut(aLn.Net(), Sum(aLn), aLn.Total(), Len(aAll))
+Return aAll |> map([it] it.Total())

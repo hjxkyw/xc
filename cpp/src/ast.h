@@ -559,6 +559,7 @@ namespace xc
   struct TypeDef : Node
   {
     std::string name;
+    std::string base;                // 'type B from A': A, whose fields and methods B has first
     int line = 0;
     int from = -1;
     int head_to = -1;

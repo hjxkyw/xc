@@ -99,6 +99,43 @@ User Function xcb_fieldstart(aD)
   EndCase
 Return ""
 
+// A type's fields in their order -- those of the type it is from first --,
+// each {the type that declares it, the field}; hTypes the file's types by
+// their names in lower case.
+User Function xcb_typefields(aT, hTypes)
+  Local aChain := {}
+  Local aX := aT
+  Local aOut := {}
+  Local nI
+  Local nJ
+  While aX != Nil .And. Len(aChain) < 64
+    AAdd(aChain, aX)
+    aX := If(Empty(aX[TD_BASE]) .Or. !(hTypes has u_xcb_lc(aX[TD_BASE])), Nil, hTypes{u_xcb_lc(aX[TD_BASE])})
+  EndDo
+  For nI := Len(aChain) To 1 Step -1
+    For nJ := 1 To Len(aChain[nI][TD_FIELDS])
+      AAdd(aOut, {aChain[nI], aChain[nI][TD_FIELDS][nJ]})
+    Next
+  Next
+Return aOut
+
+// A type's method of a name: its own, or one of the type it is from; Nil
+// for none.
+User Function xcb_typemethod(aT, cName, hTypes)
+  Local aX := aT
+  Local nDepth := 0
+  Local nI
+  While aX != Nil .And. nDepth < 64
+    For nI := 1 To Len(aX[TD_METHODS])
+      If u_xcb_lc(aX[TD_METHODS][nI][FN_METHOD]) == u_xcb_lc(cName)
+        Return aX[TD_METHODS][nI]
+      EndIf
+    Next
+    aX := If(Empty(aX[TD_BASE]) .Or. !(hTypes has u_xcb_lc(aX[TD_BASE])), Nil, hTypes{u_xcb_lc(aX[TD_BASE])})
+    nDepth++
+  EndDo
+Return Nil
+
 // Every expression from e down, e first, in reading order: what
 // walk_expr() calls its function on.
 User Function xcb_walkexpr(aE)

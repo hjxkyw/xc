@@ -67,6 +67,25 @@ namespace xc
     // The names of the file's types, as declared, by their lower case.
     thread_local const std::unordered_map<std::string, std::string>* type_words = nullptr;
 
+    // The type each of the file's types is from, by their names in lower
+    // case: 'order' -> 'item'.
+    thread_local const std::unordered_map<std::string, std::string>* type_bases = nullptr;
+
+    // Whether a type's value is one of another type: of the same, or of one
+    // that is from it.
+    bool type_is(std::string v, const std::string& slot)
+    {
+      for (int depth = 0; depth < 64 && typed_value(v); depth++)
+      {
+        if (v == slot) { return true; }
+        if (!type_bases) { return false; }
+        auto b = type_bases->find(v.substr(2));
+        if (b == type_bases->end()) { return false; }
+        v = "T:" + b->second;
+      }
+      return false;
+    }
+
     std::string type_word(const std::string& t)
     {
       std::string k = t.substr(2);
@@ -258,7 +277,7 @@ namespace xc
         // what TOTVS' functions give --, an array known to hold this or that
         // is not.
         if (bare(v) == UNKNOWN || v == NONE || bare(v) == "A") { return Fit::Ok; }
-        return bare(v) == slot ? Fit::Ok : Fit::Wrong;
+        return type_is(bare(v), slot) ? Fit::Ok : Fit::Wrong;
       }
       if (bare(v) == UNKNOWN || v == NONE) { return Fit::Unknown; }
       // And goes where an array does.
@@ -511,8 +530,9 @@ namespace xc
     // methods.
     struct TypeData
     {
-      std::string name;              // what it holds: its container, or its type
-      std::string type;
+      std::string name;
+      std::string owner;             // the type that declares it, as written
+      std::string type;              // what it holds: its container, or its type
       std::string slot;              // what xc checks goes in, or ''
       bool constant = false;         // '<const>': given only where one is made
       int pos = 0;
@@ -526,6 +546,7 @@ namespace xc
       std::vector<TypeData> fields;
       std::unordered_map<std::string, std::size_t> by_name;
       std::unordered_map<std::string, const FunctionDef*> methods;
+      std::size_t inherited = 0;     // the fields of the type it is from, first
     };
 
     using Scope = std::unordered_map<std::string, Var*>;
@@ -552,6 +573,7 @@ namespace xc
       std::unordered_map<std::string, ClassInfo> classes_;       // the file's, by name
       std::unordered_map<std::string, TypeInfo> types_;          // and its types
       std::unordered_map<std::string, std::string> type_words_;
+      std::unordered_map<std::string, std::string> type_bases_;
       std::string typ_;              // the type of the method walked, in lower case
       // Each 'x.f', 'x.m()' -- the class and the type where it is, its line
       // --, each value of a type made, each verb that walks with a lambda.
@@ -946,6 +968,7 @@ namespace xc
         type_words_[k] = t->name;
       }
       type_words = &type_words_;
+      type_bases = &type_bases_;
       std::unordered_set<std::string> functions;
       for (const FunctionDef* f : p_->functions)
       {
@@ -962,11 +985,42 @@ namespace xc
           errors.push_back({ t->line, "'" + t->name + "' is a type of the file and a " + (cls ? "class" : "function")
                                       + " of it: '" + t->name + "(...)' makes a value of the type." });
         }
+        // 'type B from A': A's fields first, at their places, and its
+        // methods -- A declared before B, so that its own are worked out.
+        if (!t->base.empty())
+        {
+          std::string b = lc(t->base);
+          auto bi = types_.find(b);
+          if (b == lc(t->name))
+          {
+            errors.push_back({ t->line, "'" + t->name + "' cannot be from itself." });
+          }
+          else if (bi == types_.end())
+          {
+            errors.push_back({ t->line, "'" + t->name + "' is from '" + t->base + "', which is no type of the file." });
+          }
+          else if (bi->second.def->from > t->from)
+          {
+            errors.push_back({ t->line, "'" + t->name + "' is from " + bi->second.name + ", declared further on, on line "
+                                        + std::to_string(bi->second.def->line) + ": declare " + bi->second.name
+                                        + " first." });
+          }
+          else
+          {
+            const TypeInfo& bt = bi->second;
+            ti.fields = bt.fields;
+            ti.by_name = bt.by_name;
+            ti.methods = bt.methods;
+            ti.inherited = bt.fields.size();
+            type_bases_[lc(t->name)] = b;
+          }
+        }
         for (const TypeField* f : t->fields)
         {
           const Declarator* d = f->decl;
           TypeData td;
           td.name = d->name;
+          td.owner = t->name;
           td.decl = d;
           std::string w = type_word_of(d->typespec_text.value_or(""));
           td.type = !d->container.empty() ? d->container : !w.empty() ? word_type(w) : UNKNOWN;
@@ -989,7 +1043,11 @@ namespace xc
           }
           if (ti.by_name.count(n))
           {
-            errors.push_back({ d->line, "'" + d->name + "' is a field of " + t->name + " twice." });
+            const TypeData& was = ti.fields[ti.by_name[n]];
+            errors.push_back({ d->line, was.owner == t->name
+                                        ? "'" + d->name + "' is a field of " + t->name + " twice."
+                                        : "'" + d->name + "' is a field of " + was.owner + ", which " + t->name
+                                          + " is from: " + t->name + " has it already." });
             continue;
           }
           if (functions.count(lc(t->name + "_" + d->name)))
@@ -1038,8 +1096,12 @@ namespace xc
           std::string n = lc(m->method);
           if (ti.methods.count(n) || ti.by_name.count(n))
           {
-            errors.push_back({ m->line, "'" + m->method + "' is " + (ti.methods.count(n) ? "a method" : "a field")
-                                        + " of " + t->name + " already." });
+            bool method = ti.methods.count(n) > 0;
+            std::string owner = method ? ti.methods[n]->of_type : ti.fields[ti.by_name[n]].owner;
+            errors.push_back({ m->line, "'" + m->method + "' is " + (method ? "a method" : "a field") + " of "
+                                        + (owner == t->name ? t->name + " already."
+                                                            : owner + ", which " + t->name + " is from: " + t->name
+                                                              + " has it already.") });
             continue;
           }
           ti.methods[n] = m;
@@ -2658,6 +2720,7 @@ namespace xc
     Typer t(p, dictionary);
     t.run();
     type_words = nullptr;
+    type_bases = nullptr;
     return Checked{ std::move(t.errors), std::move(t.warnings) };
   }
 }

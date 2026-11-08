@@ -334,6 +334,7 @@
 #define TD_ENDLINE        10
 #define TD_FIELDS         11
 #define TD_METHODS        12
+#define TD_BASE           13    // 'type B from A': A, whose fields and methods B has first
 
 // ---- what the passes give ---------------------------------------------------
 // A chain's stages, split (chains.xtpl): those that fuse, the terminal or

@@ -128,6 +128,7 @@
 #define PT_CLOSE      3
 
 Static aProg := Nil
+Static hTypesB := Nil          // the file's types, by their names in lower case
 Static cSrc := ""
 Static lAdvpl := .F.
 Static cSource := ""
@@ -161,6 +162,8 @@ Static nFnId := 0
 // cannot become bytecode yet: {Nil, {{line, what}, ...}}; else {text, {}}.
 User Function xcb_bytecode(aP, cText, lIsAdvpl, cName, aDefines)
   aProg := aP
+  hTypesB := { => }
+  AEval(aProg[PG_TYPES], {|t| hTypesB{Lc(t[TD_NAME])} := t})
   cSrc := cText
   lAdvpl := lIsAdvpl
   cSource := cName
@@ -750,7 +753,7 @@ Return Nil
 // 'Item(...)': an array of each field's value -- given by its place or by
 // its name, or its default, or what its type starts at.
 Static Function Made(aC)
-  Local aT := MadeType(aC)
+  Local aFs := u_xcb_typefields(MadeType(aC), hTypesB)
   Local aGiven := {}
   Local nAt := 0
   Local nI
@@ -758,14 +761,14 @@ Static Function Made(aC)
   Local aA
   Local aD
   Local cK
-  For nI := 1 To Len(aT[TD_FIELDS])
+  For nI := 1 To Len(aFs)
     AAdd(aGiven, Nil)
   Next
   For nI := 1 To Len(aC[CALL_ARGS])
     aA := aC[CALL_ARGS][nI]
     If IsK(aA, EK_NAMED)
-      For nJ := 1 To Len(aT[TD_FIELDS])
-        If Lc(aT[TD_FIELDS][nJ][TF_DECL][DCL_NAME]) == Lc(aA[NMD_NAME])
+      For nJ := 1 To Len(aFs)
+        If Lc(aFs[nJ][2][TF_DECL][DCL_NAME]) == Lc(aA[NMD_NAME])
           aGiven[nJ] := aA[NMD_VALUE]
         EndIf
       Next
@@ -776,8 +779,8 @@ Static Function Made(aC)
       aGiven[nAt] := aA
     EndIf
   Next
-  For nI := 1 To Len(aT[TD_FIELDS])
-    aD := aT[TD_FIELDS][nI][TF_DECL]
+  For nI := 1 To Len(aFs)
+    aD := aFs[nI][2][TF_DECL]
     If aGiven[nI] != Nil
       Expr(aGiven[nI])
     ElseIf aD[DCL_INIT] != Nil
@@ -796,26 +799,17 @@ Static Function Made(aC)
       EndCase
     EndIf
   Next
-  Op("array", NumText(Len(aT[TD_FIELDS])))
+  Op("array", NumText(Len(aFs)))
 Return Nil
 
-// The static function a method is: TYPE_METHOD, as the type declares it.
+// The static function a method is: TYPE_METHOD, as the type declares it
+// -- the type's, or the one's it is from.
 Static Function MethodOf(cType, cName)
-  Local nI
-  Local nJ
-  Local aT
-  For nI := 1 To Len(aProg[PG_TYPES])
-    aT := aProg[PG_TYPES][nI]
-    If !(Lc(aT[TD_NAME]) == Lc(cType))
-      Loop
-    EndIf
-    For nJ := 1 To Len(aT[TD_METHODS])
-      If Lc(aT[TD_METHODS][nJ][FN_METHOD]) == Lc(cName)
-        Return aT[TD_METHODS][nJ][FN_NAME]
-      EndIf
-    Next
-  Next
-Return cType + "_" + cName
+  Local aM := Nil
+  If hTypesB has Lc(cType)
+    aM := u_xcb_typemethod(hTypesB{Lc(cType)}, cName, hTypesB)
+  EndIf
+Return If(aM != Nil, aM[FN_NAME], cType + "_" + cName)
 
 // An expression for what it does: an assignment wants no value back.
 Static Function Effect(aE)

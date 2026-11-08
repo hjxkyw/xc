@@ -310,6 +310,37 @@ namespace xc
     }
   }
 
+  std::vector<std::pair<const TypeDef*, const TypeField*>> type_fields(const TypeDef* t, const TypeMap& types)
+  {
+    std::vector<const TypeDef*> chain;
+    for (const TypeDef* x = t; x && chain.size() < 64;)
+    {
+      chain.push_back(x);
+      auto b = x->base.empty() ? types.end() : types.find(lc(x->base));
+      x = b == types.end() ? nullptr : b->second;
+    }
+    std::vector<std::pair<const TypeDef*, const TypeField*>> out;
+    for (auto it = chain.rbegin(); it != chain.rend(); ++it)
+    {
+      for (const TypeField* f : (*it)->fields) { out.push_back({ *it, f }); }
+    }
+    return out;
+  }
+
+  const FunctionDef* type_method(const TypeDef* t, const std::string& name, const TypeMap& types)
+  {
+    for (int depth = 0; t && depth < 64; depth++)
+    {
+      for (const FunctionDef* m : t->methods)
+      {
+        if (lc(m->method) == lc(name)) { return m; }
+      }
+      auto b = t->base.empty() ? types.end() : types.find(lc(t->base));
+      t = b == types.end() ? nullptr : b->second;
+    }
+    return nullptr;
+  }
+
   char field_start(const Declarator* d)
   {
     if (!d->container.empty()) { return 0; }

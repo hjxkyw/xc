@@ -4205,7 +4205,7 @@ Return nQ
 
 // rule typedecl
 // {
-//   :i 'type' <tname=name> <.nl>
+//   :i 'type' <tname=name> [ :i 'from' <base=name> ]? <.nl>
 //   [ <typefield> <.nl> ]*
 //   <typemethod>*
 //   :i [ 'endtype' || 'end' 'type' ]
@@ -4218,6 +4218,8 @@ Static Function TypeDecl()
   Local nSave
   Local aF
   Local aM
+  Local aBe
+  Local cBase
   If !ILit("type") .Or. !IsH(C(nP)) .Or. !Ws()
     Return Back(nStart)
   EndIf
@@ -4231,6 +4233,22 @@ Static Function TypeDecl()
   aT[N_FROM] := nStart
   aT[TD_HEADTO] := aE[1]
   nP := aE[1]
+  // [ :i 'from' <base=name> ]?
+  If IsH(C(nP))
+    nSave := nP
+    aBe := {-1}
+    cBase := ""
+    If Ws() .And. ILit("from") .And. IsH(C(nP)) .And. Ws()
+      cBase := NameText(aBe)
+    EndIf
+    If aBe[1] >= 0
+      aT[TD_BASE] := cBase
+      aT[TD_HEADTO] := aBe[1]
+      nP := aBe[1]
+    Else
+      nP := nSave
+    EndIf
+  EndIf
   If !Ws() .Or. !Nl() .Or. !Ws()
     Return Back(nStart)
   EndIf

@@ -475,6 +475,7 @@ Static Function TypeDef(nIn, aT)
   Local aNames := {}
   Head(nIn, "TypeDef")
   Text(nF, "name", aT[TD_NAME])
+  If !Empty(aT[TD_BASE]) exec Text(nF, "base", aT[TD_BASE])
   Num(nF, "line", aT[N_LINE])
   Num(nF, "from", aT[N_FROM])
   Num(nF, "head_to", aT[TD_HEADTO])

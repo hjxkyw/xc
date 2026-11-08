@@ -1081,7 +1081,7 @@ namespace xc
 
   // rule typedecl
   // {
-  //   :i 'type' <tname=name> <.nl>
+  //   :i 'type' <tname=name> [ :i 'from' <base=name> ]? <.nl>
   //   [ <typefield> <.nl> ]*
   //   <typemethod>*
   //   :i [ 'endtype' || 'end' 'type' ]
@@ -1106,6 +1106,27 @@ namespace xc
     t->from = start;
     t->head_to = e;
     p_ = e;
+    // [ :i 'from' <base=name> ]?
+    if (is_h(c(p_)))
+    {
+      int save = p_;
+      int be = -1;
+      std::string base;
+      if (ws() && ilit("from") && is_h(c(p_)) && ws())
+      {
+        base = name_text(be);
+      }
+      if (be >= 0)
+      {
+        t->base = base;
+        t->head_to = be;
+        p_ = be;
+      }
+      else
+      {
+        p_ = save;
+      }
+    }
     if (!ws() || !nl() || !ws())
     {
       return fail();

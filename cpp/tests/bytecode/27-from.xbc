@@ -1,0 +1,182 @@
+xbc 1
+source 27-from.xtpl
+statics 0
+
+function ITEM_TOTAL static 1 1
+  locals Self
+  line 9
+  local 1
+  num 2
+  index
+  local 1
+  num 3
+  index
+  mul
+  ret
+end
+
+function LINE_NET static 1 1
+  locals Self
+  line 17
+  local 1
+  call 1 Item_Total
+  local 1
+  num 4
+  index
+  sub
+  ret
+end
+
+function LINE_TAG static 2 2
+  locals Self cTag
+  line 20
+  local 1
+  num 5
+  index
+  local 2
+  call 2 AAdd
+  pop
+  line 21
+  local 1
+  ret
+end
+
+function VALUE static 1 1
+  locals aIt
+  line 29
+  local 1
+  call 1 Item_Total
+  ret
+end
+
+function U_MAIN user 0 3
+  locals aLn aRu aAll
+  line 32
+  str "A"
+  num 2
+  num 10
+  num 3
+  array 0
+  array 5
+  setlocal 1
+  line 33
+  str "B"
+  num 1
+  num 4
+  num 1
+  array 0
+  true
+  array 6
+  setlocal 2
+  line 34
+  array 0
+  setlocal 3
+  line 35
+  local 3
+  local 1
+  call 2 AAdd
+  pop
+  line 36
+  local 3
+  local 2
+  call 2 AAdd
+  pop
+  line 37
+  local 3
+  str "C"
+  num 1
+  num 1
+  array 3
+  call 2 AAdd
+  pop
+  line 38
+  local 1
+  num 2
+  dup2
+  index
+  num 1
+  add
+  setindex
+  line 39
+  local 2
+  str "x"
+  call 2 Line_Tag
+  str "y"
+  call 2 Line_Tag
+  pop
+  line 40
+  local 1
+  call 1 Line_Net
+  local 1
+  call 1 Value
+  local 2
+  call 1 Line_Net
+  local 2
+  call 1 Len
+  local 2
+  num 6
+  index
+  local 2
+  num 5
+  index
+  call 1 Len
+  local 2
+  num 5
+  index
+  num 2
+  index
+  call 7 ConOut
+  pop
+  line 41
+  local 3
+  block U_MAIN#1 0
+  call 2 u_xtpl_map
+  block U_MAIN#2 0
+  call 2 u_xtpl_map
+  str ","
+  call 2 u_xtpl_join
+  call 1 ConOut
+  pop
+  line 42
+  local 1
+  call 1 Len
+  local 1
+  num 1
+  index
+  local 1
+  num 4
+  index
+  local 2
+  dup
+  isnil
+  jumpt 102
+  num 4
+  index
+  call 1 ValType
+  local 2
+  dup
+  isnil
+  jumpt 108
+  call 1 Line_Net
+  call 5 ConOut
+  pop
+  line 43
+  nil
+  ret
+end
+
+function U_MAIN#1 block 1 1
+  locals it
+  line 41
+  local 1
+  call 1 Item_Total
+  ret
+end
+
+function U_MAIN#2 block 1 1
+  locals n
+  line 41
+  local 1
+  call 1 cValToChar
+  ret
+end

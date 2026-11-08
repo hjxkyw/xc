@@ -1,0 +1,42 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A type from another: its fields after the other's, the other's methods.
+// type Item: an array of 3
+#define Item_cCod 1  // [const]
+#define Item_nQtd 2
+#define Item_nPreco 3
+
+Static Function Item_Total(aSelf as Array) as Numeric
+Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+// end type
+
+// type Line from Item: an array of 5
+#define Line_nDesc 4
+#define Line_aTags 5
+
+Static Function Line_Net(aSelf as Array) as Numeric
+Return Item_Total(aSelf) - aSelf[Line_nDesc]
+// endtype
+
+Static Function Sum(aIt as Array)
+Return Item_Total(aIt)
+
+User Function Lines()
+  Local aLn := {"A", 2, 10, 3, {}}
+  Local aAll := {}
+  Local fi_0_0  // the position in the array walked
+  Local fv_0_0  // the element walked
+  Local fo_0_0  // the result of the chain
+  AAdd(aAll, aLn)
+  AAdd(aAll, {"B", 1, 1})
+  aLn[Item_nQtd] += 1
+  aLn[Line_nDesc] := 1
+  ConOut(Line_Net(aLn), Sum(aLn), Item_Total(aLn), Len(aAll))
+  fo_0_0 := {}
+  For fi_0_0 := 1 To Len(aAll)
+    fv_0_0 := aAll[fi_0_0]
+    fv_0_0 := Item_Total(fv_0_0)
+    AAdd(fo_0_0, fv_0_0)
+  Next
+return fo_0_0
