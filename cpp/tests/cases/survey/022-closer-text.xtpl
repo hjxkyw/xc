@@ -1,0 +1,13 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// The same in TL++, which takes it too (tried on 24.3.1.9).
+User Function Text(lOk)
+  Local nN := 0
+  If lOk
+    nN++
+  EndIf lOk
+  While nN < 3
+    nN++
+  End-While
+Return nN

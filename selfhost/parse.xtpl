@@ -46,6 +46,7 @@ Static nInDq := 0              // in a '"' string's '${ }': no '"' string
 Static nInSq := 0
 Static nInExp := 0             // in '%exp:...%': a '%' is its end
 Static lAnyName := .F.         // no declared name is refused
+Static lAdvpl := .F.           // an AdvPL source: '[abc]' is a string (BracketString)
 Static lGeneratedOk := .F.     // a name of xc's shape may be declared
 Static cTypeName := ""         // in a type's method: the type -- '.x' is Self's
 Static nDotOk := Nil           // where a '.x' follows no value: Self's (-1: none)
@@ -133,7 +134,7 @@ Static aStmtWords := {"begin", "try", "local", "private", "public", "static", "i
                       "send", "get", "paramtype", "throw", "vtpause", "vtread", "vtclear", "vtsave", ;
                       "vtrestore", "beginsql", "begincontent", "end", "save", "create", "new", "store", "seek", ;
                       "use", "commit", "zap", "eject", "delete", "dele", "copy", "index", "go", "goto", "skip", ;
-                      "quit", "close"}
+                      "quit", "close", "rename"}
 
 // Names refused where one is declared.
 Static aReserved := {"function", "static", "return", "if", "else", "elseif", "endif", "for", "next", "while", ;
@@ -158,9 +159,10 @@ Static hCmd := Nil
 // The whole source, its text and its bytes' codes, and where it uses its
 // own commands and translations ({translations, commands}, or Nil for
 // none): the tree, or Nil when it does not read.
-User Function xcb_parse(cText, aCodes, aSpans)
+User Function xcb_parse(cText, aCodes, aSpans, lAdv)
   Local aProg
   Local nSave
+  lAdvpl := lAdv != Nil .And. lAdv
   Start(cText, aCodes)
   hTrans := If(aSpans == Nil, { => }, aSpans[1])
   hCmd := If(aSpans == Nil, { => }, aSpans[2])
@@ -449,7 +451,7 @@ Static Function Classes()
   EndIf
   aTable := { ;
       8,   8,   8,   8,   8,   8,   8,   8,   8, 202, 228, 228, 228, 228,   8,   8, ;
-      8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8, ;
+      8,   8,   8,   8,   8,   8,   8,   8,   8,   8, 202,   8,   8,   8,   8,   8, ;
     202,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8, ;
      25,  25,  25,  25,  25,  25,  25,  25,  25,  25,   8,   8,   8,   8,   8,   8, ;
       8,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9, ;
@@ -2011,7 +2013,12 @@ Static Function Primary()
       aX := ArrayLiteral()
     EndIf
   ElseIf nCh == 91
-    aX := LambdaE()
+    If lAdvpl
+      aX := BracketString()
+    EndIf
+    If aX == Nil
+      aX := LambdaE()
+    EndIf
   ElseIf nCh == 38
     aX := MacroE()
   ElseIf nCh == 37
@@ -2499,6 +2506,39 @@ Static Function AliasFieldE()
   aA[AF_FIELD] := cField
 Return aA
 
+// An AdvPL source's '[abc]' (lAdvpl): a string, when what follows its ']'
+// on the line starts no value -- an operator, a closing bracket, a ',', the
+// line's end: '[abc] + "d"', '$ [A/B]', '{|x| x < [y]}'. Before a value --
+// '[x] x > 0' -- it is a lambda.
+Static Function BracketString()
+  Local nStart := nP
+  Local nQ := nStart + 1
+  Local nR
+  Local nCh
+  Local aL
+  While IsNN(C(nQ)) .And. C(nQ) != 93
+    nQ++
+  EndDo
+  If C(nQ) != 93
+    Return Nil
+  EndIf
+  nR := nQ + 1
+  While IsH(C(nR))
+    nR++
+  EndDo
+  nCh := C(nR)
+  If IsLetter(nCh) .Or. IsD(nCh) .Or. AScan({34, 39, 40, 123, 91, 38, 64}, nCh) > 0
+    Return Nil
+  EndIf
+  nP := nQ + 1
+  If !Ws()
+    Return Back(nStart)
+  EndIf
+  aL := u_xcb_new(EK_LITERAL)
+  aL[LIT_TYPE] := "Character"
+  aL[LIT_TEXT] := Text(nStart, nQ + 1)
+Return Span(aL, nStart, nQ + 1)
+
 // rule lambda
 // {
 //   '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <lbody> <!before \h* '|>'>
@@ -2576,6 +2616,22 @@ Static Function LambdaE()
   AAdd(aL[CB_BODY], aBody)
 Return aL
 
+// A code block parameter's type, 'as numeric', taken and left as written.
+Static Function BlockParamType()
+  Local nSave := nP
+  Local nWe
+  If ILit("as") .And. IsH(C(nP)) .And. Ws()
+    nWe := NameEnd(nP)
+    If nWe >= 0
+      nP := nWe
+      If Ws()
+        Return Nil
+      EndIf
+    EndIf
+  EndIf
+  nP := nSave
+Return Nil
+
 // rule codeblock
 // {
 //   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] [ <blockexpr>? ]* % ',' '}'
@@ -2605,7 +2661,9 @@ Static Function CodeBlockE()
     If !Ws()
       Return Back(nStart)
     EndIf
-    // '{| nVal , nPos | ...}': blanks around the names too.
+    // '{| nVal , nPos | ...}': blanks around the names too; and a type after
+    // each, '{|nA as numeric| ...}', which TL++ and AdvPL take (tried on
+    // 24.3.1.9) and xc leaves to them.
     nE := NameEnd(nP)
     If nE >= 0
       AAdd(aParams, Text(nP, nE))
@@ -2613,6 +2671,7 @@ Static Function CodeBlockE()
       If !Ws()
         Return Back(nStart)
       EndIf
+      BlockParamType()
       While C(nP) == 44
         nSave := nP
         nP++
@@ -2623,6 +2682,9 @@ Static Function CodeBlockE()
             AAdd(aParams, Text(nP, nPe))
             nP := nPe
             lOk := Ws()
+            If lOk
+              BlockParamType()
+            EndIf
           EndIf
         EndIf
         If !lOk
@@ -3990,12 +4052,34 @@ Static Function FunctionDefE()
     EndIf
     nP := nSave
   Next
+  // 'Main User Function': a user function, as the AppServer has it (tried
+  // on 24.3.1.9).
+  If aF[FN_TYPE] == "main"
+    nSave := nP
+    If ILit("user") .And. IsS(C(nP))
+      While IsS(C(nP))
+        nP++
+      EndDo
+      aF[FN_TYPE] := "user"
+    Else
+      nP := nSave
+    EndIf
+  EndIf
   If !(ILit("function") .Or. ILit("procedure")) .Or. !Ws()
     Return Back(nStart)
   EndIf
   aF[N_LINE] := Line(nKind)
   aE := {0}
   aF[FN_NAME] := NameText(aE)
+  // A user function's name may start with a digit -- 'User Function
+  // 2Humanus()' is U_2HUMANUS, as the AppServer has it (tried on 24.3.1.9).
+  If aE[1] < 0 .And. aF[FN_TYPE] == "user" .And. IsD(C(nP))
+    aE[1] := nP
+    While IsW(C(aE[1])) .And. C(aE[1]) < 128
+      aE[1]++
+    EndDo
+    aF[FN_NAME] := Text(nP, aE[1])
+  EndIf
   If aE[1] < 0
     Return Back(nStart)
   EndIf
@@ -5861,45 +5945,37 @@ Static Function Modifier(aMod)
   aMod[2] := aCnd
 Return .T.
 
-// The closing words:
-//   [ <one> || 'end' [ <two> || '-'? [ 'if' || 'do' || 'while' || 'case' || 'for' ] >> ]? ]
-// -- 'endif', 'end', 'end if', 'End While', 'End-While' -- each with its
-// whitespace. lWordEndTwo: '>>' after the second. AdvPL takes the word
-// after an 'end' for nothing: TOTVS' own sources close a While with 'End
-// While', a Do Case with 'End Do', a For with 'End'.
-Static Function Closer(cOne, cTwo, lWordEndTwo)
+// The closing words, each with its whitespace:
+//   [ <one> || 'end' <!before \w> ] \N*? <?before <.comment> || \v || $>
+// AdvPL takes what follows a closing word on its line for nothing (tried on
+// 24.3.1.9, in a .prw and a .tlpp: 'EndIf lOk', 'EndDo nN < 3',
+// 'End-While'): TOTVS' own sources close a While with 'End While', a Do Case
+// with 'End Do', a For with 'End'. 'EndIf', 'EndDo' and 'EndCase' may be cut
+// to four letters or more, as Clipper's words: 'Endi', 'Endd'.
+Static Function Closer(cOne)
   Local nStart := nP
-  Local nSave
-  Local nAt
-  Local lAny
-  Local aWords := {"if", "do", "while", "case", "for"}
-  Local nI
-  If ILit(cOne) .And. Ws()
-    Return .T.
+  Local lCut := cOne == "endif" .Or. cOne == "enddo" .Or. cOne == "endcase"
+  Local nK := 0
+  Local nE := -1
+  While nK < Len(cOne) .And. CLower(C(nP + nK)) == Asc(SubStr(cOne, nK + 1, 1))
+    nK++
+  EndDo
+  If (nK == Len(cOne) .Or. (lCut .And. nK >= 4)) .And. !IsW(C(nP + nK))
+    nE := nP + nK
+  ElseIf IWordAt(nP, "end") .And. !IsW(C(nP + 3))
+    nE := nP + 3
   EndIf
-  nP := nStart
-  If !ILit("end") .Or. !Ws()
-    Return Back(nStart) != Nil
+  If nE < 0
+    Return .F.
   EndIf
-  nSave := nP
-  If !(ILit(cTwo) .And. (!lWordEndTwo .Or. WordEnd()) .And. Ws())
-    nP := nSave
-    If C(nP) == 45
-      nP++
-    EndIf
-    nAt := nP
-    lAny := .F.
-    For nI := 1 To Len(aWords)
-      nP := nAt
-      If ILit(aWords[nI]) .And. WordEnd() .And. Ws()
-        lAny := .T.
-        Exit
-      EndIf
-    Next
-    If !lAny
-      nP := nSave
-    EndIf
-  EndIf
+  While IsNN(C(nE)) .And. !((C(nE) == 47 .And. (C(nE + 1) == 47 .Or. C(nE + 1) == 42)) .Or. ;
+                           (C(nE) == 38 .And. C(nE + 1) == 38))
+    nE++
+  EndDo
+  While nE > nStart .And. IsH(C(nE - 1))
+    nE--
+  EndDo
+  nP := nE
   If !Ws()
     Return Back(nStart) != Nil
   EndIf
@@ -6663,7 +6739,7 @@ Return Nil
 //      <then>
 //   [ :i 'elseif' <cond> <.nl> <thenc> ]*
 //   [ :i 'else' <.nl> <else> ]?
-//   :i [ 'endif' || 'end' [ 'if' ]? ]
+//   <closer('endif')>
 // }
 Static Function IfSt()
   Local nStart := nP
@@ -6754,7 +6830,7 @@ Static Function IfSt()
   If !lOk
     nP := nSave
   EndIf
-  If !Ws() .Or. !Closer("endif", "if", .F.) .Or. !Ws()
+  If !Ws() .Or. !Closer("endif") .Or. !Ws()
     Return Back(nStart)
   EndIf
 Return aSt
@@ -6798,7 +6874,7 @@ Static Function WhileSt()
     Return Back(nStart)
   EndIf
   aSt[WH_BODY] := Body(.F., .F.)
-  If !Ws() .Or. !Closer("enddo", "do", .T.) .Or. !Ws()
+  If !Ws() .Or. !Closer("enddo") .Or. !Ws()
     Return Back(nStart)
   EndIf
 Return aSt
@@ -6906,7 +6982,7 @@ Static Function ForStWith(lLocal, aTook)
   aSt[FOR_ENDFROM] := -1
   aSt[FOR_ENDTO] := -1
   // 'End For', 'EndFor', 'End', as TOTVS' own sources have them.
-  If Closer("endfor", "for", .T.) .And. Ws()
+  If Closer("endfor") .And. Ws()
     Return aSt
   EndIf
 Return Back(nStart)
@@ -7100,7 +7176,7 @@ Return aSt
 //   :i 'do' 'case' [ :i 'with' <subject> ]? <.nl>
 //   [ :i 'case' <cond> <.nl> <thenc> ]+
 //   [ :i 'otherwise' <.nl> <else> ]?
-//   :i [ 'endcase' || 'end' [ 'case' ]? ]
+//   <closer('endcase')>
 // }
 // rule subject { [ :i <subjlocal=kwlocal> <hdrdecl> ] || <assignment> }
 Static Function DoCaseSt()
@@ -7187,7 +7263,7 @@ Static Function DoCaseSt()
   If !lOk
     nP := nSave
   EndIf
-  If !Ws() .Or. !Closer("endcase", "case", .F.) .Or. !Ws()
+  If !Ws() .Or. !Closer("endcase") .Or. !Ws()
     Return Back(nStart)
   EndIf
 Return aSt
@@ -7351,12 +7427,26 @@ Return aSt
 //      <block>
 //   :i 'end' 'using'
 // }
+// And TL++'s 'using namespace x.y' inside a function, as written: a
+// statement, which closes the prologue (C2051 for a Local after it, tried on
+// 24.3.1.9).
 Static Function UsingSt()
   Local nStart := nP
   Local aSt
   Local aE := {0}
   Local nSave
   Local aO
+  Local nEnd
+  Local aR
+  If ILit("using") .And. IsH(C(nP)) .And. Ws() .And. ILit("namespace") .And. IsH(C(nP))
+    nEnd := RawLine(nStart)
+    nP := nEnd
+    aR := u_xcb_new(SK_RAWSTMT)
+    AAdd(aR[RAW_LINES], Text(nStart, nEnd))
+    aR[N_LINE] := Line(nStart)
+    Return aR
+  EndIf
+  nP := nStart
   If !ILit("using") .Or. !Ws() .Or. !ILit("alias") .Or. !Ws()
     Return Back(nStart)
   EndIf
@@ -7699,9 +7789,9 @@ Return If(IsW(C(nE - 1)) .And. IsW(C(nE)), -1, nE)
 // Where they end, or -1.
 Static Function CmdWord(nAt)
   Local aOne := {"define", "activate", "redefine", "set", "menu", "publish", "add", "save", "create", "new", ;
-                 "close"}
-  Local aValue := {"replace", "store", "seek", "use", "goto", "go", "skip"}
-  Local aAlone := {"commit", "zap", "eject", "quit"}
+                 "close", "delete"}
+  Local aValue := {"replace", "store", "seek", "use", "goto", "go", "skip", "rename"}
+  Local aAlone := {"commit", "zap", "eject", "quit", "delete"}
   Local aTwo := {{"prepare", "environment", ""}, {"reset", "environment", ""}, ;
                  {"append", "blank", ""}, {"count", "to", ""}, {"menuitem", "", ""}, {"endmenu", "", ""}, ;
                  {"tcquery", "", ""}, {"connect", "smtp", ""}, {"disconnect", "smtp", ""}, ;
@@ -7748,7 +7838,8 @@ Static Function CmdWord(nAt)
       Exit
     EndIf
   Next
-  // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT'.
+  // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT',
+  // 'DELETE'.
   For nI := 1 To Len(aAlone)
     If IWordAt(nAt, aAlone[nI])
       nE := nAt + Len(aAlone[nI])

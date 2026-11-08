@@ -1,0 +1,12 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// 'using namespace' inside a function, as TL++ takes it -- a statement: a
+// Local after it is C2051 (tried on 24.3.1.9).
+User Function Inside(lMatch)
+  Local nN := 0
+  If lMatch
+    using namespace tlpp.regex
+    nN++
+  EndIf
+Return nN

@@ -181,7 +181,7 @@ namespace xc
     {
       if (t.empty()) { return t; }
       std::string s = t.substr(1);
-      if (!s.empty() && s.back() == t[0]) { s.pop_back(); }
+      if (!s.empty() && s.back() == (t[0] == '[' ? ']' : t[0])) { s.pop_back(); }
       return s;
     }
 
@@ -2921,6 +2921,7 @@ namespace xc
           std::string first = r->lines.empty() ? "" : trim(r->lines[0]);
           if (r->block) { problem("a 'raw' block"); }
           else if (!first.empty() && first[0] == '#') { problem("a directive inside a function ('" + first + "')"); }
+          else if (lc(first).rfind("using", 0) == 0) { problem("a 'using namespace' inside a function ('" + first + "')"); }
           else { problem("a command for the preprocessor ('" + first + "')"); }
           break;
         }

@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// A code block's parameters with their types, which TL++ and AdvPL take
+// (tried on 24.3.1.9; DNATechByNaldoDJ/fw.webex has them): xc leaves the
+// types to them.
+User Function Typed()
+  Local bAdd := {|nA as numeric, nB as numeric| nA + nB}
+  Local bOne := {| cX as character | Upper(cX)}
+Return Eval(bAdd, 1, 2) + Len(Eval(bOne, "a"))

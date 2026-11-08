@@ -839,7 +839,7 @@ Return Nil
 
 Static Function Unclosed(aE)
   Local cT := aE[LIT_TEXT]
-  If Len(cT) >= 2 .And. Right(cT, 1) == Left(cT, 1)
+  If Len(cT) >= 2 .And. Right(cT, 1) == If(Left(cT, 1) == "[", "]", Left(cT, 1))
     Return Nil
   EndIf
   Warning("this string is not closed: TL++ ends it at the end of the line -- " + cT)
@@ -867,6 +867,9 @@ Static Function TypeWord(xWord, nAt, lStrict)
     Return Nil
   EndIf
   cW := Lc(xWord)
+  // A .prw takes 'as Char' and 'as Block' (tried on 24.3.1.9; TOTVS' own
+  // reports have them): AdvPL does not check its types.
+  If lAdvpl .And. (cW == "char" .Or. cW == "block") exec Return Nil
   If !(Len(xWord) == 1 .Or. cW == "char" .Or. cW == "block")
     If lStrict .And. !lAdvpl .And. !Among(cW, "|numeric|character|logical|date|array|object|codeblock|json|" ;
                                               + "variant|integer|decimal|double|variadic|") .And. !(hClasses has cW) ;

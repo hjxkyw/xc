@@ -382,6 +382,7 @@ namespace xc
     UserSpans spans = user_spans(src, folder_of(path), o.includes);
     Tree tree;
     Parser parser(src, spans.trans, tree, spans.cmd);
+    parser.advpl = advpl;
     Program* prog = parser.parse();
     if (!prog)
     {

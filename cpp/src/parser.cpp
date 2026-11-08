@@ -1534,7 +1534,8 @@ namespace xc
     }
     else if (ch == '[')
     {
-      x = lambda();
+      if (advpl) { x = bracket_string(); }
+      if (!x) { x = lambda(); }
     }
     else if (ch == '&')
     {
@@ -2084,6 +2085,35 @@ namespace xc
   // {
   //   '[' <lparam=name> [ ',' <lparam=name> ] ** 0..5 ']' <lbody> <!before \h* '|>'>
   // }
+  // An AdvPL source's '[abc]' (Parser::advpl): a string, when what follows
+  // its ']' on the line starts no value -- an operator, a closing bracket, a
+  // ',', the line's end: '[abc] + "d"', '$ [A/B]', '{|x| x < [y]}'. Before a
+  // value -- '[x] x > 0' -- it is a lambda.
+  Expr* Parser::bracket_string()
+  {
+    int start = p_;
+    int q = start + 1;
+    while (is_nn(c(q)) && c(q) != ']') { q++; }
+    if (c(q) != ']') { return nullptr; }
+    int r = q + 1;
+    while (is_h(c(r))) { r++; }
+    int ch = c(r);
+    if (is_alpha(ch) || is_d(ch) || ch == '"' || ch == '\'' || ch == '(' || ch == '{' || ch == '[' || ch == '&'
+        || ch == '@')
+    {
+      return nullptr;
+    }
+    p_ = q + 1;
+    if (!ws())
+    {
+      return back(start);
+    }
+    auto l = make<Literal>();
+    l->type = "Character";
+    l->text = text(start, q + 1);
+    return span(l, start, q + 1);
+  }
+
   Expr* Parser::lambda()
   {
     int start = p_;
@@ -2195,7 +2225,20 @@ namespace xc
       {
         return back(start);
       }
-      // '{| nVal , nPos | ...}': blanks around the names too.
+      // '{| nVal , nPos | ...}': blanks around the names too; and a type
+      // after each, '{|nA as numeric| ...}', which TL++ and AdvPL take (tried
+      // on 24.3.1.9) and xc leaves to them.
+      auto typed = [&]()
+      {
+        int save = p_;
+        int we = 0;
+        if (ilit("as") && is_h(c(p_)) && ws() && (name_text(we), we >= 0))
+        {
+          p_ = we;
+          if (ws()) { return; }
+        }
+        p_ = save;
+      };
       int e = name_end(p_);
       if (e >= 0)
       {
@@ -2205,6 +2248,7 @@ namespace xc
         {
           return back(start);
         }
+        typed();
         while (c(p_) == ',')
         {
           int save = p_;
@@ -2218,6 +2262,7 @@ namespace xc
               params.push_back(text(p_, pe));
               p_ = pe;
               ok = ws();
+              if (ok) { typed(); }
             }
           }
           if (!ok)

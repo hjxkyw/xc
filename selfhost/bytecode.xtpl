@@ -253,7 +253,7 @@ Static Function StringText(cT)
     Return cT
   EndIf
   cS := SubStr(cT, 2)
-  If !(cS == "") .And. Right(cS, 1) == Left(cT, 1)
+  If !(cS == "") .And. Right(cS, 1) == If(Left(cT, 1) == "[", "]", Left(cT, 1))
     cS := Left(cS, Len(cS) - 1)
   EndIf
 Return cS
@@ -2963,6 +2963,8 @@ Static Function Stmt(aSt)
         Problem("a 'raw' block")
       ElseIf Left(cFirst, 1) == "#"
         Problem("a directive inside a function ('" + cFirst + "')")
+      ElseIf Lower(Left(cFirst, 5)) == "using"
+        Problem("a 'using namespace' inside a function ('" + cFirst + "')")
       Else
         Problem("a command for the preprocessor ('" + cFirst + "')")
       EndIf

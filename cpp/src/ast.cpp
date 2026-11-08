@@ -60,6 +60,7 @@ namespace
     xc::UserSpans spans = m.bare || m.values ? xc::UserSpans{} : xc::user_spans(src, xc::folder_of(file), includes);
     xc::Tree tree;
     xc::Parser parser(src, spans.trans, tree, spans.cmd);
+    parser.advpl = xc::is_advpl(file);
     text.clear();
     if (m.values)
     {

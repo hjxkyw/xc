@@ -55,6 +55,11 @@ namespace xc
     bool any_name = false;
     bool generated_ok = false;
 
+    // An AdvPL source (.prw, .prx): '[abc]' is a string where a value starts
+    // and no lambda does, as Clipper has it -- a .tlpp refuses it (C2003,
+    // tried on 24.3.1.9).
+    bool advpl = false;
+
     // One form at 'at': the node, or null when it does not read; 'end' is
     // where it ended.
     Expr* read(Form form, int at, bool in_with, int& end);
@@ -180,6 +185,7 @@ namespace xc
     Expr* sqlexp();
     Expr* aliasfield();
     Expr* lambda();
+    Expr* bracket_string();
     Expr* codeblock();
     Expr* blockexpr();
     Expr* pairs(bool hash);
@@ -313,7 +319,7 @@ namespace xc
     bool modifier(std::string& op, Expr*& cond);
     int modkw(int p) const;
     bool if_call(int p) const;
-    bool closer(std::string_view one, std::string_view two, bool word_end_two);
+    bool closer(std::string_view one);
     bool next_name(int& from, int& to);
     Expr* addexpr();
     Stmt* assign_stmt();

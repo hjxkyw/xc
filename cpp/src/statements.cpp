@@ -27,7 +27,7 @@ namespace xc
       "append", "count", "menuitem", "endmenu", "tcquery", "connect", "disconnect", "send", "get",
       "paramtype", "throw", "vtpause", "vtread", "vtclear", "vtsave", "vtrestore", "beginsql",
       "begincontent", "end", "save", "create", "new", "store", "seek", "use", "commit", "zap", "eject",
-      "delete", "dele", "copy", "index", "go", "goto", "skip", "quit", "close",
+      "delete", "dele", "copy", "index", "go", "goto", "skip", "quit", "close", "rename",
     };
 
     const std::unordered_set<std::string> SIMPLE_WORDS = { "return", "exit", "loop", "break", "default" };
@@ -740,6 +740,24 @@ namespace xc
       }
       p_ = save;
     }
+    // 'Main User Function': a user function, as the AppServer has it (tried
+    // on 24.3.1.9).
+    if (f->type == "main")
+    {
+      int save = p_;
+      if (ilit("user") && is_s(c(p_)))
+      {
+        while (is_s(c(p_)))
+        {
+          p_++;
+        }
+        f->type = "user";
+      }
+      else
+      {
+        p_ = save;
+      }
+    }
     if (!(ilit("function") || ilit("procedure")) || !ws())
     {
       p_ = start;
@@ -748,6 +766,17 @@ namespace xc
     f->line = line(kind);
     int e = 0;
     f->name = name_text(e);
+    // A user function's name may start with a digit -- 'User Function
+    // 2Humanus()' is U_2HUMANUS, as the AppServer has it (tried on 24.3.1.9).
+    if (e < 0 && f->type == "user" && is_d(c(p_)))
+    {
+      e = p_;
+      while (is_w(c(e)) && c(e) < 128)
+      {
+        e++;
+      }
+      f->name = text(p_, e);
+    }
     if (e < 0)
     {
       p_ = start;
@@ -2881,43 +2910,41 @@ namespace xc
     return true;
   }
 
-  // The closing words:
-  //   [ <one> || 'end' [ <two> || '-'? [ 'if' || 'do' || 'while' || 'case' || 'for' ] >> ]? ]
-  // -- 'endif', 'end', 'end if', 'End While', 'End-While' -- each with its
-  // whitespace. word_end_two: '>>' after the second. AdvPL takes the word
-  // after an 'end' for nothing: TOTVS' own sources close a While with 'End
-  // While', a Do Case with 'End Do', a For with 'End'.
-  bool Parser::closer(std::string_view one, std::string_view two, bool word_end_two)
+  // The closing words, each with its whitespace:
+  //   [ <one> || 'end' <!before \w> ] \N*? <?before <.comment> || \v || $>
+  // AdvPL takes what follows a closing word on its line for nothing (tried
+  // on 24.3.1.9, in a .prw and a .tlpp: 'EndIf lOk', 'EndDo nN < 3',
+  // 'End-While'): TOTVS' own sources close a While with 'End While', a Do
+  // Case with 'End Do', a For with 'End'. 'EndIf', 'EndDo' and 'EndCase' may
+  // be cut to four letters or more, as Clipper's words: 'Endi', 'Endd'.
+  bool Parser::closer(std::string_view one)
   {
     int start = p_;
-    if (ilit(one) && ws())
+    bool cut = one == "endif" || one == "enddo" || one == "endcase";
+    std::size_t k = 0;
+    while (k < one.size() && lower(c(p_ + static_cast<int>(k))) == static_cast<unsigned char>(one[k])) { k++; }
+    int e = -1;
+    if ((k == one.size() || (cut && k >= 4)) && !is_w(c(p_ + static_cast<int>(k))))
     {
-      return true;
+      e = p_ + static_cast<int>(k);
     }
-    p_ = start;
-    if (!ilit("end") || !ws())
+    else if (iword_at(p_, "end") && !is_w(c(p_ + 3)))
     {
-      p_ = start;
+      e = p_ + 3;
+    }
+    if (e < 0)
+    {
       return false;
     }
-    int save = p_;
-    if (!(ilit(two) && (!word_end_two || word_end()) && ws()))
+    while (is_nn(c(e)) && !((c(e) == '/' && (c(e + 1) == '/' || c(e + 1) == '*')) || (c(e) == '&' && c(e + 1) == '&')))
     {
-      p_ = save;
-      if (c(p_) == '-') { p_++; }
-      int at = p_;
-      bool any = false;
-      for (std::string_view w : { "if", "do", "while", "case", "for" })
-      {
-        p_ = at;
-        if (ilit(w) && word_end() && ws())
-        {
-          any = true;
-          break;
-        }
-      }
-      if (!any) { p_ = save; }
+      e++;
     }
+    while (e > start && is_h(c(e - 1)))
+    {
+      e--;
+    }
+    p_ = e;
     if (!ws())
     {
       p_ = start;
@@ -3749,7 +3776,7 @@ namespace xc
   //      <then>
   //   [ :i 'elseif' <cond> <.nl> <thenc> ]*
   //   [ :i 'else' <.nl> <else> ]?
-  //   :i [ 'endif' || 'end' [ 'if' ]? ]
+  //   <closer('endif')>
   // }
   Stmt* Parser::ifst()
   {
@@ -3868,7 +3895,7 @@ namespace xc
         p_ = save;
       }
     }
-    if (!ws() || !closer("endif", "if", false) || !ws())
+    if (!ws() || !closer("endif") || !ws())
     {
       return fail();
     }
@@ -3879,7 +3906,7 @@ namespace xc
   // {
   //   :i [ 'do' <.ws> ]? 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
   //      <block>
-  //   <closer('enddo', 'do')>
+  //   <closer('enddo')>
   // }
   Stmt* Parser::whilest()
   {
@@ -3943,7 +3970,7 @@ namespace xc
       return fail();
     }
     s->body = body(false, false);
-    if (!ws() || !closer("enddo", "do", true) || !ws())
+    if (!ws() || !closer("enddo") || !ws())
     {
       return fail();
     }
@@ -3957,7 +3984,7 @@ namespace xc
   //      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
   //      <block>
   //   [ :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
-  //   || <closer('endfor', 'for')> ]
+  //   || <closer('endfor')> ]
   // }
   //
   // A quantified group followed by a blank in a rule is one Raku goes back
@@ -4072,7 +4099,7 @@ namespace xc
     p_ = save;
     s->endname_from = s->endname_to = -1;
     // 'End For', 'EndFor', 'End', as TOTVS' own sources have them.
-    if (closer("endfor", "for", true) && ws())
+    if (closer("endfor") && ws())
     {
       return s;
     }
@@ -4295,7 +4322,7 @@ namespace xc
   //   :i 'do' 'case' [ :i 'with' <subject> ]? <.nl>
   //   [ :i 'case' <cond> <.nl> <thenc> ]+
   //   [ :i 'otherwise' <.nl> <else> ]?
-  //   :i [ 'endcase' || 'end' [ 'case' ]? ]
+  //   <closer('endcase')>
   // }
   // rule subject { [ :i <subjlocal=kwlocal> <hdrdecl> ] || <assignment> }
   Stmt* Parser::docasest()
@@ -4392,7 +4419,7 @@ namespace xc
         p_ = save;
       }
     }
-    if (!ws() || !closer("endcase", "case", false) || !ws())
+    if (!ws() || !closer("endcase") || !ws())
     {
       return fail();
     }
@@ -4587,10 +4614,23 @@ namespace xc
   //      <block>
   //   :i 'end' 'using'
   // }
+  // And TL++'s 'using namespace x.y' inside a function, as written: a
+  // statement, which closes the prologue (C2051 for a Local after it, tried
+  // on 24.3.1.9).
   Stmt* Parser::usingst()
   {
     int start = p_;
     auto fail = [&]() -> Stmt* { p_ = start; return nullptr; };
+    if (ilit("using") && is_h(c(p_)) && ws() && ilit("namespace") && is_h(c(p_)))
+    {
+      int e = rawline(start);
+      p_ = e;
+      auto r = make<RawStmt>();
+      r->lines.push_back(text(start, e));
+      r->line = line(start);
+      return r;
+    }
+    p_ = start;
     if (!ilit("using") || !ws() || !ilit("alias") || !ws())
     {
       return fail();
@@ -4997,7 +5037,7 @@ namespace xc
     };
     // [ 'define' || ... ] \h+ <[A..Za..z_]>
     for (std::string_view w : { "define", "activate", "redefine", "set", "menu", "publish", "add", "save", "create",
-                                "new", "close" })
+                                "new", "close", "delete" })
     {
       if (iword_at(p, w))
       {
@@ -5013,7 +5053,7 @@ namespace xc
     // TO nA, nB', 'SEEK xFilial("SA1")', 'USE &cFile ALIAS "X" NEW', 'GO
     // nRec', 'SKIP -1' -- not by ':=' or '=': 'store := 1' is an assignment.
     // 'REPLACE;' goes on on the next line.
-    for (std::string_view w : { "replace", "store", "seek", "use", "goto", "go", "skip" })
+    for (std::string_view w : { "replace", "store", "seek", "use", "goto", "go", "skip", "rename" })
     {
       if (iword_at(p, w))
       {
@@ -5037,8 +5077,9 @@ namespace xc
         break;
       }
     }
-    // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT'.
-    for (std::string_view w : { "commit", "zap", "eject", "quit" })
+    // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT',
+    // 'DELETE'.
+    for (std::string_view w : { "commit", "zap", "eject", "quit", "delete" })
     {
       if (iword_at(p, w))
       {

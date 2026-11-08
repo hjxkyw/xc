@@ -97,7 +97,7 @@ User Function xcb_compile(cPath, aDirs)
     Return {Nil, {cPath + ": a header (.xth) is made no bytecode: each source that includes it has its types"}}
   EndIf
   aSpans := Spans(aSource[1], FolderOf(cPath), aDirs)
-  aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
+  aProg := u_xcb_parse(aSource[1], aSource[2], aSpans, IsAdvpl(cPath))
   If aProg == Nil
     Return {Nil, NotParsed(aSource[1], cPath, u_xcb_furthest(), aSpans)}
   EndIf
@@ -350,7 +350,7 @@ Static Function Lists(cWhat, cList)
     EndIf
     aCols := SubStr(aLines[nI], nTab + 1) |> split(Chr(9))
     // As xc-ast --bare reads it: the source's own commands not looked for.
-    aProg := u_xcb_parse(aSource[1], aSource[2], Nil)
+    aProg := u_xcb_parse(aSource[1], aSource[2], Nil, IsAdvpl(cSource))
     If aProg == Nil
       cText := "not parsed at " + AllTrim(Str(u_xcb_furthest())) + Chr(10)
       If cWhat == "facts" .And. Len(aCols) > 2
@@ -404,7 +404,7 @@ Static Function Compiled(cSource, aSource, aBare, aCols)
   Local aUses := {}
   Local aSaid := {}
   If aSpans != Nil
-    aProg := u_xcb_parse(aSource[1], aSource[2], aSpans)
+    aProg := u_xcb_parse(aSource[1], aSource[2], aSpans, IsAdvpl(cSource))
   EndIf
   If aProg == Nil
     If Len(aCols) > 3

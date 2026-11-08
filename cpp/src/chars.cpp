@@ -7,11 +7,13 @@
 namespace xc
 {
   // Made by Raku (rakupp 5.3.0 and Rakudo 2026.09 agree): for each byte b,
-  // Blob.new(b).decode('windows-1252') matched against each class.
+  // Blob.new(b).decode('windows-1252') matched against each class -- but
+  // 0x1A, Ctrl-Z, which DOS's sources carry: a blank, as a tab is, as the
+  // AppServer takes it (tried on 24.3.1.9).
   const std::uint8_t CHAR_CLASS[256] =
   {
       8,   8,   8,   8,   8,   8,   8,   8,   8, 202, 228, 228, 228, 228,   8,   8,
-      8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,
+      8,   8,   8,   8,   8,   8,   8,   8,   8,   8, 202,   8,   8,   8,   8,   8,
     202,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,
      25,  25,  25,  25,  25,  25,  25,  25,  25,  25,   8,   8,   8,   8,   8,   8,
       8,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,

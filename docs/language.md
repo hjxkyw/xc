@@ -53,7 +53,8 @@ second ("Redefinition of function PROCESSORD").
 sources are, and so is its output, with the same line ends. A file in UTF-8
 -- one that starts with UTF-8's byte order mark, or whose characters beyond
 ASCII are written as UTF-8 -- is refused, with the line of its first such
-character. Plain ASCII is both, and fine.
+character. Plain ASCII is both, and fine. A Ctrl-Z (0x1A), which DOS-era
+sources carry, is a blank, as the AppServer takes it.
 
 **Comments of a rewritten statement.** A statement xc rewrites loses its
 trailing comment to the rewrite and gets it back: on the header line when
@@ -128,7 +129,7 @@ too. Some cannot be declared: see [Names xc keeps](#names-xc-keeps).
 | Literal | Examples |
 |---|---|
 | number | `42`, `3.14`, `.5`, `12'345'678`, `1'234.567'8` |
-| string | `"text"`, `'text'`, `"total = ${nTotal}"` |
+| string | `"text"`, `'text'`, `"total = ${nTotal}"`; in a .prw, `[text]` |
 | logical | `.T.`, `.F.` |
 | nil | `Nil` |
 | array | `{}`, `{1, 2, 3}`, `{ "P", , 1 }` -- an empty element is Nil |
@@ -234,7 +235,9 @@ refuses a `User Function` without its `u_`. Parameters may be typed, `as
 Numeric`, and take the attributes of a local, `<const>` and `<contained>`.
 The return type goes after the parentheses. A `User Function` needs no
 parentheses when it takes nothing. A `Procedure` -- `Static Procedure
-Log(cText)` -- is a function, to xc, with the same words before it.
+Log(cText)` -- is a function, to xc, with the same words before it. A `Main
+User Function` is a user function, and a user function's name may start
+with a digit, `User Function 2Humanus()` -- U_2HUMANUS (tried on 24.3.1.9).
 
 A function ends where the next function, class or method starts. `Return` is a
 statement like any other, and a function's last line should be one: Protheus
@@ -679,8 +682,10 @@ Type N" to Protheus, and an error to xc: `Numeric`, `Character`, `Logical`,
 `Date`, `Array`, `Object`, `CodeBlock`, `JSON`, `Variant`, `Integer`,
 `Decimal`, `Double`, and `Variadic` -- a parameter that takes every argument
 there is, read as `parm:vCount` and `parm:vArgs[i]`. `Char` and `Block` are
-refused, as Protheus refuses them ("Use Character Type instead of Char
-Type", "Use CodeBlock Type instead of Block Type"). And the name of a class
+refused, as TL++ refuses them ("Use Character Type instead of Char Type",
+"Use CodeBlock Type instead of Block Type") -- a .prw takes them, as TOTVS'
+own reports have them (tried on 24.3.1.9). So is `as JsonObject`, a class the
+file does not declare ("Invalid Type JSONOBJECT"). And the name of a class
 the file declares, `as Order`: TL++ is given `as Object`, and xc checks
 what goes in -- see [Objects](#typed-arrays-and-hashes). Any other word is
 refused, after a `Local`'s, a `Static`'s or a parameter's name and after a
@@ -1170,9 +1175,11 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 | `with object` | `End With` |
 | `raw` | `End Raw` |
 
-AdvPL takes the word after an `End` for nothing, and so does xc, among
-`If`, `Do`, `While`, `Case` and `For`, a `-` before it or not: TOTVS' own
-sources close a Do Case with `End Do`; others a While with `End-While`.
+The AppServer takes what follows a closing word on its line for nothing,
+in a .prw and a .tlpp -- `EndIf lOk`, `EndDo nN < 3`, `End-While` (tried on
+24.3.1.9) --, and so does xc: TOTVS' own sources close a Do Case with `End
+Do`, a While with `End While`. `EndIf`, `EndDo` and `EndCase` may be cut to
+four letters or more, as Clipper's words are: `Endi`, `Endd`.
 
 `If( c, a, b )` alone on its line is AdvPL's `If()` function, `IIf`'s twin,
 not a block. `Exit` and `Loop` leave and repeat the loop; `Break [value]`
@@ -1613,12 +1620,12 @@ as it came:
   QUERY`, `END REPORT QUERY`, `BEGIN WSMETHOD`, `END WSMETHOD`;
 - mail: `CONNECT SMTP`, `DISCONNECT SMTP`, `SEND MAIL`, `GET MAIL ERROR`;
 - the RF terminal's: `VTPAUSE`, `VTREAD`, `VTCLEAR`, `VTSAVE`, `VTRESTORE`;
-- Clipper's: `REPLACE`, `STORE`, `SEEK`, `USE`, `GO`, `GOTO`, `SKIP`, each
-  followed by a value (`REPLACE (cAlias)->F WITH x`, `STORE 0 TO nA, nB`,
-  `SKIP -1`) -- not by `:=` or `=`, so `store := 1` is an assignment; `USE`
-  and `SKIP` alone; `COMMIT`, `ZAP`, `EJECT`, `QUIT` alone on their line;
-  `APPEND FROM`, `COPY TO`, `COPY FILE`, `DELETE FILE`, `DELE FILE`, `INDEX
-  ON`;
+- Clipper's: `REPLACE`, `STORE`, `SEEK`, `USE`, `GO`, `GOTO`, `SKIP`,
+  `RENAME`, each followed by a value (`REPLACE (cAlias)->F WITH x`, `STORE 0
+  TO nA, nB`, `SKIP -1`) -- not by `:=` or `=`, so `store := 1` is an
+  assignment; `USE` and `SKIP` alone; `COMMIT`, `ZAP`, `EJECT`, `QUIT`,
+  `DELETE` alone on their line, and `DELETE` followed by a word; `APPEND
+  FROM`, `COPY TO`, `COPY FILE`, `DELE FILE`, `INDEX ON`;
 - `@ row, col ...`: an `@` followed by a space or a digit, or by a row and a
   `,` on the line -- `@li, 14 PSAY x`, `@Prow()+1, 0 PSAY x` --, with no
   `:=` before it;
@@ -2087,6 +2094,13 @@ names inside:
   left out last gives Nil.
 - `{nCol += 10, "x"}`: an assignment as an array's item, as an argument's;
   `( f(), g() )`: a list, as a statement.
+- `{|nA as numeric, nB as numeric| nA + nB}`: a code block's parameters with
+  their types, which TL++ and AdvPL take; xc leaves the types to them.
+- `[abc]`, Clipper's string, in a .prw -- a .tlpp refuses it (C2003, tried on
+  24.3.1.9): where a value starts and what follows the `]` starts none, so
+  `"V" $ [V/W]` and `[abc] + "d"` are strings, `[x] x > 0` a lambda.
+- `using namespace tlpp.regex` inside a function: a statement, as written --
+  a `Local` after it is C2051 to the AppServer.
 
 ## Chains
 

@@ -841,7 +841,7 @@ namespace xc
     void Checker::unclosed(const Literal* e)
     {
       const std::string& t = e->text;
-      if (t.size() >= 2 && t.back() == t.front()) { return; }
+      if (t.size() >= 2 && t.back() == (t.front() == '[' ? ']' : t.front())) { return; }
       warning("this string is not closed: TL++ ends it at the end of the line -- " + t);
     }
 
@@ -867,6 +867,9 @@ namespace xc
         }
       }
       if (!word) { return; }
+      // A .prw takes 'as Char' and 'as Block' (tried on 24.3.1.9; TOTVS' own
+      // reports have them): AdvPL does not check its types.
+      if (advpl_ && (lc(*word) == "char" || lc(*word) == "block")) { return; }
       if (!(word->size() == 1 || lc(*word) == "char" || lc(*word) == "block"))
       {
         static const Set TYPES =
