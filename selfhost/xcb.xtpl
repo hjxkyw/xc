@@ -817,7 +817,6 @@ Static Function TotvsDefines(cName)
                    "PD_PRINTTYPE 2, PD_VALUETYPE 6", ;
                    "shell.ch: SW_MAXIMIZE 3, SW_SHOWMAXIMIZED 3"}
   Local cOut := ""
-  Local cL
   Local nColon
   Local cIn
   Local nAt

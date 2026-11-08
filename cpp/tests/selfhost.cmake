@@ -74,7 +74,8 @@ foreach(m ${ROOT}/runtime/xtpl_runtime.tlpp ${ROOT}/selfhost/ast.xtpl ${ROOT}/se
   get_filename_component(name ${m} NAME_WE)
   execute_process(COMMAND ${XC} --bytecode ${m} ${WORK}/${name}.xbc
                   RESULT_VARIABLE r OUTPUT_VARIABLE said ERROR_VARIABLE said)
-  if(NOT r EQUAL 0)
+  # A warning too: the AppServer compiles these, and would say it again.
+  if(NOT r EQUAL 0 OR said MATCHES "warning")
     message(FATAL_ERROR "  ${m}: xc says\n${said}")
   endif()
   list(APPEND modules ${WORK}/${name}.xbc)
