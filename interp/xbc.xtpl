@@ -270,6 +270,13 @@ Static sxVM
 // The number of the function a code block of the JIT's whole is running
 // for, 0 for none: where an error in it is (XbcMakeFast(), OnError()).
 Static snFast
+// Eval() given references (EvalRefs()): the mark after the arguments, its
+// place among the block's parameters -- 0 for none, and again once a
+// program's block has taken it --, and what that block's parameters held
+// at its end, Nil until one gives it.
+Static scMark
+Static snMark
+Static saKept
 
 // ---- the entry --------------------------------------------------------------
 // The arguments of -run are the command line's: the AppServer's own, then
@@ -285,8 +292,10 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   scRef := Chr(1) + "xbc reference"
   scErr := Chr(1) + "xbc error"
   scNone := Chr(1) + "xbc none"
+  scMark := Chr(1) + "xbc mark"
   sxBroke := scNone
   snFast := 0
+  snMark := 0
   for xArg in {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16}
     Local cArg := If(ValType(xArg) == "C", xArg, "")
     Local cOpt := If(Left(cArg, 2) == "--", SubStr(cArg, 3), cArg)
@@ -405,6 +414,7 @@ Class XbcVM
   Public Method Native(cWhat, cName, cMethod, xObj, aArgs)
   Public Method MacroOf(cWhat, cName, cMethod, nArgs, aRefs)
   Public Method MethodCall(xObj, cName, aArgs)
+  Public Method EvalRefs(aArgs)
   Public Method MemberOf(xObj, cName)
   Public Method SetMemberOf(xObj, cName, xValue)
   Public Method RefGet(aRef)
@@ -1107,7 +1117,7 @@ Method EndFrame(aF) Class XbcVM
   Return Nil if aF[F_MORE] == Nil
   for aBy in aF[F_MORE][X_BYREF] ?: {}
     Local xValue := aF[F_LOCALS][aBy[1]]
-    xValue := xValue[1] if XbcBoxed(aF, aBy[1])
+    xValue := xValue[1] if XbcBoxed(aF[F_FN], aBy[1])
     ::RefSet(aBy[2], xValue)
   next
   for cName in aF[F_MORE][X_PRIVS] ?: {}
@@ -1116,14 +1126,17 @@ Method EndFrame(aF) Class XbcVM
   next
 Return Nil
 
-// Is local N of the frame a cell: its function boxes it, at its start.
-Static Function XbcBoxed(aF, nLocal)
-Return aF[F_FN][FN_CODE] |> takewhile([i] i[I_OP] == OP_BOX) |> anyof([i] i[I_A] == nLocal)
+// Is local N of a function's frame a cell: the function boxes it, at its
+// start.
+Static Function XbcBoxed(aFn, nLocal)
+Return aFn[FN_CODE] |> takewhile([i] i[I_OP] == OP_BOX) |> anyof([i] i[I_A] == nLocal)
 
 // The innermost region that takes it -- a Break any, an error a 'try' --:
 // the frames above it go, its stack is cut back, the value pushed. False
-// when none in this run does: then the run's frames go.
+// when none in this run does: then the run's frames go. An Eval() given
+// references that it leaves has its mark looked for no more.
 Method Unwind(nBase, xWhat, lError) Class XbcVM
+  snMark := 0
   For local nK := Len(::aFrames) To nBase Step -1
     Local aF := ::aFrames[nK]
     Loop if aF[F_MORE] == Nil .Or. aF[F_MORE][X_REGIONS] == Nil
@@ -1915,6 +1928,8 @@ Method Invoke(aF, cName, aArgs, lMacro, aIns) Class XbcVM
     XbcBreak(If(Empty(aArgs), Nil, aArgs[1]))
   Case xFound == "EVAL" .And. !Empty(aArgs) .And. ValType(aArgs[1]) == "B" .And. !XbcAnyRef(aArgs)
     xResult := XbcEvalArgs(aArgs[1], aArgs)
+  Case xFound == "EVAL" .And. Len(aArgs) > 1 .And. Len(aArgs) <= 12 .And. ValType(aArgs[1]) == "B"
+    xResult := ::EvalRefs(aArgs)
   Case xFound == "ERRORBLOCK"
     xResult := ::bProgErr
     ::bProgErr := aArgs[1] if !Empty(aArgs)
@@ -2668,6 +2683,47 @@ Static Function XbcEvalArgs(bBlock, a)
 Return Eval(bBlock, aAll[2], aAll[3], aAll[4], aAll[5], aAll[6], aAll[7], aAll[8], aAll[9], aAll[10], aAll[11], ;
             aAll[12], aAll[13])
 
+// Eval() given references: the AppServer's, which gives them to the block
+// and writes back what the block leaves in its parameters -- a block of the
+// AppServer's does that itself. A program's block runs its function's frame
+// with the values (Enter()); told by the mark after the arguments, which it
+// takes out, it gives back what its parameters hold at its end, and that is
+// written back here. Not AClone(): a reference holds the frame's array, and
+// that array the reference.
+Method EvalRefs(aArgs) Class XbcVM
+  Local aWith := Array(Len(aArgs) + 1)
+  Local xResult
+  for xArg, nI in aArgs exec aWith[nI] := xArg
+  aWith[Len(aWith)] := scMark
+  saKept := Nil
+  snMark := Len(aArgs)
+  xResult := ::CallNative("Eval", aWith)
+  snMark := 0
+  If saKept != Nil
+    For local nI := 2 To Min(Len(aArgs), Len(saKept) + 1)
+      ::RefSet(aArgs[nI], saKept[nI - 1]) if XbcIsRef(aArgs[nI])
+    Next
+    saKept := Nil
+  EndIf
+Return xResult
+
+// Is the parameter nAt of a block's the mark of an Eval() given references
+// (EvalRefs()).
+Static Function XbcMarked(nAt, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+  Local aP := {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
+Return nAt <= 12 .And. ValType(aP[nAt]) == "C" .And. aP[nAt] == scMark
+
+// What the parameters of a block's frame hold at its end -- a cell's value,
+// for one a code block shares.
+Static Function XbcKept(aFn, aLoc, nP)
+  Local aKept := Array(Min(nP, 12))
+  Local nI
+  For nI := 1 To Len(aKept)
+    aKept[nI] := aLoc[nI]
+    aKept[nI] := aKept[nI][1] if XbcBoxed(aFn, nI)
+  Next
+Return aKept
+
 // A method of an object of the AppServer's.
 Method MethodCall(xObj, cName, aArgs) Class XbcVM
 Return ::Native("m", "", cName, xObj, aArgs)
@@ -3333,12 +3389,16 @@ Static Function XbcMakeFast(aFast, aCells, xSelf)
   Case aFast[5] == 0
     Return {|r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI), snFast := 0, r}
   Case aFast[5] == 1
-    Return {|p1, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1), snFast := 0, r}
+    Return {|p1, r| If(snMark > 0, sxVM:Enter({nFn, aC, xO}, p1, r), ;
+                       (snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1), snFast := 0, r))}
   Case aFast[5] == 2
-    Return {|p1, p2, r| snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2), snFast := 0, r}
+    Return {|p1, p2, r| If(snMark > 0, sxVM:Enter({nFn, aC, xO}, p1, p2, r), ;
+                           (snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2), snFast := 0, r))}
   EndCase
-Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| snFast := nFn, ;
-        r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), snFast := 0, r}
+Return {|p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, r| ;
+        If(snMark > 0, sxVM:Enter({nFn, aC, xO}, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12), ;
+           (snFast := nFn, r := Eval(bFast, aC, aK, aT, xO, aI, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, ;
+                                     p12), snFast := 0, r))}
 
 // A call of a whole of the JIT's with three to 12 arguments, from the stack
 // above nAt -- of a method's, with its Self.
@@ -3349,12 +3409,15 @@ Return Eval(aFast[1], Nil, aFast[2], aFast[3], xSelf, aFast[6], aA[1], aA[2], aA
             aA[8], aA[9], aA[10], aA[11], aA[12])
 
 // A block run: its frame, its parameters from what it was given, in Run() --
-// Enter1() in Run1(), and so on.
+// Enter1() in Run1(), and so on. Given the mark of an Eval() with
+// references (EvalRefs()), it takes it out, and keeps what its parameters
+// hold at its end.
 Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcVM
   Local aFn := ::aFns[aClo[1]]
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
+  Local lKeep := .F.
   If nP > 0
     aLoc[1] := p1
     aLoc[2] := p2 if nP > 1
@@ -3371,9 +3434,15 @@ Method Enter(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class XbcV
       aLoc[12] := p12 if nP > 11
     EndIf
   EndIf
+  If snMark > 0 .And. XbcMarked(snMark, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+    lKeep := .T.
+    aLoc[snMark] := Nil if snMark <= nP
+    snMark := 0
+  EndIf
   ::Fail("stack overflow") if Len(::aFrames) > 4000
   AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
   xResult := ::Run(Len(::aFrames))
+  saKept := XbcKept(aFn, aLoc, nP) if lKeep
   ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 
@@ -3937,6 +4006,7 @@ Method Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
+  Local lKeep := .F.
   If nP > 0
     aLoc[1] := p1
     aLoc[2] := p2 if nP > 1
@@ -3953,9 +4023,15 @@ Method Enter1(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
       aLoc[12] := p12 if nP > 11
     EndIf
   EndIf
+  If snMark > 0 .And. XbcMarked(snMark, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+    lKeep := .T.
+    aLoc[snMark] := Nil if snMark <= nP
+    snMark := 0
+  EndIf
   ::Fail("stack overflow") if Len(::aFrames) > 4000
   AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
   xResult := ::Run1(Len(::aFrames))
+  saKept := XbcKept(aFn, aLoc, nP) if lKeep
   ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 
@@ -4491,6 +4567,7 @@ Method Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
+  Local lKeep := .F.
   If nP > 0
     aLoc[1] := p1
     aLoc[2] := p2 if nP > 1
@@ -4507,9 +4584,15 @@ Method Enter2(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
       aLoc[12] := p12 if nP > 11
     EndIf
   EndIf
+  If snMark > 0 .And. XbcMarked(snMark, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+    lKeep := .T.
+    aLoc[snMark] := Nil if snMark <= nP
+    snMark := 0
+  EndIf
   ::Fail("stack overflow") if Len(::aFrames) > 4000
   AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
   xResult := ::Run2(Len(::aFrames))
+  saKept := XbcKept(aFn, aLoc, nP) if lKeep
   ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 
@@ -5045,6 +5128,7 @@ Method Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
   Local nP := aFn[FN_PARAMS]
   Local aLoc := Array(aFn[FN_NLOCALS] + aFn[FN_STACK])
   Local xResult
+  Local lKeep := .F.
   If nP > 0
     aLoc[1] := p1
     aLoc[2] := p2 if nP > 1
@@ -5061,9 +5145,15 @@ Method Enter3(aClo, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12) Class Xbc
       aLoc[12] := p12 if nP > 11
     EndIf
   EndIf
+  If snMark > 0 .And. XbcMarked(snMark, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12)
+    lKeep := .T.
+    aLoc[snMark] := Nil if snMark <= nP
+    snMark := 0
+  EndIf
   ::Fail("stack overflow") if Len(::aFrames) > 4000
   AAdd(::aFrames, {aFn, aLoc, aFn[FN_NLOCALS], 1, Min(nP, 12), aClo[2], aClo[3], Nil})
   xResult := ::Run3(Len(::aFrames))
+  saKept := XbcKept(aFn, aLoc, nP) if lKeep
   ::Note("  the block ${aFn[FN_NAME]} gave " + XbcShown(xResult)) if ::aTrace != Nil
 Return xResult
 // <<< the loop's copies

@@ -17,6 +17,9 @@ exit 0
 U
 found
 3
+-- given to a code block
+set
+8
 -- an array that grows in the call
 100
 grown

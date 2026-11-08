@@ -1,7 +1,8 @@
 // References to an element and to a member: '@a[i]', '@a[i][j]', '@o:x',
 // '@::x', '@::a[i]', '@s.f', '@j["k"]' -- the parameter given the value,
 // what it holds at the return written back; in a code block, to a method
-// of the AppServer's, to an element of an array that grew in the call.
+// of the AppServer's, to an element of an array that grew in the call; a
+// variable's and an element's given to a code block by Eval().
 #include "totvs.ch"
 #include "tlpp-core.th"
 
@@ -38,6 +39,9 @@ User Function Main()
   Local hMap := {"k" => "found"}
   Local aG := {"a"}
   Local bInc := {|| Inc(@aA[1])}
+  Local bSet := {|x| x := "set"}
+  Local bTwice := {|x, y| x := Twice(x) + If(y == Nil, 0, 100)}
+  Local cX := "old"
   ConOut("-- elements")
   Inc(@aA[1])
   Inc(@aA[2][1])
@@ -58,6 +62,11 @@ User Function Main()
   hMap:Get("k", @aA[3])
   Eval(bInc)
   ConOut(ValType(aA[2]), aA[3], aA[1])
+  ConOut("-- given to a code block")
+  Eval(bSet, @cX)
+  aA[1] := 4
+  Eval(bTwice, @aA[1])
+  ConOut(cX, aA[1])
   ConOut("-- an array that grows in the call")
   Grow(@aG[1], aG)
   ConOut(Len(aG), aG[1], aG[100])
@@ -66,6 +75,9 @@ Return Nil
 Static Function Inc(nX)
   nX++
 Return Nil
+
+Static Function Twice(nX)
+Return nX * 2
 
 Static Function Clear(xX)
   xX := Nil

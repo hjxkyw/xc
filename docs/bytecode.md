@@ -483,8 +483,11 @@ It is the machine of this page, and the AppServer is the rest:
   class no module has, the same way;
 - a code block of the program is one of the AppServer's that runs it there,
   with as many arguments as its function takes -- so `aEval()`, `aSort()`
-  and the runtime's verbs run it; one given a reference, `Eval(bSet, @x)`,
-  is given the value, and nothing is written back;
+  and the runtime's verbs run it. `Eval(bSet, @x)` writes back what the
+  block's parameter holds at its end, as the AppServer does for a block of
+  its own (probe xcr2, on 24.3.1.9): the interpreter gives `Eval()` a mark
+  after the arguments, and the program's block that finds it among its
+  parameters takes it out, and gives back what they hold when it ends;
 - an object of a module's class is an `XbcObj`, a class of the interpreter's
   own, whose `ValType()` is `"O"`;
 - `ErrorBlock()` is the program's, kept apart: the interpreter runs under
