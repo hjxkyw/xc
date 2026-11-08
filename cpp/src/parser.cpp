@@ -637,6 +637,18 @@ namespace xc
     return span(assign_expr(a.target, a.op, a.value), start, p_);
   }
 
+  // rule aitem { [ <passign> || <expr> ]? }: an array literal's item.
+  Expr* Parser::aitem()
+  {
+    int start = p_;
+    if (Expr* a = passign())
+    {
+      return a;
+    }
+    p_ = start;
+    return expr();
+  }
+
   // token passign { <.sees('bind item')> <assignment> }
   Expr* Parser::passign()
   {
@@ -1341,7 +1353,8 @@ namespace xc
     return true;
   }
 
-  // rule tinalias { '->' '(' ~ ')' <expr> }
+  // rule tinalias { '->' '(' ~ ')' [ <expr> [ ',' <listitem> ]* ] }
+  // '(cAlias)->( dbEval(b), dbCloseArea() )': a list, as 'SA1->( ... )' has.
   bool Parser::tinalias(Trailer& t)
   {
     int start = p_;
@@ -1358,6 +1371,26 @@ namespace xc
       return false;
     }
     Expr* e = expr();
+    std::vector<Expr*> more;
+    while (e && c(p_) == ',')
+    {
+      int save = p_;
+      p_++;
+      Expr* y = ws() ? listitem() : nullptr;
+      if (!y)
+      {
+        p_ = save;
+        break;
+      }
+      more.push_back(y);
+    }
+    if (!more.empty())
+    {
+      auto list = make<ExprList>();
+      list->items.push_back(e);
+      list->items.insert(list->items.end(), more.begin(), more.end());
+      e = list;
+    }
     if (!e || c(p_) != ')')
     {
       back(start);
@@ -1975,7 +2008,9 @@ namespace xc
       p_++;
       if (ws())
       {
-        if (Expr* x = expr())
+        // 'SRA->( cFil := RA_FILIAL, cTno := RA_TNOTRAB )': an assignment
+        // may come first.
+        if (Expr* x = listitem())
         {
           std::vector<Expr*> more;
           while (c(p_) == ',')
@@ -2131,8 +2166,11 @@ namespace xc
 
   // rule codeblock
   // {
-  //   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] <blockexpr>* % ',' '}'
+  //   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] [ <blockexpr>? ]* % ',' '}'
   // }
+  // An item may be left out, as AdvPL takes it -- '{|x|, x[1] == 2}', '{||
+  // f(), }', '{|| ,,}' in TOTVS' own sources: nothing is done for it, and a
+  // block whose last one is left out gives Nil.
   Expr* Parser::codeblock()
   {
     int start = p_;
@@ -2157,11 +2195,16 @@ namespace xc
       {
         return back(start);
       }
+      // '{| nVal , nPos | ...}': blanks around the names too.
       int e = name_end(p_);
       if (e >= 0)
       {
         params.push_back(text(p_, e));
         p_ = e;
+        if (!ws())
+        {
+          return back(start);
+        }
         while (c(p_) == ',')
         {
           int save = p_;
@@ -2174,7 +2217,7 @@ namespace xc
             {
               params.push_back(text(p_, pe));
               p_ = pe;
-              ok = true;
+              ok = ws();
             }
           }
           if (!ok)
@@ -2201,20 +2244,26 @@ namespace xc
     in_block_++;
     for (const std::string& n : params) { var(n); }
     std::vector<Expr*> body;
-    if (Expr* b = blockexpr())
+    Expr* b = blockexpr();
+    if (b || c(p_) == ',')
     {
-      body.push_back(b);
+      body.push_back(b ? b : make<Omitted>());
       while (c(p_) == ',')
       {
         int save = p_;
         p_++;
-        Expr* y = ws() ? blockexpr() : nullptr;
-        if (!y)
+        if (!ws())
         {
           p_ = save;
           break;
         }
-        body.push_back(y);
+        Expr* y = blockexpr();
+        if (!y && c(p_) != ',' && c(p_) != '}')
+        {
+          p_ = save;
+          break;
+        }
+        body.push_back(y ? y : make<Omitted>());
       }
     }
     for (const std::string& n : params) { var(n, -1); }
@@ -2361,7 +2410,8 @@ namespace xc
     return kv;
   }
 
-  // rule arrayliteral { '{' ~ '}' [ <aitem> [ ',' <aitem> ]* ] }   rule aitem { <expr>? }
+  // rule arrayliteral { '{' ~ '}' [ <aitem> [ ',' <aitem> ]* ] }   rule aitem { [ <passign> || <expr> ]? }
+  // An item may be an assignment, as an argument may: '{nCol += 10, "x"}'.
   Expr* Parser::arrayliteral()
   {
     int start = p_;
@@ -2371,7 +2421,7 @@ namespace xc
       return back(start);
     }
     std::vector<Expr*> items;
-    Expr* x = expr();
+    Expr* x = aitem();
     items.push_back(x ? x : make<Omitted>());
     while (c(p_) == ',')
     {
@@ -2382,7 +2432,7 @@ namespace xc
         p_ = save;
         break;
       }
-      Expr* y = expr();
+      Expr* y = aitem();
       items.push_back(y ? y : make<Omitted>());
     }
     if (c(p_) != '}')
@@ -2828,7 +2878,8 @@ namespace xc
   // {
   //   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
   //              || [ <selfacc> <trailer>* ] || [ <macrocall> <trailer>* ] || [ <nscall> <trailer>* ]
-  //              || [ <macro> ] || [ <inalias> ] || [ '(' ~ ')' <pexpr> <trailer>* ] ]
+  //              || [ <macro> [ <trailer>* <?{ the last an <inalias> }> ]? ] || [ <inalias> ]
+  //              || [ '(' ~ ')' <pexpr> <trailer>* ] ]
   // }
   // The call the statement makes, spanned as the statement's.
   Expr* Parser::callst()
@@ -2917,6 +2968,18 @@ namespace xc
     {
       if (Macro* m = macro())
       {
+        // '&(cAlias)->(DbSetOrder(1))', '&cAlias->(DbGoTop())': run in the
+        // area a macro names.
+        int bt = p_;
+        if (c(p_) == '-' && c(p_ + 1) == '>')
+        {
+          std::vector<Trailer> tr = trailers();
+          if (!tr.empty() && tr.back().kind == T_INALS)
+          {
+            return span(trailed(m, at, bt, tr, start, true), start, p_);
+          }
+          p_ = bt;
+        }
         return span(trailed(m, at, p_, {}, start, true), start, p_);
       }
       p_ = at;
@@ -2947,6 +3010,12 @@ namespace xc
             return span(trailed(e, bf, bt, tr, start, true), start, p_);
           }
         }
+      }
+      // '( CarExtAut(), RstGetTabExtra() )': a list, each run in turn.
+      p_ = at;
+      if (Expr* l = parens(); l && l->kind == EK::ExprList && ws())
+      {
+        return span(l, start, p_);
       }
     }
     return back(start);

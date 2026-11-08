@@ -1058,7 +1058,10 @@ Static Function Block(aB)
     Op("nil")
   EndIf
   For nI := 1 To Len(aB[CB_BODY])
-    If nI < Len(aB[CB_BODY])
+    // An item left out does nothing; the last, Nil.
+    If aB[CB_BODY][nI][N_KIND] == EK_OMITTED
+      If nI == Len(aB[CB_BODY]) exec Op("nil")
+    ElseIf nI < Len(aB[CB_BODY])
       Effect(aB[CB_BODY][nI])
     Else
       Expr(aB[CB_BODY][nI])

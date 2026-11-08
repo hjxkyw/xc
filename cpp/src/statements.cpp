@@ -26,7 +26,8 @@ namespace xc
       "activate", "redefine", "set", "menu", "publish", "replace", "add", "prepare", "reset",
       "append", "count", "menuitem", "endmenu", "tcquery", "connect", "disconnect", "send", "get",
       "paramtype", "throw", "vtpause", "vtread", "vtclear", "vtsave", "vtrestore", "beginsql",
-      "begincontent",
+      "begincontent", "end", "save", "create", "new", "store", "seek", "use", "commit", "zap", "eject",
+      "delete", "dele", "copy", "index", "go", "goto", "skip", "quit", "close",
     };
 
     const std::unordered_set<std::string> SIMPLE_WORDS = { "return", "exit", "loop", "break", "default" };
@@ -700,7 +701,9 @@ namespace xc
   //   <funckind> <name> [ '(' ~ ')' <params> ]? <rettype>? <.nl>
   //   <funcbody>
   // }
-  // token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
+  // token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? [ 'function' || 'procedure' ] }
+  // A procedure is a function, to xc: 'Static Procedure Log(cText)', as
+  // AdvPL has it.
   FunctionDef* Parser::function()
   {
     int start = p_;
@@ -737,7 +740,7 @@ namespace xc
       }
       p_ = save;
     }
-    if (!ilit("function") || !ws())
+    if (!(ilit("function") || ilit("procedure")) || !ws())
     {
       p_ = start;
       return nullptr;
@@ -2878,8 +2881,12 @@ namespace xc
     return true;
   }
 
-  // The closing words: [ <one> || 'end' [ <two> ]? ] -- 'endif', 'end', 'end
-  // if' -- each with its whitespace. word_end_two: '>>' after the second.
+  // The closing words:
+  //   [ <one> || 'end' [ <two> || '-'? [ 'if' || 'do' || 'while' || 'case' || 'for' ] >> ]? ]
+  // -- 'endif', 'end', 'end if', 'End While', 'End-While' -- each with its
+  // whitespace. word_end_two: '>>' after the second. AdvPL takes the word
+  // after an 'end' for nothing: TOTVS' own sources close a While with 'End
+  // While', a Do Case with 'End Do', a For with 'End'.
   bool Parser::closer(std::string_view one, std::string_view two, bool word_end_two)
   {
     int start = p_;
@@ -2897,6 +2904,19 @@ namespace xc
     if (!(ilit(two) && (!word_end_two || word_end()) && ws()))
     {
       p_ = save;
+      if (c(p_) == '-') { p_++; }
+      int at = p_;
+      bool any = false;
+      for (std::string_view w : { "if", "do", "while", "case", "for" })
+      {
+        p_ = at;
+        if (ilit(w) && word_end() && ws())
+        {
+          any = true;
+          break;
+        }
+      }
+      if (!any) { p_ = save; }
     }
     if (!ws())
     {
@@ -3859,7 +3879,7 @@ namespace xc
   // {
   //   :i [ 'do' <.ws> ]? 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
   //      <block>
-  //   :i [ 'enddo' || 'end' [ :i 'do' >> ]? ]
+  //   <closer('enddo', 'do')>
   // }
   Stmt* Parser::whilest()
   {
@@ -3937,7 +3957,7 @@ namespace xc
   //      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
   //      <block>
   //   [ :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
-  //   || :i 'end' 'for' >> ]
+  //   || <closer('endfor', 'for')> ]
   // }
   //
   // A quantified group followed by a blank in a rule is one Raku goes back
@@ -4051,7 +4071,8 @@ namespace xc
     }
     p_ = save;
     s->endname_from = s->endname_to = -1;
-    if (ilit("end") && ws() && ilit("for") && word_end() && ws() && ws())
+    // 'End For', 'EndFor', 'End', as TOTVS' own sources have them.
+    if (closer("endfor", "for", true) && ws())
     {
       return s;
     }
@@ -4967,8 +4988,16 @@ namespace xc
   {
     auto boundary = [&](int q) { return !(is_w(c(q - 1)) && is_w(c(q))); };
     auto hws = [&](int q) { int k = q; while (is_h(c(k))) { k++; } return k > q ? k : -1; };
+    // Only blanks, and a comment, to the end of the line.
+    auto line_ends = [&](int q)
+    {
+      while (is_h(c(q))) { q++; }
+      int ch = c(q);
+      return !is_nn(ch) || ((ch == '/' || ch == '&') && c(q + 1) == ch);
+    };
     // [ 'define' || ... ] \h+ <[A..Za..z_]>
-    for (std::string_view w : { "define", "activate", "redefine", "set", "menu", "publish", "replace" })
+    for (std::string_view w : { "define", "activate", "redefine", "set", "menu", "publish", "add", "save", "create",
+                                "new", "close" })
     {
       if (iword_at(p, w))
       {
@@ -4980,16 +5009,60 @@ namespace xc
         break;
       }
     }
+    // Clipper's, followed by a value: 'REPLACE (cAlias)->F WITH x', 'STORE 0
+    // TO nA, nB', 'SEEK xFilial("SA1")', 'USE &cFile ALIAS "X" NEW', 'GO
+    // nRec', 'SKIP -1' -- not by ':=' or '=': 'store := 1' is an assignment.
+    // 'REPLACE;' goes on on the next line.
+    for (std::string_view w : { "replace", "store", "seek", "use", "goto", "go", "skip" })
+    {
+      if (iword_at(p, w))
+      {
+        int e = p + static_cast<int>(w.size());
+        int q = hws(e);
+        int ch = q >= 0 ? c(q) : -1;
+        if (q >= 0 && (is_alpha(ch) || is_d(ch) || ch == '(' || ch == '&' || ch == '.' || ch == '"' || ch == '\''
+                       || ch == '{' || ch == '-' || ch == ';'))
+        {
+          return q;
+        }
+        if (c(e) == ';' && (w == "replace" || w == "store"))
+        {
+          return e;
+        }
+        // 'USE' alone: the area is closed; 'SKIP' alone: the next record.
+        if ((w == "use" || w == "skip") && boundary(e) && line_ends(e))
+        {
+          return e;
+        }
+        break;
+      }
+    }
+    // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT'.
+    for (std::string_view w : { "commit", "zap", "eject", "quit" })
+    {
+      if (iword_at(p, w))
+      {
+        int e = p + static_cast<int>(w.size());
+        if (boundary(e) && line_ends(e))
+        {
+          return e;
+        }
+        break;
+      }
+    }
     // the words of two, and the words alone -- '<!ww>' after them
     struct Two { std::string_view a; std::string_view b; std::string_view c3; };
     static const Two words2[] =
     {
-      { "add", "option", "" }, { "prepare", "environment", "" }, { "reset", "environment", "" },
+      { "prepare", "environment", "" }, { "reset", "environment", "" },
       { "append", "blank", "" }, { "count", "to", "" }, { "menuitem", "", "" }, { "endmenu", "", "" },
       { "tcquery", "", "" }, { "connect", "smtp", "" }, { "disconnect", "smtp", "" },
       { "send", "mail", "" }, { "get", "mail", "error" }, { "paramtype", "", "" }, { "throw", "", "" },
       { "vtpause", "", "" }, { "vtread", "", "" }, { "vtclear", "", "" }, { "vtsave", "", "" },
       { "vtrestore", "", "" },
+      { "begin", "report", "query" }, { "end", "report", "query" }, { "begin", "wsmethod", "" },
+      { "end", "wsmethod", "" }, { "append", "from", "" }, { "copy", "to", "" }, { "copy", "file", "" },
+      { "delete", "file", "" }, { "dele", "file", "" }, { "index", "on", "" },
     };
     for (const Two& t : words2)
     {
@@ -5022,7 +5095,7 @@ namespace xc
       }
       return -1;
     }
-    // '@' [ \h+ || <?before \d> ]
+    // '@' [ \h+ || <?before \d> || <?before <.rowcol>> ]
     if (c(p) == '@')
     {
       if (is_h(c(p + 1)))
@@ -5034,12 +5107,38 @@ namespace xc
         }
         return q;
       }
-      if (is_d(c(p + 1)))
+      if (is_d(c(p + 1)) || rowcol(p + 1))
       {
         return p + 1;
       }
     }
     return -1;
+  }
+
+  // '@nLin, 0 PSAY x', '@Prow() + 1, 0 SAY x': a ',' before the line ends,
+  // outside brackets and strings, and no ':=' before it -- '@oJSON := x' is
+  // an assignment, '@Get(...)' an annotation.
+  bool Parser::rowcol(int p) const
+  {
+    int depth = 0;
+    for (int q = p; is_nn(c(q)); q++)
+    {
+      int ch = c(q);
+      if (ch == '"' || ch == '\'')
+      {
+        q++;
+        while (is_nn(c(q)) && c(q) != ch) { q++; }
+        if (!is_nn(c(q))) { return false; }
+      }
+      else if (ch == '(' || ch == '[' || ch == '{') { depth++; }
+      else if (ch == ')' || ch == ']' || ch == '}')
+      {
+        if (--depth < 0) { return false; }
+      }
+      else if (depth == 0 && ch == ',') { return q > p; }
+      else if (ch == ':' && c(q + 1) == '=') { return false; }
+    }
+    return false;
   }
 
   // token dirst { <preproc> }

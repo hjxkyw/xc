@@ -225,6 +225,9 @@ namespace xc
 
     // A directive with its continuation lines -- each ending in ';' -- as one:
     // m:i/ ^ \h* '#' \h* (x?) (command || translate) >> \h* (.*) $ /
+    // Each line's own end says whether it goes on: 'RECOVER ;;' is a ';' of
+    // what it stands for, and a ';' that carries it on -- not on past the
+    // line after it.
     std::vector<Directive> directives_of(std::string_view text)
     {
       std::vector<Directive> out;
@@ -280,9 +283,11 @@ namespace xc
           k++;
         }
         std::string rest(l.substr(k));
-        while (ends_with_semi(rest) && i + 1 < lines.size())
+        std::string_view line = l;
+        while (ends_with_semi(line) && i + 1 < lines.size())
         {
-          rest = std::string(without_semi(rest)) + " " + std::string(lines[++i]);
+          line = lines[++i];
+          rest = std::string(without_semi(rest)) + " " + std::string(line);
         }
         d.text = std::move(rest);
         out.push_back(std::move(d));
@@ -759,7 +764,9 @@ namespace xc
 
       // An expression's tokens from i: brackets balanced, to a stop word at
       // depth zero, a comma -- unless commas -- or where a second expression
-      // starts. Where it ends, or -1.
+      // starts. Where it ends, or -1. None starts with a stop word: in 'WITH
+      // WEBEXOBJECT [<obj>] CLASS <class>', 'WITH WEBEXOBJECT CLASS X' gives
+      // <obj> nothing.
       int expression_end(const std::vector<Tok>& toks, int i, const std::vector<std::string>& stops, bool commas,
                          bool exact) const
       {
@@ -769,9 +776,9 @@ namespace xc
         while (i < n)
         {
           const std::string& t = toks[i].text;
-          if (depth == 0 && i > start)
+          if (depth == 0)
           {
-            if (!commas && t == ",")
+            if (!commas && t == "," && i > start)
             {
               break;
             }
@@ -788,7 +795,7 @@ namespace xc
             {
               break;
             }
-            if (ends_operand(toks[i - 1].text) && starts_operand(t))
+            if (i > start && ends_operand(toks[i - 1].text) && starts_operand(t))
             {
               break;
             }

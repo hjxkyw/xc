@@ -233,7 +233,8 @@ finds a `Web Function` as `w_` and its name, an `Html Function` as `h_`
 refuses a `User Function` without its `u_`. Parameters may be typed, `as
 Numeric`, and take the attributes of a local, `<const>` and `<contained>`.
 The return type goes after the parentheses. A `User Function` needs no
-parentheses when it takes nothing.
+parentheses when it takes nothing. A `Procedure` -- `Static Procedure
+Log(cText)` -- is a function, to xc, with the same words before it.
 
 A function ends where the next function, class or method starts. `Return` is a
 statement like any other, and a function's last line should be one: Protheus
@@ -1158,8 +1159,8 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 | Statement | Closed by |
 |---|---|
 | `If` ... `ElseIf` ... `Else` | `EndIf`, `End If`, `End` |
-| `While`, `Do While` | `EndDo`, `End Do`, `End` |
-| `For i := a To b [Step s]` | `Next`, `Next i`, `Next (i)`, `End For` |
+| `While`, `Do While` | `EndDo`, `End Do`, `End While`, `End` |
+| `For i := a To b [Step s]` | `Next`, `Next i`, `Next (i)`, `End For`, `EndFor`, `End` |
 | `Do Case` ... `Case` ... `Otherwise` | `EndCase`, `End Case`, `End` |
 | `for x in ...`, `for n times` | `Next` -- nothing else |
 | `Begin Sequence` ... `Recover [Using e]` | `End Sequence`, `End` |
@@ -1168,6 +1169,10 @@ TL++'s, with the closers Clipper takes, and xtpl's:
 | `using alias` | `End Using` |
 | `with object` | `End With` |
 | `raw` | `End Raw` |
+
+AdvPL takes the word after an `End` for nothing, and so does xc, among
+`If`, `Do`, `While`, `Case` and `For`, a `-` before it or not: TOTVS' own
+sources close a Do Case with `End Do`; others a While with `End-While`.
 
 `If( c, a, b )` alone on its line is AdvPL's `If()` function, `IIf`'s twin,
 not a block. `Exit` and `Loop` leave and repeat the loop; `Break [value]`
@@ -1600,13 +1605,23 @@ A statement that starts with one of their words is taken whole, through its
 continuation lines -- a `;` may have a `//` comment after it --, and goes out
 as it came:
 
-- `DEFINE`, `ACTIVATE`, `REDEFINE`, `SET`, `MENU`, `PUBLISH`, `REPLACE`,
-  each followed by a word;
-- `ADD OPTION`, `PREPARE ENVIRONMENT`, `RESET ENVIRONMENT`, `APPEND BLANK`,
-  `COUNT TO`, `MENUITEM`, `ENDMENU`, `TCQUERY`, `PARAMTYPE`, `THROW`;
+- `DEFINE`, `ACTIVATE`, `REDEFINE`, `SET`, `MENU`, `PUBLISH`, `ADD`, `SAVE`,
+  `CREATE`, `NEW`, `CLOSE`, each followed by a word -- `ADD OPTION`, `ADD
+  LEGEND`, `CREATE RPCCONN`, `NEW MODEL`;
+- `PREPARE ENVIRONMENT`, `RESET ENVIRONMENT`, `APPEND BLANK`, `COUNT TO`,
+  `MENUITEM`, `ENDMENU`, `TCQUERY`, `PARAMTYPE`, `THROW`, `BEGIN REPORT
+  QUERY`, `END REPORT QUERY`, `BEGIN WSMETHOD`, `END WSMETHOD`;
 - mail: `CONNECT SMTP`, `DISCONNECT SMTP`, `SEND MAIL`, `GET MAIL ERROR`;
 - the RF terminal's: `VTPAUSE`, `VTREAD`, `VTCLEAR`, `VTSAVE`, `VTRESTORE`;
-- `@ row, col ...`: an `@` followed by a space or a digit;
+- Clipper's: `REPLACE`, `STORE`, `SEEK`, `USE`, `GO`, `GOTO`, `SKIP`, each
+  followed by a value (`REPLACE (cAlias)->F WITH x`, `STORE 0 TO nA, nB`,
+  `SKIP -1`) -- not by `:=` or `=`, so `store := 1` is an assignment; `USE`
+  and `SKIP` alone; `COMMIT`, `ZAP`, `EJECT`, `QUIT` alone on their line;
+  `APPEND FROM`, `COPY TO`, `COPY FILE`, `DELETE FILE`, `DELE FILE`, `INDEX
+  ON`;
+- `@ row, col ...`: an `@` followed by a space or a digit, or by a row and a
+  `,` on the line -- `@li, 14 PSAY x`, `@Prow()+1, 0 PSAY x` --, with no
+  `:=` before it;
 - `BeginSql` ... `EndSql` and `BeginContent` ... `EndContent`, to their
   closing line.
 
@@ -2056,8 +2071,10 @@ names inside:
 
 - `::x`, `::M(...)`: `Self:x`; `oObj::cX` is `oObj:cX`.
 - `SA1->A1_NOME` reads a field of an area; `(cAlias)->A1_COD` of the area a
-  variable names; `SA1->(DbGoTop())` and `SA2->( dbSetOrder(3), dbGoTop() )`
-  run in the area; `(cAlias)->&(cField)` and `SX3->&("X3_CAMPO")` name the
+  variable names; `SA1->(DbGoTop())`, `SA2->( dbSetOrder(3), dbGoTop() )`,
+  `(cAlias)->( dbEval(b), dbCloseArea() )` and `&(cAlias)->(DbSetOrder(1))`
+  run in the area -- an assignment may come first, `SRA->( cFil :=
+  RA_FILIAL, ... )`; `(cAlias)->&(cField)` and `SX3->&("X3_CAMPO")` name the
   field when they run.
 - `&cVar`, `&(cExpr)`, `&cFunc.(1, 2)`: the macro operator. The `.` that
   ends a name is right after it, and starts no `.And.`: `&cCond .And. x` and
@@ -2065,7 +2082,11 @@ names inside:
 - `@x`, `@::x`, `@aCampos[nX][8]`: by reference, in an argument.
 - `totvs.framework.Thing():New()`: a call through a namespace.
 - `If(c, a, b)` and `IIf(c, a, b)`.
-- `f( , 1, , )`: arguments left out.
+- `f( , 1, , )`: arguments left out; `{|x|, x[1] == 2}`, `{|| f(), }`, `{||
+  ,,}`: a code block's items left out -- nothing is done for one, and one
+  left out last gives Nil.
+- `{nCol += 10, "x"}`: an assignment as an array's item, as an argument's;
+  `( f(), g() )`: a list, as a statement.
 
 ## Chains
 

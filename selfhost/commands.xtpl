@@ -442,7 +442,10 @@ Static Function Directives(cText)
       nK++
     EndDo
     cRest := SubStr(cL, nK + 1)
-    While EndsWithSemi(cRest) .And. nI < Len(aL)
+    // Each line's own end says whether it goes on: 'RECOVER ;;' is a ';' of
+    // what it stands for, and a ';' that carries it on -- not on past the
+    // line after it.
+    While EndsWithSemi(aL[nI]) .And. nI < Len(aL)
       nI++
       cRest := WithoutSemi(cRest) + " " + aL[nI]
     EndDo
@@ -746,10 +749,12 @@ Static Function ExpressionEnd(aToks, nI, aStops, lCommas, lExact)
   Local lStop
   Local nS
   Local nInner
+  // None starts with a stop word: in 'WITH WEBEXOBJECT [<obj>] CLASS
+  // <class>', 'WITH WEBEXOBJECT CLASS X' gives <obj> nothing.
   While nI < nN
     cT := aToks[nI + 1][TK_TEXT]
-    If nDepth == 0 .And. nI > nStart
-      If !lCommas .And. cT == ","
+    If nDepth == 0
+      If !lCommas .And. cT == "," .And. nI > nStart
         Exit
       EndIf
       lStop := .F.
@@ -762,7 +767,7 @@ Static Function ExpressionEnd(aToks, nI, aStops, lCommas, lExact)
       If lStop
         Exit
       EndIf
-      If EndsOperand(aToks[nI][TK_TEXT]) .And. StartsOperand(cT)
+      If nI > nStart .And. EndsOperand(aToks[nI][TK_TEXT]) .And. StartsOperand(cT)
         Exit
       EndIf
     EndIf

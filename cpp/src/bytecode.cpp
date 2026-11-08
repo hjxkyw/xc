@@ -1147,7 +1147,9 @@ namespace xc
       if (b->body.empty()) { op("nil"); }
       for (std::size_t i = 0; i < b->body.size(); i++)
       {
-        if (i + 1 < b->body.size()) { effect(b->body[i]); }
+        // An item left out does nothing; the last, Nil.
+        if (is(b->body[i], EK::Omitted)) { if (i + 1 == b->body.size()) { op("nil"); } }
+        else if (i + 1 < b->body.size()) { effect(b->body[i]); }
         else { expr(b->body[i]); }
       }
       op("ret");

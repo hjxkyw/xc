@@ -145,6 +145,7 @@ namespace xc
     Expr* value();
     Expr* chained();
     Expr* passign();
+    Expr* aitem();
     Expr* cond();
     Expr* listitem();
     Expr* guardexpr();
@@ -299,6 +300,7 @@ namespace xc
     int rawline(int p) const;
     Stmt* cmdst();
     int cmdword(int p) const;
+    bool rowcol(int p) const;
     int textblock(int p, std::string_view open, std::string_view close) const;
     Stmt* dirst();
     Stmt* noopst();

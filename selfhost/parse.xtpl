@@ -131,7 +131,9 @@ Static aStmtWords := {"begin", "try", "local", "private", "public", "static", "i
                       "define", "activate", "redefine", "set", "menu", "publish", "replace", "add", "prepare", ;
                       "reset", "append", "count", "menuitem", "endmenu", "tcquery", "connect", "disconnect", ;
                       "send", "get", "paramtype", "throw", "vtpause", "vtread", "vtclear", "vtsave", ;
-                      "vtrestore", "beginsql", "begincontent"}
+                      "vtrestore", "beginsql", "begincontent", "end", "save", "create", "new", "store", "seek", ;
+                      "use", "commit", "zap", "eject", "delete", "dele", "copy", "index", "go", "goto", "skip", ;
+                      "quit", "close"}
 
 // Names refused where one is declared.
 Static aReserved := {"function", "static", "return", "if", "else", "elseif", "endif", "for", "next", "while", ;
@@ -1179,6 +1181,16 @@ Static Function Chained()
   EndIf
 Return Span(AssignNode(aA[1], aA[2], aA[3]), nStart, nP)
 
+// rule aitem { [ <passign> || <expr> ]? }: an array literal's item.
+Static Function AItem()
+  Local nStart := nP
+  Local aA := PAssign()
+  If aA != Nil
+    Return aA
+  EndIf
+  nP := nStart
+Return Expr()
+
 // token passign { <.sees('bind item')> <assignment> }
 Static Function PAssign()
   Local nStart := nP
@@ -1834,10 +1846,16 @@ Static Function CallArgs()
   EndIf
 Return aList
 
-// rule tinalias { '->' '(' ~ ')' <expr> }
+// rule tinalias { '->' '(' ~ ')' [ <expr> [ ',' <listitem> ]* ] }
+// '(cAlias)->( dbEval(b), dbCloseArea() )': a list, as 'SA1->( ... )' has.
 Static Function TInAlias(aT)
   Local nStart := nP
   Local aE
+  Local aMore := {}
+  Local nSave
+  Local aY
+  Local aList
+  Local nI
   nP += 2
   If !Ws() .Or. C(nP) != 40
     Back(nStart)
@@ -1849,6 +1867,24 @@ Static Function TInAlias(aT)
     Return .F.
   EndIf
   aE := Expr()
+  While aE != Nil .And. C(nP) == 44
+    nSave := nP
+    nP++
+    aY := If(Ws(), ListItem(), Nil)
+    If aY == Nil
+      nP := nSave
+      Exit
+    EndIf
+    AAdd(aMore, aY)
+  EndDo
+  If Len(aMore) > 0
+    aList := u_xcb_new(EK_EXPRLIST)
+    AAdd(aList[EL_ITEMS], aE)
+    For nI := 1 To Len(aMore)
+      AAdd(aList[EL_ITEMS], aMore[nI])
+    Next
+    aE := aList
+  EndIf
   If aE == Nil .Or. C(nP) != 41
     Back(nStart)
     Return .F.
@@ -2400,7 +2436,9 @@ Static Function AliasFieldE()
     nAt := nP
     nP++
     If Ws()
-      aX := Expr()
+      // 'SRA->( cFil := RA_FILIAL, cTno := RA_TNOTRAB )': an assignment may
+      // come first.
+      aX := ListItem()
       If aX != Nil
         aMore := {}
         While C(nP) == 44
@@ -2540,7 +2578,7 @@ Return aL
 
 // rule codeblock
 // {
-//   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] <blockexpr>* % ',' '}'
+//   '{' [ '||' || [ '|' <name>* % ',' '|' ] ] [ <blockexpr>? ]* % ',' '}'
 // }
 Static Function CodeBlockE()
   Local nStart := nP
@@ -2567,10 +2605,14 @@ Static Function CodeBlockE()
     If !Ws()
       Return Back(nStart)
     EndIf
+    // '{| nVal , nPos | ...}': blanks around the names too.
     nE := NameEnd(nP)
     If nE >= 0
       AAdd(aParams, Text(nP, nE))
       nP := nE
+      If !Ws()
+        Return Back(nStart)
+      EndIf
       While C(nP) == 44
         nSave := nP
         nP++
@@ -2580,7 +2622,7 @@ Static Function CodeBlockE()
           If nPe >= 0
             AAdd(aParams, Text(nP, nPe))
             nP := nPe
-            lOk := .T.
+            lOk := Ws()
           EndIf
         EndIf
         If !lOk
@@ -2601,18 +2643,25 @@ Static Function CodeBlockE()
   EndIf
   nInBlock++
   AEval(aParams, {|c| SeeName(c)})
+  // An item may be left out, as AdvPL takes it -- '{|x|, x[1] == 2}', '{||
+  // f(), }', '{|| ,,}' in TOTVS' own sources: nothing is done for it, and a
+  // block whose last one is left out gives Nil.
   aB := BlockExpr()
-  If aB != Nil
-    AAdd(aBody, aB)
+  If aB != Nil .Or. C(nP) == 44
+    AAdd(aBody, If(aB == Nil, u_xcb_new(EK_OMITTED), aB))
     While C(nP) == 44
       nSave := nP
       nP++
-      aY := If(Ws(), BlockExpr(), Nil)
-      If aY == Nil
+      If !Ws()
         nP := nSave
         Exit
       EndIf
-      AAdd(aBody, aY)
+      aY := BlockExpr()
+      If aY == Nil .And. C(nP) != 44 .And. C(nP) != 125
+        nP := nSave
+        Exit
+      EndIf
+      AAdd(aBody, If(aY == Nil, u_xcb_new(EK_OMITTED), aY))
     EndDo
   EndIf
   AEval(aParams, {|c| SeeName(c, -1)})
@@ -2733,7 +2782,8 @@ Static Function KvPair(lHash)
   aKv[KV_VALUE] := aV
 Return aKv
 
-// rule arrayliteral { '{' ~ '}' [ <aitem> [ ',' <aitem> ]* ] }   rule aitem { <expr>? }
+// rule arrayliteral { '{' ~ '}' [ <aitem> [ ',' <aitem> ]* ] }   rule aitem { [ <passign> || <expr> ]? }
+// An item may be an assignment, as an argument may: '{nCol += 10, "x"}'.
 Static Function ArrayLiteral()
   Local nStart := nP
   Local aItems := {}
@@ -2744,7 +2794,7 @@ Static Function ArrayLiteral()
   If !Ws()
     Return Back(nStart)
   EndIf
-  aX := Expr()
+  aX := AItem()
   AAdd(aItems, If(aX != Nil, aX, u_xcb_new(EK_OMITTED)))
   While C(nP) == 44
     nSave := nP
@@ -2753,7 +2803,7 @@ Static Function ArrayLiteral()
       nP := nSave
       Exit
     EndIf
-    aX := Expr()
+    aX := AItem()
     AAdd(aItems, If(aX != Nil, aX, u_xcb_new(EK_OMITTED)))
   EndDo
   If C(nP) != 125
@@ -3266,11 +3316,13 @@ Return aTr
 // {
 //   <!stmtword> [ [ <call> <trailer>* ] || [ <name> <trailer>+ ] || [ <subjacc> <trailer>* ]
 //              || [ <selfacc> <trailer>* ] || [ <macrocall> <trailer>* ] || [ <nscall> <trailer>* ]
-//              || [ <macro> ] || [ <inalias> ] || [ '(' ~ ')' <pexpr> <trailer>* ] ]
+//              || [ <macro> [ <trailer>* <?{ the last an <inalias> }> ]? ] || [ <inalias> ]
+//              || [ '(' ~ ')' <pexpr> <trailer>* ] ]
 // }
 // The call the statement makes, spanned as the statement's.
 Static Function CallSt()
   Local nStart := nP
+  Local aL
   Local nAt
   Local nCh
   Local aCl
@@ -3353,6 +3405,16 @@ Static Function CallSt()
   If nCh == 38
     aM := MacroE()
     If aM != Nil
+      // '&(cAlias)->(DbSetOrder(1))', '&cAlias->(DbGoTop())': run in the
+      // area a macro names.
+      nBt := nP
+      If C(nP) == 45 .And. C(nP + 1) == 62
+        aTr := Trailers()
+        If Len(aTr) > 0 .And. ATail(aTr)[TR_KIND] == T_INALS
+          Return Span(Trailed(aM, nAt, nBt, aTr, nStart, .T.), nStart, nP)
+        EndIf
+        nP := nBt
+      EndIf
       Return Span(Trailed(aM, nAt, nP, {}, nStart, .T.), nStart, nP)
     EndIf
     nP := nAt
@@ -3377,6 +3439,12 @@ Static Function CallSt()
           Return Span(Trailed(aE, nBf, nBt, aTr, nStart, .T.), nStart, nP)
         EndIf
       EndIf
+    EndIf
+    // '( CarExtAut(), RstGetTabExtra() )': a list, each run in turn.
+    nP := nAt
+    aL := Parens()
+    If aL != Nil .And. aL[N_KIND] == EK_EXPRLIST .And. Ws()
+      Return Span(aL, nStart, nP)
     EndIf
   EndIf
 Return Back(nStart)
@@ -3881,7 +3949,9 @@ Return aTo
 //   <funckind> <name> [ '(' ~ ')' <params> ]? <rettype>? <.nl>
 //   <funcbody>
 // }
-// token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? 'function' }
+// token funckind { :i [ [ 'user' || 'static' || 'main' ] \s+ ]? [ 'function' || 'procedure' ] }
+// A procedure is a function, to xc: 'Static Procedure Log(cText)', as AdvPL
+// has it.
 Static Function FunctionDefE()
   Local nStart := nP
   Local aF := u_xcb_new(NK_FUNCTIONDEF)
@@ -3920,7 +3990,7 @@ Static Function FunctionDefE()
     EndIf
     nP := nSave
   Next
-  If !ILit("function") .Or. !Ws()
+  If !(ILit("function") .Or. ILit("procedure")) .Or. !Ws()
     Return Back(nStart)
   EndIf
   aF[N_LINE] := Line(nKind)
@@ -5791,11 +5861,19 @@ Static Function Modifier(aMod)
   aMod[2] := aCnd
 Return .T.
 
-// The closing words: [ <one> || 'end' [ <two> ]? ] -- 'endif', 'end', 'end
-// if' -- each with its whitespace. lWordEndTwo: '>>' after the second.
+// The closing words:
+//   [ <one> || 'end' [ <two> || '-'? [ 'if' || 'do' || 'while' || 'case' || 'for' ] >> ]? ]
+// -- 'endif', 'end', 'end if', 'End While', 'End-While' -- each with its
+// whitespace. lWordEndTwo: '>>' after the second. AdvPL takes the word
+// after an 'end' for nothing: TOTVS' own sources close a While with 'End
+// While', a Do Case with 'End Do', a For with 'End'.
 Static Function Closer(cOne, cTwo, lWordEndTwo)
   Local nStart := nP
   Local nSave
+  Local nAt
+  Local lAny
+  Local aWords := {"if", "do", "while", "case", "for"}
+  Local nI
   If ILit(cOne) .And. Ws()
     Return .T.
   EndIf
@@ -5806,6 +5884,21 @@ Static Function Closer(cOne, cTwo, lWordEndTwo)
   nSave := nP
   If !(ILit(cTwo) .And. (!lWordEndTwo .Or. WordEnd()) .And. Ws())
     nP := nSave
+    If C(nP) == 45
+      nP++
+    EndIf
+    nAt := nP
+    lAny := .F.
+    For nI := 1 To Len(aWords)
+      nP := nAt
+      If ILit(aWords[nI]) .And. WordEnd() .And. Ws()
+        lAny := .T.
+        Exit
+      EndIf
+    Next
+    If !lAny
+      nP := nSave
+    EndIf
   EndIf
   If !Ws()
     Return Back(nStart) != Nil
@@ -6670,7 +6763,7 @@ Return aSt
 // {
 //   :i [ 'do' <.ws> ]? 'while' [ :i <hdrlocal=kwlocal> <hdrdecl> ',' ]? <cond> <.nl>
 //      <block>
-//   :i [ 'enddo' || 'end' [ :i 'do' >> ]? ]
+//   <closer('enddo', 'do')>
 // }
 Static Function WhileSt()
   Local nStart := nP
@@ -6717,7 +6810,7 @@ Return aSt
 //      :i 'to' <to=expr> [ :i 'step' <step=expr> ]? <.nl>
 //      <block>
 //   [ :i 'next' [ <endname=name> || [ '(' <endname=name> ')' ] ]?
-//   || :i 'end' 'for' >> ]
+//   || <closer('endfor', 'for')> ]
 // }
 // When what follows 'local' does not read, the loop is read again without
 // it, as Raku goes back into the group (cpp/src/statements.cpp).
@@ -6812,7 +6905,8 @@ Static Function ForStWith(lLocal, aTook)
   nP := nSave
   aSt[FOR_ENDFROM] := -1
   aSt[FOR_ENDTO] := -1
-  If ILit("end") .And. Ws() .And. ILit("for") .And. WordEnd() .And. Ws() .And. Ws()
+  // 'End For', 'EndFor', 'End', as TOTVS' own sources have them.
+  If Closer("endfor", "for", .T.) .And. Ws()
     Return aSt
   EndIf
 Return Back(nStart)
@@ -7604,15 +7698,23 @@ Return If(IsW(C(nE - 1)) .And. IsW(C(nE)), -1, nE)
 // token cmdword: the first words of TOTVS' commands, and '@ row, col'.
 // Where they end, or -1.
 Static Function CmdWord(nAt)
-  Local aOne := {"define", "activate", "redefine", "set", "menu", "publish", "replace"}
-  Local aTwo := {{"add", "option", ""}, {"prepare", "environment", ""}, {"reset", "environment", ""}, ;
+  Local aOne := {"define", "activate", "redefine", "set", "menu", "publish", "add", "save", "create", "new", ;
+                 "close"}
+  Local aValue := {"replace", "store", "seek", "use", "goto", "go", "skip"}
+  Local aAlone := {"commit", "zap", "eject", "quit"}
+  Local aTwo := {{"prepare", "environment", ""}, {"reset", "environment", ""}, ;
                  {"append", "blank", ""}, {"count", "to", ""}, {"menuitem", "", ""}, {"endmenu", "", ""}, ;
                  {"tcquery", "", ""}, {"connect", "smtp", ""}, {"disconnect", "smtp", ""}, ;
                  {"send", "mail", ""}, {"get", "mail", "error"}, {"paramtype", "", ""}, {"throw", "", ""}, ;
                  {"vtpause", "", ""}, {"vtread", "", ""}, {"vtclear", "", ""}, {"vtsave", "", ""}, ;
-                 {"vtrestore", "", ""}}
+                 {"vtrestore", "", ""}, ;
+                 {"begin", "report", "query"}, {"end", "report", "query"}, {"begin", "wsmethod", ""}, ;
+                 {"end", "wsmethod", ""}, {"append", "from", ""}, {"copy", "to", ""}, {"copy", "file", ""}, ;
+                 {"delete", "file", ""}, {"dele", "file", ""}, {"index", "on", ""}}
   Local nI
   Local nQ
+  Local nE
+  Local nCh
   Local aT
   // [ 'define' || ... ] \h+ <[A..Za..z_]>
   For nI := 1 To Len(aOne)
@@ -7620,6 +7722,38 @@ Static Function CmdWord(nAt)
       nQ := HWs(nAt + Len(aOne[nI]))
       If nQ >= 0 .And. IsLetter(C(nQ))
         Return nQ + 1
+      EndIf
+      Exit
+    EndIf
+  Next
+  // Clipper's, followed by a value: 'REPLACE (cAlias)->F WITH x', 'STORE 0
+  // TO nA, nB', 'SEEK xFilial("SA1")', 'USE &cFile ALIAS "X" NEW', 'GO
+  // nRec', 'SKIP -1' -- not by ':=' or '=': 'store := 1' is an assignment.
+  // 'REPLACE;' goes on on the next line.
+  For nI := 1 To Len(aValue)
+    If IWordAt(nAt, aValue[nI])
+      nE := nAt + Len(aValue[nI])
+      nQ := HWs(nE)
+      nCh := If(nQ >= 0, C(nQ), -1)
+      If nQ >= 0 .And. (IsLetter(nCh) .Or. IsD(nCh) .Or. AScan({40, 38, 46, 34, 39, 123, 45, 59}, nCh) > 0)
+        Return nQ
+      EndIf
+      If C(nE) == 59 .And. (aValue[nI] == "replace" .Or. aValue[nI] == "store")
+        Return nE
+      EndIf
+      // 'USE' alone: the area is closed; 'SKIP' alone: the next record.
+      If (aValue[nI] == "use" .Or. aValue[nI] == "skip") .And. !(IsW(C(nE - 1)) .And. IsW(C(nE))) .And. LineEnds(nE)
+        Return nE
+      EndIf
+      Exit
+    EndIf
+  Next
+  // Clipper's alone on their line: 'COMMIT', 'ZAP', 'EJECT', 'QUIT'.
+  For nI := 1 To Len(aAlone)
+    If IWordAt(nAt, aAlone[nI])
+      nE := nAt + Len(aAlone[nI])
+      If !(IsW(C(nE - 1)) .And. IsW(C(nE))) .And. LineEnds(nE)
+        Return nE
       EndIf
       Exit
     EndIf
@@ -7650,7 +7784,7 @@ Static Function CmdWord(nAt)
     EndIf
     Return -1
   Next
-  // '@' [ \h+ || <?before \d> ]
+  // '@' [ \h+ || <?before \d> || <?before <.rowcol>> ]
   If C(nAt) == 64
     If IsH(C(nAt + 1))
       nQ := nAt + 1
@@ -7659,11 +7793,53 @@ Static Function CmdWord(nAt)
       EndDo
       Return nQ
     EndIf
-    If IsD(C(nAt + 1))
+    If IsD(C(nAt + 1)) .Or. RowCol(nAt + 1)
       Return nAt + 1
     EndIf
   EndIf
 Return -1
+
+// Only blanks, and a comment, to the end of the line.
+Static Function LineEnds(nQ)
+  Local nCh
+  While IsH(C(nQ))
+    nQ++
+  EndDo
+  nCh := C(nQ)
+Return !IsNN(nCh) .Or. ((nCh == 47 .Or. nCh == 38) .And. C(nQ + 1) == nCh)
+
+// '@nLin, 0 PSAY x', '@Prow() + 1, 0 SAY x': a ',' before the line ends,
+// outside brackets and strings, and no ':=' before it -- '@oJSON := x' is
+// an assignment, '@Get(...)' an annotation.
+Static Function RowCol(nAt)
+  Local nDepth := 0
+  Local nQ := nAt
+  Local nCh
+  While IsNN(C(nQ))
+    nCh := C(nQ)
+    If nCh == 34 .Or. nCh == 39
+      nQ++
+      While IsNN(C(nQ)) .And. C(nQ) != nCh
+        nQ++
+      EndDo
+      If !IsNN(C(nQ))
+        Return .F.
+      EndIf
+    ElseIf nCh == 40 .Or. nCh == 91 .Or. nCh == 123
+      nDepth++
+    ElseIf nCh == 41 .Or. nCh == 93 .Or. nCh == 125
+      nDepth--
+      If nDepth < 0
+        Return .F.
+      EndIf
+    ElseIf nDepth == 0 .And. nCh == 44
+      Return nQ > nAt
+    ElseIf nCh == 58 .And. C(nQ + 1) == 61
+      Return .F.
+    EndIf
+    nQ++
+  EndDo
+Return .F.
 
 // '\h+' at q: where it ends, or -1 for none.
 Static Function HWs(nQ)
