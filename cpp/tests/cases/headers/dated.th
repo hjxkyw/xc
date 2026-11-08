@@ -1,0 +1,10 @@
+#ifndef XTH_DATED
+#define XTH_DATED
+// A header's type whose fields start at values made each time -- a call,
+// a sum, an array.
+// type Dated: an array of 3
+#define Dated_cWho 1
+#define Dated_dWhen 2
+#define Dated_aTags 3
+// endtype
+#endif

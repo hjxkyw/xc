@@ -57,4 +57,9 @@ namespace xc
 
   // The files a text's '#include' lines name, as written, in order.
   std::vector<std::string> include_names(std::string_view text);
+
+  // The file a folder has by a name, or '' -- a name that differs in case
+  // only, where none is just so: 'NDJ.CH' is ndj.ch, as on Windows, where the
+  // sources were written.
+  std::string file_in(const std::string& dir, const std::string& name);
 }

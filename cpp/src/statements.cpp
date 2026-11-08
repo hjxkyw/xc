@@ -399,8 +399,9 @@ namespace xc
     return true;
   }
 
-  // From p, the lines a ';' at their end carries on to, then the rest of
-  // the last: '[ \N*? ';' \h* \v ]* \N*' (nl_only: '\n' for '\v', as the
+  // From p, the lines a ';' at their end carries on to -- a '//' or '&&'
+  // comment may follow it --, then the rest of the last:
+  // '[ \N*? ';' \h* <.linecomment>? \v ]* \N*' (nl_only: '\n' for '\v', as the
   // preprocessor's directive has it). Where it ends.
   int Parser::continued_line(int p, bool nl_only) const
   {
@@ -411,13 +412,8 @@ namespace xc
       {
         e++;
       }
-      int k = e;
-      while (k > p && is_h(c(k - 1)))
-      {
-        k--;
-      }
       int v = nl_only ? nlchar(e) : vchar(e);
-      if (k > p && c(k - 1) == ';' && v)
+      if (last_semi(p, e) >= 0 && v)
       {
         p = e + v;
         continue;
@@ -1879,7 +1875,8 @@ namespace xc
   // rule wsmethodimpl { <wshead> <.nl> <funcbody> }
   // token wshead
   // {
-  //   :i 'wsmethod' <!ww> [ \N*? ';' \h* \v ]* \N*? <!ww> [ 'wsservice' || 'wsrestful' || 'wsrest' ] \h+ <svc=name>
+  //   :i 'wsmethod' <!ww> [ \N*? ';' \h* \v ]* \N*? <!ww> [ 'wsservice' || 'wsrestful' || 'wsrest' || 'wsclient' ]
+  //   \h+ <svc=name>
   //   <?before \h* [ <.linecomment> || \v || $ ]>
   // }
   MethodImpl* Parser::wsmethodimpl()
@@ -1923,7 +1920,7 @@ namespace xc
       if (not_within_word())
       {
         int k = -1;
-        for (std::string_view w : { "wsservice", "wsrestful", "wsrest" })
+        for (std::string_view w : { "wsservice", "wsrestful", "wsrest", "wsclient" })
         {
           if (iword_at(q, w))
           {
@@ -1968,7 +1965,7 @@ namespace xc
     }
     auto m = make<MethodImpl>();
     m->line = line(start);
-    m->class_name = text(svc_from, svc_to);
+    m->class_name = svc_from < 0 ? "" : text(svc_from, svc_to);
     m->ws = true;
     std::vector<std::string> w = words(src_.substr(start, head_end - start));
     m->name = w.size() > 1 ? w[1] : "wsmethod";
@@ -2499,8 +2496,10 @@ namespace xc
   //        || <noopst> ] ]
   //   || [ <simple> [<?[iIwW]><modifier>]? ]
   //   ]
-  //   { $*PAST-PROLOGUE = True unless $<declaration> }
+  //   { $*PAST-PROLOGUE = True unless $<declaration> || $<dirst> }
   // }
+  // A directive ends no prologue: '#IFDEF TOP', then a Local, as TOTVS' own
+  // sources have it.
   Stmt* Parser::statement()
   {
     int start = p_;
@@ -2560,6 +2559,7 @@ namespace xc
         else
         {
           s = (this->*rules[i])();
+          decl = i == 1 && s != nullptr;
         }
         if (s && ws() && ws())
         {

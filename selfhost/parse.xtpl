@@ -2272,14 +2272,17 @@ Static Function ByRef()
   aR[REF_TARGET] := If(Len(aTr) == 0, Span(aName, nAt, nE), Trailed(aName, nAt, nE, aTr, nStart, .F.))
 Return aR
 
-// rule macro { '&' [ [ '(' ~ ')' <expr> ] || [ <name> '.'? ] ] <mcall>? }
+// rule macro { '&' [ [ '(' ~ ')' <expr> ] || [ <name> [ '.' <!before <.dotword>> ]? ] ] <mcall>? }
 // token mcall { '(' ~ ')' <arglist> }
+// The '.' that ends a macro's name is right after it, and starts no '.And.'
+// or '.T.': '&cCond .And. x' and '&cCond.And. x' are the macro and an '.And.'.
 Static Function MacroE()
   Local nStart := nP
   Local aTarget := Nil
   Local nAt
   Local aE
   Local nE
+  Local nWe
   Local aNm
   Local aM
   Local aA
@@ -2312,14 +2315,12 @@ Static Function MacroE()
     aNm[NAME_NAME] := Text(nP, nE)
     aTarget := aNm
     nP := nE
+    nWe := If(C(nP) == 46, NameEnd(nP + 1), -1)
+    If C(nP) == 46 .And. !(nWe >= 0 .And. C(nWe) == 46 .And. DotWord(Text(nP + 1, nWe)))
+      nP++
+    EndIf
     If !Ws()
       Return Back(nStart)
-    EndIf
-    If C(nP) == 46
-      nP++
-      If !Ws()
-        Return Back(nStart)
-      EndIf
     EndIf
   EndIf
   aM := u_xcb_new(EK_MACRO)
@@ -4897,7 +4898,8 @@ Return Nil
 // rule wsmethodimpl { <wshead> <.nl> <funcbody> }
 // token wshead
 // {
-//   :i 'wsmethod' <!ww> [ \N*? ';' \h* \v ]* \N*? <!ww> [ 'wsservice' || 'wsrestful' || 'wsrest' ] \h+ <svc=name>
+//   :i 'wsmethod' <!ww> [ \N*? ';' \h* \v ]* \N*? <!ww> [ 'wsservice' || 'wsrestful' || 'wsrest' || 'wsclient' ]
+//   \h+ <svc=name>
 //   <?before \h* [ <.linecomment> || \v || $ ]>
 // }
 Static Function WsMethodImpl()
@@ -4908,7 +4910,7 @@ Static Function WsMethodImpl()
   Local nSvcFrom := -1
   Local nSvcTo := -1
   Local nQ
-  Local aKinds := {"wsservice", "wsrestful", "wsrest"}
+  Local aKinds := {"wsservice", "wsrestful", "wsrest", "wsclient"}
   Local nI
   Local nNe
   Local nR
@@ -4997,24 +4999,20 @@ Static Function PreProc()
   EndIf
 Return ContinuedLine(nP + 1, .T.)
 
-// From p, the lines a ';' at their end carries on to, then the rest of
-// the last: '[ \N*? ';' \h* \v ]* \N*' (lNlOnly: '\n' for '\v', as the
+// From p, the lines a ';' at their end carries on to -- a '//' or '&&'
+// comment may follow it --, then the rest of the last:
+// '[ \N*? ';' \h* <.linecomment>? \v ]* \N*' (lNlOnly: '\n' for '\v', as the
 // preprocessor's directive has it). Where it ends.
 Static Function ContinuedLine(nAt, lNlOnly)
   Local nE
-  Local nK
   Local nV
   While .T.
     nE := nAt
     While IsNN(C(nE))
       nE++
     EndDo
-    nK := nE
-    While nK > nAt .And. IsH(C(nK - 1))
-      nK--
-    EndDo
     nV := If(lNlOnly, NlChar(nE), VChar(nE))
-    If nK > nAt .And. C(nK - 1) == 59 .And. nV > 0
+    If LastSemi(nAt, nE) >= 0 .And. nV > 0
       nAt := nE + nV
       Loop
     EndIf
@@ -5415,7 +5413,7 @@ Return aOut
 //        || <noopst> ] ]
 //   || [ <simple> [<?[iIwW]><modifier>]? ]
 //   ]
-//   { $*PAST-PROLOGUE = True unless $<declaration> }
+//   { $*PAST-PROLOGUE = True unless $<declaration> || $<dirst> }
 // }
 Static Function Statement()
   Local nStart := nP
@@ -5452,7 +5450,10 @@ Static Function Statement()
         Case nI == 1
           aSt := CmdSt()
         Case nI == 2
+          // A directive ends no prologue: '#IFDEF TOP', then a Local, as
+          // TOTVS' own sources have it.
           aSt := DirSt()
+          lDecl := aSt != Nil
         Case nI == 3
           // An annotation is the whole line: '@oJSON := x' is an assignment.
           aA := AnnotationE()

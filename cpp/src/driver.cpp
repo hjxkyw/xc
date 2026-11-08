@@ -176,9 +176,8 @@ namespace xc
       places.insert(places.end(), dirs.begin(), dirs.end());
       for (const std::string& d : places)
       {
-        std::filesystem::path p = std::filesystem::path(d) / name;
-        std::error_code ec;
-        if (std::filesystem::is_regular_file(p, ec)) { return p.string(); }
+        std::string p = file_in(d, name);
+        if (!p.empty()) { return p; }
       }
       return "";
     }
@@ -306,6 +305,7 @@ namespace xc
       std::stable_sort(wrong.begin(), wrong.end(), [](const Finding& a, const Finding& b) { return a.line < b.line; });
       for (const Finding& f : wrong) { out += said(name) + ":" + std::to_string(f.line) + ": " + said(f.message) + "\n"; }
       if (!wrong.empty()) { return nullptr; }
+      if (!o.bytecode) { header_defaults(h->prog, h->text); }
       for (TypeDef* t : h->own) { t->header = name; }
       const Header* done = h.get();
       hs.by_path[key] = done;

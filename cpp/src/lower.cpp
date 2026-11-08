@@ -2207,6 +2207,7 @@ namespace xc
 
   // The array: each field's value -- given by its place or by its name, or
   // its default, or what its type starts at -- in the order of the fields.
+  // A header's field's default is made from the header's text, not this one.
   std::string Emitter::made(const Call* c)
   {
     auto fields = type_fields(made_type(c), types_);
@@ -2231,6 +2232,7 @@ namespace xc
     {
       const Declarator* d = fields[i].second->decl;
       if (given[i]) { values.push_back(expr(given[i])); }
+      else if (d->init && !fields[i].first->header.empty()) { values.push_back(fields[i].second->default_tlpp); }
       else if (d->init) { values.push_back(expr(d->init)); }
       else
       {

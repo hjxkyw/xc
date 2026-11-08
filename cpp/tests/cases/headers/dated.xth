@@ -1,0 +1,7 @@
+// A header's type whose fields start at values made each time -- a call,
+// a sum, an array.
+type Dated
+  cWho as Character
+  dWhen as Date := Date() + 1
+  aTags as Array<c> := {"new", Upper("x")}
+endtype

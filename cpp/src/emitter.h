@@ -42,6 +42,9 @@ namespace xc
 
     std::string emit(const Program* p);
 
+    // header_defaults() (emit.h).
+    void header_defaults(const Program* p);
+
     // An expression parsed from a piece of text of its own (a raw line's
     // string), rendered with the given renames.
     std::string render_snippet(const Expr* e, const Map& subst);

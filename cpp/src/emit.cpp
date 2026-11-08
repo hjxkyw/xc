@@ -276,6 +276,25 @@ namespace xc
     return Emitter(src, advpl, guard).emit(p);
   }
 
+  void header_defaults(const Program* p, const std::string& src)
+  {
+    Emitter(src).header_defaults(p);
+  }
+
+  void Emitter::header_defaults(const Program* p)
+  {
+    types_.clear();
+    for (const TypeDef* t : p->types) { types_[lc(t->name)] = t; }
+    for (const TypeDef* t : p->types)
+    {
+      if (!t->header.empty()) { continue; }
+      for (TypeField* f : t->fields)
+      {
+        if (f->decl->init) { f->default_tlpp = expr(f->decl->init); }
+      }
+    }
+  }
+
   // ---- the emitter ----------------------------------------------------------
   Emitter::Emitter(std::string src, bool advpl, std::string guard)
     : src_(std::move(src)), advpl_(advpl), guard_(std::move(guard))

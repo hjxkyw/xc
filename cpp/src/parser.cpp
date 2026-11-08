@@ -1834,8 +1834,11 @@ namespace xc
     return r;
   }
 
-  // rule macro { '&' [ [ '(' ~ ')' <expr> ] || [ <name> '.'? ] ] <mcall>? }
+  // rule macro { '&' [ [ '(' ~ ')' <expr> ] || [ <name> [ '.' <!before <.dotword>> ]? ] ] <mcall>? }
   // token mcall { '(' ~ ')' <arglist> }
+  // The '.' that ends a macro's name is right after it, and starts no
+  // '.And.' or '.T.': '&cCond .And. x' and '&cCond.And. x' are the macro and an
+  // '.And.'.
   Macro* Parser::macro()
   {
     int start = p_;
@@ -1879,19 +1882,15 @@ namespace xc
       nm->name = text(p_, e);
       target = nm;
       p_ = e;
+      int we = c(p_) == '.' ? name_end(p_ + 1) : -1;
+      if (c(p_) == '.' && !(we >= 0 && c(we) == '.' && dot_word(text(p_ + 1, we))))
+      {
+        p_++;
+      }
       if (!ws())
       {
         back(start);
         return nullptr;
-      }
-      if (c(p_) == '.')
-      {
-        p_++;
-        if (!ws())
-        {
-          back(start);
-          return nullptr;
-        }
       }
     }
     auto m = make<Macro>();

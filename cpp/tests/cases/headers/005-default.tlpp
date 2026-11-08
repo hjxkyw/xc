@@ -1,0 +1,10 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+#include "dated.th"
+
+// A value of a header's type: its fields' defaults are the header's text,
+// not this one -- xc cut them out of this file at the header's places.
+User Function Made()
+  Local eDa := {"me", Date() + 1, {"new", Upper("x")}}
+Return eDa[Dated_dWhen]

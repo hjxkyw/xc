@@ -551,6 +551,8 @@ namespace xc
     Declarator* decl = nullptr;
     int from = -1;
     int to = -1;
+    std::string default_tlpp;        // a header's field: its default as TL++, made from the
+                                     // header's own text (header_defaults(), emit.h)
   };
 
   // 'type Name' ... 'endtype': an array, its fields at their positions, and

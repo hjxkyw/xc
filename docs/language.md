@@ -620,8 +620,8 @@ AdvPL's web services come from include files xc cannot read (`restful.ch`,
 `END WSRESTFUL`, and `WSSERVICE`, `WSSTRUCT`, `WSCLIENT` the same way --
 whole, and each method's implementation as a function: its header as
 written, through its continuation lines, ending in `WSSERVICE Name`,
-`WSRESTFUL Name` or `WSREST Name`, and its body read like any other, `::`
-and `Self` included.
+`WSRESTFUL Name`, `WSREST Name` or `WSCLIENT Name`, and its body read like
+any other, `::` and `Self` included.
 
 ```xtpl
 #include "totvs.ch"
@@ -773,7 +773,9 @@ Any statement that is not a declaration closes the prologue -- a `Default`
 too, which is an `If` once the preprocessor is done with it. `Private` and
 `Public` are statements in TL++: they create the variable when they run, and
 may come anywhere a statement may. They close the prologue too, so a `Local`
-after one is an error. A `Static` may come anywhere, and is the file's.
+after one is an error. A `Static` may come anywhere, and is the file's. A
+directive closes nothing: TOTVS' own sources declare a `Local` after an
+`#IFDEF TOP`.
 
 ### Block locals
 
@@ -1595,7 +1597,8 @@ pass through whole already.
 
 TOTVS' include files are compressed, and xc cannot read their `#command`s.
 A statement that starts with one of their words is taken whole, through its
-continuation lines, and goes out as it came:
+continuation lines -- a `;` may have a `//` comment after it --, and goes out
+as it came:
 
 - `DEFINE`, `ACTIVATE`, `REDEFINE`, `SET`, `MENU`, `PUBLISH`, `REPLACE`,
   each followed by a word;
@@ -2056,7 +2059,9 @@ names inside:
   variable names; `SA1->(DbGoTop())` and `SA2->( dbSetOrder(3), dbGoTop() )`
   run in the area; `(cAlias)->&(cField)` and `SX3->&("X3_CAMPO")` name the
   field when they run.
-- `&cVar`, `&(cExpr)`, `&cFunc.(1, 2)`: the macro operator.
+- `&cVar`, `&(cExpr)`, `&cFunc.(1, 2)`: the macro operator. The `.` that
+  ends a name is right after it, and starts no `.And.`: `&cCond .And. x` and
+  `&cCond.And. x` are the macro and an `.And.`.
 - `@x`, `@::x`, `@aCampos[nX][8]`: by reference, in an argument.
 - `totvs.framework.Thing():New()`: a call through a namespace.
 - `If(c, a, b)` and `IIf(c, a, b)`.
@@ -2444,7 +2449,8 @@ Return @Agora
 
 xc reads them, from the file and from every include file it finds as plain
 text -- beside the source, or in the folders of `--includes` -- and the ones
-those include. It finds their uses as the preprocessor will, and leaves the
+those include. A name that differs from its file's in case only is that
+file, as on Windows: `NDJ.CH` is `ndj.ch`. It finds their uses as the preprocessor will, and leaves the
 work to it: what is written goes out as written. A use is
 
 - a command, a whole statement: taken whole;

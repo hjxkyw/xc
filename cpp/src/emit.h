@@ -35,4 +35,9 @@ namespace xc
   // '#endif' -- a source may include it twice, through others -- with no
   // include of xc's.
   std::string emit(const Program* p, const std::string& src, bool advpl = false, const std::string& guard = "");
+
+  // A header's own types: the default of each of their fields, as TL++,
+  // kept on the field (TypeField::default_tlpp) -- a source that includes the
+  // header makes its values, but its text is not the header's.
+  void header_defaults(const Program* p, const std::string& src);
 }

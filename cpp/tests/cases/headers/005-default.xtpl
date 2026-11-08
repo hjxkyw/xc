@@ -1,0 +1,7 @@
+#include "dated.xth"
+
+// A value of a header's type: its fields' defaults are the header's text,
+// not this one -- xc cut them out of this file at the header's places.
+User Function Made()
+  Local eDa := Dated("me")
+Return eDa.dWhen

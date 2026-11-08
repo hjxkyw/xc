@@ -1,0 +1,2 @@
+003-directive.prw:8: warning: 'aStru' is assigned but never read
+003-directive.prw:10: warning: 'cIndex' is assigned but never read

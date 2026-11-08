@@ -647,9 +647,8 @@ namespace xc
         }
         for (const auto& d : places)
         {
-          std::filesystem::path p = d / name;
-          std::error_code ec;
-          if (!std::filesystem::is_regular_file(p, ec))
+          std::string p = file_in(d.string(), name);
+          if (p.empty())
           {
             continue;
           }
@@ -1075,6 +1074,21 @@ namespace xc
   std::vector<std::string> include_names(std::string_view text)
   {
     return includes_of(text);
+  }
+
+  std::string file_in(const std::string& dir, const std::string& name)
+  {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path p = fs::path(dir) / name;
+    if (fs::is_regular_file(p, ec)) { return p.string(); }
+    fs::path in = p.parent_path();
+    std::string want = lc(p.filename().string());
+    for (fs::directory_iterator it(in, ec), end; !ec && it != end; it.increment(ec))
+    {
+      if (lc(it->path().filename().string()) == want && fs::is_regular_file(it->path(), ec)) { return it->path().string(); }
+    }
+    return "";
   }
 
   std::vector<std::string> include_defines(std::string_view text, const std::optional<std::string>& dir,

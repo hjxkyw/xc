@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "MINE.CH"
+
+// An include file named in another case than its file's: found, as on
+// Windows -- 'NDJ.CH' is ndj.ch (NaldoDj-zz/BlackTDN).
+User Function f()
+  SAUDA "oi"
+Return nil
