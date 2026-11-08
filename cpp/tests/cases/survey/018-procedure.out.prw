@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A procedure is a function, to xc, as AdvPL has it (siga0984/Blog,

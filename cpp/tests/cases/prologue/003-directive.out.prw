@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A directive ends no prologue: TOTVS' own sources declare a Local after

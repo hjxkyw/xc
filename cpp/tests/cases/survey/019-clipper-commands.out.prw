@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // Clipper's commands, as TOTVS' preprocessor takes them, are taken whole --

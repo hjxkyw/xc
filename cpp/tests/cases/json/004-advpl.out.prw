@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 user function f(cName, h)
   local jA := u_xtpl_jnew({{"name", cName}, {"qty", 3}})
   local jB := JsonObject():New()

@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A command goes on past a ';' with a comment after it, as the

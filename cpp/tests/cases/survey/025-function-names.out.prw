@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A user function whose name starts with a digit, and a 'Main User

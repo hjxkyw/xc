@@ -353,6 +353,7 @@ namespace xc
 
   std::string add_includes(const std::string& out, const std::string& nl, bool advpl)
   {
+    if (advpl) { return out; }
     std::vector<std::string> all = lines_of(out);
     auto included = [&](std::string_view h)
     {

@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // '@' and a row that starts with a name or a call: TOTVS' commands, as

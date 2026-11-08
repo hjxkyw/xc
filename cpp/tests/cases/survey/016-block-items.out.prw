@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A code block's item may be left out, as AdvPL takes it: '{|x|, x[1] ==

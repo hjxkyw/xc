@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // An area's parentheses hold a list, an assignment first or not --

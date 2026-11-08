@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // 'as Char' and 'as Block' in a .prw, which takes them (tried on 24.3.1.9;

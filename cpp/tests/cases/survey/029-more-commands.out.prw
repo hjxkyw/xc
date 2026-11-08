@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // Clipper's DELETE, alone or with a word, and RENAME.

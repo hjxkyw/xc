@@ -61,8 +61,10 @@ namespace xc
   // Where the last 'end' + blanks + word starts in a text, in lower case.
   std::size_t last_from(std::string_view t, std::string_view word);
 
-  // The two includes every output gets, when missing.
-  // The include files the output needs and does not name: totvs.ch, and for
-  // TL++ tlpp-core.th -- not for AdvPL ('advpl'), whose output stays a .prw.
+  // The include files a TL++ output needs and does not name: totvs.ch and
+  // tlpp-core.th. AdvPL's ('advpl') gets none: a .prw brings its own, and
+  // totvs.ch added to one changes it -- its '#define CRLF' made 'Local CRLF
+  // := ...' of a .prw that includes only Ap5Mail.ch a C2003 (tried on
+  // 24.3.1.9, Totver/advpl's Email.prw).
   std::string add_includes(const std::string& out, const std::string& nl, bool advpl = false);
 }

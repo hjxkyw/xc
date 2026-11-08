@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // What follows an 'End' AdvPL takes for nothing: TOTVS' own sources close a

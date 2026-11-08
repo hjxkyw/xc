@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A rule's last line ending in ';;' -- a ';' of what it stands for, and the

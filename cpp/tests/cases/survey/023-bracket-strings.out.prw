@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // Clipper's '[...]' strings, which a .prw takes (a .tlpp does not: C2003,

@@ -32,12 +32,15 @@ is xtpl's: everything that is already TL++ comes out as it went in, byte for
 byte -- layout, comments, blank lines, the case of every word. A file that is
 plain TL++ comes out unchanged, but for two includes: `totvs.ch` at the top
 when the file does not include it, and `tlpp-core.th` after the last `.ch`
-include when it does not include that.
+include when it does not include that. A `.prw` gets neither.
 
 **An AdvPL source stays AdvPL.** A `.prw` (or `.prx`) is AdvPL, and what xc
 makes of it is a `.prw` too -- `xc --outdir=out a.prw` writes `out/a.prw`,
-`xc a.prw b.prw` writes `b.prw`, never one over its source -- without
-`tlpp-core.th`. AdvPL is not TL++: it takes words for types TL++ refuses
+`xc a.prw b.prw` writes `b.prw`, never one over its source -- with no
+include added: a `.prw` brings its own, and `totvs.ch` added to one changes
+it (its `#define CRLF` makes `Local CRLF := ...` a syntax error, in a file
+that includes only `Ap5Mail.ch`). Plain AdvPL comes out byte for byte as it
+went in. AdvPL is not TL++: it takes words for types TL++ refuses
 (`As String`), drops the arguments a function of the file does not take,
 and does not check its types -- 48 of 575 real sources tried on 24.3.1.9
 compile as a `.prw` and not as a `.tlpp`. So TL++'s own rules do not hold

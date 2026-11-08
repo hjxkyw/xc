@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // What follows a closing word on its line the AppServer takes for nothing

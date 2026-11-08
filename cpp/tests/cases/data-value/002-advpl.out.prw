@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // In AdvPL a typed Data starts at Nil too: each value is a warning.

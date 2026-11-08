@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // The '.' that ends a macro's name is right after it: '&cCond .And. x' is

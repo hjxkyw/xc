@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // A Ctrl-Z after a statement, as DOS-era sources have it -- a blank, as the

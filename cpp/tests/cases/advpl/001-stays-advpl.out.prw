@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 
 // An AdvPL source (.prw) stays AdvPL: xc writes a .prw, without

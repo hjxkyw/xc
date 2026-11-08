@@ -1,5 +1,3 @@
-#include "totvs.ch"
-
 #include "protheus.ch"
 #include "apwebsrv.ch"
 
