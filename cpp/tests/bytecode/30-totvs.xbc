@@ -1,0 +1,44 @@
+xbc 1
+source 30-totvs.xtpl
+statics 0
+
+function U_MAIN user 0 1
+  locals cLines
+  line 10
+  str "one"
+  num 13
+  call 1 Chr
+  num 10
+  call 1 Chr
+  add
+  add
+  str "two"
+  add
+  setlocal 1
+  line 11
+  local 1
+  call 1 Len
+  local 1
+  num 4
+  num 1
+  call 3 SubStr
+  call 1 Asc
+  local 1
+  num 5
+  num 1
+  call 3 SubStr
+  call 1 Asc
+  call 3 ConOut
+  pop
+  line 12
+  num 128
+  num 120
+  num 2
+  num 3
+  num 1
+  call 5 ConOut
+  pop
+  line 13
+  nil
+  ret
+end

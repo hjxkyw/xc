@@ -732,7 +732,7 @@ Return aOut
 // The texts of the include files a source names, and of those they name --
 // each found beside the source, then in each folder of aDirs, each once, in
 // the order found (commands.cpp's each_include). TOTVS' compressed ones
-// ('#zip') are skipped.
+// ('#zip') are not read: one TotvsDefines() knows gives its '#define' lines.
 Static Function IncludeTexts(cText, cDir, aDirs)
   Local aOut := {}
   Local hSeen := { => }
@@ -753,6 +753,7 @@ Static Function IncludeTexts(cText, cDir, aDirs)
     For nP := 1 To Len(aDirs)
       AAdd(aPlaces, aDirs[nP])
     Next
+    cT := Nil
     For nP := 1 To Len(aPlaces)
       If !File(InFolder(aPlaces[nP], cName))
         Loop
@@ -764,8 +765,79 @@ Static Function IncludeTexts(cText, cDir, aDirs)
       EndIf
       Exit
     Next
+    If cT == Nil
+      cT := TotvsDefines(cName)
+      AAdd(aOut, cT) if !Empty(cT)
+    EndIf
   EndDo
 Return aOut
+
+// The '#define' lines of a TOTVS include xc does not find or cannot read --
+// TOTVS' are compressed --, none for one it does not know: of the names the
+// survey's sources read undeclared, what AppServer 24.3.1.9 found defined in
+// each, and the value (commands.cpp's TOTVS_DEFINES, totvs_defines()).
+Static Function TotvsDefines(cName)
+  Local cWant := " " + u_xcb_lc(cName) + " "
+  Local cIncs := "protheus.ch totvs.ch topconn.ch rwmake.ch report.ch tlpp-core.th tbiconn.ch fwmvcdef.ch " + ;
+                 "rptdef.ch ap5mail.ch fwprintsetup.ch fileio.ch msobject.ch restful.ch parmtype.ch " + ;
+                 "dbstruct.ch colors.ch fwmbrowse.ch shell.ch msole.ch fwcommand.ch apwebsrv.ch font.ch " + ;
+                 "tlpp-rest.th fwlibversion.ch dbinfo.ch sigawin.ch " + ;
+                 "totvs.framework.treports.integratedprovider.th apwizard.ch xmlxfun.ch fwbrowse.ch " + ;
+                 "tbicode.ch fweditpanel.ch fw-tlpp-core.th folder.ch msgraphi.ch fwtableattach.ch " + ;
+                 "dbtree.ch fwadaptereai.ch fweventviewconsts.ch fwcalendarwidget.ch common.ch"
+  Local aTable := {"*: BARCHART 0, CONTROL_ALIGN_ALLCLIENT 5, CONTROL_ALIGN_BOTTOM 4, " + ;
+                   "CONTROL_ALIGN_CENTER 6, CONTROL_ALIGN_LEFT 1, CONTROL_ALIGN_RIGHT 2, " + ;
+                   "CONTROL_ALIGN_TOP 3, GD_DELETE 4, GD_INSERT 1, GD_UPDATE 2, GETF_LOCALFLOPPY 8, " + ;
+                   "GETF_LOCALHARD 48, GETF_MULTISELECT 2, GETF_NETWORKDRIVE 0, GETF_NOCHANGEDIR 4, " + ;
+                   "GETF_OVERWRITEPROMPT 1, GETF_RETDIRECTORY 128, NO_REMOTE -1, PIECHART 2, " + ;
+                   "_SET_DATEFORMAT 4", ;
+                   "rptdef.ch: AMB_SERVER 1, IMP_PDF 6, IMP_SPOOL 2", ;
+                   "protheus.ch totvs.ch colors.ch: CLR_BLACK 0, CLR_BLUE 8388608, CLR_BROWN 32896, " + ;
+                   "CLR_CYAN 8421376, CLR_GRAY 8421504, CLR_GREEN 32768, CLR_HBLUE 16711680, " + ;
+                   "CLR_HCYAN 16776960, CLR_HGRAY 12632256, CLR_HGREEN 65280, CLR_HMAGENTA 16711935, " + ;
+                   "CLR_HRED 255, CLR_LIGHTGRAY 12632256, CLR_MAGENTA 8388736, CLR_RED 128, " + ;
+                   "CLR_WHITE 16777215, CLR_YELLOW 65535", ;
+                   "protheus.ch totvs.ch: CRLF Chr(13) + Chr(10), DS_MODALFRAME 128, K_ALT_A 286, " + ;
+                   "K_CTRL_H 8, K_CTRL_L 12, K_SH_F11 -42, K_SH_F5 -14, K_SH_F7 -16, K_SH_F8 -17, " + ;
+                   "K_SH_F9 -18, VK_F1 112, VK_F10 121, VK_F11 122, VK_F12 123, VK_F2 113, VK_F3 114, " + ;
+                   "VK_F4 115, VK_F5 116, VK_F6 117, VK_F7 118, VK_F8 119, VK_F9 120, WS_POPUP 2147483648, " + ;
+                   "WS_VISIBLE 268435456", ;
+                   "dbstruct.ch: DBS_ALEN 4, DBS_DEC 4, DBS_LEN 3, DBS_NAME 1, DBS_TYPE 2", ;
+                   "protheus.ch totvs.ch rptdef.ch: DMPAPER_A4 9", ;
+                   "fileio.ch: FC_NORMAL 0, FO_EXCLUSIVE 16, FO_READ 0, FO_READWRITE 2, FO_SHARED 64, " + ;
+                   "FO_WRITE 1, FS_END 2, FS_SET 0", ;
+                   "fwmvcdef.ch: MODEL_FIELD_IDFIELD 3, MODEL_FIELD_INIT 11, MODEL_FIELD_OBRIGAT 10, " + ;
+                   "MODEL_FIELD_VALID 7, MODEL_FIELD_VALUES 9, MODEL_FIELD_VIRTUAL 14, MODEL_FIELD_WHEN 8, " + ;
+                   "MODEL_OPERATION_DELETE 5, MODEL_OPERATION_INSERT 3, MODEL_OPERATION_UPDATE 4, " + ;
+                   "MODEL_OPERATION_VIEW 1, MVC_VIEW_CANCHANGE 10, MVC_VIEW_LOOKUP 9, MVC_VIEW_ORDEM 2, " + ;
+                   "MVC_VIEW_TITULO 3, STRUCT_FEATURE_INIPAD 3, STRUCT_FEATURE_VALID 1, " + ;
+                   "STRUCT_FEATURE_WHEN 2", ;
+                   "fwprintsetup.ch: PD_DESTINATION 1, PD_DISABLEMARGIN 32, PD_DISABLEPAPERSIZE 8, " + ;
+                   "PD_DISABLEPREVIEW 16, PD_ISTOTVSPRINTER 1, PD_MARGIN 7, PD_OK 1, PD_ORIENTATION 3, " + ;
+                   "PD_PRINTTYPE 2, PD_VALUETYPE 6", ;
+                   "shell.ch: SW_MAXIMIZE 3, SW_SHOWMAXIMIZED 3"}
+  Local cOut := ""
+  Local cL
+  Local nColon
+  Local cIn
+  Local nAt
+  Local nEnd
+  Return "" if !(cWant $ " " + cIncs + " ")
+  for cL in aTable
+    nColon := At(":", cL)
+    cIn := " " + Left(cL, nColon - 1) + " "
+    If !(cIn == " * ") .And. !(cWant $ cIn)
+      Loop
+    EndIf
+    nAt := nColon + 2
+    While nAt <= Len(cL)
+      nEnd := At(", ", SubStr(cL, nAt))
+      nEnd := If(nEnd == 0, Len(cL) + 1, nAt + nEnd - 1)
+      cOut += "#define " + SubStr(cL, nAt, nEnd - nAt) + Chr(10)
+      nAt := nEnd + 2
+    EndDo
+  Next
+Return cOut
 
 // A file in a folder, with the folder's own separator: an AppServer's
 // '\xbc', a '/' anywhere else.

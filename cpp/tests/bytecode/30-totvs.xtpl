@@ -1,0 +1,13 @@
+// What TOTVS' includes define, which xc cannot read -- compressed --, with
+// the values AppServer 24.3.1.9 gives them: CRLF, CLR_RED, VK_F9 from
+// totvs.ch, FO_READWRITE from fileio.ch, MODEL_OPERATION_INSERT from
+// fwmvcdef.ch, GD_INSERT from any of them.
+#include "totvs.ch"
+#include "fileio.ch"
+#include "fwmvcdef.ch"
+
+User Function Main()
+  Local cLines := "one" + CRLF + "two"
+  ConOut(Len(cLines), Asc(SubStr(cLines, 4, 1)), Asc(SubStr(cLines, 5, 1)))
+  ConOut(CLR_RED, VK_F9, FO_READWRITE, MODEL_OPERATION_INSERT, GD_INSERT)
+Return Nil

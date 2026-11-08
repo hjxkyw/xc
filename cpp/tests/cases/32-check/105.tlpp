@@ -1,0 +1,11 @@
+// What TOTVS' includes define, which xc cannot read: CRLF and CLR_RED from
+// totvs.ch, FO_READWRITE from fileio.ch, GD_INSERT from either. DBS_LEN is
+// dbstruct.ch's, MODEL_OPERATION_INSERT fwmvcdef.ch's: neither is here.
+#include "totvs.ch"
+#include "fileio.ch"
+#include "tlpp-core.th"
+
+user function totvsdefs()
+  local cText := "a" + CRLF + cValToChar(CLR_RED) + cValToChar(FO_READWRITE) + cValToChar(GD_INSERT)
+  cText += cValToChar(DBS_LEN) + cValToChar(MODEL_OPERATION_INSERT)
+return cText

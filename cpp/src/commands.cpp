@@ -625,8 +625,78 @@ namespace xc
       return true;
     }
 
+    // What TOTVS' include files define -- which xc cannot read: they are
+    // compressed --, of the names the survey's sources read undeclared:
+    // what AppServer 24.3.1.9 found defined in each, and the value, compiling
+    // a probe for each include (xcprobes4, November 2026). Each line: the
+    // includes, ':', the names and their values; '*' stands for every one
+    // the probe compiled (TOTVS_INCLUDES), which all define these.
+    const char* const TOTVS_DEFINES[] =
+    {
+      "*: BARCHART 0, CONTROL_ALIGN_ALLCLIENT 5, CONTROL_ALIGN_BOTTOM 4, CONTROL_ALIGN_CENTER 6, "
+      "CONTROL_ALIGN_LEFT 1, CONTROL_ALIGN_RIGHT 2, CONTROL_ALIGN_TOP 3, GD_DELETE 4, GD_INSERT 1, "
+      "GD_UPDATE 2, GETF_LOCALFLOPPY 8, GETF_LOCALHARD 48, GETF_MULTISELECT 2, GETF_NETWORKDRIVE 0, "
+      "GETF_NOCHANGEDIR 4, GETF_OVERWRITEPROMPT 1, GETF_RETDIRECTORY 128, NO_REMOTE -1, PIECHART 2, "
+      "_SET_DATEFORMAT 4",
+      "rptdef.ch: AMB_SERVER 1, IMP_PDF 6, IMP_SPOOL 2",
+      "protheus.ch totvs.ch colors.ch: CLR_BLACK 0, CLR_BLUE 8388608, CLR_BROWN 32896, "
+      "CLR_CYAN 8421376, CLR_GRAY 8421504, CLR_GREEN 32768, CLR_HBLUE 16711680, CLR_HCYAN 16776960, "
+      "CLR_HGRAY 12632256, CLR_HGREEN 65280, CLR_HMAGENTA 16711935, CLR_HRED 255, "
+      "CLR_LIGHTGRAY 12632256, CLR_MAGENTA 8388736, CLR_RED 128, CLR_WHITE 16777215, CLR_YELLOW 65535",
+      "protheus.ch totvs.ch: CRLF Chr(13) + Chr(10), DS_MODALFRAME 128, K_ALT_A 286, K_CTRL_H 8, "
+      "K_CTRL_L 12, K_SH_F11 -42, K_SH_F5 -14, K_SH_F7 -16, K_SH_F8 -17, K_SH_F9 -18, VK_F1 112, "
+      "VK_F10 121, VK_F11 122, VK_F12 123, VK_F2 113, VK_F3 114, VK_F4 115, VK_F5 116, VK_F6 117, "
+      "VK_F7 118, VK_F8 119, VK_F9 120, WS_POPUP 2147483648, WS_VISIBLE 268435456",
+      "dbstruct.ch: DBS_ALEN 4, DBS_DEC 4, DBS_LEN 3, DBS_NAME 1, DBS_TYPE 2",
+      "protheus.ch totvs.ch rptdef.ch: DMPAPER_A4 9",
+      "fileio.ch: FC_NORMAL 0, FO_EXCLUSIVE 16, FO_READ 0, FO_READWRITE 2, FO_SHARED 64, FO_WRITE 1, "
+      "FS_END 2, FS_SET 0",
+      "fwmvcdef.ch: MODEL_FIELD_IDFIELD 3, MODEL_FIELD_INIT 11, MODEL_FIELD_OBRIGAT 10, "
+      "MODEL_FIELD_VALID 7, MODEL_FIELD_VALUES 9, MODEL_FIELD_VIRTUAL 14, MODEL_FIELD_WHEN 8, "
+      "MODEL_OPERATION_DELETE 5, MODEL_OPERATION_INSERT 3, MODEL_OPERATION_UPDATE 4, "
+      "MODEL_OPERATION_VIEW 1, MVC_VIEW_CANCHANGE 10, MVC_VIEW_LOOKUP 9, MVC_VIEW_ORDEM 2, "
+      "MVC_VIEW_TITULO 3, STRUCT_FEATURE_INIPAD 3, STRUCT_FEATURE_VALID 1, STRUCT_FEATURE_WHEN 2",
+      "fwprintsetup.ch: PD_DESTINATION 1, PD_DISABLEMARGIN 32, PD_DISABLEPAPERSIZE 8, "
+      "PD_DISABLEPREVIEW 16, PD_ISTOTVSPRINTER 1, PD_MARGIN 7, PD_OK 1, PD_ORIENTATION 3, "
+      "PD_PRINTTYPE 2, PD_VALUETYPE 6",
+      "shell.ch: SW_MAXIMIZE 3, SW_SHOWMAXIMIZED 3",
+    };
+    const char* const TOTVS_INCLUDES =
+    "protheus.ch totvs.ch topconn.ch rwmake.ch report.ch tlpp-core.th tbiconn.ch fwmvcdef.ch "
+    "rptdef.ch ap5mail.ch fwprintsetup.ch fileio.ch msobject.ch restful.ch parmtype.ch dbstruct.ch "
+    "colors.ch fwmbrowse.ch shell.ch msole.ch fwcommand.ch apwebsrv.ch font.ch tlpp-rest.th "
+    "fwlibversion.ch dbinfo.ch sigawin.ch totvs.framework.treports.integratedprovider.th apwizard.ch "
+    "xmlxfun.ch fwbrowse.ch tbicode.ch fweditpanel.ch fw-tlpp-core.th folder.ch msgraphi.ch "
+    "fwtableattach.ch dbtree.ch fwadaptereai.ch fweventviewconsts.ch fwcalendarwidget.ch common.ch";
+
+    // The '#define' lines of a TOTVS include xc does not find or cannot
+    // read (TOTVS_DEFINES); none for one it does not know.
+    std::string totvs_defines(const std::string& name)
+    {
+      std::string want = " " + lc(name) + " ";
+      std::string out;
+      if ((" " + std::string(TOTVS_INCLUDES) + " ").find(want) == std::string::npos) { return out; }
+      for (const char* line : TOTVS_DEFINES)
+      {
+        std::string_view l(line);
+        std::size_t colon = l.find(':');
+        std::string incs = " " + std::string(l.substr(0, colon)) + " ";
+        if (incs != " * " && incs.find(want) == std::string::npos) { continue; }
+        std::size_t at = colon + 2;
+        while (at < l.size())
+        {
+          std::size_t end = l.find(", ", at);
+          if (end == std::string_view::npos) { end = l.size(); }
+          out += "#define " + std::string(l.substr(at, end - at)) + "\n";
+          at = end + 2;
+        }
+      }
+      return out;
+    }
+
     // Every include file found -- beside the source, then in each include
-    // folder --, each once, the text of each given to found().
+    // folder --, each once, the text of each given to found(); for a TOTVS
+    // include not found, or not read, its '#define' lines (totvs_defines()).
     template <class F>
     void each_include(std::string_view text, const std::optional<std::string>& dir, const std::vector<std::string>& dirs,
                       F found)
@@ -650,6 +720,7 @@ namespace xc
         {
           places.emplace_back(d);
         }
+        bool read = false;
         for (const auto& d : places)
         {
           std::string p = file_in(d.string(), name);
@@ -661,11 +732,14 @@ namespace xc
           if (text_of(p, t))
           {
             found(t);
+            read = true;
             std::vector<std::string> inc = includes_of(t);
             todo.insert(todo.end(), inc.begin(), inc.end());
           }
           break;
         }
+        std::string known = read ? "" : totvs_defines(name);
+        if (!known.empty()) { found(known); }
       }
     }
 

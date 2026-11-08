@@ -173,9 +173,11 @@ A file holds, in any order:
 - preprocessor directives -- `#include`, `#define`, `#ifdef`, `#command`,
   `#xtranslate`, ... -- each passed through whole, with its continuation
   lines. The names an include file xc can read `#define`s -- one beside the
-  source or in an include folder, as with its commands; TOTVS' own are
-  compressed -- are no variables to the checks, as the source's own are
-  not;
+  source or in an include folder, as with its commands -- are no variables
+  to the checks, as the source's own are not. TOTVS' own are compressed:
+  for one xc does not find or cannot read, it knows what AppServer 24.3.1.9
+  found it defines of the names the survey's sources read undeclared
+  ([TOTVS' defines](#totvs-defines));
 - `namespace minha.empresa` and `using namespace ...`;
 - `external` declarations;
 - file statics: `Static aCache := {}`, written as a `Local` is -- the type
@@ -2505,6 +2507,30 @@ first four letters; `#xcommand` and `#xtranslate` want it whole. A pattern
 matches the whole statement, or it is not the command. TOTVS' include files
 are compressed: xc skips them, and knows their commands from a list of its
 own ([TOTVS' commands](#totvs-commands)).
+
+### TOTVS' defines
+
+What a TOTVS include file `#define`s, xc knows from a probe -- a source per
+include, each asking which of the names the survey's sources read
+undeclared it defines, and what each is (AppServer 24.3.1.9, November
+2026). For an include xc does not find, or cannot read, those are its
+`#define`s, to the checks and to the bytecode:
+
+| include | names |
+|---|---|
+| `protheus.ch`, `totvs.ch` | `CRLF` (`Chr(13) + Chr(10)`), `CLR_BLACK` ... `CLR_YELLOW`, `VK_F1` ... `VK_F12`, `K_ALT_A`, `K_CTRL_H`, `K_CTRL_L`, `K_SH_F5`, `K_SH_F7` ... `K_SH_F9`, `K_SH_F11`, `DMPAPER_A4`, `DS_MODALFRAME`, `WS_POPUP`, `WS_VISIBLE` |
+| `colors.ch` | `CLR_BLACK` ... `CLR_YELLOW` |
+| `fwmvcdef.ch` | `MODEL_OPERATION_*`, `MODEL_FIELD_*`, `MVC_VIEW_*`, `STRUCT_FEATURE_*` |
+| `rptdef.ch` | `IMP_PDF`, `IMP_SPOOL`, `AMB_SERVER`, `DMPAPER_A4` |
+| `fwprintsetup.ch` | `PD_*` |
+| `fileio.ch` | `FO_READ`, `FO_WRITE`, `FO_READWRITE`, `FO_SHARED`, `FO_EXCLUSIVE`, `FS_SET`, `FS_END`, `FC_NORMAL` |
+| `dbstruct.ch` | `DBS_NAME`, `DBS_TYPE`, `DBS_LEN`, `DBS_DEC`, `DBS_ALEN` |
+| `shell.ch` | `SW_MAXIMIZE`, `SW_SHOWMAXIMIZED` |
+| every one of the 42 the probe compiled | `CONTROL_ALIGN_*`, `GD_INSERT`, `GD_UPDATE`, `GD_DELETE`, `GETF_*`, `BARCHART`, `PIECHART`, `NO_REMOTE`, `_SET_DATEFORMAT` |
+
+The values are in `commands.cpp` (`TOTVS_DEFINES`), and in the compiler
+written in xtpl (`selfhost/xcb.xtpl`, `TotvsDefines()`). A name that is
+not among them is still a warning; the table grows with a probe.
 
 ## The checks
 

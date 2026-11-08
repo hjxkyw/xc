@@ -449,7 +449,9 @@ xc says so, and writes no `.xbc`:
   `@SA1->A1_COD`; a hash's key, `@h{k}`; `@o?.x`.
 
 A `#define` from an include file xc cannot read -- TOTVS' are compressed
--- is not seen: its name is a memvar.
+-- is not seen: its name is a memvar; but what xc knows of TOTVS' own
+(docs/language.md, TOTVS' defines) has its value: `CRLF` is
+`Chr(13) + Chr(10)`, `CLR_RED` 128.
 
 ## The interpreter
 
