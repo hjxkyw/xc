@@ -1,1 +1,1 @@
-039.xtpl:6: 'u' is a user function (line 3), so it is called as 'u_u' -- the compiler puts the prefix on the declaration.
+039.xtpl:6: warning: 'u' is a user function (line 3), called as 'u_u': this call finds a function of the AppServer's by that name, or fails when it runs.

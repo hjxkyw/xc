@@ -1,2 +1,2 @@
-002.xtpl:2: 'f' is a user function (line 1), so it is called as 'u_f' -- the compiler puts the prefix on the declaration.
-002.xtpl:3: 'f' is a user function (line 1), so it is called as 'u_f' -- the compiler puts the prefix on the declaration.
+002.xtpl:2: warning: 'f' is a user function (line 1), called as 'u_f': this call finds a function of the AppServer's by that name, or fails when it runs.
+002.xtpl:3: warning: 'f' is a user function (line 1), called as 'u_f': this call finds a function of the AppServer's by that name, or fails when it runs.

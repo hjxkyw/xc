@@ -2041,10 +2041,13 @@ namespace xc
           problem("'" + c->name + "' -- " + f->second.name + " is a static function in this file, so it is called by "
                   + "its plain name, without the 'u_'.");
         }
+        // The plain name is not the file's -- the compiler puts the 'u_' on
+        // the declaration --, but it may be a function of the AppServer's:
+        // 'User Function IndRegua' that calls TOTVS' IndRegua() wraps it.
         else if (!u && f->second.kind == "user")
         {
-          problem("'" + c->name + "' is a user function (line " + num(f->second.line) + "), so it is called as "
-                  + "'u_" + c->name + "' -- the compiler puts the prefix on the declaration.");
+          warning("'" + c->name + "' is a user function (line " + num(f->second.line) + "), called as 'u_" + c->name
+                  + "': this call finds a function of the AppServer's by that name, or fails when it runs.");
         }
       }
       auto f = funcs_.find(n);

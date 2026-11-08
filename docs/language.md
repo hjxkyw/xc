@@ -230,14 +230,15 @@ functions are not allowed in code"), and xc warns. A `Main Function` is a
 regular function to the AppServer too, and so is a method whose class the
 file does not declare -- a method goes in the file of its class. The AppServer
 finds a `Web Function` as `w_` and its name, an `Html Function` as `h_`
-(tried on 24.3.1.9), so xc refuses either called by its plain name, as it
-refuses a `User Function` without its `u_`. Parameters may be typed, `as
-Numeric`, and take the attributes of a local, `<const>` and `<contained>`.
-The return type goes after the parentheses. A `User Function` needs no
-parentheses when it takes nothing. A `Procedure` -- `Static Procedure
-Log(cText)` -- is a function, to xc, with the same words before it. A `Main
-User Function` is a user function, and a user function's name may start
-with a digit, `User Function 2Humanus()` -- U_2HUMANUS (tried on 24.3.1.9).
+(tried on 24.3.1.9), so xc refuses either called by its plain name, and
+warns about a `User Function` called without its `u_`. Parameters may be
+typed, `as Numeric`, and take the attributes of a local, `<const>` and
+`<contained>`. The return type goes after the parentheses. A `User
+Function` needs no parentheses when it takes nothing. A `Procedure` --
+`Static Procedure Log(cText)` -- is a function, to xc, with the same words
+before it. A `Main User Function` is a user function, and a user function's
+name may start with a digit, `User Function 2Humanus()` -- U_2HUMANUS (tried
+on 24.3.1.9).
 
 A function ends where the next function, class or method starts. `Return` is a
 statement like any other, and a function's last line should be one: Protheus
@@ -2526,7 +2527,6 @@ parses, in xtpl's words.
 | a value of another type than the one declared | `'nX' is declared as Numeric, but its initial value is Character.` |
 | a reserved word declared | `Cannot use reserved word 'len' as a variable name.` |
 | a name of xc's shape declared | `'fo_0_0' has the shape of a name xc generates, so it cannot be declared. ...` |
-| a user function of the file called without `u_` | `'calc' is a user function (line 9), so it is called as 'u_calc' -- the compiler puts the prefix on the declaration.` |
 | a static function of the file called with `u_` | `'u_ajuda' -- ajuda is a static function in this file, so it is called by its plain name, without the 'u_'.` |
 | in a `.prw`, two functions one in their first 10 characters | `'ProcessOrderUpdated' and 'ProcessOrderCreated' (line 8) are one function in a .prw, which counts a name to 10 characters (PROCESSORD): the AppServer refuses the second.` |
 | `TCQUERY` in a file that includes only `totvs.ch` -- topconn.ch has it | `'TcQuery' is a command of topconn.ch, which this file does not include: without it the AppServer refuses the line ("C2003 Syntax Error").` |
@@ -2578,6 +2578,7 @@ with any name allowed, to say which name it was and why.
 | `Recover Using`, but in bytecode | `'Recover Using oErr': the AppServer runs this Recover with every Local Nil but oErr, and gives the function's back as they were at End Sequence -- nothing assigned there stays, oErr included. ...` |
 | `EndFunction` and the like; `Default` in a `Do Case` | `'EndFunction' is no TL++ keyword: ...` |
 | a parameter of a code block or a lambda named twice | `'p1' is a parameter of this block twice: the AppServer takes it, and 'p1' is the argument in the last of its places` |
+| a user function of the file called without `u_` | `'calc' is a user function (line 9), called as 'u_calc': this call finds a function of the AppServer's by that name, or fails when it runs.` |
 | a parameter of the function in a code block or a lambda that leaves it -- returned, or kept in a variable, an array or a hash | `'n', a parameter, is used in a code block that leaves the function: on the AppServer the block sees the parameter of the function's last call, not of the call that made it -- copy it into a Local, and use that` |
 | in a `.prw`, more arguments than a function of the file takes -- AdvPL drops the rest | `calcTotal() takes 2 parameters (line 4), but is given 3 -- the rest are dropped.` |
 | a `Local` declared with no value as a type that does not start at Nil -- `Numeric`, `Integer`, `Double`, `Character`, `Logical`, `Date` -- on the left of a `?:` or assigned with `?=` before anything else assigns it | `'nX' is declared as Numeric with no value: TL++ starts it at 0, not Nil, so '?:' gives it and never its alternative (with no type it would start at Nil)` -- with `?=`, `so '?=' never assigns it` |
@@ -2586,13 +2587,14 @@ with any name allowed, to say which name it was and why.
 | a value whose type xc cannot tell, going into a typed array or hash, or where an object of a class is | `'aN' is an Array<n>: xc cannot tell that this is Numeric.` |
 | a `then` chain that is all of the condition of an `If`, an `ElseIf`, a `While`, a `Case`, a postfix `if` or `while` | `the condition of an 'if' is a 'then' chain, which reads as 'if ... then': write '\|>' there, or put the chain in parentheses` |
 
-A User Function of the file called without its `u_` is refused even when
-the call means a function of the framework by the same name -- `TCBrowse()`
-in a file that declares `User Function TCBrowse`: xc does not know the
-framework's names. Give the user function another name. A class of the
-file is the exception: in a file with `Class TransfArm` and a
-`User Function TransfArm` -- Protheus' way to have the file of a class
-compiled -- `TransfArm():New()` is the class.
+A User Function of the file called without its `u_` is a warning: the
+call is not to it -- the compiler puts the `u_` on the declaration --, but
+it may be to a function of the framework by the same name, which xc does
+not know: `User Function IndRegua` that calls TOTVS' `IndRegua()` wraps it
+(Totver/advpl), while a plain call to a name the framework does not have
+fails when it runs. A class of the file is the exception: in a file with
+`Class TransfArm` and a `User Function TransfArm` -- Protheus' way to have
+the file of a class compiled -- `TransfArm():New()` is the class.
 
 A name nothing declares is a warning, not an error: plain TL++ uses the
 system's variables -- `cFilAnt`, `dDataBase`, `CRLF` -- without declaring

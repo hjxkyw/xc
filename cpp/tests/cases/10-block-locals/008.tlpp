@@ -1,0 +1,8 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local nX  // a block local
+  nX := f()
+  If nX > 0
+  endif

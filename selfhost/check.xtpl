@@ -2104,9 +2104,13 @@ Static Function CheckCall(aC)
     If lU .And. aF[FU_KIND] == "static"
       Problem("'" + aC[CALL_NAME] + "' -- " + aF[FU_NAME] + " is a static function in this file, so it is called " ;
               + "by its plain name, without the 'u_'.")
+    // The plain name is not the file's -- the compiler puts the 'u_' on the
+    // declaration --, but it may be a function of the AppServer's: 'User
+    // Function IndRegua' that calls TOTVS' IndRegua() wraps it.
     ElseIf !lU .And. aF[FU_KIND] == "user"
-      Problem("'" + aC[CALL_NAME] + "' is a user function (line " + N(aF[FU_LINE]) + "), so it is called as " ;
-              + "'u_" + aC[CALL_NAME] + "' -- the compiler puts the prefix on the declaration.")
+      Warning("'" + aC[CALL_NAME] + "' is a user function (line " + N(aF[FU_LINE]) + "), called as 'u_" ;
+              + aC[CALL_NAME] + "': this call finds a function of the AppServer's by that name, or fails when it " ;
+              + "runs.")
     EndIf
   EndIf
   aF := If(hFuncs has cN, hFuncs{cN}, If(hFuncs has cPlain, hFuncs{cPlain}, Nil))

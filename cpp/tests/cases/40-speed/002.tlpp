@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f(a)
+  conout(a, f(a), a[1])
+  a := f(a)
+  a += 1
+  u_xtpl_tap(a, {|x| x})
+return a

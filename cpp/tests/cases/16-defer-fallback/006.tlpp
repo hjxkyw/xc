@@ -1,0 +1,15 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+user function f()
+  Local ht_0_0  // the value a 'return ... fallback' returns
+  Local gt_0_0  // the error block a 'fallback' sets aside
+  gt_0_0 := ErrorBlock({|e| Break(e)})
+  Begin Sequence
+    ht_0_0 := f()
+  Recover
+    ht_0_0 := 0
+  End Sequence
+  ErrorBlock(gt_0_0)
+  return ht_0_0
+return
