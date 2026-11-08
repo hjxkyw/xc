@@ -6,7 +6,7 @@ type Item
   nZ as Numeric
 endtype
 
-User Function Wrong(aIt as Item)
-  aIt.nQtd := "x"
-  aIt.cCod := "y"
+User Function Wrong(eIt as Item)
+  eIt.nQtd := "x"
+  eIt.cCod := "y"
 Return Item(1, 2, 3, 4)

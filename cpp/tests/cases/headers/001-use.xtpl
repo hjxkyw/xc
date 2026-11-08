@@ -8,8 +8,8 @@ type Sale from Line
   cWho as Character
 endtype
 
-User Function Sell(aIt as Item)
-  Local aLn := Line("A", 2, 10, nDesc => 3)
-  Local aSa := Sale("B", nPreco => 4, cWho => "me")
-  aLn.nQtd++
-Return aLn.Net() + aIt.Total() + aSa.Net() + ITEM_MAX
+User Function Sell(eIt as Item)
+  Local eLn := Line("A", 2, 10, nDesc => 3)
+  Local eSa := Sale("B", nPreco => 4, cWho => "me")
+  eLn.nQtd++
+Return eLn.Net() + eIt.Total() + eSa.Net() + ITEM_MAX

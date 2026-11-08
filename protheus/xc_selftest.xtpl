@@ -70,9 +70,9 @@ user function xc_selftest()
   local fB := 0.1 as Decimal
   local fC as Decimal
   local nDbl as Numeric
-  local aStock as Stock
+  local eStock as Stock
   local aStocks := { <Stock> }
-  local aNoStock as Stock
+  local eNoStock as Stock
   private pTotal := aNums |> filter([x] x > 0) |> asum
 
   // ---- fusion over arrays: one loop, the stages inside it -------------------
@@ -442,17 +442,17 @@ user function xc_selftest()
   check("'%exp:x%' outside BeginSql: a chain's head, and in a stage", nTmp == 15, nTmp, @nOk, @nBad)
 
   // ---- types: arrays whose positions have names -----------------------------
-  aStock := Stock("A", nPrice => 2)
-  aStock.Move(3).Move(-1)
-  check("a type: made by name, its methods", aStock.Value() == 6 .and. len(aStock.aMoves) == 2, aStock.Value(), ;
+  eStock := Stock("A", nPrice => 2)
+  eStock.Move(3).Move(-1)
+  check("a type: made by name, its methods", eStock.Value() == 6 .and. len(eStock.aMoves) == 2, eStock.Value(), ;
         @nOk, @nBad)
-  aadd(aStocks, aStock)
+  aadd(aStocks, eStock)
   aadd(aStocks, Stock("B", 4, 10))
   nTmp := aStocks |> filter([s] s.nQtd > 3) |> map([s] s.Value()) |> asum
   check("a type: walked by a chain, a lambda's parameter one", nTmp == 40, nTmp, @nOk, @nBad)
-  check("a type: a plain array", valtype(aStock) == "A" .and. len(aStock) == 4 .and. aStock[1] == "A", ;
-        valtype(aStock), @nOk, @nBad)
-  check("a type: '?.' of Nil, and of one", aNoStock?.Value() == nil .and. aStocks[2]?.nQtd == 4, aNoStock, ;
+  check("a type: a plain array", valtype(eStock) == "A" .and. len(eStock) == 4 .and. eStock[1] == "A", ;
+        valtype(eStock), @nOk, @nBad)
+  check("a type: '?.' of Nil, and of one", eNoStock?.Value() == nil .and. aStocks[2]?.nQtd == 4, eNoStock, ;
         @nOk, @nBad)
 
   conout("xc_selftest: " + cValToChar(nOk) + " ok, " + cValToChar(nBad) + " failed")

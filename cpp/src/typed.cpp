@@ -59,7 +59,7 @@ namespace xc
     }
 
     // What Self is written as in a type's method's TL++ (emit.cpp).
-    const std::string SELF_TLPP = "aSelf";
+    const std::string SELF_TLPP = "eSelf";
 
     // What xc checks goes in: an object of a class, a type's value.
     bool checked_slot(const std::string& t) { return classed(t) || typed_value(t); }
@@ -1078,10 +1078,10 @@ namespace xc
         }
         for (const FunctionDef* m : t->methods)
         {
-          // Self is TL++'s aSelf, the function's first parameter.
+          // Self is TL++'s eSelf, the function's first parameter.
           auto own = [&](const std::string& name, int line)
           {
-            if (lc(name) == "self" || lc(name) == "aself")
+            if (lc(name) == "self" || lc(name) == "eself")
             {
               errors.push_back({ line, "'" + name + "' is the value " + m->method + "() is called on -- '" + SELF_TLPP
                                        + "' in TL++: a type's method declares no other." });
@@ -1131,7 +1131,7 @@ namespace xc
       return f != ti->by_name.end() ? &ti->fields[f->second] : nullptr;
     }
 
-    // 'x.f' as a message names it: 'aIt', 'aOrd.oCli', 'Self'; '' for what
+    // 'x.f' as a message names it: 'eIt', 'eOrd.oCli', 'Self'; '' for what
     // has no name.
     std::string Typer::dot_name(const Expr* e) const
     {
@@ -1145,7 +1145,7 @@ namespace xc
       return "";
     }
 
-    // A field written to, said so: "'aIt.nQtd' is Numeric".
+    // A field written to, said so: "'eIt.nQtd' is Numeric".
     std::string Typer::field_who(const Dot* d)
     {
       const TypeData* f = field_of(type(d->base), d->name);

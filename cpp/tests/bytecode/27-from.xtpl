@@ -25,19 +25,19 @@ type Rush from Line
   lRush as Logical := .T.
 endtype
 
-Static Function Value(aIt as Item)
-Return aIt.Total()
+Static Function Value(eIt as Item)
+Return eIt.Total()
 
 User Function Main()
-  Local aLn := Line("A", 2, 10, nDesc => 3)
-  Local aRu := Rush("B", nPreco => 4, nDesc => 1)
+  Local eLn := Line("A", 2, 10, nDesc => 3)
+  Local eRu := Rush("B", nPreco => 4, nDesc => 1)
   Local aAll := { <Item> }
-  AAdd(aAll, aLn)
-  AAdd(aAll, aRu)
+  AAdd(aAll, eLn)
+  AAdd(aAll, eRu)
   AAdd(aAll, Item("C", nPreco => 1))
-  aLn.nQtd += 1
-  aRu.Tag("x").Tag("y")
-  ConOut(aLn.Net(), Value(aLn), aRu.Net(), Len(aRu), aRu.lRush, Len(aRu.aTags), aRu.aTags[2])
+  eLn.nQtd += 1
+  eRu.Tag("x").Tag("y")
+  ConOut(eLn.Net(), Value(eLn), eRu.Net(), Len(eRu), eRu.lRush, Len(eRu.aTags), eRu.aTags[2])
   ConOut(aAll |> map([it] it.Total()) |> map([n] cValToChar(n)) |> join(","))
-  ConOut(Len(aLn), aLn[1], aLn[4], ValType(aRu?.nDesc), aRu?.Net())
+  ConOut(Len(eLn), eLn[1], eLn[4], ValType(eRu?.nDesc), eRu?.Net())
 Return Nil

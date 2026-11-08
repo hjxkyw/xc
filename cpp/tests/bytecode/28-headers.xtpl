@@ -8,13 +8,13 @@ type Sale from Line
   cWho as Character
 endtype
 
-Static Function Value(aIt as Item)
-Return aIt.Total()
+Static Function Value(eIt as Item)
+Return eIt.Total()
 
 User Function Main()
-  Local aLn := Line("A", 2, 10, nDesc => 3)
-  Local aSa := Sale("B", nPreco => 4, nDesc => 1, cWho => "me")
-  aLn.nQtd++
-  ConOut(aLn.Net(), Value(aLn), aSa.Net(), aSa.cWho, Len(aSa), HEADERS_MAX)
-  ConOut(Item("C", 2, 5).Total(), aSa?.Total())
+  Local eLn := Line("A", 2, 10, nDesc => 3)
+  Local eSa := Sale("B", nPreco => 4, nDesc => 1, cWho => "me")
+  eLn.nQtd++
+  ConOut(eLn.Net(), Value(eLn), eSa.Net(), eSa.cWho, Len(eSa), HEADERS_MAX)
+  ConOut(Item("C", 2, 5).Total(), eSa?.Total())
 Return Nil

@@ -1,6 +1,5 @@
-#include "totvs.ch"
-#include "tlpp-core.th"
-
+#ifndef XTH_PEDIDO
+#define XTH_PEDIDO
 // Os tipos de um pedido, para todo fonte que vende: o item, e a linha, que
 // é um item com desconto. Cada fonte que inclui este header tem os dois,
 // e o xc faz dele o pedido.th que esses fontes incluem no TL++.
@@ -11,13 +10,14 @@
 #define Item_nQtd 2
 #define Item_nPreco 3
 
-Static Function Item_Total(aSelf as Array) as Numeric
-Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+Static Function Item_Total(eSelf as Array) as Numeric
+Return eSelf[Item_nQtd] * eSelf[Item_nPreco]
 // endtype
 
 // type Linha from Item: an array of 4
 #define Linha_nDesc 4
 
-Static Function Linha_Liquido(aSelf as Array) as Numeric
-Return Item_Total(aSelf) - aSelf[Linha_nDesc]
+Static Function Linha_Liquido(eSelf as Array) as Numeric
+Return Item_Total(eSelf) - eSelf[Linha_nDesc]
 // endtype
+#endif

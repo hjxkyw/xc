@@ -24,7 +24,7 @@ type Order
 
   method Total() as Numeric
     Local nSum := 0
-    for aIt in .aItems exec nSum += aIt.Total()
+    for eIt in .aItems exec nSum += eIt.Total()
   Return nSum
 
   method Biggest() as Item
@@ -32,19 +32,19 @@ type Order
 endtype
 
 User Function Main()
-  Local aOrd := Order("P1")
-  Local aIt := Item("A", nPreco => 2.5)
-  Local aNone as Item
-  AAdd(aOrd.aItems, aIt)
-  AAdd(aOrd.aItems, Item("B", 3, 10))
-  AAdd(aOrd.aItems, Item(nPreco => 1, cCod => "C"))
-  aOrd.aItems[1].Add(3).Add(1)
-  aOrd.aItems[2].nQtd++
-  aOrd.hNotes{"rush"} := "yes"
-  ConOut(aOrd.cId, Len(aOrd.aItems), aOrd.Total(), aOrd.Biggest().cCod, aOrd.hNotes{"rush"})
-  ConOut(aIt.nQtd, Len(aIt.aTags), aIt.aTags[2], aIt.Total())
-  ConOut(aOrd.aItems |> filter([it] it.nQtd > 1) |> map([it] it.cCod) |> join(","))
-  ASort(aOrd.aItems,,, {|a, b| a.Total() < b.Total()})
-  AEval(aOrd.aItems, {|it| ConOut(it.cCod + " " + cValToChar(it.Total()))})
-  ConOut(ValType(aIt), Len(aIt), aIt[2], ValType(aNone?.nQtd), aIt?.Total())
+  Local eOrd := Order("P1")
+  Local eIt := Item("A", nPreco => 2.5)
+  Local eNone as Item
+  AAdd(eOrd.aItems, eIt)
+  AAdd(eOrd.aItems, Item("B", 3, 10))
+  AAdd(eOrd.aItems, Item(nPreco => 1, cCod => "C"))
+  eOrd.aItems[1].Add(3).Add(1)
+  eOrd.aItems[2].nQtd++
+  eOrd.hNotes{"rush"} := "yes"
+  ConOut(eOrd.cId, Len(eOrd.aItems), eOrd.Total(), eOrd.Biggest().cCod, eOrd.hNotes{"rush"})
+  ConOut(eIt.nQtd, Len(eIt.aTags), eIt.aTags[2], eIt.Total())
+  ConOut(eOrd.aItems |> filter([it] it.nQtd > 1) |> map([it] it.cCod) |> join(","))
+  ASort(eOrd.aItems,,, {|a, b| a.Total() < b.Total()})
+  AEval(eOrd.aItems, {|it| ConOut(it.cCod + " " + cValToChar(it.Total()))})
+  ConOut(ValType(eIt), Len(eIt), eIt[2], ValType(eNone?.nQtd), eIt?.Total())
 Return Nil

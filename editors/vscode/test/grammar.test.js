@@ -210,7 +210,7 @@ function files(dir)
     ['Class Pessoa From Base', 'Pessoa', 'entity.name.type.class'],
     ['type Item', 'Item', 'entity.name.type.class'],
     ['endtype', 'endtype', 'storage.type.class.end'],
-    ['  n := aIt.nQtd + 1', 'nQtd', 'variable.other.member'],
+    ['  n := eIt.nQtd + 1', 'nQtd', 'variable.other.member'],
     ['  aItems[1].Add(2)', 'Add', 'entity.name.function.member'],
     ['  Return .nQtd * .nPreco', 'nPreco', 'variable.other.member'],
     ['Class Pessoa From Base', 'Base', 'entity.other.inherited-class'],

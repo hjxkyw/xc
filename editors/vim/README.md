@@ -10,11 +10,15 @@ xtpl -- TL++ with xtpl's extensions, the language
   ranges, `${...}` inside strings, typed and fixed arrays and hashes
   (`Array<n>`, `Array<fixed n>`, `{ <c> => <n> }`), sets and bags
   (`Set<c>`, `Bag<c>`, `(|)`, `(elem)`), types and their fields (`type
-  Item`, `aIt.nQtd`); Clipper's `&&` and `*` comments;
+  Item`, `eIt.nQtd`); Clipper's `&&` and `*` comments;
   the preprocessor's directives. A string ends at its quote or at the end
   of its line, as TL++'s: only a block comment, or a directive carried on
   with `;`, goes past a line -- so the colors are the same wherever the
   file is first shown from.
+- A name's first letter, where it says what the name holds -- `cName`,
+  `nQtd`, `aItems`, `eIt` (a type's value) --, colored as a type is
+  (`xtplPrefix`): `hi link xtplPrefix NONE` in the vimrc, after `syntax on`,
+  takes the color away.
 - `.xtpl` files -- and `.xth`, headers of types -- read and written as
   windows-1252, as Protheus' sources are and as xc reads them.
 - `//` comments for `gq` and the like, and two blanks a level, no tabs.

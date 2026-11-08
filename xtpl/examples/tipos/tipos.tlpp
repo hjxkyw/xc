@@ -1,0 +1,40 @@
+// Tipos: arrays cujas posições têm nome, declarados num header (pedido.xth)
+// que todo fonte que vende inclui. Um pedido é uma lista de linhas; o total,
+// a soma do líquido de cada uma -- e uma linha vai onde um item vai.
+#include "totvs.ch"
+#include "tlpp-core.th"
+#include "pedido.th"
+
+User Function Tipos()
+  Local aPed := {}
+  Local nTotal := 0
+  Local eLn  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  AAdd(aPed, {"A01", 2, 10.5, 0})
+  AAdd(aPed, {"B02", 1, 3, 0.5})
+  aPed[1][Linha_nDesc] := 1
+  fs_0_0 := aPed
+  For fi_0_0 := 1 To Len(fs_0_0)
+    eLn := fs_0_0[fi_0_0]
+    nTotal += Linha_Liquido(eLn)
+  Next
+  ConOut("itens: " + cValToChar(Len(aPed)) + ", total: " + cValToChar(nTotal) + ", o maior: " + Maior(aPed))
+Return nTotal <= PEDIDO_MAXIMO
+
+// O código do item de maior valor: uma linha é um Item.
+Static Function Maior(aItens as Array) as Character
+  Local cCod := ""
+  Local nMaior := -1
+  Local eIt  // a block local
+  Local fs_0_0  // the source of a 'for ... in'
+  Local fi_0_0  // the counter of a 'for ... in'
+  fs_0_0 := aItens
+  For fi_0_0 := 1 To Len(fs_0_0)
+    eIt := fs_0_0[fi_0_0]
+    if Item_Total(eIt) > nMaior
+      nMaior := Item_Total(eIt)
+      cCod := eIt[Item_cCod]
+    endif
+  next
+Return cCod

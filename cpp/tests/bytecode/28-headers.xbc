@@ -3,7 +3,7 @@ source 28-headers.xtpl
 statics 0
 
 function VALUE static 1 1
-  locals aIt
+  locals eIt
   line 12
   local 1
   call 1 Item_Total
@@ -11,7 +11,7 @@ function VALUE static 1 1
 end
 
 function U_MAIN user 0 2
-  locals aLn aSa
+  locals eLn eSa
   line 15
   str "A"
   num 2

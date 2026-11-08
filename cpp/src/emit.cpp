@@ -28,7 +28,7 @@ namespace xc
     }
 
     // What Self is in a type's method: its first parameter, an array.
-    const std::string SELF = "aSelf";
+    const std::string SELF = "eSelf";
 
     const Declaration* as_decl(const Stmt* s)
     {

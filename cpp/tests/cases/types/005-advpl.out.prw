@@ -5,11 +5,11 @@
 #define Point_nX 1
 #define Point_nY 2
 
-Static Function Point_Sum(aSelf as Array) as Numeric
-Return aSelf[Point_nX] + aSelf[Point_nY]
+Static Function Point_Sum(eSelf as Array) as Numeric
+Return eSelf[Point_nX] + eSelf[Point_nY]
 // endtype
 
 User Function Pontos()
-  Local aP := {1, 2}
-  aP[Point_nY] += 3
-Return Point_Sum(aP)
+  Local eP := {1, 2}
+  eP[Point_nY] += 3
+Return Point_Sum(eP)

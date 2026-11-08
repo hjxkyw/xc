@@ -1,5 +1,5 @@
 002-wrong.xtpl:5: 'Item' is a type of item.xth too: give it another name.
-002-wrong.xtpl:10: 'aIt.nQtd' is Numeric: this is Character.
-002-wrong.xtpl:11: 'aIt.cCod' is <const>: it takes its value where an Item is made.
+002-wrong.xtpl:10: 'eIt.nQtd' is Numeric: this is Character.
+002-wrong.xtpl:11: 'eIt.cCod' is <const>: it takes its value where an Item is made.
 002-wrong.xtpl:12: the field 'cCod' of Item() is Character: this is Numeric.
 002-wrong.xtpl:12: Item() has 3 fields: this gives it more.

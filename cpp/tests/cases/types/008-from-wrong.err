@@ -4,4 +4,4 @@
 008-from-wrong.xtpl:23: 'nQtd' is a field of Item, which Sale is from: Sale has it already.
 008-from-wrong.xtpl:26: 'Total' is a method of Item, which Sale is from: Sale has it already.
 008-from-wrong.xtpl:29: 'cCod' is a field of Item, which Sale is from: Sale has it already.
-008-from-wrong.xtpl:39: the parameter 'aSale' of Only() is a Sale: this is an Item, not a Sale.
+008-from-wrong.xtpl:39: the parameter 'eSale' of Only() is a Sale: this is an Item, not a Sale.

@@ -585,11 +585,11 @@ Static Function Types(aProg)
   Next
 Return Nil
 
-// Self is TL++'s aSelf, the function's first parameter: a type's method
+// Self is TL++'s eSelf, the function's first parameter: a type's method
 // declares no other.
 Static Function OwnSelf(aM, cName, nLine)
-  If u_xcb_lc(cName) == "self" .Or. u_xcb_lc(cName) == "aself"
-    AAdd(aErrors, {nLine, "'" + cName + "' is the value " + aM[FN_METHOD] + "() is called on -- 'aSelf' in TL++: " ;
+  If u_xcb_lc(cName) == "self" .Or. u_xcb_lc(cName) == "eself"
+    AAdd(aErrors, {nLine, "'" + cName + "' is the value " + aM[FN_METHOD] + "() is called on -- 'eSelf' in TL++: " ;
                           + "a type's method declares no other."})
   EndIf
 Return Nil
@@ -621,7 +621,7 @@ Static Function MethodRet(aTi, cName)
   EndIf
 Return If(aF[FN_RETWORD] != Nil, WordType(aF[FN_RETWORD]), T_UNKNOWN)
 
-// 'x.f' as a message names it: 'aIt', 'aOrd.oCli', 'Self'; '' for what has
+// 'x.f' as a message names it: 'eIt', 'eOrd.oCli', 'Self'; '' for what has
 // no name.
 Static Function DotName(aE)
   Local cB
@@ -634,7 +634,7 @@ Static Function DotName(aE)
   EndIf
 Return ""
 
-// A field written to, said so: "'aIt.nQtd' is Numeric".
+// A field written to, said so: "'eIt.nQtd' is Numeric".
 Static Function FieldWho(aD)
   Local aF := FieldOf(TypeOf(aD[DOT_BASE]), aD[DOT_NAME])
   Local cN := DotName(aD)

@@ -27,11 +27,11 @@ type Item
 end type
 
 User Function Fields(cCod as Character)
-  Local aIt := Item(cCod, nPreco => 2.5)
-  Local aAll := Item("B", , 10, .T., "x", Date(), {"a"}, { "k" => 1 }, Nil)
-  Local aNone := Item()
-  aIt.Add(3).Add(1)
-  aIt.nQtd++
-  aAll.nPreco *= 2
-  ConOut(aIt.Total(), aAll.Clear(), Len(aNone), (aIt).nQtd)
-Return aIt.aTags[1]
+  Local eIt := Item(cCod, nPreco => 2.5)
+  Local eAll := Item("B", , 10, .T., "x", Date(), {"a"}, { "k" => 1 }, Nil)
+  Local eNone := Item()
+  eIt.Add(3).Add(1)
+  eIt.nQtd++
+  eAll.nPreco *= 2
+  ConOut(eIt.Total(), eAll.Clear(), Len(eNone), (eIt).nQtd)
+Return eIt.aTags[1]

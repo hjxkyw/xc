@@ -8,10 +8,12 @@
 " verbs, lambdas ('[x] x * 2'), 'defer', 'using alias', 'with object',
 " 'fallback', '?=', '?:', '?.', 'in', 'has', '%%', ranges, '${...}' in
 " strings, typed and fixed arrays and hashes, sets and bags, types and their
-" fields ('type Item', 'aIt.nQtd'); Clipper's '&&'
+" fields ('type Item', 'eIt.nQtd'); Clipper's '&&'
 " and '*' comments; the preprocessor's directives. A string ends at its
 " quote or at the end of its line, as TL++'s: nothing but a block comment,
-" or a directive carried on with ';', goes past a line.
+" or a directive carried on with ';', goes past a line. And a name's first
+" letter, where it says what the name holds -- 'cName', 'nQtd', 'eIt' --,
+" in a color of its own.
 
 if exists("b:current_syntax")
   finish
@@ -89,7 +91,7 @@ syn match xtplStructure "\<end\s\+\%(class\|interface\|wsrestful\|wsservice\|wss
 syn keyword xtplStructure data wsdata nextgroup=xtplMemberName skipwhite
 " 'type Item' alone on its line -- not 'Type("cX")'.
 syn match xtplStructure "^\s*\zstype\ze\s\+\h\w*\s*\%($\|//\|&&\|/\*\)" nextgroup=xtplClassName skipwhite
-syn match xtplMemberName "\h\w*" contained
+syn match xtplMemberName "\h\w*" contained contains=xtplPrefix
 
 syn keyword xtplNamespace namespace nextgroup=xtplNamespaceName skipwhite
 syn match xtplNamespace "\<using\s\+namespace\>" nextgroup=xtplNamespaceName skipwhite
@@ -138,11 +140,21 @@ syn match xtplVerb "\<\%(maxpairs\|heap\|heapof\)\ze\s*("
 syn match xtplBlockParams "\%({\s*\)\@<=|[^|]*|" contains=xtplParam
 syn match xtplLambdaParams "\%(\w\|[)\]}]\)\@<!\[\s*\h\w*\%(\s*,\s*\h\w*\)\{,5}\s*\]\ze\s\+[^ \t:=]"
       \ contains=xtplParam
-syn match xtplParam "\h\w*" contained
+syn match xtplParam "\h\w*" contained contains=xtplPrefix
 
-" 'aIt.nQtd', 'aIt.Total()', '.nQtd' in a type's method: a type's field
+" ---- a name's first letter ---------------------------------------------------
+" 'cName', 'nQtd', 'aItems', 'eIt': the letter that says what a name holds
+" -- a small letter, a capital right after it -- colored as a type is; a
+" field's and a parameter's too -- defined before what may start where it
+" does, which then wins and holds it. 'hi link xtplPrefix NONE' in the
+" vimrc, after 'syntax on', takes the color away.
+syn case match
+syn match xtplPrefix "\<\l\ze\u\w*"
+syn case ignore
+
+" 'eIt.nQtd', 'eIt.Total()', '.nQtd' in a type's method: a type's field
 " and method -- not '.And.', '.T.', '1.5', '1..10'.
-syn match xtplField "\%([.[:digit:]]\)\@<!\.\%(\%(and\|or\|not\|[tfyn]\)\.\)\@!\zs\h\w*"
+syn match xtplField "\%([.[:digit:]]\)\@<!\.\%(\%(and\|or\|not\|[tfyn]\)\.\)\@!\zs\h\w*" contains=xtplPrefix
 syn match xtplFieldCall "\%([.[:digit:]]\)\@<!\.\%(\%(and\|or\|not\|[tfyn]\)\.\)\@!\zs\h\w*\ze\s*("
 
 " 'SA1->A1_COD': the alias.
@@ -150,7 +162,8 @@ syn match xtplAliasName "\<\h\w*\ze\s*->"
 
 " What an interpolation holds.
 syn cluster xtplExpr contains=xtplString,xtplNumber,xtplBoolean,xtplNil,xtplSelf,xtplOperator,xtplPipe,xtplVerb,
-      \xtplLambdaParams,xtplBlockParams,xtplAliasName,xtplConditional,xtplTypeArgs,xtplGeneric,xtplField,xtplFieldCall
+      \xtplLambdaParams,xtplBlockParams,xtplAliasName,xtplConditional,xtplTypeArgs,xtplGeneric,xtplField,xtplFieldCall,
+      \xtplPrefix
 
 syn sync ccomment xtplCommentBlock minlines=40
 
@@ -199,6 +212,7 @@ hi def link xtplVerb          Function
 hi def link xtplBlockParams   Delimiter
 hi def link xtplLambdaParams  Delimiter
 hi def link xtplParam         Identifier
+hi def link xtplPrefix        Type
 
 let b:current_syntax = "xtpl"
 

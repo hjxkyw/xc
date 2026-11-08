@@ -1,2 +1,2 @@
 002-typed.xtpl:49: warning: 'aBig' is assigned but never read
-002-typed.xtpl:50: warning: 'aKept' is assigned but never read
+002-typed.xtpl:50: warning: 'eKept' is assigned but never read

@@ -14,13 +14,13 @@
 003-wrong.xtpl:26: 'aLit' is an Item: an array written out is none -- Item(...) makes one.
 003-wrong.xtpl:27: 'aLit' is an Item: this is an Array<n>, not an Item.
 003-wrong.xtpl:28: 'aLit' is an Item: this is Numeric, not an Item.
-003-wrong.xtpl:29: 'aOk.cCod' is <const>: it takes its value where an Item is made.
-003-wrong.xtpl:30: 'aOk.nQtd' is Numeric: this is Character.
+003-wrong.xtpl:29: 'eOk.cCod' is <const>: it takes its value where an Item is made.
+003-wrong.xtpl:30: 'eOk.nQtd' is Numeric: this is Character.
 003-wrong.xtpl:31: 'Item' has no method 'Totl()'.
 003-wrong.xtpl:32: 'Item' has no field 'nQtx'.
 003-wrong.xtpl:33: 'nQtd =>': a field by its name, and Foo() makes no type's value.
 003-wrong.xtpl:34: 'aNums' is an Array<n>, no type's value: '.nQtd' is a type's field.
-003-wrong.xtpl:35: '.Total()': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.
-003-wrong.xtpl:36: '.aTags': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.
-003-wrong.xtpl:37: 'with object' takes an object, and 'aOk' is an Item: its fields are 'aOk.x'.
-003-wrong.xtpl:41: '.nQtd': xc cannot tell that 'aAny' is a type's value -- 'aAny as Item' says it is one.
+003-wrong.xtpl:35: '.Total()': xc cannot tell that 'eAny' is a type's value -- 'eAny as Item' says it is one.
+003-wrong.xtpl:36: '.aTags': xc cannot tell that 'eAny' is a type's value -- 'eAny as Item' says it is one.
+003-wrong.xtpl:37: 'with object' takes an object, and 'eOk' is an Item: its fields are 'eOk.x'.
+003-wrong.xtpl:41: '.nQtd': xc cannot tell that 'eAny' is a type's value -- 'eAny as Item' says it is one.

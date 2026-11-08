@@ -6,7 +6,7 @@
 // type Line from Item: an array of 4
 #define Line_nDesc 4
 
-Static Function Line_Net(aSelf as Array) as Numeric
-Return Item_Total(aSelf) - aSelf[Line_nDesc]
+Static Function Line_Net(eSelf as Array) as Numeric
+Return Item_Total(eSelf) - eSelf[Line_nDesc]
 // endtype
 #endif

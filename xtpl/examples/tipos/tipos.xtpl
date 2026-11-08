@@ -10,7 +10,7 @@ User Function Tipos()
   AAdd(aPed, Linha("A01", 2, 10.5))
   AAdd(aPed, Linha("B02", nPreco => 3, nDesc => 0.5))
   aPed[1].nDesc := 1
-  for aLn in aPed exec nTotal += aLn.Liquido()
+  for eLn in aPed exec nTotal += eLn.Liquido()
   ConOut("itens: " + cValToChar(Len(aPed)) + ", total: " + cValToChar(nTotal) + ", o maior: " + Maior(aPed))
 Return nTotal <= PEDIDO_MAXIMO
 
@@ -18,10 +18,10 @@ Return nTotal <= PEDIDO_MAXIMO
 Static Function Maior(aItens as Array<Item>) as Character
   Local cCod := ""
   Local nMaior := -1
-  for aIt in aItens
-    if aIt.Total() > nMaior
-      nMaior := aIt.Total()
-      cCod := aIt.cCod
+  for eIt in aItens
+    if eIt.Total() > nMaior
+      nMaior := eIt.Total()
+      cCod := eIt.cCod
     endif
   next
 Return cCod

@@ -4,7 +4,7 @@ type Point
   nX as Numeric
 endtype
 
-User Function Unknown(aP, oJ as JSON)
-  Local aQ := GetPoint()
-  ConOut(aP.nX, aQ.nX, GetPoint().nX, oJ.nX, cMemvar.nX)
-Return aP.nZ
+User Function Unknown(eP, oJ as JSON)
+  Local eQ := GetPoint()
+  ConOut(eP.nX, eQ.nX, GetPoint().nX, oJ.nX, cMemvar.nX)
+Return eP.nZ

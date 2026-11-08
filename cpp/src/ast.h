@@ -252,8 +252,8 @@ namespace xc
                                      // and no parentheses around the chain
   };
 
-  // A type's field, 'aIt.nQtd' -- 'Self.nQtd', '.nQtd' in its methods --,
-  // and its method, 'aIt.Total()': of the type typed.cpp knows the base to
+  // A type's field, 'eIt.nQtd' -- 'Self.nQtd', '.nQtd' in its methods --,
+  // and its method, 'eIt.Total()': of the type typed.cpp knows the base to
   // be of (of_type, '' while it does not), the field at its position.
   struct Dot : Expr
   {

@@ -41,7 +41,7 @@ function ITEM_ADD static 2 2
 end
 
 function ORDER_TOTAL static 1 5
-  locals Self nSum .t1 aIt .t2
+  locals Self nSum .t1 eIt .t2
   line 26
   num 0
   setlocal 2
@@ -131,7 +131,7 @@ function ORDER_BIGGEST static 1 9
 end
 
 function U_MAIN user 0 3
-  locals aOrd aIt aNone
+  locals eOrd eIt eNone
   line 35
   str "P1"
   array 0

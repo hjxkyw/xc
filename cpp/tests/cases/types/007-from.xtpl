@@ -16,15 +16,15 @@ type Line from Item
   Return .Total() - .nDesc
 endtype
 
-Static Function Sum(aIt as Item)
-Return aIt.Total()
+Static Function Sum(eIt as Item)
+Return eIt.Total()
 
 User Function Lines()
-  Local aLn := Line("A", 2, 10, nDesc => 3)
+  Local eLn := Line("A", 2, 10, nDesc => 3)
   Local aAll := { <Item> }
-  AAdd(aAll, aLn)
+  AAdd(aAll, eLn)
   AAdd(aAll, Item("B", nPreco => 1))
-  aLn.nQtd += 1
-  aLn.nDesc := 1
-  ConOut(aLn.Net(), Sum(aLn), aLn.Total(), Len(aAll))
+  eLn.nQtd += 1
+  eLn.nDesc := 1
+  ConOut(eLn.Net(), Sum(eLn), eLn.Total(), Len(aAll))
 Return aAll |> map([it] it.Total())

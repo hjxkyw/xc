@@ -36,7 +36,7 @@ Return 1
 Static Function Order_cId()
 Return 1
 
-User Function Names(aO as Order)
-  totvs.framework.foo(aO.cId)
-  aO.hX{"a"} := 1
+User Function Names(eO as Order)
+  totvs.framework.foo(eO.cId)
+  eO.hX{"a"} := 1
 Return tlpp.ns.bar(1)

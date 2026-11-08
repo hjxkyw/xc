@@ -14,27 +14,27 @@
 #define Item_hSeen 8
 #define Item_xAny 9
 
-Static Function Item_Total(aSelf as Array) as Numeric
-Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+Static Function Item_Total(eSelf as Array) as Numeric
+Return eSelf[Item_nQtd] * eSelf[Item_nPreco]
 
-Static Function Item_Add(aSelf as Array, nMais as Numeric) as Array
-  Local nWas := aSelf[Item_nQtd]
-  aSelf[Item_nQtd] += nMais
-  aSelf[Item_aTags] := {}
-  AAdd(aSelf[Item_aTags], cValToChar(nWas))
-Return aSelf
+Static Function Item_Add(eSelf as Array, nMais as Numeric) as Array
+  Local nWas := eSelf[Item_nQtd]
+  eSelf[Item_nQtd] += nMais
+  eSelf[Item_aTags] := {}
+  AAdd(eSelf[Item_aTags], cValToChar(nWas))
+Return eSelf
 
-Static Function Item_Clear(aSelf as Array)
-  aSelf[Item_nQtd] := 0
-Return Item_Total(aSelf)
+Static Function Item_Clear(eSelf as Array)
+  eSelf[Item_nQtd] := 0
+Return Item_Total(eSelf)
 // end type
 
 User Function Fields(cCod as Character)
-  Local aIt := {cCod, 1, 2.5, .F., "", Nil, {}, THashMap():New(), Nil}
-  Local aAll := {"B", 1, 10, .T., "x", Date(), {"a"}, u_xtpl_hnew({{"k", 1}}), Nil}
-  Local aNone := {"", 1, 0, .F., "", Nil, {}, THashMap():New(), Nil}
-  Item_Add(Item_Add(aIt, 3), 1)
-  aIt[Item_nQtd]++
-  aAll[Item_nPreco] *= 2
-  ConOut(Item_Total(aIt), Item_Clear(aAll), Len(aNone), aIt[Item_nQtd])
-Return aIt[Item_aTags][1]
+  Local eIt := {cCod, 1, 2.5, .F., "", Nil, {}, THashMap():New(), Nil}
+  Local eAll := {"B", 1, 10, .T., "x", Date(), {"a"}, u_xtpl_hnew({{"k", 1}}), Nil}
+  Local eNone := {"", 1, 0, .F., "", Nil, {}, THashMap():New(), Nil}
+  Item_Add(Item_Add(eIt, 3), 1)
+  eIt[Item_nQtd]++
+  eAll[Item_nPreco] *= 2
+  ConOut(Item_Total(eIt), Item_Clear(eAll), Len(eNone), eIt[Item_nQtd])
+Return eIt[Item_aTags][1]

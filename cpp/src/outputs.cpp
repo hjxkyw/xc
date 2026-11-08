@@ -25,6 +25,7 @@
 #include "chars.h"
 #include "check.h"
 #include "commands.h"
+#include "driver.h"
 #include "emit.h"
 #include "parser.h"
 #include "text.h"
@@ -62,7 +63,13 @@ namespace
     if (!slurp(file, src)) { return std::nullopt; }
     bool high = std::any_of(src.begin(), src.end(), [](char c) { return static_cast<unsigned char>(c) >= 0x80; });
     std::string cp1252;
-    if (high && xc::utf8_to_cp1252(src, cp1252)) { src = cp1252; }
+    // A windows-1252 source is compiled as xc compiles it -- the headers it
+    // includes read, a header's .th made.
+    if (!(high && xc::utf8_to_cp1252(src, cp1252)))
+    {
+      return xc::compile(file.string(), file.filename().string(), xc::CompileOptions{}).output;
+    }
+    src = cp1252;
     xc::UserSpans spans = xc::user_spans(src, file.parent_path().string(), {});
     xc::Tree tree;
     xc::Parser parser(src, spans.trans, tree, spans.cmd);

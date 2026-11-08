@@ -9,15 +9,15 @@ endtype
 
 type Order
   cId as Character
-  aCli as Customer := Customer("anon")
+  eCli as Customer := Customer("anon")
   aLines as Array<Line>
   hBy as Hash<c, Customer>
 
   method Who() as Character
-  Return .aCli.cName
+  Return .eCli.cName
 
   method Cli() as Customer
-  Return .aCli
+  Return .eCli
 endtype
 
 type Line
@@ -25,37 +25,37 @@ type Line
   nQtd as Numeric
 endtype
 
-Static aFirst := Order("F")
+Static eFirst := Order("F")
 
 Class Shop
-  Data aLast as Order
+  Data eLast as Order
   Method New() Constructor
   Method Last() as Order
 EndClass
 
 Method New() Class Shop
-  ::aLast := Order("X")
+  ::eLast := Order("X")
 Return Self
 
 Method Last() Class Shop as Order
-Return ::aLast
+Return ::eLast
 
 Static Function Mk(cId as Character) as Order
 Return Order(cId)
 
-User Function Typed(aIn as Order, aMany as Array<Order>)
+User Function Typed(eIn as Order, aMany as Array<Order>)
   Local oShop := Shop():New()
   Local aOrders := { <Order> }
   Local aBig
-  Local aKept as Order
-  aIn.hBy{"x"} := Customer("y")
-  ConOut(aIn.hBy{"x"}.cName, oShop:Last().Who(), aFirst.aCli.cName, Mk("M").Cli().cName)
+  Local eKept as Order
+  eIn.hBy{"x"} := Customer("y")
+  ConOut(eIn.hBy{"x"}.cName, oShop:Last().Who(), eFirst.eCli.cName, Mk("M").Cli().cName)
   AAdd(aOrders, Mk("A"))
   ASort(aOrders,,, {|a, b| a.cId < b.cId})
   AEval(aOrders, {|o| ConOut(o.cId)})
   aBig := aMany |> filter([o] Len(o.aLines) > 1) |> map([o] o.cId)
-  for aO in aMany exec AAdd(aO.aCli.aTags, "seen")
-  aKept := aMany[1]
-  ConOut(aIn?.Cli()?.cName)
-  aKept := Nil
-Return aIn?.aCli?.cName
+  for eO in aMany exec AAdd(eO.eCli.aTags, "seen")
+  eKept := aMany[1]
+  ConOut(eIn?.Cli()?.cName)
+  eKept := Nil
+Return eIn?.eCli?.cName

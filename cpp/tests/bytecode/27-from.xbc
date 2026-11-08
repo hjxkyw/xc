@@ -42,7 +42,7 @@ function LINE_TAG static 2 2
 end
 
 function VALUE static 1 1
-  locals aIt
+  locals eIt
   line 29
   local 1
   call 1 Item_Total
@@ -50,7 +50,7 @@ function VALUE static 1 1
 end
 
 function U_MAIN user 0 3
-  locals aLn aRu aAll
+  locals eLn eRu aAll
   line 32
   str "A"
   num 2

@@ -301,6 +301,11 @@ array -- made, kept, passed and given to TOTVS' functions as one --, and
 TL++ is given no class and no object: each field is an element at its
 position, each method a static function, and nothing of the runtime.
 
+A name that holds a type's value starts with `e`, an element of the type --
+`eIt`, `eLn` --, as an array's starts with `a` and an object's with `o`:
+xc's examples and its own TL++ (`eSelf`) keep to it, though xc holds no
+name to it.
+
 ```xtpl
 type Item
   cCod <const> as Character
@@ -318,11 +323,11 @@ type Item
 endtype
 
 User Function Order(cCod as Character)
-  Local aIt := Item(cCod, nPreco => Price(cCod))
-  Local aMore := Item("B", 3, 10)
-  aIt.Add(2)
-  aMore.nQtd++
-Return aIt.Total() + aMore?.Total()
+  Local eIt := Item(cCod, nPreco => Price(cCod))
+  Local eMore := Item("B", 3, 10)
+  eIt.Add(2)
+  eMore.nQtd++
+Return eIt.Total() + eMore?.Total()
 ```
 
 ```tlpp
@@ -332,21 +337,21 @@ Return aIt.Total() + aMore?.Total()
 #define Item_nPreco 3
 #define Item_aTags 4
 
-Static Function Item_Total(aSelf as Array) as Numeric
-Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+Static Function Item_Total(eSelf as Array) as Numeric
+Return eSelf[Item_nQtd] * eSelf[Item_nPreco]
 
-Static Function Item_Add(aSelf as Array, nMais as Numeric)
-  aSelf[Item_nQtd] += nMais
-  AAdd(aSelf[Item_aTags], "more")
-Return aSelf
+Static Function Item_Add(eSelf as Array, nMais as Numeric)
+  eSelf[Item_nQtd] += nMais
+  AAdd(eSelf[Item_aTags], "more")
+Return eSelf
 // endtype
 
 User Function Order(cCod as Character)
-  Local aIt := {cCod, 1, Price(cCod), {}}
-  Local aMore := {"B", 3, 10, {}}
-  Item_Add(aIt, 2)
-  aMore[Item_nQtd]++
-Return Item_Total(aIt) + If(aMore != Nil, Item_Total(aMore), Nil)
+  Local eIt := {cCod, 1, Price(cCod), {}}
+  Local eMore := {"B", 3, 10, {}}
+  Item_Add(eIt, 2)
+  eMore[Item_nQtd]++
+Return Item_Total(eIt) + If(eMore != Nil, Item_Total(eMore), Nil)
 ```
 
 - `type Name` ... `endtype` (or `end type`), at the file's level.
@@ -399,7 +404,7 @@ endtype
 User Function Big(aLines as Array<Line>, hBy as Hash<c, Line>)
   Local aBig := aLines |> filter([l] l.nQtd > 10)
   ASort(aBig,,, {|a, b| a.nQtd > b.nQtd})
-  for aL in aBig exec hBy{aL.cCod} := aL
+  for eL in aBig exec hBy{eL.cCod} := eL
 Return hBy{"A"}?.nQtd
 ```
 
@@ -411,15 +416,15 @@ Return hBy{"A"}?.nQtd
 
 User Function Big(aLines as Array, hBy as Object)
   Local aBig := u_xtpl_filter(aLines, {|l| l[Line_nQtd] > 10})
-  Local aL  // a block local
+  Local eL  // a block local
   Local fs_0_0  // the source of a 'for ... in'
   Local fi_0_0  // the counter of a 'for ... in'
   Local fbv_0_0  // a value read twice by '?.' or 'in lo..hi', evaluated once
   ASort(aBig,,, {|a, b| a[Line_nQtd] > b[Line_nQtd]})
   fs_0_0 := aBig
   For fi_0_0 := 1 To Len(fs_0_0)
-    aL := fs_0_0[fi_0_0]
-    hBy:Set(aL[Line_cCod], aL)
+    eL := fs_0_0[fi_0_0]
+    hBy:Set(eL[Line_cCod], eL)
   Next
 Return If(ValType(fbv_0_0 := u_xtpl_hget(hBy, "A")) != "U", fbv_0_0[Line_nQtd], Nil)
 ```
@@ -433,18 +438,18 @@ type Point
   nY <const> as Numeric
 endtype
 
-User Function Move(aP as Point, aAny)
-  Local aQ := Point(1, "2")
-  aP.nY := 0
-  aP.nZ := aQ.nX
-Return aAny.nX
+User Function Move(eP as Point, eAny)
+  Local eQ := Point(1, "2")
+  eP.nY := 0
+  eP.nZ := eQ.nX
+Return eAny.nX
 ```
 
 ```text
 move.xtpl:7: the field 'nY' of Point() is Numeric: this is Character.
-move.xtpl:8: 'aP.nY' is <const>: it takes its value where a Point is made.
+move.xtpl:8: 'eP.nY' is <const>: it takes its value where a Point is made.
 move.xtpl:9: 'Point' has no field 'nZ'.
-move.xtpl:10: '.nX': xc cannot tell that 'aAny' is a type's value -- 'aAny as Point' says it is one.
+move.xtpl:10: '.nX': xc cannot tell that 'eAny' is a type's value -- 'eAny as Point' says it is one.
 ```
 
 `a.b(...)` is a namespace's function -- `totvs.framework.foo()` -- unless
@@ -453,12 +458,12 @@ move.xtpl:10: '.nX': xc cannot tell that 'aAny' is a type's value -- 'aAny as Po
 **What TL++ is given.** The type's first and last lines become comments;
 each field, on its own line, the `#define` of its position, `Item_nQtd`;
 each method the static function `Item_Total`, a level less deep, whose
-first parameter, `aSelf`, is Self. A field is the element at its position,
-`aIt[Item_nQtd]`; a method its function, given the value first,
-`Item_Total(aIt)`; a value made, the array, `{"B", 3, 10, {}}`. So a field
+first parameter, `eSelf`, is Self. A field is the element at its position,
+`eIt[Item_nQtd]`; a method its function, given the value first,
+`Item_Total(eIt)`; a value made, the array, `{"B", 3, 10, {}}`. So a field
 is read after its type -- its position is a `#define` --, no function nor
 `#define` of the file may have the name of a method's function or of a
-field's position, and a method declares no `Self` nor `aSelf` of its own
+field's position, and a method declares no `Self` nor `eSelf` of its own
 ([Names xc keeps](#names-xc-keeps)).
 
 **A type from another.** `type Line from Item` has Item's fields first, at
@@ -468,7 +473,7 @@ Line is wanted. Item is declared before Line, and Line declares none of
 Item's fields or methods again: which method a call runs is fixed as the
 file is compiled, by what xc knows the value to be, so no method takes
 another's place. TL++ is given Line's own positions after Item's; Item's
-field read on a Line is `Item_nQtd`, and Item's method `Item_Total(aLn)`.
+field read on a Line is `Item_nQtd`, and Item's method `Item_Total(eLn)`.
 
 ```xtpl
 type Item
@@ -487,10 +492,10 @@ type Line from Item
   Return .Total() - .nDesc
 endtype
 
-User Function Net(aIt as Item)
-  Local aLn := Line("A", 2, 10, nDesc => 3)
-  aLn.nQtd++
-Return aLn.Net() + aIt.Total()
+User Function Net(eIt as Item)
+  Local eLn := Line("A", 2, 10, nDesc => 3)
+  eLn.nQtd++
+Return eLn.Net() + eIt.Total()
 ```
 
 ```tlpp
@@ -499,21 +504,21 @@ Return aLn.Net() + aIt.Total()
 #define Item_nQtd 2
 #define Item_nPreco 3
 
-Static Function Item_Total(aSelf as Array) as Numeric
-Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+Static Function Item_Total(eSelf as Array) as Numeric
+Return eSelf[Item_nQtd] * eSelf[Item_nPreco]
 // endtype
 
 // type Line from Item: an array of 4
 #define Line_nDesc 4
 
-Static Function Line_Net(aSelf as Array) as Numeric
-Return Item_Total(aSelf) - aSelf[Line_nDesc]
+Static Function Line_Net(eSelf as Array) as Numeric
+Return Item_Total(eSelf) - eSelf[Line_nDesc]
 // endtype
 
-User Function Net(aIt as Array)
-  Local aLn := {"A", 2, 10, 3}
-  aLn[Item_nQtd]++
-Return Line_Net(aLn) + Item_Total(aIt)
+User Function Net(eIt as Array)
+  Local eLn := {"A", 2, 10, 3}
+  eLn[Item_nQtd]++
+Return Line_Net(eLn) + Item_Total(eIt)
 ```
 
 ### Headers
@@ -555,8 +560,8 @@ endtype
 #define Item_nQtd 2
 #define Item_nPreco 3
 
-Static Function Item_Total(aSelf as Array) as Numeric
-Return aSelf[Item_nQtd] * aSelf[Item_nPreco]
+Static Function Item_Total(eSelf as Array) as Numeric
+Return eSelf[Item_nQtd] * eSelf[Item_nPreco]
 // endtype
 #endif
 ```
@@ -569,9 +574,9 @@ type Line from Item
   nDesc as Numeric
 endtype
 
-User Function Sell(aIt as Item)
-  Local aLn := Line("A", 2, 10, 3)
-Return aIt.Total() + aLn.Total() - aLn.nDesc + ITEM_MAX
+User Function Sell(eIt as Item)
+  Local eLn := Line("A", 2, 10, 3)
+Return eIt.Total() + eLn.Total() - eLn.nDesc + ITEM_MAX
 ```
 
 ```
@@ -583,9 +588,9 @@ Return aIt.Total() + aLn.Total() - aLn.nDesc + ITEM_MAX
 #define Line_nDesc 4
 // endtype
 
-User Function Sell(aIt as Array)
-  Local aLn := {"A", 2, 10, 3}
-Return Item_Total(aIt) + Item_Total(aLn) - aLn[Line_nDesc] + ITEM_MAX
+User Function Sell(eIt as Array)
+  Local eLn := {"A", 2, 10, 3}
+Return Item_Total(eIt) + Item_Total(eLn) - eLn[Line_nDesc] + ITEM_MAX
 ```
 
 xc looks for a header where it looks for any include file -- the folder of
@@ -2504,7 +2509,7 @@ parses, in xtpl's words.
 | a value of another type than a field is declared as, going in; anything but a type's value where one is | `the field 'nY' of Point() is Numeric: this is Character.`, `'aLit' is an Item: an array written out is none -- Item(...) makes one.` |
 | a `<const>` field written | `'aP.nY' is <const>: it takes its value where a Point is made.` |
 | a field read before its type | `'Item' is declared on line 4: its fields are read after it.` |
-| in a type: a field twice, a method twice or named as a field, a field called `and` and the like, an attribute but `<const>`, a value to start at that reads a variable; a type named as a function or a class of the file, a function of the AppServer's language, a verb, a reserved word; a function named as a method's or a field's position; `Self` or `aSelf` declared in a method | `'nQtd' is a field of Item twice.`, `the field 'nQtd' of Item starts at a value made where one is: it cannot read 'nX'.`, `'Order_Who' is the function Order's method Who() is, and a function of the file.` |
+| in a type: a field twice, a method twice or named as a field, a field called `and` and the like, an attribute but `<const>`, a value to start at that reads a variable; a type named as a function or a class of the file, a function of the AppServer's language, a verb, a reserved word; a function named as a method's or a field's position; `Self` or `eSelf` declared in a method | `'nQtd' is a field of Item twice.`, `the field 'nQtd' of Item starts at a value made where one is: it cannot read 'nX'.`, `'Order_Who' is the function Order's method Who() is, and a function of the file.` |
 | `::` in a type's method; `with object` on a type's value | `'::nQtd' is a class's: in a type's method, a field is '.nQtd'.`, `'with object' takes an object, and 'aIn' is an Order: its fields are 'aIn.x'.` |
 
 The grammar refuses the rest, with `cannot parse this line`: a trailing
@@ -2623,8 +2628,8 @@ that name is yours, `oObj:Count()`, and so is a variable. A class of your own ca
 
 **A type's names.** A type's fields' positions, `Item_nQtd`, and its
 methods' functions, `Item_Total`, are the file's: no function of it is
-called so, nor a `#define`. In a method, `aSelf` is TL++'s Self, and a
-method declares no `Self` nor `aSelf`.
+called so, nor a `#define`. In a method, `eSelf` is TL++'s Self, and a
+method declares no `Self` nor `eSelf`.
 
 **Generated names.** xc's own locals have shapes a function may not declare
 as a `Local` or a `Private` of its own: `<kind>_<depth>_<index>` --

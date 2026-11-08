@@ -10,6 +10,6 @@ type Point
 endtype
 
 User Function Pontos()
-  Local aP := Point(1, 2)
-  aP.nY += 3
-Return aP.Sum()
+  Local eP := Point(1, 2)
+  eP.nY += 3
+Return eP.Sum()

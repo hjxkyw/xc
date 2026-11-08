@@ -30,12 +30,12 @@ type Sale from Item
   Return Nil
 endtype
 
-Static Function Only(aSale as Sale)
-Return aSale.cNote
+Static Function Only(eSale as Sale)
+Return eSale.cNote
 
 User Function Wrong()
-  Local aIt := Item("A", 1)
-  Local aSale := Sale("B", 2, "x")
-  Only(aIt)
-  Only(aSale)
-Return aIt
+  Local eIt := Item("A", 1)
+  Local eSale := Sale("B", 2, "x")
+  Only(eIt)
+  Only(eSale)
+Return eIt
