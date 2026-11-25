@@ -1,0 +1,22 @@
+// A field assigned where a statement starts: the word before '->' is the
+// alias, as where a value is read -- 'SA1->A1_COD := ...' is SA1's field,
+// 'M->nX := ...' and 'MEMVAR->nY := ...' the variables, 'FIELD->x' the area
+// selected's; '(cAlias)->x' the area cAlias names. No NAME.out: an area of
+// xc-vm has no records to assign.
+User Function Main(cAlias, cField)
+  Private nX := 0
+  Private nY := 0
+  SA1->A1_COD := "000001"
+  SA1->A1_SALDO += 10
+  SA1->&(cField) := "x"
+  M->nX := 1
+  MEMVAR->nY := 2
+  FIELD->A1_NOME := "name"
+  (cAlias)->A1_NOME := "other"
+  Inc(@M->nX)
+  ConOut(SA1->A1_COD, M->nX, nY)
+Return Nil
+
+Static Function Inc(nV)
+  nV++
+Return Nil

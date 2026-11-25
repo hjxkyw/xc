@@ -981,6 +981,7 @@ Return Nil
 Static Function Arg(aA)
   Local aT
   Local nI
+  Local cAl
   If IsK(aA, EK_REF)
     aT := aA[REF_TARGET]
     If IsK(aT, EK_NAME)
@@ -1008,8 +1009,17 @@ Static Function Arg(aA)
       Op("refmember", aT[MEM_NAME])
       Return Nil
     EndIf
-    If IsK(aT, EK_ALIASFIELD) .And. aT[AF_ALIAS] != Nil .And. aT[AF_MACRO] == Nil ;
-       .And. (Uc(aT[AF_ALIAS]) == "M" .Or. Uc(aT[AF_ALIAS]) == "MEMVAR")
+    // '@M->x': after '@' the alias is the Name before '->'.
+    cAl := ""
+    If IsK(aT, EK_ALIASFIELD) .And. aT[AF_MACRO] == Nil
+      Do Case
+      Case aT[AF_ALIAS] != Nil
+        cAl := Uc(aT[AF_ALIAS])
+      Case IsK(aT[AF_BASE], EK_NAME)
+        cAl := Uc(NameOf(aT[AF_BASE]))
+      EndCase
+    EndIf
+    If cAl == "M" .Or. cAl == "MEMVAR"
       Op("refmemvar", Uc(aT[AF_FIELD]))
       Return Nil
     EndIf

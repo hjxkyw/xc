@@ -1,0 +1,72 @@
+xbc 1
+source 32-alias.xtpl
+statics 0
+
+function U_MAIN user 2 3
+  locals cAlias cField .t1
+  line 7
+  private NX
+  num 0
+  setmemvar NX
+  line 8
+  private NY
+  num 0
+  setmemvar NY
+  line 9
+  str "000001"
+  setfield SA1 A1_COD
+  line 10
+  field SA1 A1_SALDO
+  num 10
+  add
+  setfield SA1 A1_SALDO
+  line 11
+  str "x"
+  setlocal 3
+  str "SA1"
+  area
+  local 2
+  call 1 FieldPos
+  local 3
+  call 2 FieldPut
+  endarea
+  pop
+  line 12
+  num 1
+  setmemvar NX
+  line 13
+  num 2
+  setmemvar NY
+  line 14
+  str "name"
+  setfield FIELD A1_NOME
+  line 15
+  local 1
+  str "other"
+  setfieldx A1_NOME
+  line 16
+  refmemvar NX
+  call 1 Inc
+  pop
+  line 17
+  field SA1 A1_COD
+  memvar NX
+  memvar NY
+  call 3 ConOut
+  pop
+  line 18
+  nil
+  ret
+end
+
+function INC static 1 1
+  locals nV
+  line 21
+  local 1
+  num 1
+  add
+  setlocal 1
+  line 22
+  nil
+  ret
+end

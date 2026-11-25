@@ -305,6 +305,26 @@ namespace xc
   // A base and the trailers after it, each step spanning from the start of
   // the whole to the end of its trailer (outer: the caller spans a base with
   // no trailer itself).
+  // A bare word and its trailers: 'ALIAS->x' first, the word is the alias,
+  // as aliasfield() makes it -- in AdvPL the word names the area, it is no
+  // variable's value; '(cAlias)->x' is (parse.xtpl's NameTrailed()).
+  Expr* Parser::name_trailed(int at, int e, const std::vector<Trailer>& trailers, int from, bool outer)
+  {
+    if (trailers.empty() || trailers[0].kind != T_FIELD)
+    {
+      auto nm = make<Name>();
+      nm->name = text(at, e);
+      return trailed(nm, at, e, trailers, from, outer);
+    }
+    auto a = make<AliasField>();
+    a->alias = text(at, e);
+    a->field = trailers[0].name;
+    a->macro = trailers[0].x;
+    a->from = from;
+    a->to = trailers[0].end;
+    return trailed(a, at, e, std::vector<Trailer>(trailers.begin() + 1, trailers.end()), from, outer);
+  }
+
   Expr* Parser::trailed(Expr* base, int bf, int bt, const std::vector<Trailer>& trailers, int from, bool outer)
   {
     if (base->from < 0 && !(outer && trailers.empty()))
@@ -1857,8 +1877,6 @@ namespace xc
     {
       return back(start);
     }
-    auto name = make<Name>();
-    name->name = text(at, e);
     p_ = e;
     if (!ws())
     {
@@ -1866,7 +1884,16 @@ namespace xc
     }
     std::vector<Trailer> tr = trailers();
     auto r = make<Ref>();
-    r->target = tr.empty() ? span(name, at, e) : trailed(name, at, e, tr, start, false);
+    if (tr.empty())
+    {
+      auto name = make<Name>();
+      name->name = text(at, e);
+      r->target = span(name, at, e);
+    }
+    else
+    {
+      r->target = name_trailed(at, e, tr, start, false);
+    }
     return r;
   }
 
@@ -2867,6 +2894,7 @@ namespace xc
     int bf = p_;
     Expr* base = nullptr;
     int bt = p_;
+    bool word = false;
     if (c(bf) == ':')
     {
       base = selfacc();
@@ -2901,8 +2929,10 @@ namespace xc
       {
         return span(trailed(base, bf, bt, {}, start, true), start, p_);
       }
+      word = true;
     }
     std::vector<Trailer> tr = trailers();
+    if (word) { return span(name_trailed(bf, bt, tr, start, true), start, p_); }
     return span(trailed(base, bf, bt, tr, start, true), start, p_);
   }
 
@@ -2958,9 +2988,7 @@ namespace xc
         std::vector<Trailer> tr = trailers();
         if (!tr.empty())
         {
-          auto nm = make<Name>();
-          nm->name = text(at, e);
-          return span(trailed(nm, at, e, tr, start, true), start, p_);
+          return span(name_trailed(at, e, tr, start, true), start, p_);
         }
       }
       p_ = at;

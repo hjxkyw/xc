@@ -993,6 +993,28 @@ Return aM
 // A base and the trailers after it, each step spanning from the start of
 // the whole to the end of its trailer (lOuter: the caller spans a base
 // with no trailer itself).
+// A bare word and its trailers: 'ALIAS->x' first, the word is the alias,
+// as AliasFieldE() makes it -- in AdvPL the word names the area, it is no
+// variable's value; '(cAlias)->x' is (parser.cpp's name_trailed()).
+Static Function NameTrailed(nAt, nE, aTrailers, nFrom, lOuter)
+  Local aNm
+  Local aA
+  Local aRest := {}
+  Local nI
+  If Len(aTrailers) == 0 .Or. aTrailers[1][TR_KIND] != T_FIELD
+    aNm := u_xcb_new(EK_NAME)
+    aNm[NAME_NAME] := Text(nAt, nE)
+    Return Trailed(aNm, nAt, nE, aTrailers, nFrom, lOuter)
+  EndIf
+  aA := u_xcb_new(EK_ALIASFIELD)
+  aA[AF_ALIAS] := Text(nAt, nE)
+  aA[AF_FIELD] := aTrailers[1][TR_NAME]
+  aA[AF_MACRO] := aTrailers[1][TR_X]
+  aA[N_FROM] := nFrom
+  aA[N_TO] := aTrailers[1][TR_END]
+  for nI := 2 to Len(aTrailers) exec AAdd(aRest, aTrailers[nI])
+Return Trailed(aA, nAt, nE, aRest, nFrom, lOuter)
+
 Static Function Trailed(aBase, nBf, nBt, aTrailers, nFrom, lOuter)
   Local aE := aBase
   Local nI
@@ -2306,15 +2328,19 @@ Static Function ByRef()
   If nE < 0
     Return Back(nStart)
   EndIf
-  aName := u_xcb_new(EK_NAME)
-  aName[NAME_NAME] := Text(nAt, nE)
   nP := nE
   If !Ws()
     Return Back(nStart)
   EndIf
   aTr := Trailers()
   aR := u_xcb_new(EK_REF)
-  aR[REF_TARGET] := If(Len(aTr) == 0, Span(aName, nAt, nE), Trailed(aName, nAt, nE, aTr, nStart, .F.))
+  If Len(aTr) == 0
+    aName := u_xcb_new(EK_NAME)
+    aName[NAME_NAME] := Text(nAt, nE)
+    aR[REF_TARGET] := Span(aName, nAt, nE)
+  Else
+    aR[REF_TARGET] := NameTrailed(nAt, nE, aTr, nStart, .F.)
+  EndIf
 Return aR
 
 // rule macro { '&' [ [ '(' ~ ')' <expr> ] || [ <name> [ '.' <!before <.dotword>> ]? ] ] <mcall>? }
@@ -3360,6 +3386,8 @@ Static Function LValue()
     If NsAt(nBf)
       Return Span(Trailed(aBase, nBf, nBt, {}, nStart, .T.), nStart, nP)
     EndIf
+    aTr := Trailers()
+    Return Span(NameTrailed(nBf, nBt, aTr, nStart, .T.), nStart, nP)
   EndIf
   aTr := Trailers()
 Return Span(Trailed(aBase, nBf, nBt, aTr, nStart, .T.), nStart, nP)
@@ -3393,7 +3421,6 @@ Static Function CallSt()
   Local nBt
   Local aTr
   Local nE
-  Local aNm
   Local aSl
   Local aM
   Local aNs
@@ -3420,11 +3447,7 @@ Static Function CallSt()
     nP := nE
     If !NsAt(nAt) .And. Ws()
       aTr := Trailers()
-      If Len(aTr) > 0
-        aNm := u_xcb_new(EK_NAME)
-        aNm[NAME_NAME] := Text(nAt, nE)
-        Return Span(Trailed(aNm, nAt, nE, aTr, nStart, .T.), nStart, nP)
-      EndIf
+      Return Span(NameTrailed(nAt, nE, aTr, nStart, .T.), nStart, nP) if Len(aTr) > 0
     EndIf
     nP := nAt
   EndIf

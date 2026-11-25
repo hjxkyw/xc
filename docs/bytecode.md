@@ -194,7 +194,10 @@ machine's own: no program sees one.
 | `fieldx NAME` | `[alias] -> [x]`: `(alias)->NAME` |
 | `setfieldx NAME` | `[alias x] ->` |
 
-`M->X` and `MEMVAR->X` are the memvar `X`. A static is set by `__INIT`
+`M->X` and `MEMVAR->X` are the memvar `X`. The word before `->` is the
+alias wherever it is -- `SA1->A1_COD := "1"` is `setfield SA1 A1_COD`, as
+reading it is `field SA1 A1_COD` --; `(cAlias)->X` is the area the value
+of `cAlias` names. A static is set by `__INIT`
 before anything runs: a file's `Static`s, then each function's, as they are
 written; one declared in a function is that function's to read.
 

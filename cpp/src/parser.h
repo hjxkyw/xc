@@ -125,6 +125,7 @@ namespace xc
     Expr* incdec(Expr* target, bool plus, const char* where);
     Expr* assign_expr(Expr* target, const std::string& op, Expr* value);
     Expr* applied(Expr* base, const Trailer& t);
+    Expr* name_trailed(int at, int e, const std::vector<Trailer>& trailers, int from, bool outer);
     Expr* trailed(Expr* base, int bf, int bt, const std::vector<Trailer>& trailers, int from, bool outer);
     bool is_var(const std::string& name) const;
     void var(const std::string& name, int by = 1);

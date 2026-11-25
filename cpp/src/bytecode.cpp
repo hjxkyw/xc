@@ -1103,8 +1103,12 @@ namespace xc
           op("refmember", m->name);
           return;
         }
+        // '@M->x': after '@' the alias is the Name before '->'.
         auto f = static_cast<const AliasField*>(t);
-        if (is(t, EK::AliasField) && f->alias && !f->macro && (uc(*f->alias) == "M" || uc(*f->alias) == "MEMVAR"))
+        std::string al = !is(t, EK::AliasField) || f->macro ? ""
+                         : f->alias ? uc(*f->alias)
+                         : is(f->base, EK::Name) ? uc(name_of(f->base)) : "";
+        if (al == "M" || al == "MEMVAR")
         {
           op("refmemvar", uc(f->field));
           return;
