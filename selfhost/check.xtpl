@@ -80,8 +80,17 @@ Static nLine := 0
 Static lInDefer := .F.
 Static lInStatic := .F.
 Static aRecords := {}
-Static hOpened := Nil
+Static hOpened := Nil                 // the areas the function opened so far
 Static hWarnedAlias := Nil
+// An area used where its function had not opened it: its warning's place in
+// aWarned, the area, the function -- another function of the file may open
+// it. The functions are numbered; of an area opened, the first function to
+// open it, the line, and whether another does.
+Static aUnopened := {}
+Static hOpeners := Nil
+Static nFn := 0
+Static nInArea := 0                   // in 'SA1->( ... )', where a name nothing declares is a field
+Static nInCodeBlock := 0
 Static hExternalAlias := Nil
 Static hChainAt := Nil
 Static hGuarded := Nil
@@ -107,6 +116,11 @@ Static cFrameworkPrivates := "|paramixb|inclui|altera|acols|aheader|labortprint|
 // a work area, when given its name as a string.
 Static cCompare := "|==|!=|<>|>=|<=|#|=|>|<|$|"
 Static cOpeners := "|dbselectarea|dbusearea|chkfile|"
+
+// The areas open wherever Protheus runs a program, which it opens as it
+// prepares the environment: SM0, of the companies and their branches, and the
+// dictionary's.
+Static cSystemAreas := "|SM0|SIX|SX1|SX2|SX3|SX4|SX5|SX6|SX7|SX8|SX9|SXA|SXB|SXG|"
 
 // What a chain cannot walk: a type that holds one value.
 Static cScalarTypes := "|numeric|character|logical|date|json|"
@@ -181,6 +195,11 @@ User Function xcb_checkall(aProg, nLinesIn, cText, lAdvplIn, lBytecodeIn, aDefin
   aRecords := {}
   hOpened := { => }
   hWarnedAlias := { => }
+  aUnopened := {}
+  hOpeners := { => }
+  nFn := 0
+  nInArea := 0
+  nInCodeBlock := 0
   hExternalAlias := { => }
   hChainAt := { => }
   hGuarded := { => }
@@ -741,6 +760,46 @@ Static Function CheckProgram(aProg)
     Next
   EndIf
   StaticNeverRead()
+  Unopened()
+Return Nil
+
+Static Function OpenArea(cArea)
+  hOpened{cArea} := .T.
+  If !(hOpeners has cArea)
+    hOpeners{cArea} := {nFn, nLine, .F.}
+  ElseIf hOpeners{cArea}[1] != nFn
+    hOpeners{cArea}[3] := .T.
+  EndIf
+Return Nil
+
+// An area used where its function had not opened it: said, unless another
+// function of the file opens it -- most likely the one that calls this one
+// --, or the use is in a code block, and the function opens the area after
+// it: the block runs when it is evaluated.
+Static Function Unopened()
+  Local aKept := {}
+  Local aU
+  Local aO
+  Local cA
+  Local cM
+  Local nI
+  For nI := 1 To Len(aUnopened)
+    aU := aUnopened[nI]
+    cA := aU[2]
+    If !(hOpeners has cA)
+      aWarned[aU[1]][2] := "nothing in this file opens " + cA + ". Wrap the use in 'using alias " + cA + " do', " ;
+                           + "or declare 'external alias " + cA + "' if the caller opens it."
+    Else
+      aO := hOpeners{cA}
+      cM := cA + " is used before the function opens it, on line " + N(aO[2]) + ". Open it first, or declare " ;
+            + "'external alias " + cA + "' if the caller opens it."
+      if aO[1] == aU[3] .And. !aO[3] .And. !aU[4] exec aWarned[aU[1]][2] := cM
+    EndIf
+  Next
+  For nI := 1 To Len(aWarned)
+    if !Empty(aWarned[nI][2]) exec AAdd(aKept, aWarned[nI])
+  Next
+  aWarned := aKept
 Return Nil
 
 // A stable sort of declarators by their lines: an insertion sort.
@@ -932,6 +991,7 @@ Static Function CheckFunction(aParams, aBody, nAt)
   aRecords := {}
   hOpened := { => }
   hWarnedAlias := { => }
+  nFn++
   aScope := NewScope(Nil, .F.)
   nLine := nAt
   For nI := 1 To Len(aParams)
@@ -1214,7 +1274,7 @@ Static Function ReadName(cName)
     hStaticUses{cK}[SU_READS]++
     Return Nil
   EndIf
-  If Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .F.)
+  If nInArea > 0 .Or. Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .F.)
     Return Nil
   EndIf
   If !(hWarnedNames has ("read " + cK))
@@ -1260,7 +1320,7 @@ Static Function WriteName(cName, lReads)
     EndIf
     Return Nil
   EndIf
-  If Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .T.)
+  If nInArea > 0 .Or. Exempt(cName) .Or. (hImplicit has cK) .Or. ProtheusVar(cK, .T.)
     Return Nil
   EndIf
   hImplicit{cK} := .T.
@@ -1735,7 +1795,7 @@ Static Function CheckStmt(aSt)
       If FindName(Lc(aSt[UA_AREA])) != Nil
         ReadName(aSt[UA_AREA])
       Else
-        hOpened{Uc(aSt[UA_AREA])} := .T.
+        OpenArea(Uc(aSt[UA_AREA]))
       EndIf
       aOuter := OpenBlock()
       CheckBody(aSt[UA_BODY])
@@ -1769,7 +1829,7 @@ Static Function CheckStmt(aSt)
           If nQ <= Len(cL) .And. (SubStr(cL, nQ, 1) == '"' .Or. SubStr(cL, nQ, 1) == "'")
             nE := At(SubStr(cL, nQ, 1), cL, nQ + 1)
             If nE > 0
-              hOpened{Uc(SubStr(cL, nQ + 1, nE - nQ - 1))} := .T.
+              OpenArea(Uc(SubStr(cL, nQ + 1, nE - nQ - 1)))
             EndIf
           EndIf
         EndIf
@@ -1937,15 +1997,24 @@ Static Function CheckExpr(aE)
       For nI := 1 To Len(aE[CB_PARAMS])
         DeclareName(aE[CB_PARAMS][nI], nLine, {}, "block-param", .F.)
       Next
+      nInCodeBlock++
       For nI := 1 To Len(aE[CB_BODY])
         CheckExpr(aE[CB_BODY][nI])
       Next
+      nInCodeBlock--
       aScope := aOuter
     Case nK == EK_INALIAS
+      // 'SA1->(DbSeek(cKey))': the call reads cKey, and A1_COD in
+      // 'SA1->(A1_COD)' is a field of SA1.
       AliasBase(aE[IA_BASE])
+      nInArea++
+      if aE[IA_EXPR] != Nil exec CheckExpr(aE[IA_EXPR])
+      nInArea--
     Case nK == EK_ALIASFIELD
+      // '(cAlias)->x': the area cAlias names, a value only the program
+      // running knows.
       AliasedField(aE)
-      AliasBase(aE[AF_BASE])
+      if aE[AF_BASE] != Nil exec CheckExpr(aE[AF_BASE])
       If aE[AF_MACRO] != Nil
         CheckExpr(aE[AF_MACRO])
       EndIf
@@ -2082,7 +2151,7 @@ Static Function CheckCall(aC)
         nJ++
       EndDo
       If lIdent
-        hOpened{Uc(cName)} := .T.
+        OpenArea(Uc(cName))
       EndIf
     Next
   EndIf
@@ -2167,19 +2236,19 @@ Static Function AliasedField(aF)
   // no area, and no field of the dictionary; 'FIELD->x' and '_FIELD->x' the
   // field x of the area selected, whichever it is.
   Return Nil if cA == "M" .Or. cA == "MEMVAR" .Or. cA == "FIELD" .Or. cA == "_FIELD"
-  If !((hOpened has cA) .Or. (hExternalAlias has cA) .Or. StartsWith(cA, "__") .Or. (hWarnedAlias has cA))
+  If !((hOpened has cA) .Or. (hExternalAlias has cA) .Or. Among(cA, cSystemAreas) .Or. StartsWith(cA, "__") ;
+       .Or. (hWarnedAlias has cA))
     hWarnedAlias{cA} := .T.
-    Warning("nothing in this function opened " + cA + ". Wrap the use in 'using alias " + cA + " do', " ;
-            + "or declare 'external alias " + cA + "' if the caller opens it.")
+    // Said at the file's end, if no other function opens it.
+    AAdd(aUnopened, {Len(aWarned) + 1, cA, nFn, nInCodeBlock > 0})
+    Warning("")
   EndIf
   // Its field: the dictionary's to judge, and there is none here.
 Return Nil
 
+// The word before '->', the area's own name; '(cAlias)->x' names none.
 Static Function AliasWord(aF)
   Local cWord := aF[AF_ALIAS]
-  If cWord == Nil .And. IsK(aF[AF_BASE], EK_NAME)
-    cWord := NameOf(aF[AF_BASE])
-  EndIf
   If cWord != Nil .And. FindName(Lc(cWord)) == Nil
     Return cWord
   EndIf

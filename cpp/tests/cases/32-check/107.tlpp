@@ -1,0 +1,21 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// An area: '(cAlias)->x' is the one cAlias names, cQry's a Private this
+// function cannot see; SM0 and the dictionary's are open wherever Protheus
+// runs a program; one another function of the file opens is open in the
+// function it calls; in 'SC5->( ... )' a name nothing declares is a field of
+// SC5.
+User Function Opens(cKey)
+  Local cAlias := GetNextAlias()
+  Private cQry := cAlias
+  DbSelectArea("SC5")
+  Reads(cKey)
+Return (cAlias)->C5_NUM + SM0->M0_CODIGO + SX3->X3_CAMPO
+
+Static Function Reads(cKey)
+  Local cCod := ""
+  SC5->(DbSeek(cKey))
+  cCod := SC5->(C5_NUM + C5_CLIENTE)
+  SB1->(DbSeek(cCod))
+Return SC5->C5_NUM + SB1->B1_COD + (cQry)->QRY_COD

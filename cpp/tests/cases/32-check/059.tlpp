@@ -1,7 +1,15 @@
 #include "totvs.ch"
 #include "tlpp-core.th"
 
+// Used before the function opens it: the use reads what was selected.
 user function f(a)
   a := SA1->A1_COD
   DbSelectArea("SA1")
 return 1
+
+// In a code block the use runs when the block is evaluated: after the open.
+user function g(a)
+  local bRead := {|| SA2->A2_COD}
+  DbSelectArea("SA2")
+  a := Eval(bRead)
+return a

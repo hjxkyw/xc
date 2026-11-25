@@ -37,6 +37,14 @@ namespace xc
     // The calls that open a work area, when given its name as a string.
     const Set OPENERS = { "dbselectarea", "dbusearea", "chkfile" };
 
+    // The areas open wherever Protheus runs a program, which it opens as it
+    // prepares the environment: SM0, of the companies and their branches,
+    // and the dictionary's.
+    const Set SYSTEM_AREAS =
+    {
+      "SM0", "SIX", "SX1", "SX2", "SX3", "SX4", "SX5", "SX6", "SX7", "SX8", "SX9", "SXA", "SXB", "SXG",
+    };
+
     // Words that are never a variable (xtpl's 'known_words').
     const Set KNOWN =
     {
@@ -495,8 +503,30 @@ namespace xc
       bool in_defer_ = false;
       bool in_static_ = false;       // in a static's value, where a local is Nil
       std::vector<Var*> records_;
-      Set opened_;
+      Set opened_;                   // the areas the function opened so far
       Set warned_alias_;
+      // An area used where its function had not opened it, its warning's
+      // place in 'warned': another function of the file may open it. The
+      // functions are numbered; of an area opened, the first function to
+      // open it and the line, and whether another does.
+      struct Unopened
+      {
+        std::size_t at;
+        std::string area;
+        int fn;
+        bool block;                  // in a code block, which runs when it is evaluated
+      };
+      struct Opener
+      {
+        int fn;
+        int line;
+        bool more;
+      };
+      std::vector<Unopened> unopened_;
+      std::unordered_map<std::string, Opener> openers_;
+      int fn_ = 0;
+      int in_area_ = 0;              // in 'SA1->( ... )', where a name nothing declares is a field
+      int in_code_block_ = 0;
       Set external_alias_;
       Set dict_seen_;
       std::unordered_map<const Expr*, std::string> chain_at_;
@@ -550,6 +580,8 @@ namespace xc
       void file_static(const Declarator* d);
       void static_value(const Declarator* d);
       void static_never_read();
+      void open(const std::string& area);
+      void unopened();
       void stmt(Stmt* s);
       void target(Expr* t, const std::string& op = ":=");
       void note_scalar(const Declarator* d);
@@ -823,6 +855,38 @@ namespace xc
         }
       }
       static_never_read();
+      unopened();
+    }
+
+    void Checker::open(const std::string& area)
+    {
+      opened_.insert(area);
+      auto [o, fresh] = openers_.try_emplace(area, Opener{ fn_, line_, false });
+      if (!fresh && o->second.fn != fn_) { o->second.more = true; }
+    }
+
+    // An area used where its function had not opened it: said, unless
+    // another function of the file opens it -- most likely the one that calls
+    // this one --, or the use is in a code block, and the function opens the
+    // area after it: the block runs when it is evaluated.
+    void Checker::unopened()
+    {
+      for (const Unopened& u : unopened_)
+      {
+        auto o = openers_.find(u.area);
+        if (o == openers_.end())
+        {
+          warned[u.at].message = "nothing in this file opens " + u.area + ". Wrap the use in 'using alias " + u.area + " do', "
+                                + "or declare 'external alias " + u.area + "' if the caller opens it.";
+        }
+        else if (o->second.fn == u.fn && !o->second.more && !u.block)
+        {
+          warned[u.at].message = u.area + " is used before the function opens it, on line " + num(o->second.line)
+                                 + ". Open it first, or declare 'external alias " + u.area + "' if the caller opens it.";
+        }
+      }
+      warned.erase(std::remove_if(warned.begin(), warned.end(), [](const Finding& f) { return f.message.empty(); }),
+                   warned.end());
     }
 
     void Checker::raw_reads(const std::string& text)
@@ -919,6 +983,7 @@ namespace xc
       records_.clear();
       opened_.clear();
       warned_alias_.clear();
+      fn_++;
       scope_ = new_scope(nullptr, false);
       line_ = line;
       for (const Param* q : params) { declare(q->name, line, q->attributes, "param"); }
@@ -1200,7 +1265,7 @@ namespace xc
         u->second.reads++;
         return;
       }
-      if (exempt(name) || implicit_.count(k) || protheus_var(k, false)) { return; }
+      if (in_area_ || exempt(name) || implicit_.count(k) || protheus_var(k, false)) { return; }
       if (warned_names_.insert("read " + k).second) { warning("'" + name + "' is not declared"); }
     }
 
@@ -1237,7 +1302,7 @@ namespace xc
         reads ? u->second.reads++ : u->second.writes++;
         return;
       }
-      if (exempt(name) || implicit_.count(k) || protheus_var(k, true)) { return; }
+      if (in_area_ || exempt(name) || implicit_.count(k) || protheus_var(k, true)) { return; }
       implicit_.insert(k);
       if (warned_names_.insert("write " + k).second)
       {
@@ -1682,7 +1747,7 @@ namespace xc
         {
           auto u = static_cast<UsingAlias*>(s);
           if (u->order) { expr(u->order); }
-          if (find(lc(u->area))) { read(u->area); } else { opened_.insert(uc(u->area)); }
+          if (find(lc(u->area))) { read(u->area); } else { open(uc(u->area)); }
           in_block([&] { body(u->body); });
           break;
         }
@@ -1730,7 +1795,7 @@ namespace xc
               if (q != std::string::npos && (l[q] == '"' || l[q] == '\''))
               {
                 std::size_t e = l.find(l[q], q + 1);
-                if (e != std::string::npos) { opened_.insert(uc(l.substr(q + 1, e - q - 1))); }
+                if (e != std::string::npos) { open(uc(l.substr(q + 1, e - q - 1))); }
               }
             }
           }
@@ -1886,18 +1951,30 @@ namespace xc
           scope_ = new_scope(outer, true);
           scope_->escapes = escaping_.count(e) > 0;
           for (const std::string& p : c->params) { declare(p, line_, {}, "block-param"); }
+          in_code_block_++;
           for (Expr* x : c->body) { expr(x); }
+          in_code_block_--;
           scope_ = outer;
           break;
         }
         case EK::InAlias:
-          alias_base(static_cast<InAlias*>(e)->base);
+        {
+          // 'SA1->(DbSeek(cKey))': the call reads cKey, and A1_COD in
+          // 'SA1->(A1_COD)' is a field of SA1.
+          auto in = static_cast<InAlias*>(e);
+          alias_base(in->base);
+          in_area_++;
+          if (in->expr) { expr(in->expr); }
+          in_area_--;
           break;
+        }
         case EK::AliasField:
         {
+          // '(cAlias)->x': the area cAlias names, a value only the program
+          // running knows.
           auto a = static_cast<AliasField*>(e);
           field(a);
-          alias_base(a->base);
+          if (a->base) { expr(a->base); }
           if (a->macro) { expr(a->macro); }
           break;
         }
@@ -2018,7 +2095,7 @@ namespace xc
           {
             ident = is_w(static_cast<unsigned char>(name[i]));
           }
-          if (ident) { opened_.insert(uc(name)); }
+          if (ident) { open(uc(name)); }
         }
       }
       if ((n == "rows" || n == "lines") && !sources_ok_.count(c))
@@ -2103,19 +2180,20 @@ namespace xc
       // no area, and no field of the dictionary; 'FIELD->x' and '_FIELD->x'
       // the field x of the area selected, whichever it is.
       if (a == "M" || a == "MEMVAR" || a == "FIELD" || a == "_FIELD") { return; }
-      if (!(opened_.count(a) || external_alias_.count(a) || starts_with(a, "__") || !warned_alias_.insert(a).second))
+      if (!(opened_.count(a) || external_alias_.count(a) || SYSTEM_AREAS.count(a) || starts_with(a, "__")
+            || !warned_alias_.insert(a).second))
       {
-        warning("nothing in this function opened " + a + ". Wrap the use in 'using alias " + a + " do', "
-                + "or declare 'external alias " + a + "' if the caller opens it.");
+        // Said at the file's end, if no other function opens it.
+        unopened_.push_back({ warned.size(), a, fn_, in_code_block_ > 0 });
+        warning("");
       }
       if (!f->macro) { dict_field(*word, f->field); }
     }
 
+    // The word before '->', the area's own name; '(cAlias)->x' names none.
     std::optional<std::string> Checker::alias_word(const AliasField* f) const
     {
-      std::optional<std::string> word = f->alias;
-      if (!word && is(f->base, EK::Name)) { word = name_of(f->base); }
-      if (word && !find(lc(*word))) { return word; }
+      if (f->alias && !find(lc(*f->alias))) { return f->alias; }
       return std::nullopt;
     }
 

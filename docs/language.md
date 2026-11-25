@@ -2593,11 +2593,12 @@ with any name allowed, to say which name it was and why.
 
 | | |
 |---|---|
-| a name nothing declares | `'nSeen' is not declared` |
+| a name nothing declares -- inside `SA1->( ... )` it is a field of SA1 | `'nSeen' is not declared` |
 | a name nothing declares, assigned | `'nCount' is not declared, so this creates a PRIVATE` |
 | a variable never read, or never used | `'cX' is assigned but never read`, `'cY' is declared but never used` |
 | a function's own name declared again -- a parameter as a `Local`, a `Local` twice | `'oModel' is declared again (first on line 1): the same variable -- a value assigns it, none leaves it as it was. The AppServer warns too (W0011, "Variable OMODEL redefined")` |
-| a field of an area nothing in the function opened -- `M->` and `MEMVAR->` are variables, no area, `FIELD->` and `_FIELD->` the area selected; `TCQUERY ... ALIAS "QRY"` and `BeginSql Alias "QRY"` open one | `nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
+| a field of an area nothing in the file opens -- a function opens one with `DbSelectArea("SA1")`, `DbUseArea`, `ChkFile`, `rows("SA1")`, `using alias`, `TCQUERY ... ALIAS "QRY"` or `BeginSql Alias "QRY"`, and the functions of the file find it open; `SM0` and the dictionary's (`SIX`, `SX1` to `SX9`, `SXA`, `SXB`, `SXG`) are open wherever Protheus runs a program; `M->` and `MEMVAR->` are variables, no area, `FIELD->` and `_FIELD->` the area selected, `(cAlias)->` the one `cAlias` names | `nothing in this file opens SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.` |
+| a field of an area its function opens only after -- in a code block it is not: the block runs when it is evaluated | `SA1 is used before the function opens it, on line 3. Open it first, or declare 'external alias SA1' if the caller opens it.` |
 | a value on one path and none on another | `the function can reach its end without a return, but returns a value on line 3` |
 | a regular function: a bare `Function` whose name has no `u_`, a `Main Function`, a method of a class the file does not declare | `'ESPA003' is a regular function: it refuses one in a compile without TOTVS' authorization ("Regular functions are not allowed in code. Use USER FUNCTION or STATIC FUNCTION.")` |
 | `StaticCall()` | `StaticCall() is of restricted use: the AppServer refused it in a compile without TOTVS' authorization (C9909 "Staticall has a restrict use")` |

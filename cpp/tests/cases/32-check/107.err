@@ -1,0 +1,1 @@
+107.xtpl:18: warning: nothing in this file opens SB1. Wrap the use in 'using alias SB1 do', or declare 'external alias SB1' if the caller opens it.

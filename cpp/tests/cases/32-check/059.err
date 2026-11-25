@@ -1,1 +1,1 @@
-059.xtpl:2: warning: nothing in this function opened SA1. Wrap the use in 'using alias SA1 do', or declare 'external alias SA1' if the caller opens it.
+059.xtpl:3: warning: SA1 is used before the function opens it, on line 4. Open it first, or declare 'external alias SA1' if the caller opens it.

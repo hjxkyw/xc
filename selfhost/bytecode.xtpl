@@ -1009,16 +1009,9 @@ Static Function Arg(aA)
       Op("refmember", aT[MEM_NAME])
       Return Nil
     EndIf
-    // '@M->x': after '@' the alias is the Name before '->'.
+    // '@M->x': after '@' the alias is the word before '->'.
     cAl := ""
-    If IsK(aT, EK_ALIASFIELD) .And. aT[AF_MACRO] == Nil
-      Do Case
-      Case aT[AF_ALIAS] != Nil
-        cAl := Uc(aT[AF_ALIAS])
-      Case IsK(aT[AF_BASE], EK_NAME)
-        cAl := Uc(NameOf(aT[AF_BASE]))
-      EndCase
-    EndIf
+    if IsK(aT, EK_ALIASFIELD) .And. aT[AF_MACRO] == Nil .And. aT[AF_ALIAS] != Nil exec cAl := Uc(aT[AF_ALIAS])
     If cAl == "M" .Or. cAl == "MEMVAR"
       Op("refmemvar", Uc(aT[AF_FIELD]))
       Return Nil

@@ -1,6 +1,6 @@
 // 49_alias_open.xtpl -- is this alias even open?
 //
-// A field reference against an alias nothing in the function opened. It only
+// A field reference against an alias nothing in the file opens. It only
 // became checkable once 'using alias' and 'rows()' existed, because those are
 // what let a function say which areas it opens.
 //
