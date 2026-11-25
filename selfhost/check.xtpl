@@ -2164,10 +2164,9 @@ Static Function AliasedField(aF)
   EndIf
   cA := Uc(cWord)
   // 'M->x' and 'MEMVAR->x' are the variable x, a Private's or a Public's:
-  // no area, and no field of the dictionary.
-  If cA == "M" .Or. cA == "MEMVAR"
-    Return Nil
-  EndIf
+  // no area, and no field of the dictionary; 'FIELD->x' and '_FIELD->x' the
+  // field x of the area selected, whichever it is.
+  Return Nil if cA == "M" .Or. cA == "MEMVAR" .Or. cA == "FIELD" .Or. cA == "_FIELD"
   If !((hOpened has cA) .Or. (hExternalAlias has cA) .Or. StartsWith(cA, "__") .Or. (hWarnedAlias has cA))
     hWarnedAlias{cA} := .T.
     Warning("nothing in this function opened " + cA + ". Wrap the use in 'using alias " + cA + " do', " ;

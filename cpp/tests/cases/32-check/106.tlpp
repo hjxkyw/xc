@@ -1,0 +1,9 @@
+#include "totvs.ch"
+#include "tlpp-core.th"
+
+// FIELD->x and _FIELD->x are the field x of the area selected, whichever
+// it is: no alias to open. SA1->x is SA1's, which nothing here opens.
+user function curfield()
+  local cCode := FIELD->A1_COD + Field->A1_LOJA + _FIELD->A1_NOME
+  cCode += SA1->A1_COD
+return cCode

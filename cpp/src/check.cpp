@@ -2100,8 +2100,9 @@ namespace xc
       if (!word) { return; }
       std::string a = uc(*word);
       // 'M->x' and 'MEMVAR->x' are the variable x, a Private's or a Public's:
-      // no area, and no field of the dictionary.
-      if (a == "M" || a == "MEMVAR") { return; }
+      // no area, and no field of the dictionary; 'FIELD->x' and '_FIELD->x'
+      // the field x of the area selected, whichever it is.
+      if (a == "M" || a == "MEMVAR" || a == "FIELD" || a == "_FIELD") { return; }
       if (!(opened_.count(a) || external_alias_.count(a) || starts_with(a, "__") || !warned_alias_.insert(a).second))
       {
         warning("nothing in this function opened " + a + ". Wrap the use in 'using alias " + a + " do', "
