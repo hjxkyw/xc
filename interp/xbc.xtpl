@@ -258,6 +258,9 @@
 // their first element one of these.
 Static scRef
 Static scErr
+// What a reference to a variable of the AppServer's holds for its array:
+// the variable is by its name (RefGet(), MemRead()).
+Static scHost
 // What the last Break was given, kept by XbcBreak() for the plain Recover
 // that takes it -- scNone once taken. A Recover under USING the AppServer
 // runs with Locals that are not the function's, and keeps nothing it
@@ -290,6 +293,7 @@ User Function xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p
   Local cTrace := ""
   Local nExit
   scRef := Chr(1) + "xbc reference"
+  scHost := Chr(1) + "xbc host"
   scErr := Chr(1) + "xbc error"
   scNone := Chr(1) + "xbc none"
   scMark := Chr(1) + "xbc mark"
@@ -422,6 +426,9 @@ Class XbcVM
   Public Method NewNative(cClass, cName, aArgs)
   Public Method MemCell(cName)
   Public Method PrivCell(cName, lFresh)
+  Public Method MemRead(cName)
+  Public Method MemWrite(cName, xValue)
+  Public Method HostVar(cName, lHas)
   Public Method Fail(cMessage)
   Public Method OnError(oErr)
   Public Method Trace(aF, nPc, aIns, nSp, aSt)
@@ -1724,6 +1731,7 @@ Method Rare(aF, aIns) Class XbcVM
   Local xA
   Local cName
   Local nAt
+  Local lHas
   If nOp == OP_NEW .Or. nOp == OP_CALLX .Or. nOp == OP_SUPER
     aArgs := Array(aIns[I_A])
     for local nI := 1 to aIns[I_A] exec aArgs[nI] := aSt[nSp - aIns[I_A] + nI]
@@ -1751,18 +1759,22 @@ Method Rare(aF, aIns) Class XbcVM
     nSp++
     aSt[nSp] := {scRef, aF[F_FN][FN_MOD][M_STATICS], aIns[I_A]}
   Case nOp == OP_MEMVAR
-    xA := ::MemCell(aIns[I_S])
-    ::Fail("variable does not exist: ${aIns[I_S]}") if xA == Nil
+    xA := ::MemRead(aIns[I_S])
     nSp++
-    aSt[nSp] := xA[1]
+    aSt[nSp] := xA
   Case nOp == OP_SETMEMVAR
-    xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
-    xA[1] := aSt[nSp]
+    ::MemWrite(aIns[I_S], aSt[nSp])
     nSp--
   Case nOp == OP_REFMEMVAR
-    xA := ::MemCell(aIns[I_S]) ?: ::PrivCell(aIns[I_S])
+    xA := ::MemCell(aIns[I_S])
+    lHas := .F.
+    ::HostVar(aIns[I_S], @lHas) if xA == Nil
     nSp++
-    aSt[nSp] := {scRef, xA, 1}
+    If lHas
+      aSt[nSp] := {scRef, scHost, aIns[I_S]}
+    Else
+      aSt[nSp] := {scRef, xA ?: ::PrivCell(aIns[I_S]), 1}
+    EndIf
   Case nOp == OP_PRIVATE
     ::PrivCell(aIns[I_S], .T.)
   Case nOp == OP_PUBLIC
@@ -2757,15 +2769,19 @@ Return Nil
 
 // What a reference is to: an element of an array -- a local's place in
 // its frame, a cell's value, a static, an element, a module's object's data
-// -- or a member of an object of the AppServer's, by name. An element its
-// array no longer has is not written.
+// --, a member of an object of the AppServer's, by name, or a variable of
+// the AppServer's (scHost, MemRead()). An element its array no longer has
+// is not written.
 Method RefGet(aRef) Class XbcVM
   Return ::MemberOf(aRef[2], aRef[3]) if ValType(aRef[2]) == "O"
+  Return ::MemRead(aRef[3]) if ValType(aRef[2]) == "C"
 Return aRef[2][aRef[3]]
 
 Method RefSet(aRef, xValue) Class XbcVM
   If ValType(aRef[2]) == "O"
     ::SetMemberOf(aRef[2], aRef[3], xValue)
+  ElseIf ValType(aRef[2]) == "C"
+    ::MemWrite(aRef[3], xValue)
   ElseIf !(ValType(aRef[2]) == "A" .And. aRef[3] > Len(aRef[2]))
     aRef[2][aRef[3]] := xValue
   EndIf
@@ -2816,23 +2832,78 @@ Method PrivCell(cName, lFresh) Class XbcVM
   AAdd(aMore[X_PRIVS], cName)
 Return aCell
 
-// &(text): a variable's name is the variable; anything else the AppServer's.
+// The variable NAME read: the machine's, else the AppServer's (HostVar()).
+Method MemRead(cName) Class XbcVM
+  Local aCell := ::MemCell(cName)
+  Local lHas := .F.
+  Local xValue
+  Return aCell[1] if aCell != Nil
+  xValue := ::HostVar(cName, @lHas)
+  ::Fail("variable does not exist: ${cName}") if !lHas
+Return xValue
+
+// The variable NAME assigned: the machine's; else the AppServer's, when it
+// has one; else a new private of the running frame.
+Method MemWrite(cName, xValue) Class XbcVM
+  Local aCell := ::MemCell(cName)
+  Local lHas := .F.
+  If aCell == Nil
+    ::HostVar(cName, @lHas)
+    If lHas
+      If ::lHost
+        XBC_SETVAR(cName, xValue)
+      Else
+        XbcHostSet(cName, xValue)
+      EndIf
+      Return Nil
+    EndIf
+    aCell := ::PrivCell(cName)
+  EndIf
+  aCell[1] := xValue
+Return Nil
+
+// The AppServer's variable NAME, which the program does not have: a public
+// of Protheus' -- dDataBase, cFilAnt --, a private of a function that runs
+// the machine. lHas tells there is one: a macro of the name's, which an
+// error tells there is not; on xc-vm, its own, asked by name.
+Method HostVar(cName, lHas) Class XbcVM
+  If ::lHost
+    lHas := XBC_HASVAR(cName)
+    Return If(lHas, XBC_VAR(cName), Nil)
+  EndIf
+  lHas := .F.
+Return XbcHostGet(cName, @lHas)
+
+// What a macro of a name reads, and whether it read: an error -- the
+// variable does not exist -- is none. No code block of these is made where
+// the machine's arrays are in reach.
+Static Function XbcHostGet(cName, lHas)
+  Local bWas := ErrorBlock({|e| Break(e)})
+  Local xValue
+  Begin Sequence
+    xValue := &(cName)
+    lHas := .T.
+  Recover
+  End Sequence
+  ErrorBlock(bWas)
+Return xValue
+
+Static Function XbcHostSet(cName, xValue)
+  &(cName) := xValue
+Return Nil
+
+// &(text): a variable's name is the variable (MemRead()); anything else the
+// AppServer's.
 Method Macro(cText) Class XbcVM
   Local cName := Upper(AllTrim(cText))
-  If XbcPlain(cName)
-    Local aCell := ::MemCell(cName)
-    ::Fail("variable does not exist: ${cName}") if aCell == Nil
-    Return aCell[1]
-  EndIf
+  Return ::MemRead(cName) if XbcPlain(cName)
   ::Fail("xc-vm runs no macro but a variable's name: &(${cText})") if ::lHost
 Return XbcMacroRun(cText)
 
 Method SetMacro(cText, xValue) Class XbcVM
   Local cName := Upper(AllTrim(cText))
-  Local aCell
   ::Fail("xc-vm runs no macro but a variable's name: &(${cText})") if !XbcPlain(cName)
-  aCell := ::MemCell(cName) ?: ::PrivCell(cName)
-  aCell[1] := xValue
+  ::MemWrite(cName, xValue)
 Return Nil
 
 // A name, and nothing else.

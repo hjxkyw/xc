@@ -37,7 +37,10 @@
 #   appserver -run=u_xbc -env=<name> out=\xbc\NAME.got \xbc\xtpl_runtime.xbc \xbc\NAME.xbc
 # -- and what it writes is compared with NAME.out, what xc-vm does; a
 # self-test has to end with its total and no check failed, and runs again
-# without the runtime's bytecode, its calls of the runtime the RPO's. The AppServer
+# without the runtime's bytecode, its calls of the runtime the RPO's. A case
+# with a NAME.host instead reads variables of the AppServer's: it runs from
+# u_xbchost (interp/host.xtpl, compiled with the interpreter), which has a
+# public and a private, and what it writes is compared with NAME.host. The AppServer
 # reads and writes files under the environment's RootPath only -- a path with
 # a drive letter fails --, so the .xbc go to xbc/ in the RootPath, and what
 # the cases read by a relative name (08-chains.txt) to its StartPath, where a
@@ -426,6 +429,8 @@ if $interp
   # Not those that need xc-vm's own areas: NAME.vmonly says why.
   my @cases = $cases.dir.grep(*.extension eq 'out').map(*.basename.subst(/ '.out' $ /, ''))
                         .grep({ !$cases.add("$_.vmonly").e }).sort;
+  # Those that read the AppServer's variables: xc-vm has none to run them on.
+  my @hosts = $cases.dir.grep(*.extension eq 'host').map(*.basename.subst(/ '.host' $ /, '')).sort;
   # Not xc's self-test: it has Decimals, which go wrong in the interpreter on
   # the AppServer (docs/bytecode.md, The interpreter) -- as 05-decimal does,
   # which its NAME.vmonly leaves out.
@@ -436,24 +441,28 @@ if $interp
   {
     say "xc ($xc-shown): compiling the interpreter into {shown($out)}";
     mkdir $out;
-    my $p = xc(native($root.add('interp/xbc.xtpl')), native($out.add('xbc.tlpp')));
-    print $p.out.slurp(:close).lines.map({ "  $_\n" }).join;
-    if $p.exitcode
+    for <xbc host> -> $n
     {
-      say "\n  xc could not compile interp/xbc.xtpl";
-      exit 1;
+      my $p = xc(native($root.add("interp/$n.xtpl")), native($out.add("$n.tlpp")));
+      print $p.out.slurp(:close).lines.map({ "  $_\n" }).join;
+      if $p.exitcode
+      {
+        say "\n  xc could not compile interp/$n.xtpl";
+        exit 1;
+      }
     }
     say "\nProtheus: compiling it, with the runtime, into '{%opt<env>}'";
-    my $count = prepare-folder($out, ['xbc.tlpp']);
+    my $count = prepare-folder($out, ['xbc.tlpp', 'host.tlpp']);
     with compile-folder($out, $count)
     {
       say "\n  $_";
       exit 1;
     }
-    say "\nxc: the runtime, {+@cases} cases and xtpl's self-test as bytecode, into {shown($xbc)}";
+    say "\nxc: the runtime, {@cases + @hosts} cases and xtpl's self-test as bytecode, into {shown($xbc)}";
     mkdir $xbc;
     my @sources = ($root.add('runtime/xtpl_runtime.tlpp') => 'xtpl_runtime',
-                   |@cases.map({ ($cases.add("$_.xtpl").e ?? $cases.add("$_.xtpl") !! $cases.add("$_.prw")) => $_ }),
+                   |(|@cases, |@hosts).map({ ($cases.add("$_.xtpl").e ?? $cases.add("$_.xtpl")
+                                                                         !! $cases.add("$_.prw")) => $_ }),
                    |@selftests.map({ $root.add(.<source>) => .<name> }));
     for @sources -> $s
     {
@@ -482,27 +491,30 @@ if $interp
   my @data = $cases.dir.grep(*.extension eq 'txt').map({ $start.add(.basename) => $_ });
   spurt .key, .value.slurp(:bin) for @data;
   sub on-server(Str $name --> Str) { "\\xbc\\$name" }
-  # The interpreter run on the modules; what it wrote, '\r\n' read as '\n'.
-  sub interpret(Str $name, *@args --> Str)
+  # The interpreter run on the modules -- from u_xbc, or another function
+  # that runs it --; what it wrote, '\r\n' read as '\n'.
+  sub interpret(Str $name, *@args, Str :$from = 'u_xbc' --> Str)
   {
     my $got = $stage.add("$name.got");
     $got.unlink if $got.e;
     my @traced = $trace ?? ("trace={on-server("$name.trace")}",) !! ();
     @traced.push('jit=off') if $nojit;
-    my ($code, $text) = appserver($logs.add("run-$name.log"), '-run=u_xbc', "-env={%opt<env>}",
+    my ($code, $text) = appserver($logs.add("run-$name.log"), "-run=$from", "-env={%opt<env>}",
                                   "out={on-server("$name.got")}", |@traced, |@args);
     spurt $logs.add("$name.trace"), $stage.add("$name.trace").slurp(:bin) if $trace && $stage.add("$name.trace").e;
     $got.e ?? $got.slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g)
            !! "(no {$got.basename}: the interpreter did not get to write it -- exit code $code)\n"
               ~ $text.lines.grep(*.trim).tail(10).map({ "  $_\n" }).join
   }
-  say "\nProtheus: the interpreter running {+@cases} cases and xtpl's self-test";
-  for @cases -> $c
+  say "\nProtheus: the interpreter running {@cases + @hosts} cases and xtpl's self-test";
+  for |@cases, |@hosts -> $c
   {
+    my $host = $cases.add("$c.host").e;
     my @with = $cases.add("$c.with").e ?? $cases.add("$c.with").lines>>.trim.grep(*.chars).map({ on-server("$_.xbc") })
                                        !! ();
-    my $got = interpret($c, on-server('xtpl_runtime.xbc'), |@with, on-server("$c.xbc"));
-    my $expect = $cases.add("$c.out").slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g);
+    my $got = interpret($c, on-server('xtpl_runtime.xbc'), |@with, on-server("$c.xbc"),
+                        :from($host ?? 'u_xbchost' !! 'u_xbc'));
+    my $expect = $cases.add($host ?? "$c.host" !! "$c.out").slurp(:bin).decode('windows-1252').subst("\r\n", "\n", :g);
     if $got eq $expect
     {
       say "    ok    $c";
@@ -538,7 +550,8 @@ if $interp
     say "          $_" for $got.lines;
   }
   .key.IO.unlink for @data;
-  say "\n  {@bad ?? "{+@bad} of {@cases + 2 * @selftests} differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
+  my $all = @cases + @hosts + 2 * @selftests;
+  say "\n  {@bad ?? "{+@bad} of $all differ: {@bad.join(', ')}" !! 'every one as xc-vm runs it'}";
   exit(@bad ?? 1 !! 0);
 }
 

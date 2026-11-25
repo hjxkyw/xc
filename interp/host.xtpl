@@ -1,0 +1,24 @@
+// The interpreter run from a function of the AppServer's that has variables
+// of its own -- a public, a private --, as Protheus' code has dDataBase and
+// cFilAnt (run-protheus.raku --interp, for each case of cpp/tests/bytecode
+// with a NAME.host):
+//
+//   appserver -run=u_xbchost -env=NAME out=FILE module.xbc ...
+//
+// -- and ctest's interp, on xc-vm. The arguments are u_xbc()'s. What the
+// variables hold after the run goes at the end of FILE, after what the run
+// wrote.
+User Function xbchost(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16)
+  Local cFile := ""
+  Local cArg
+  Public cXbcPub := "the AppServer's"
+  Private nXbcPriv := 7
+  u_xbc(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16)
+  // out=FILE, as the AppServer is given it; --out=FILE on xc-vm.
+  for xArg in {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16}
+    cArg := If(ValType(xArg) == "C", xArg, "")
+    cArg := SubStr(cArg, 3) if Left(cArg, 2) == "--"
+    cFile := SubStr(cArg, 5) if Left(cArg, 4) == "out="
+  next
+  if !Empty(cFile) exec MemoWrite(cFile, MemoRead(cFile) + "after: " + cXbcPub + " " + cValToChar(nXbcPriv) + Chr(10))
+Return Nil

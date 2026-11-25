@@ -505,7 +505,12 @@ It is the machine of this page, and the AppServer is the rest:
   the program's made, which the AppServer runs, arrives with no value;
 - the program's privates and publics are the interpreter's: an AppServer
   function does not see them, and a macro other than a variable's name --
-  the AppServer's -- does not either;
+  the AppServer's -- does not either. A name the program has no variable
+  for is the AppServer's -- a public of Protheus', `dDataBase`, `cFilAnt`;
+  a private of a function that runs the interpreter --, read, assigned and
+  passed by reference (`MemRead()`, `MemWrite()`, `HostVar()`: a macro of
+  the name, an error telling there is none); with none there either,
+  reading is an error and assigning makes the program's own private;
 - `PCount()` is the frame's; a field is `FieldGet()` and `FieldPut()` in its
   area;
 - a module is read whole, with `FOpen()` and `FRead()`: `FT_FReadLn()`
@@ -519,12 +524,17 @@ locals, `for ... in`, interpolation, postfix modifiers, `?:` and `?=`,
 `defer` --, so it uses the runtime, which the AppServer has in the RPO.
 xc-vm runs it too, after the runtime's bytecode: there are no macros there,
 and its `XBC_CALL`, `XBC_METHOD`, `XBC_MEMBER`, `XBC_SETMEMBER` and
-`XBC_NEW` call, read and write by name instead --
+`XBC_NEW` call, read and write by name instead, `XBC_HASVAR`, `XBC_VAR`
+and `XBC_SETVAR` its own privates and publics --
 `FindFunction("XBC_CALL")` tells the interpreter where it is. ctest's
 `interp` has xc-vm run the interpreter on each case of `cpp/tests/bytecode`
 and on xtpl's self-test, the runtime interpreted too -- and the self-test
 again without the runtime's bytecode, its calls of the runtime the table's
---, and what it writes has to be what xc-vm does running them itself; `interp-xc` the same for
+--, and what it writes has to be what xc-vm does running them itself; a
+case with a `NAME.host` reads variables the program does not have: it
+runs from `u_xbchost` (`interp/host.xtpl`), which has a public and a
+private, runs the interpreter and writes what they hold after it, and that
+has to be `NAME.host`; `interp-xc` the same for
 xc's self-test, slowly -- labelled `slow` (`cpp/tests/interp.cmake`).
 `rakupp run-protheus.raku --interp` does it on an AppServer.
 

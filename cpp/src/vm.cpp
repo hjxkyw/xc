@@ -2659,6 +2659,24 @@ namespace
       return method(at(a, 0), str_arg(a, 1, "XBC_METHOD"), args);
     };
     n["XBC_MEMBER"] = [this](Args& a) { return member(at(a, 0), str_arg(a, 1, "XBC_MEMBER")); };
+    // xc-vm's own privates and publics, by name, for the interpreter: what a
+    // program it runs has no variable for (its HostVar()).
+    n["XBC_HASVAR"] = [this](Args& a) { return L(memvar(upper(str_arg(a, 0, "XBC_HASVAR"))) != nullptr); };
+    n["XBC_VAR"] = [this](Args& a)
+    {
+      std::string u = upper(str_arg(a, 0, "XBC_VAR"));
+      Cell* c = memvar(u);
+      if (!c) { fail("variable does not exist: " + u); }
+      return **c;
+    };
+    n["XBC_SETVAR"] = [this](Args& a)
+    {
+      std::string u = upper(str_arg(a, 0, "XBC_SETVAR"));
+      Cell* c = memvar(u);
+      if (!c) { fail("variable does not exist: " + u); }
+      **c = deref(at(a, 1));
+      return Value();
+    };
     n["XBC_SETMEMBER"] = [this](Args& a)
     {
       set_member(at(a, 0), str_arg(a, 1, "XBC_SETMEMBER"), at(a, 2));
@@ -2687,6 +2705,13 @@ namespace
       return L(false);
     };
     n["USEREXCEPTION"] = [this](Args& a) -> Value { fail(str_arg(a, 0, "UserException")); };
+    n["MEMOREAD"] = [this](Args& a)
+    {
+      std::ifstream f(str_arg(a, 0, "MemoRead"), std::ios::binary);
+      std::ostringstream s;
+      s << f.rdbuf();
+      return S(s.str());
+    };
     n["MEMOWRITE"] = [this](Args& a)
     {
       std::ofstream f(str_arg(a, 0, "MemoWrite"), std::ios::binary);

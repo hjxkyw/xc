@@ -1,0 +1,44 @@
+xbc 1
+source 31-host.xtpl
+statics 0
+
+function U_MAIN user 0 0
+  locals
+  line 7
+  memvar CXBCPUB
+  memvar NXBCPRIV
+  call 2 ConOut
+  pop
+  line 8
+  num 8
+  setmemvar NXBCPRIV
+  line 9
+  refmemvar NXBCPRIV
+  call 1 Inc
+  pop
+  line 10
+  memvar CXBCPUB
+  str "!"
+  add
+  setmemvar CXBCPUB
+  line 11
+  str "nXbcPriv"
+  macro
+  call 1 ConOut
+  pop
+  line 12
+  nil
+  ret
+end
+
+function INC static 1 1
+  locals nX
+  line 15
+  local 1
+  num 1
+  add
+  setlocal 1
+  line 16
+  nil
+  ret
+end

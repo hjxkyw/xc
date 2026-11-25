@@ -138,6 +138,40 @@ else()
       message("  FAIL  ${name}\n--- expected\n${expect}--- got\n${got}")
     endif()
   endforeach()
+
+  # A case with a NAME.host reads variables of the AppServer's -- here
+  # xc-vm's --: u_xbchost (interp/host.xtpl) has them, runs the interpreter,
+  # and writes what they hold after it; NAME.host is what it gives.
+  compile(${ROOT}/interp/host.xtpl xbchost)
+  file(GLOB hosts RELATIVE ${CASES} ${CASES}/*.host)
+  list(SORT hosts)
+  foreach(h ${hosts})
+    string(REGEX REPLACE "\\.host$" "" name ${h})
+    file(GLOB src ${CASES}/${name}.xtpl ${CASES}/${name}.prw)
+    compile(${src} ${name})
+    math(EXPR count "${count} + 1")
+    set(out ${WORK}/${name}.got)
+    execute_process(COMMAND ${VM} --run=U_XBCHOST ${WORK}/xtpl_runtime.xbc ${WORK}/xbc.xbc ${WORK}/xbchost.xbc
+                            -- --out=${out} ${WORK}/xtpl_runtime.xbc ${WORK}/${name}.xbc
+                    WORKING_DIRECTORY ${CASES}
+                    OUTPUT_VARIABLE said
+                    ERROR_VARIABLE err
+                    RESULT_VARIABLE code)
+    set(got "")
+    if(EXISTS ${out})
+      file(READ ${out} got)
+    endif()
+    if(NOT code EQUAL 0 AND NOT code EQUAL 1)
+      set(got "${got}--- xc-vm, running u_xbchost: exit ${code}\n${said}${err}")
+    endif()
+    string(REPLACE "\r\n" "\n" got "${got}")
+    file(READ ${CASES}/${h} expect)
+    string(REPLACE "\r\n" "\n" expect "${expect}")
+    if(NOT got STREQUAL expect)
+      list(APPEND failed ${name})
+      message("  FAIL  ${name}\n--- expected\n${expect}--- got\n${got}")
+    endif()
+  endforeach()
 endif()
 
 foreach(test ${selftests})

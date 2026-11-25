@@ -1,0 +1,7 @@
+exit 0
+--- output
+the AppServer's
+7
+9
+--- errors
+after: the AppServer's! 9

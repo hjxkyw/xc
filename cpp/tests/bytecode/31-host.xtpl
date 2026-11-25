@@ -1,0 +1,16 @@
+// Run from u_xbchost() (interp/host.xtpl), which has a public and a private
+// of its own: a name the program has no variable for is the AppServer's --
+// on xc-vm, xc-vm's -- read, assigned, passed by reference, through a macro
+// of its name too; u_xbchost() sees, after the run, what it was given.
+// 31-host.host is what that gives: xc-vm alone has no such variables.
+User Function Main()
+  ConOut(M->cXbcPub, M->nXbcPriv)
+  M->nXbcPriv := 8
+  Inc(@M->nXbcPriv)
+  M->cXbcPub += "!"
+  ConOut(&("nXbcPriv"))
+Return Nil
+
+Static Function Inc(nX)
+  nX++
+Return Nil
